@@ -1,4 +1,11 @@
 {
     "python.defaultInterpreterPath": "${workspaceFolder}/fyp-venv/bin/python",
-    "python.terminal.activateEnvironment": true
+    "python.terminal.activateEnvironment": true,
+    "terminal.integrated.profiles.linux": {
+        "bash": {
+            "path": "/bin/bash"
+        }
+    },
+    "terminal.integrated.defaultProfile.linux": "bash",
+    "terminal.integrated.shellArgs.linux": ["-c", "source ~/Documents/conf-comparison-tool/fyp-venv/bin/activate; exec bash"]
 }
