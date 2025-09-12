@@ -13,13 +13,20 @@ cd conf-comparison-tool
 ### 2. Create Virtual Environment
 
 On Mac (auto change virtual env) and Ubuntu Desktop (configure on ~/.bashrc manually using `direnv`)
-`python3 -m venv fyp-venv`
-`source fyp-venv/bin/activate`
+
+```bash
+python3 -m venv fyp-venv
+source fyp-venv/bin/activate
+```
 
 ### 3. Install Dependencies
 
-`pip install -r requirements.txt`
+```bash
+pip install -r requirements.txt
+```
 
 ### 4. Verify List
 
-`pip list`
+```bash
+pip list
+```
