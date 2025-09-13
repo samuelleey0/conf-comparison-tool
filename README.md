@@ -57,7 +57,7 @@ set_prompt() {
 
 PROMPT_COMMAND=set_prompt
 ...
-eval "$(direnv hook bash)"
+eval "$(direnv hook bash)" || eval "($direnv hook zsh)"
 ```
 
 This does two things:
