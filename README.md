@@ -1,33 +1,123 @@
 # Automated Cisco Marking System
 
-This project is part of the Final Year Project (FYP) to develop a **network configuration comparison and marking tool**.  
+This project is part of the Final Year Project (FYP) to develop a **network configuration comparison and marking tool**.
 It supports communication with Cisco switches/routers via **SSH or Serial (USB-C/USB-A - Serial)**, log extraction, and automated grading against customizable rubrics for teaching units **TNE10006** and **TNE20002**.
+
+---
+
+## SSH Setup for GitHub
+
+This project uses SSH authentication for Git operations. Follow these steps to configure SSH and clone the repository:
+
+### 1. Generate an SSH Key
+
+**Mac / Ubuntu (Linux):**
+
+```sh
+ssh-keygen -t ed25519 -C "your_email@example.com"
+```
+
+Press Enter to accept the default file location (`~/.ssh/id_ed25519`).
+Set a passphrase for extra security (optional).
+
+**Windows (PowerShell or Git Bash):**
+
+```sh
+ssh-keygen -t ed25519 -C "your_email@example.com"
+```
+
+Follow the same steps as above.
+
+### 2. Start the SSH Agent and Add the Key
+
+**Mac / Ubuntu:**
+
+```sh
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ed25519
+```
+
+**Windows (PowerShell):**
+
+```sh
+Start-Service ssh-agent
+ssh-add ~\.ssh\id_ed25519
+```
+
+### 3. Add SSH Key to GitHub
+
+Copy your public key:
+
+```sh
+cat ~/.ssh/id_ed25519.pub
+```
+
+(Windows: `type ~\.ssh\id_ed25519.pub`)
+
+-   Go to GitHub → Settings → SSH and GPG keys
+-   Click **New SSH key**, paste your public key, and save.
+
+### 4. Test SSH Connection
+
+```sh
+ssh -T git@github.com
+```
+
+Expected output:
+
+> Hi <username>! You've successfully authenticated, but GitHub does not provide shell access.
+
+### 5. Clone the Repository
+
+Use the SSH URL (not HTTPS):
+
+```sh
+git clone git@github.com:samuelleey0/conf-comparison-tool.git
+```
+
+### 6. Common Git Commands
+
+Check remote URL:
+
+```sh
+git remote -v
+```
+
+Switch from HTTPS to SSH if already cloned:
+
+```sh
+git remote set-url origin git@github.com:samuelleey0/conf-comparison-tool.git
+```
+
+---
+
+## Project Setup
 
 ### 1. Clone the Repository
 
-```bash
+```sh
 git clone git@github.com:samuelleey0/conf-comparison-tool.git
 cd conf-comparison-tool
 ```
 
 ### 2. Create Virtual Environment
 
-On Mac (auto change virtual env) and Ubuntu Desktop (configure on ~/.bashrc manually using `direnv`)
+On Mac (auto venv switching) and Ubuntu Desktop (manual or with `direnv`):
 
-```bash
+```sh
 python3 -m venv fyp-venv
 source fyp-venv/bin/activate
 ```
 
 ### 3. Install Dependencies
 
-```bash
+```sh
 pip install -r requirements.txt
 ```
 
-### 4. Verify List
+### 4. Verify Installed Packages
 
-```bash
+```sh
 pip list
 ```
 
@@ -35,32 +125,18 @@ pip list
 
 Install `direnv`:
 
-```bash
-sudo apt install direnv #Ubuntu
-brew install direnv #macOS
+```sh
+sudo apt install direnv   # Ubuntu
+brew install direnv       # macOS
 ```
 
-Then add the following to your `~/.bashrc` (Ubuntu) or `~/.zshrc` (macOS):
+Add the following to your `~/.bashrc` (Ubuntu) or `~/.zshrc` (macOS):
 
-```bash
-set_prompt() {
-    if [ -n "$VIRTUAL_ENV" ]; then
-        # Red color for (fyp-venv)
-        venv="\[\033[01;31m\]($(basename $VIRTUAL_ENV)) \[\033[00m\]"
-    else
-        venv=""
-    fi
-
-    # Always use color for the rest of the prompt
-    PS1="${venv}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "
-}
-
-PROMPT_COMMAND=set_prompt
-...
-eval "$(direnv hook bash)" || eval "($direnv hook zsh)"
+```sh
+eval "$(direnv hook bash)"   # for bash
+eval "$(direnv hook zsh)"    # for zsh
 ```
 
-This does two things:
+To show the venv name in your prompt, you can add a custom prompt function (optional).
 
--   Shows `(fyp-venv)` in red when your virtual environment is active.
--   Enables direnv to automatically activate/deactivate your venv when entering or leaving the project folder.
+---
