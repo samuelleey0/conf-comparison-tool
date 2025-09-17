@@ -4,7 +4,7 @@ from serial_utils import (
     enter_enable_mode,
     enter_config_mode,
     logout,
-    close_serial,
+    close_connection,
 )
 
 
@@ -33,7 +33,7 @@ def main():
     print(response)
 
     logout(ser)
-    close_serial(ser)
+    close_connection(ser)
 
 
 if __name__ == "__main__":
