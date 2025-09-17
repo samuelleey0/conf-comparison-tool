@@ -100,14 +100,18 @@ git clone git@github.com:samuelleey0/conf-comparison-tool.git
 cd conf-comparison-tool
 ```
 
-### 2. Create Virtual Environment
+### 2. Create Virtual Environment (per device/OS)
 
-On Mac (auto venv switching) and Ubuntu Desktop (manual or with `direnv`):
+Each team member should create their own virtual environment locally. The venv is not shared or committed to GitHub. For consistency, use the name `fyp-venv`:
 
 ```sh
 python3 -m venv fyp-venv
 source fyp-venv/bin/activate
 ```
+
+-   On Windows, activate with: `fyp-venv\Scripts\activate`
+
+> **Note:** The `fyp-venv/` folder is listed in `.gitignore` and will not be tracked by Git. Each device/OS must create its own venv.
 
 ### 3. Install Dependencies
 
