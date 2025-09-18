@@ -30,7 +30,7 @@ Follow the same steps as above.
 
 ### 2. Start the SSH Agent and Add the Key
 
-**Mac / Ubuntu:**
+**Mac / Ubuntu / Windows (Git Bash):**
 
 ```sh
 eval "$(ssh-agent -s)"
@@ -52,7 +52,7 @@ Copy your public key:
 cat ~/.ssh/id_ed25519.pub
 ```
 
-(Windows: `type ~\.ssh\id_ed25519.pub`)
+(Windows: `type Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub`)
 
 -   Go to GitHub → Settings → SSH and GPG keys
 -   Click **New SSH key**, paste your public key, and save.
@@ -124,23 +124,5 @@ pip install -r requirements.txt
 ```sh
 pip list
 ```
-
-### 5. Optional: Auto Switch Environment with `direnv`
-
-Install `direnv`:
-
-```sh
-sudo apt install direnv   # Ubuntu
-brew install direnv       # macOS
-```
-
-Add the following to your `~/.bashrc` (Ubuntu) or `~/.zshrc` (macOS):
-
-```sh
-eval "$(direnv hook bash)"   # for bash
-eval "$(direnv hook zsh)"    # for zsh
-```
-
-To show the venv name in your prompt, you can add a custom prompt function (optional).
 
 ---
