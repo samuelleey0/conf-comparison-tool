@@ -8,14 +8,41 @@ from serial_utils import (
 )
 
 
+def choose_serial_port():
+    print("Select your serial interface:")
+    print("1. USB-to-Serial (USB-A or USB-C)")
+    print("2. Built-in Serial Port (DB9/RS232)")
+    print("3. Custom (enter your own device path)")
+    choice = input("Enter choice (1-3): ").strip()
+
+    if choice == "1":
+        # Common USB-to-Serial device names
+        port = (
+            input("Enter device path (default: /dev/ttyUSB0): ").strip()
+            or "/dev/ttyUSB0"
+        )
+    elif choice == "2":
+        # Common direct serial port device names
+        port = (
+            input("Enter device path (default: /dev/ttyS0): ").strip() or "/dev/ttyS0"
+        )
+    elif choice == "3":
+        port = input("Enter your serial device path (e.g., /dev/ttyACM0): ").strip()
+    else:
+        print("Invalid choice. Using default: /dev/ttyUSB0")
+        port = "/dev/ttyUSB0"
+    return port
+
+
 def main():
     # (Linux: /dev/ttyUSB0, Mac: /dev/cu.usbserial, Windows: COM3)
-    port = "/dev/ttyUSB0"
+    port = choose_serial_port()
     baudrate = 9600
 
     # Connect to the serial port
     ser = connect_to_serial(port, baudrate)
     if not ser:
+        print("[-] Failed to connect to the serial port.")
         return
 
     # Enter enable mode

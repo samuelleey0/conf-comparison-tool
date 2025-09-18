@@ -17,48 +17,68 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
             bytesize=8,
             timeout=timeout,
         )
-        if ser.is_open:
-            print(f"[+] Communication established to {ser.name}")
-            return ser
+        output = wait_for_prompt(ser, [">", "#"], timeout=timeout)
+        print(f"[+] Connected. Device prompt: {output.strip().splitlines()[-1]}")
+        return ser
     except serial.SerialException as e:
         print(f"[!] Error communicating...: {e}")
         return None
 
 
-def send_command(ser, command, delay=1):
+def wait_for_prompt(ser, expected_prompts, timeout=10):
+    """
+    Wait for specific prompts from the Cisco device.
+    """
+    buffer = b""
+    start_time = time.time()
+    ser.timeout = 0.5  # Set a short timeout for read operations
+    while time.time() - start_time < timeout:
+        data = ser.read(1024)  # Read up to 1024 bytes
+        if data:
+            buffer += data
+            for prompt in expected_prompts:
+                if prompt in expected_prompts:
+                    if prompt.encode() in buffer:
+                        return buffer.decode(errors="ignore")
+        else:
+            time.sleep(0.1)  # Avoid busy waiting
+    raise TimeoutError(
+        f"Did not receive expected prompt(s) {expected_prompts} in {timeout} seconds."
+    )
+
+
+def send_command(ser, command, expected_prompt=">", timeout=5, delay=0.2):
     """
     Send a command to the Cisco device and read response.
     """
     ser.write((command + "\r\n").encode())
+    ser.flush()
     time.sleep(delay)
-    return ser.read(ser.inWaiting()).decode(errors="ignore")
+    return wait_for_prompt(ser, [expected_prompt], timeout=timeout)
 
 
-def enter_enable_mode(ser, enable_password=None, delay=1):
+def enter_enable_mode(ser, enable_password=None, timeout=5):
     """
-    Enter privileged EXEC mode.
+    Enter privileged EXEC mode (> to #).
     """
-    output = send_command(ser, "enable", delay)
-    if "Password" in output and enable_password:
-        ser.write((enable_password + "\r\n").encode())
-        time.sleep(delay)
-        output = ser.read(ser.inWaiting()).decode(errors="ignore")
+    output = send_command(ser, "enable", expected_prompt="#", timeout=timeout)
     return output
 
 
-def enter_config_mode(ser, delay=1):
+def enter_config_mode(ser, timeout=5):
     """
-    Enter global configuration mode.
+    Enter global configuration mode (# to (config)#).
     """
-    return send_command(ser, "configure terminal", delay)
+    return send_command(
+        ser, "configure terminal", expected_prompt="(config)#", timeout=timeout
+    )
 
 
-def logout(ser, delay=1):
+def logout(ser, timeout=5):
     """
-    Exit session gracefully.
+    Log out from the device.
     """
-    send_command(ser, "exit", delay)
-    print("[+] Logged out from device")
+    return send_command(ser, "exit", expected_prompt=">", timeout=timeout)
 
 
 def close_connection(ser):
