@@ -1,8 +1,8 @@
 from serial_utils import (
     connect_to_serial,
+    disable_paging,
     send_command,
     enter_enable_mode,
-    enter_config_mode,
     logout,
     close_connection,
 )
@@ -37,30 +37,31 @@ def choose_serial_port():
 def main():
     # (Linux: /dev/ttyUSB0, Mac: /dev/cu.usbserial, Windows: COM3)
     port = choose_serial_port()
-    baudrate = 9600
 
     # Connect to the serial port
-    ser = connect_to_serial(port, baudrate)
+    ser = connect_to_serial(port)
     if not ser:
         print("[-] Failed to connect to the serial port.")
         return
 
-    # Enter enable mode
-    print("[*] Entering enable mode...")
-    output = enter_enable_mode(ser)
-    print(output)
+    try:
+        # Enter enable mode
+        print("[*] Entering enable mode...")
+        output = enter_enable_mode(ser)
+        print(output)
 
-    # Enter config mode
-    print("[*] Entering config mode...")
-    output = enter_config_mode(ser)
-    print(output)
+        print("[*] Disabling paging...")
+        disable_paging(ser)
 
-    # Example command
-    response = send_command(ser, "show run")
-    print(response)
+        print("[*] Sending 'show running-config'...")
+        output = send_command(ser, "show running-config", prompt=b"#", timeout=60)
+        print("Router output:\n", output)
 
-    logout(ser)
-    close_connection(ser)
+        logout(ser)
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        close_connection(ser)
 
 
 if __name__ == "__main__":
