@@ -10,12 +10,12 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
     """
     try:
         ser = serial.Serial(
-            port=port,
-            baudrate=baudrate,
-            parity="N",
-            stopbits=1,
-            bytesize=8,
-            timeout=timeout,
+            port="/dev/ttyUSB0",  # your console cable device
+            baudrate=9600,
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            timeout=1,
         )
         output = wait_for_prompt(ser, [">", "#"], timeout=timeout)
         print(f"[+] Connected. Device prompt: {output.strip().splitlines()[-1]}")
