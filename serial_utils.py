@@ -1,5 +1,6 @@
 import serial
 import time
+import re
 
 READ_TIMEOUT = 8  # seconds
 
@@ -10,13 +11,16 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
     """
     try:
         ser = serial.Serial(
-            port="/dev/ttyUSB0",  # your console cable device
+            port=port,  # Console cable device (e.g., /dev/ttyUSB0)
             baudrate=9600,
             bytesize=serial.EIGHTBITS,
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
             timeout=1,
         )
+        # Wake up CLI
+        ser.write(b"\n")
+        time.sleep(3)  # Give router some time after opening
         output = wait_for_prompt(ser, [">", "#"], timeout=timeout)
         print(f"[+] Connected. Device prompt: {output.strip().splitlines()[-1]}")
         return ser
@@ -47,31 +51,43 @@ def wait_for_prompt(ser, expected_prompts, timeout=10):
     )
 
 
-def send_command(ser, command, expected_prompt=">", timeout=5, delay=0.2):
+def send_command(ser, command, expected_prompt=b"#", timeout=20):
     """
     Send a command to the Cisco device and read response.
     """
-    ser.write((command + "\r\n").encode())
+    ser.write(command.encode("utf-8") + b"\n")
     ser.flush()
-    time.sleep(delay)
-    return wait_for_prompt(ser, [expected_prompt], timeout=timeout)
+    buffer = b""
+    start_time = time.time()
+
+    while time.time() - start_time < timeout:
+        data = ser.read(1024)
+        if not data:
+            continue
+        buffer += data
+        if expected_prompt.encode() in buffer:
+            break
+
+    output = buffer.decode("utf-8", errors="ignore")
+    # Clean junk (--More--, ANSI codes, etc.)
+    output = re.sub(r"--More--", "", output)
+    output = re.sub(r"\x1b\[.*?[@-~]", "", output)
+    return output.strip()
 
 
-def enter_enable_mode(ser, enable_password=None, timeout=5):
+def disable_paging(ser, prompt=b"#", timeout=5):
+    """
+    Disable paging on Cisco device to get full output.
+    """
+    send_command(ser, "terminal length 0", prompt=prompt, timeout=timeout)
+
+
+def enter_enable_mode(ser, timeout=5):
     """
     Enter privileged EXEC mode (> to #).
     """
     output = send_command(ser, "enable", expected_prompt="#", timeout=timeout)
     return output
-
-
-def enter_config_mode(ser, timeout=5):
-    """
-    Enter global configuration mode (# to (config)#).
-    """
-    return send_command(
-        ser, "configure terminal", expected_prompt="(config)#", timeout=timeout
-    )
 
 
 def logout(ser, timeout=5):
