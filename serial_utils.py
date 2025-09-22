@@ -79,7 +79,7 @@ def disable_paging(ser, prompt=b"#", timeout=5):
     """
     Disable paging on Cisco device to get full output.
     """
-    send_command(ser, "terminal length 0", prompt=prompt, timeout=timeout)
+    send_command(ser, "terminal length 0", expected_prompt=prompt, timeout=timeout)
 
 
 def enter_enable_mode(ser, timeout=5):
