@@ -12,17 +12,15 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
     print(f"[DEBUG] Attempting to open serial port: {port} at {baudrate} baud")
     try:
         ser = serial.Serial(
-            port=port,  # Console cable device (e.g., /dev/ttyUSB0)
+            port="/dev/ttyUSB0",  # Console cable device (e.g., /dev/ttyUSB0)
             baudrate=9600,
             bytesize=serial.EIGHTBITS,
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
             timeout=1,
-            rtscts=True,
+            rtscts=False,
             xonxoff=False
         )
-        ser.setDTR(True)  # Ensure DTR is low
-        ser.setRTS(True)  # Ensure RTS is low
         print("[DEBUG] Serial port opened successfully.")
         # Wake up CLI
         ser.write(b"\n")
