@@ -92,7 +92,7 @@ def send_command(ser, command, expected_prompt=b"#", timeout=20):
     return output.strip()
 
 
-def disable_paging(ser, prompt=b"#", timeout=5):
+def disable_paging(ser, prompt="#", timeout=5):
     """
     Disable paging on Cisco device to get full output.
     """
