@@ -18,7 +18,11 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
             timeout=1,
+            rtscts=True,
+            xonxoff=False
         )
+        ser.setDTR(True)  # Ensure DTR is low
+        ser.setRTS(True)  # Ensure RTS is low
         print("[DEBUG] Serial port opened successfully.")
         # Wake up CLI
         ser.write(b"\n")
