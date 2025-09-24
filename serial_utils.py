@@ -19,10 +19,9 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
             timeout=1,
             rtscts=False,
             xonxoff=False,
-            dsrdtr=False
         )
-        ser.dtr = False
-        ser.rts = False
+        ser.dtr = True
+        ser.rts = True
         print("[DEBUG] Serial port opened successfully.")
         # Wake up CLI
         for _ in range(5):
@@ -68,6 +67,7 @@ def wait_for_prompt(ser, expected_prompts, timeout=15):
     prompt_pattern = re.compile(r"^.*[>#]\s*$", re.MULTILINE)
 
     while time.time() - start_time < timeout:
+        print(f"[DEBUG] ser.in_waiting={ser.in_waiting}")
         data = ser.read(1024)  # Read up to 1024 bytes
         print(f"[DEBUG] ser.read(1024) returned {len(data)} bytes")
         if data:
