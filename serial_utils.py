@@ -25,15 +25,14 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
         for _ in range(3):
             ser.write(b"\n")
             print("[DEBUG] Sent wake-up newline to device.")
-            ser.flush()
             time.sleep(1)
         # ser.timeout = 2
-        # response = ser.read(100)
-        # print(f"[DEBUG] Output from device after wake-up:{response.decode(errors='ignore')}")
-        # if not response:
-        #     print("[!] No response from device. Check connections and settings.")
-        #     close_connection(ser)
-        #     return None
+        response = ser.read(1024)
+        print(f"[DEBUG] Output from device after wake-up:{response.decode(errors='ignore')}")
+        if not response:
+            print("[!] No response from device. Check connections and settings.")
+            close_connection(ser)
+            return None
         time.sleep(3)  # Give router some time after opening
         print("[DEBUG] Device is up. Waiting for prompt...")
         print(f"[DEBUG] Bytes waiting in buffer before wait_for_prompt: {ser.in_waiting}")
