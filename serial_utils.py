@@ -12,7 +12,7 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
     print(f"[DEBUG] Attempting to open serial port: {port} at {baudrate} baud")
     try:
         ser = serial.Serial(
-            port="/dev/ttyUSB0",  # Console cable device (e.g., /dev/ttyUSB0)
+            port=port,  # Console cable device (e.g., /dev/ttyUSB0)
             baudrate=9600,
             bytesize=serial.EIGHTBITS,
             parity=serial.PARITY_NONE,
@@ -26,8 +26,7 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
         ser.write(b"\n")
         print("[DEBUG] Sent wake-up newline to device.")
         time.sleep(3)  # Give router some time after opening
-        ser.reset_input_buffer()
-        print("[DEBUG] Input buffer reset. Waiting for prompt...")
+        print("[DEBUG] Waiting for prompt...")
         output = wait_for_prompt(ser, [">", "#"], timeout=timeout)
         print(f"[+] Connected. Device prompt: {output.strip().splitlines()[-1]}")
         return ser
@@ -42,9 +41,11 @@ def wait_for_prompt(ser, expected_prompts, timeout=15):
     """
     buffer = b""
     start_time = time.time()
-    ser.timeout = 0.1  # Set a short timeout for read operations
+    ser.timeout = 1  # Set a short timeout for read operations
     print(f"[DEBUG] Serial settings: port={ser.port}, baudrate={ser.baudrate}, timeout={ser.timeout}")
     print(f"[DEBUG] Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
+
+    prompt_pattern = re.compile(r"^.*[>#]\s*$", re.MULTILINE)
 
     while time.time() - start_time < timeout:
         data = ser.read(1024)  # Read up to 1024 bytes
