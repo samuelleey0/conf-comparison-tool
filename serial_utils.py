@@ -18,14 +18,15 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
             stopbits=serial.STOPBITS_ONE,
             timeout=1,
             rtscts=False,
-            xonxoff=False
+            xonxoff=False,
+            dsrdtr=True
         )
         print("[DEBUG] Serial port opened successfully.")
         # Wake up CLI
-        for _ in range(3):
-            ser.write(b"\n")
+        for _ in range(5):
+            ser.write(b"\r\n")
             print("[DEBUG] Sent wake-up newline to device.")
-            time.sleep(1)
+            time.sleep(1.5)
         # ser.timeout = 2
         # response = ser.read(1024)
         # print(f"[DEBUG] Output from device after wake-up:{response.decode(errors='ignore')}")
@@ -33,9 +34,19 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
         #     print("[!] No response from device. Check connections and settings.")
         #     close_connection(ser)
         #     return None
-        time.sleep(2)  # Give router some time after opening
+        time.sleep(5)  # Give router some time after opening
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
         print("[DEBUG] Device is up. Waiting for prompt...")
         print(f"[DEBUG] Bytes waiting in buffer before wait_for_prompt: {ser.in_waiting}")
+        print("[DEBUG] Testing raw read for 5 seconds...")
+        start = time.time()
+        while time.time() - start < 5:
+            data = ser.read(1024)
+            if data:
+                print("[DEBUG][RAW]", data)
+            else:
+                time.sleep(0.1)
         output = wait_for_prompt(ser, [">", "#"], timeout=timeout)
         print(f"[+] Connected. Device prompt: {output.strip().splitlines()[-1]}")
         return ser
