@@ -19,10 +19,10 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
             timeout=1,
             rtscts=False,
             xonxoff=False,
-            dsrdtr=True
+            dsrdtr=False
         )
-        ser.dtr = True
-        ser.rts = True
+        ser.dtr = False
+        ser.rts = False
         print("[DEBUG] Serial port opened successfully.")
         # Wake up CLI
         for _ in range(5):
@@ -42,7 +42,7 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
         print("[DEBUG] Testing raw read for 5 seconds...")
         start = time.time()
         while time.time() - start < 5:
-            data = ser.read(1024)
+            data = ser.read_all()
             if data:
                 print("[DEBUG][RAW]", data)
             else:
