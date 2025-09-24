@@ -1,9 +1,19 @@
 import serial
 import time
 import re
+import threading
 
 READ_TIMEOUT = 8  # seconds
 
+
+def keep_device_awake(ser, interval=30):
+    def keepalive():
+        while ser.is_open:
+            ser.write(b"\n")
+            ser.flush()
+            time.sleep(interval)
+    t = threading.Thread(target=keepalive, daemon=True)
+    t.start()
 
 def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
     """
