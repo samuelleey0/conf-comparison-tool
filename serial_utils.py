@@ -21,10 +21,12 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
             xonxoff=False,
             dsrdtr=True
         )
+        ser.dtr = True
+        ser.rts = True
         print("[DEBUG] Serial port opened successfully.")
         # Wake up CLI
         for _ in range(5):
-            ser.write(b"\r\n")
+            ser.write(b"\r")
             print("[DEBUG] Sent wake-up newline to device.")
             time.sleep(1.5)
         # ser.timeout = 2
@@ -35,8 +37,6 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
         #     close_connection(ser)
         #     return None
         time.sleep(5)  # Give router some time after opening
-        ser.reset_input_buffer()
-        ser.reset_output_buffer()
         print("[DEBUG] Device is up. Waiting for prompt...")
         print(f"[DEBUG] Bytes waiting in buffer before wait_for_prompt: {ser.in_waiting}")
         print("[DEBUG] Testing raw read for 5 seconds...")
