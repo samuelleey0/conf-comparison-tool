@@ -27,13 +27,13 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
             print("[DEBUG] Sent wake-up newline to device.")
             time.sleep(1)
         # ser.timeout = 2
-        response = ser.read(1024)
-        print(f"[DEBUG] Output from device after wake-up:{response.decode(errors='ignore')}")
-        if not response:
-            print("[!] No response from device. Check connections and settings.")
-            close_connection(ser)
-            return None
-        time.sleep(3)  # Give router some time after opening
+        # response = ser.read(1024)
+        # print(f"[DEBUG] Output from device after wake-up:{response.decode(errors='ignore')}")
+        # if not response:
+        #     print("[!] No response from device. Check connections and settings.")
+        #     close_connection(ser)
+        #     return None
+        time.sleep(2)  # Give router some time after opening
         print("[DEBUG] Device is up. Waiting for prompt...")
         print(f"[DEBUG] Bytes waiting in buffer before wait_for_prompt: {ser.in_waiting}")
         output = wait_for_prompt(ser, [">", "#"], timeout=timeout)
@@ -81,7 +81,10 @@ def send_command(ser, command, expected_prompt="#", timeout=20):
     """
     Send a command to the Cisco device and read response.
     """
-    ser.write(command.encode("utf-8") + b"\n")
+    if isinstance(command, str):
+        ser.write(command.encode("utf-8") + b"\n")
+    else:
+        ser.write(command + b"\n")
     ser.flush()
     buffer = b""
     start_time = time.time()
