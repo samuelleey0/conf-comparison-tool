@@ -36,6 +36,7 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
         #     return None
         time.sleep(3)  # Give router some time after opening
         print("[DEBUG] Device is up. Waiting for prompt...")
+        print(f"[DEBUG] Bytes waiting in buffer before wait_for_prompt: {ser.in_waiting}")
         output = wait_for_prompt(ser, [">", "#"], timeout=timeout)
         print(f"[+] Connected. Device prompt: {output.strip().splitlines()[-1]}")
         return ser
