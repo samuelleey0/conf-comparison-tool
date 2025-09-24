@@ -2,7 +2,7 @@ import serial
 import time
 import re
 
-READ_TIMEOUT = 8  # seconds
+READ_TIMEOUT = 20  # seconds
 
 
 def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
