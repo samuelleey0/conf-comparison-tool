@@ -58,6 +58,9 @@ def main():
     if conn_type == "1":
         port = choose_serial_port()
         ser = connect_to_serial(port)
+        if ser is None:
+            print("[+] Failed to connect to device. Exiting.")
+            exit(1)
         try:
             print("[*] Entering enable mode...")
             output = enter_enable_mode(ser)
