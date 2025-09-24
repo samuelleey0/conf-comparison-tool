@@ -63,19 +63,20 @@ def wait_for_prompt(ser, expected_prompts, timeout=15):
     prompt_pattern = re.compile(r"^.*[>#]\s*$", re.MULTILINE)
 
     while time.time() - start_time < timeout:
-        print(f"[DEBUG] ser.in_waiting={ser.in_waiting}")
-        data = ser.read(1024)  # Read up to 1024 bytes
-        print(f"[DEBUG] ser.read(1024) returned {len(data)} bytes")
-        if data:
-            buffer += data
-            decoded = buffer.decode(errors='ignore')
-            # Debugging: see what's coming in
-            print(f"[DEBUG] Received data: {data.decode(errors='ignore')}")
-            for prompt in expected_prompts:
-                if prompt in decoded:
-                    print(f"[DEBUG] Found prompt: {prompt}")
-                    print(f"[DEBUG] Full buffer:\n{decoded}")
-                    return decoded
+        if ser.in_waiting > 0:
+            data = ser.read(ser.in_waiting)
+            print(f"[DEBUG] ser.in_waiting={ser.in_waiting}")
+            print(f"[DEBUG] ser.read(1024) returned {len(data)} bytes")
+            if data:
+                buffer += data
+                decoded = buffer.decode(errors='ignore')
+                # Debugging: see what's coming in
+                print(f"[DEBUG] Received data: {data.decode(errors='ignore')}")
+                for prompt in expected_prompts:
+                    if prompt in decoded:
+                        print(f"[DEBUG] Found prompt: {prompt}")
+                        print(f"[DEBUG] Full buffer:\n{decoded}")
+                        return decoded
         else:
             time.sleep(0.1)  # Avoid busy waiting
     print(f"[DEBUG] Final buffer before timeout:\n{buffer.decode(errors='ignore')}")
