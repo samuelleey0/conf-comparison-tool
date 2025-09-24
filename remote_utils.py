@@ -2,20 +2,24 @@ import paramiko
 import time
 
 
-def connect_ssh(host, username, password, port=22, timeout=5):
+def connect_ssh(host, username, password, port=22, timeout=10):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
+        print(f"Connecting to {host}:{port} as {username}...")
         client.connect(
-            host, port=port, username=username, password=password, timeout=timeout
+            hostname=host,
+            port=port,
+            username=username,
+            password=password,
+            timeout=timeout,
+            allow_agent=False,
+            look_for_keys=False
         )
     except Exception as e:
-        print(f"[!] Error connecting to {host}: {e}")
+        print(f"[!] SSH connection failed: {e}")
         return None, None
     shell = client.invoke_shell()
-    time.sleep(3)  # Give some time for the shell to be ready
-    output = shell.recv(65535).decode("utf-8", errors="ignore")
-    print(f"[+] Connected to {host}. Device prompt: {output.strip().splitlines()[-1]}")
     return client, shell
 
 
