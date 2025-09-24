@@ -111,7 +111,9 @@ def logout(ser, timeout=5):
     """
     Log out from the device.
     """
-    return send_command(ser, "exit", expected_prompt=">", timeout=timeout)
+    output = send_command(ser, "exit", expected_prompt=">", timeout=timeout)
+    print(output)
+    return output
 
 
 def close_connection(ser):
