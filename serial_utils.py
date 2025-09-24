@@ -2,13 +2,14 @@ import serial
 import time
 import re
 
-READ_TIMEOUT = 20  # seconds
+READ_TIMEOUT = 8  # seconds
 
 
 def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
     """
     Establish a serial connection to Cisco device.
     """
+    print(f"[DEBUG] Attempting to open serial port: {port} at {baudrate} baud")
     try:
         ser = serial.Serial(
             port=port,  # Console cable device (e.g., /dev/ttyUSB0)
@@ -18,10 +19,13 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
             stopbits=serial.STOPBITS_ONE,
             timeout=1,
         )
+        print("[DEBUG] Serial port opened successfully.")
         # Wake up CLI
         ser.write(b"\n")
+        print("[DEBUG] Sent wake-up newline to device.")
         time.sleep(3)  # Give router some time after opening
         ser.reset_input_buffer()
+        print("[DEBUG] Input buffer reset. Waiting for prompt...")
         output = wait_for_prompt(ser, [">", "#"], timeout=timeout)
         print(f"[+] Connected. Device prompt: {output.strip().splitlines()[-1]}")
         return ser
@@ -37,18 +41,22 @@ def wait_for_prompt(ser, expected_prompts, timeout=15):
     buffer = b""
     start_time = time.time()
     ser.timeout = 0.1  # Set a short timeout for read operations
+    print(f"[DEBUG] Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
 
     while time.time() - start_time < timeout:
         data = ser.read(1024)  # Read up to 1024 bytes
         if data:
             buffer += data
             # Debugging: see what's coming in
-            print("DEBUG:", buffer.decode(errors="ignore"))
+            print(f"[DEBUG] Received data: {data.decode(errors='ignore')}")
             for prompt in expected_prompts:
                 if prompt.encode() in buffer:
+                    print(f"[DEBUG] Found prompt: {prompt}")
+                    print(f"[DEBUG] Full buffer:\n{buffer.decode(errors='ignore')}")
                     return buffer.decode(errors="ignore")
         else:
             time.sleep(0.05)  # Avoid busy waiting
+    print(f"[DEBUG] Final buffer before timeout:\n{buffer.decode(errors='ignore')}")
     raise TimeoutError(
         f"Did not receive expected prompt(s) {expected_prompts} in {timeout} seconds."
     )
