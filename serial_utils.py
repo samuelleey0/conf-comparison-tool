@@ -21,6 +21,7 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
         # Wake up CLI
         ser.write(b"\n")
         time.sleep(3)  # Give router some time after opening
+        ser.reset_input_buffer()
         output = wait_for_prompt(ser, [">", "#"], timeout=timeout)
         print(f"[+] Connected. Device prompt: {output.strip().splitlines()[-1]}")
         return ser
@@ -29,21 +30,23 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
         return None
 
 
-def wait_for_prompt(ser, expected_prompts, timeout=10):
+def wait_for_prompt(ser, expected_prompts, timeout=15):
     """
     Wait for specific prompts from the Cisco device.
     """
     buffer = b""
     start_time = time.time()
     ser.timeout = 0.1  # Set a short timeout for read operations
+
     while time.time() - start_time < timeout:
         data = ser.read(1024)  # Read up to 1024 bytes
         if data:
             buffer += data
+            # Debugging: see what's coming in
+            print("DEBUG:", buffer.decode(errors="ignore"))
             for prompt in expected_prompts:
-                if prompt in expected_prompts:
-                    if prompt.encode() in buffer:
-                        return buffer.decode(errors="ignore")
+                if prompt.encode() in buffer:
+                    return buffer.decode(errors="ignore")
         else:
             time.sleep(0.05)  # Avoid busy waiting
     raise TimeoutError(
