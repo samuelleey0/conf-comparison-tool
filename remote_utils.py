@@ -5,9 +5,13 @@ import time
 def connect_ssh(host, username, password, port=22, timeout=5):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(
-        host, port=port, username=username, password=password, timeout=timeout
-    )
+    try:
+        client.connect(
+            host, port=port, username=username, password=password, timeout=timeout
+        )
+    except Exception as e:
+        print(f"[!] Error connecting to {host}: {e}")
+        return None, None
     shell = client.invoke_shell()
     time.sleep(3)  # Give some time for the shell to be ready
     output = shell.recv(65535).decode("utf-8", errors="ignore")
