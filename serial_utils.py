@@ -67,7 +67,7 @@ def wait_for_prompt(ser, expected_prompts, timeout=15):
     )
 
 
-def send_command(ser, command, expected_prompt=b"#", timeout=20):
+def send_command(ser, command, expected_prompt="#", timeout=20):
     """
     Send a command to the Cisco device and read response.
     """
