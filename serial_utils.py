@@ -2,7 +2,10 @@ import serial
 import time
 import re
 
+from netmiko.netmiko_globals import MAX_BUFFER
+
 READ_TIMEOUT = 8  # seconds
+MAX_BUFFER = 4096  # 4KB
 
 def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
     """
@@ -19,30 +22,7 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
             timeout=1,
         )
         print("[DEBUG] Serial port opened successfully.")
-        # Wake up CLI
-        for _ in range(3):
-            ser.write(b"\r")
-            print("[DEBUG] Sent wake-up newline to device.")
-            time.sleep(1.5)
-        # ser.timeout = 2
-        # response = ser.read(1024)
-        # print(f"[DEBUG] Output from device after wake-up:{response.decode(errors='ignore')}")
-        # if not response:
-        #     print("[!] No response from device. Check connections and settings.")
-        #     close_connection(ser)
-        #     return None
-        time.sleep(3)  # Give router some time after opening
-        print("[DEBUG] Device is up. Waiting for prompt...")
-        print(f"[DEBUG] Bytes waiting in buffer before wait_for_prompt: {ser.in_waiting}")
-        print("[DEBUG] Testing raw read for 5 seconds...")
-        start = time.time()
-        while time.time() - start < 5:
-            data = ser.read(1024)
-            if data:
-                print("[DEBUG][RAW]", data)
-            else:
-                time.sleep(0.1)
-        output = wait_for_prompt(ser, [">", "#"], timeout=timeout)
+        output = wait_for_prompt(ser, [">", "#"], timeout=timeout, wake=True)
         print(f"[+] Connected. Device prompt: {output.strip().splitlines()[-1]}")
         return ser
     except serial.SerialException as e:
@@ -50,32 +30,48 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
         return None
 
 
-def wait_for_prompt(ser, expected_prompts, timeout=15):
+def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
     """
     Wait for specific prompts from the Cisco device.
+    Optionally send a wake-up carriage return first.
     """
     buffer = b""
     start_time = time.time()
     ser.timeout = 1  # Set a short timeout for read operations
     print(f"[DEBUG] Serial settings: port={ser.port}, baudrate={ser.baudrate}, timeout={ser.timeout}")
+
+    if wake and not buffer:
+        ser.reset_input_buffer() # clear junk buffer
+        time.sleep(2) # wait for device to stabilize
+        ser.write(b"\r") # wake terminal
+        ser.flush()
+        print("[DEBUG] Sent wake-up carriage return to device.")
+
     print(f"[DEBUG] Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
 
-    prompt_pattern = re.compile(r"^.*[>#]\s*$", re.MULTILINE)
+    # Stop at here
 
     while time.time() - start_time < timeout:
         if ser.in_waiting > 0:
-            data = ser.read(ser.in_waiting)
             print(f"[DEBUG] ser.in_waiting={ser.in_waiting}")
+            data = ser.read(1024)
             print(f"[DEBUG] ser.read(1024) returned {len(data)} bytes")
             if data:
                 buffer += data
+                # Check buffer size
+                print(f"[DEBUG] Current buffer size: {len(buffer)} bytes")
+
+                if len(buffer) > MAX_BUFFER:
+                    buffer = buffer[-MAX_BUFFER:] # keep only last MAX_BUFFER bytes
+                    print(f"[DEBUG] Buffer exceeded {MAX_BUFFER} bytes, truncating.")
+
                 decoded = buffer.decode(errors='ignore')
                 # Debugging: see what's coming in
                 print(f"[DEBUG] Received data: {data.decode(errors='ignore')}")
+
                 for prompt in expected_prompts:
-                    if prompt in decoded:
+                    if re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE):
                         print(f"[DEBUG] Found prompt: {prompt}")
-                        print(f"[DEBUG] Full buffer:\n{decoded}")
                         return decoded
         else:
             time.sleep(0.1)  # Avoid busy waiting
