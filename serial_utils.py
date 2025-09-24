@@ -52,15 +52,16 @@ def wait_for_prompt(ser, expected_prompts, timeout=15):
         print(f"[DEBUG] ser.read(1024) returned {len(data)} bytes")
         if data:
             buffer += data
+            decoded = buffer.decode(errors='ignore')
             # Debugging: see what's coming in
             print(f"[DEBUG] Received data: {data.decode(errors='ignore')}")
             for prompt in expected_prompts:
-                if prompt.encode() in buffer:
+                if prompt in decoded:
                     print(f"[DEBUG] Found prompt: {prompt}")
-                    print(f"[DEBUG] Full buffer:\n{buffer.decode(errors='ignore')}")
-                    return buffer.decode(errors="ignore")
+                    print(f"[DEBUG] Full buffer:\n{decoded}")
+                    return decoded
         else:
-            time.sleep(0.05)  # Avoid busy waiting
+            time.sleep(0.1)  # Avoid busy waiting
     print(f"[DEBUG] Final buffer before timeout:\n{buffer.decode(errors='ignore')}")
     raise TimeoutError(
         f"Did not receive expected prompt(s) {expected_prompts} in {timeout} seconds."
