@@ -29,6 +29,7 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
             time.sleep(1)
         ser.timeout = 2
         response = ser.read(100)
+        print(f"[DEBUG] Output from device after wake-up:\n{response.decode(errors='ignore')}")
         if not response:
             print("[!] No response from device. Check connections and settings.")
             close_connection()
