@@ -1,5 +1,6 @@
 from serial_utils import (
     connect_to_serial,
+    keep_device_awake,
     disable_paging,
     send_command,
     enter_enable_mode,
@@ -60,6 +61,7 @@ def main():
         if not ser:
             print("[-] Failed to connect to the serial port.")
             return
+        keep_device_awake(ser)
         try:
             print("[*] Entering enable mode...")
             output = enter_enable_mode(ser)
