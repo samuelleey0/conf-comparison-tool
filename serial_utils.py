@@ -35,7 +35,7 @@ def wait_for_prompt(ser, expected_prompts, timeout=10):
     """
     buffer = b""
     start_time = time.time()
-    ser.timeout = 0.5  # Set a short timeout for read operations
+    ser.timeout = 0.1  # Set a short timeout for read operations
     while time.time() - start_time < timeout:
         data = ser.read(1024)  # Read up to 1024 bytes
         if data:
@@ -45,7 +45,7 @@ def wait_for_prompt(ser, expected_prompts, timeout=10):
                     if prompt.encode() in buffer:
                         return buffer.decode(errors="ignore")
         else:
-            time.sleep(0.1)  # Avoid busy waiting
+            time.sleep(0.05)  # Avoid busy waiting
     raise TimeoutError(
         f"Did not receive expected prompt(s) {expected_prompts} in {timeout} seconds."
     )
@@ -59,6 +59,7 @@ def send_command(ser, command, expected_prompt=b"#", timeout=20):
     ser.flush()
     buffer = b""
     start_time = time.time()
+    ser.timeout = 0.1 # Faster polling
 
     while time.time() - start_time < timeout:
         data = ser.read(1024)
