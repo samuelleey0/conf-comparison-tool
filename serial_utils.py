@@ -1,19 +1,8 @@
 import serial
 import time
 import re
-import threading
 
 READ_TIMEOUT = 8  # seconds
-
-
-def keep_device_awake(ser, interval=30):
-    def keepalive():
-        while ser.is_open:
-            ser.write(b"\n")
-            ser.flush()
-            time.sleep(interval)
-    t = threading.Thread(target=keepalive, daemon=True)
-    t.start()
 
 def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
     """
@@ -33,10 +22,19 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
         )
         print("[DEBUG] Serial port opened successfully.")
         # Wake up CLI
-        ser.write(b"\n")
-        print("[DEBUG] Sent wake-up newline to device.")
+        for _ in range(3):
+            ser.write(b"\n")
+            print("[DEBUG] Sent wake-up newline to device.")
+            ser.flush()
+            time.sleep(1)
+        ser.timeout = 2
+        response = ser.read(100)
+        if not response:
+            print("[!] No response from device. Check connections and settings.")
+            close_connection()
+            return None
         time.sleep(3)  # Give router some time after opening
-        print("[DEBUG] Waiting for prompt...")
+        print("[DEBUG] Device is up. Waiting for prompt...")
         output = wait_for_prompt(ser, [">", "#"], timeout=timeout)
         print(f"[+] Connected. Device prompt: {output.strip().splitlines()[-1]}")
         return ser
