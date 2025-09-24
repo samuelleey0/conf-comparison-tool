@@ -41,10 +41,12 @@ def wait_for_prompt(ser, expected_prompts, timeout=15):
     buffer = b""
     start_time = time.time()
     ser.timeout = 0.1  # Set a short timeout for read operations
+    print(f"[DEBUG] Serial settings: port={ser.port}, baudrate={ser.baudrate}, timeout={ser.timeout}")
     print(f"[DEBUG] Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
 
     while time.time() - start_time < timeout:
         data = ser.read(1024)  # Read up to 1024 bytes
+        print(f"[DEBUG] ser.read(1024) returned {len(data)} bytes")
         if data:
             buffer += data
             # Debugging: see what's coming in
