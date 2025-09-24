@@ -46,4 +46,5 @@ def disable_paging_ssh(shell, prompt="#", timeout=5):
 
 
 def enter_enable_mode_ssh(shell, prompt="#", timeout=5):
-    output = send_command_ssh(shell, "enable", expected_prompt="#", timeout=timeout)
+    output = send_command_ssh(shell, "enable", expected_prompt=prompt, timeout=timeout)
+    return output
