@@ -1,6 +1,5 @@
 from serial_utils import (
     connect_to_serial,
-    keep_device_awake,
     disable_paging,
     send_command,
     enter_enable_mode,
@@ -59,27 +58,6 @@ def main():
     if conn_type == "1":
         port = choose_serial_port()
         ser = connect_to_serial(port)
-        if not ser:
-            print("[-] Failed to connect to the serial port.")
-            return
-        for _ in range(3):
-            ser.write(b"\n")
-            ser.flush()
-            time.sleep(1)
-
-        ser.timeout = 2
-        try:
-            response = ser.read(100)
-        except Exception as e:
-            print(f"[-] Error reading from device: {e}")
-            response = b""
-            close_connection(ser)
-            return
-        if not response:
-            print("[-] No response from device. Check connections and settings.")
-            close_connection(ser)
-            return
-        keep_device_awake(ser)
         try:
             print("[*] Entering enable mode...")
             output = enter_enable_mode(ser)
