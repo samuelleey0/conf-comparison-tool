@@ -67,7 +67,7 @@ def main():
             print("[*] Disabling paging...")
             disable_paging(ser)
             print("[*] Sending 'show running-config'...")
-            output = send_command(ser, "show running-config", timeout=60)
+            output = send_command(ser, "show running-config", timeout=30)
             print("Router output:\n", output)
             logout(ser)
         except Exception as e:
