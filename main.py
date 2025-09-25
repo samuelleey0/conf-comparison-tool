@@ -48,6 +48,9 @@ def main():
     elif conn_type == "2":
         host, username, password = ssh_credentials()
         client, shell = connect_ssh(host, username, password)
+        if client is None or shell is None:
+            print("[+] Failed to connect via SSH. Exiting.")
+            exit(1)
         try:
             print("[*] Entering enable mode...")
             output = enter_enable_mode_ssh(shell)
