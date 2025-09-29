@@ -1,5 +1,6 @@
 
 import time
+from asyncio import timeout
 
 from serial_utils import (
     connect_to_serial,
@@ -23,7 +24,10 @@ from ui_utils import (
 
 
 def main():
+    # List of commands to run
+    commands = ["show running-config", "show ip interface brief"]
     conn_type = choose_connection_type()
+
     if conn_type == "1":
         port = choose_serial_port()
         ser = connect_to_serial(port)
@@ -36,9 +40,10 @@ def main():
             print(output)
             print("[*] Disabling paging...")
             disable_paging(ser)
-            print("[*] Sending 'show running-config'...")
-            output = send_command(ser, "show running-config", timeout=30)
-            print("Router output:\n", output)
+            for cmd in commands:
+                print(f"[*] Sending '{cmd}'...")
+                output = send_command(ser, cmd, timeout=30)
+                print(f"Router output for '{cmd}':\n{output}\n{'-'*50}")
         except Exception as e:
             print(f"Error: {e}")
         finally:
@@ -55,11 +60,12 @@ def main():
             print(output)
             print("[*] Disabling paging...")
             disable_paging_ssh(shell)
-            print("[*] Sending 'show running-config'...")
-            output = send_command_ssh(
-                shell, "show running-config", expected_prompt="#", timeout=60
-            )
+            for cmd in commands:
+                print(f"[*] Sending '{cmd}'...")
+                output = send_command_ssh(shell, cmd, timeout=30)
+                print(f"Router output for '{cmd}':\n{output}\n{'-'*50}")
             print("Router output:\n", output)
+
         except Exception as e:
             print(f"Error: {e}")
         finally:
