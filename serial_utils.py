@@ -128,7 +128,7 @@ def enter_enable_mode(ser, timeout=5):
     return output
 
 
-def logout(ser, timeout=5):
+def logout(ser, timeout=2):
     """
     Log out from the device.
     """
@@ -219,23 +219,15 @@ def logout_close_connection(ser):
             logout(ser)
 
             # Send break signal to force session termination
-            ser.send_break(duration=0.5)
-            time.sleep(1)
+            ser.send_break(duration=0.2)
+            time.sleep(0.2)
 
             # Control hardware lines to signal disconnect
             ser.dtr = False # Data Terminal Ready
             ser.rts = False # Request To Send
-            time.sleep(0.5)
-
+            time.sleep(0.2)
             ser.dtr = True
             ser.rts = True
-            time.sleep(0.5)
-
-            # Final aggressive cleanup
-            for _ in range(3):
-                ser.write(b"\x03\r\n")
-                ser.flush()
-                time.sleep(0.2)
 
             # Clear all buffers
             ser.reset_input_buffer()
