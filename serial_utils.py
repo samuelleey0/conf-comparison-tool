@@ -257,5 +257,5 @@ def close_connection(ser):
                 print("[+] Serial connection force-closed.")
             except:
                 pass
-        else:
-            print("[!] No open serial connection to close.")
+    else:
+        print("[!] No open serial connection to close.")
