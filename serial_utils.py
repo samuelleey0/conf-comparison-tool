@@ -22,6 +22,10 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
             timeout=1,
         )
         print("[DEBUG] Serial port opened successfully.")
+
+        # Clear any existing session first
+        clear_session(ser)
+
         output = wait_for_prompt(ser, [">", "#"], timeout=timeout, wake=True)
         print(f"[+] Connected. Device prompt: {output.strip().splitlines()[-1]}")
         return ser
@@ -128,9 +132,60 @@ def logout(ser, timeout=5):
     """
     Log out from the device.
     """
-    output = send_command(ser, "exit", expected_prompt=">", timeout=timeout)
-    print(output)
-    return output
+    try:
+        # If in enable (#) mode, exit to user (>) mode first
+        ser.write(b"exit\n")
+        ser.flush()
+        time.sleep(1)
+
+        # Then logout completely
+        ser.write(b"logout\r\n")
+        ser.flush()
+        time.sleep(1)
+
+        # Send additional exits to ensure cleanup
+        for _ in range(2):
+            ser.write(b"exit\r\n")
+            ser.flush()
+            time.sleep(0.5)
+
+        # Clear any remaining buffer
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
+
+        print("[DEBUG] Logout sequence completed.")
+    except Exception as e:
+        print(f"[DEBUG] Error during logout: {e}")
+
+def clear_session(ser):
+    """
+    Clear any existing session by sending multiple newlines.
+    """
+    try:
+        # Clear input/output buffers
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
+
+        # Send Ctrl+C to interrupt any running command
+        ser.write(b"\x03")  # Ctrl+C
+        ser.flush()
+        time.sleep(0.5)
+
+        # Send multiple carriage returns and exits
+        for _ in range(3):
+            ser.write(b"\r\n")
+            ser.flush()
+            time.sleep(0.3)
+
+        ser.write(b"exit\r\n")
+        ser.flush()
+        time.sleep(1)
+
+        # Final buffer clear
+        ser.reset_input_buffer()
+        print("[DEBUG] Session cleared.")
+    except Exception as e:
+        print(f"[DEBUG] Error during session clear: {e}")
 
 
 def close_connection(ser):
