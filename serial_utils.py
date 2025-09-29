@@ -133,19 +133,34 @@ def logout(ser, timeout=5):
     Log out from the device.
     """
     try:
+        # Send Ctrl+C first to interrupt any running command
+        ser.write(b"\x03")
+        ser.flush()
+        time.sleep(0.5)
+
+        # Try 'end' command to exit config mode if stuck there
+        ser.write(b"end\r\n")
+        ser.flush()
+        time.sleep(1)
+
         # If in enable (#) mode, exit to user (>) mode first
         ser.write(b"exit\n")
         ser.flush()
         time.sleep(1)
 
-        # Then logout completely
-        ser.write(b"logout\r\n")
-        ser.flush()
+        # Logout from user mode
+        for logout_cmd in [b"logout\r\n", b"exit\r\n", b"quit\r\n"]:
+            ser.write(logout_cmd)
+            ser.flush()
+            time.sleep(0.8)
+
+        # Send break to force disconnect
+        ser.send_break(duration=0.5)
         time.sleep(1)
 
         # Send additional exits to ensure cleanup
         for _ in range(2):
-            ser.write(b"exit\r\n")
+            ser.write(b"\x03\r\n") # Ctrl-C + Enter
             ser.flush()
             time.sleep(0.5)
 
@@ -153,7 +168,7 @@ def logout(ser, timeout=5):
         ser.reset_input_buffer()
         ser.reset_output_buffer()
 
-        print("[DEBUG] Logout sequence completed.")
+        print("[DEBUG] Thorough logout sequence completed.")
     except Exception as e:
         print(f"[DEBUG] Error during logout: {e}")
 
@@ -166,24 +181,35 @@ def clear_session(ser):
         ser.reset_input_buffer()
         ser.reset_output_buffer()
 
-        # Send Ctrl+C to interrupt any running command
-        ser.write(b"\x03")  # Ctrl+C
-        ser.flush()
-        time.sleep(0.5)
+        # Send break signal
+        ser.send_break(duration=0.25)
+        time.sleep(1)
 
         # Send multiple carriage returns and exits
         for _ in range(3):
-            ser.write(b"\r\n")
+            ser.write(b"\x03") # Send Ctrl-C
             ser.flush()
-            time.sleep(0.3)
+            time.sleep(0.2)
 
-        ser.write(b"exit\r\n")
+        ser.write(b"\x1a") # Send Ctrl-Z
         ser.flush()
-        time.sleep(1)
+        time.sleep(0.5)
+
+        ser.write(b"\x1b") # Send ESC
+        ser.flush()
+        time.sleep(0.3)
+
+        # Try to exit from any mode
+        for exit_cmd in [b"end\r\n", b"exit\r\n", b"quit\r\n"]:
+            ser.write(exit_cmd)
+            ser.flush()
+            time.sleep(0.5)
 
         # Final buffer clear
         ser.reset_input_buffer()
-        print("[DEBUG] Session cleared.")
+        ser.reset_output_buffer()
+
+        print("[DEBUG] Aggressive Session cleared.")
     except Exception as e:
         print(f"[DEBUG] Error during session clear: {e}")
 
@@ -193,7 +219,43 @@ def close_connection(ser):
     Close the serial connection.
     """
     if ser and ser.is_open:
-        ser.close()
-        print("[+] Serial connection closed.")
-    else:
-        print("[!] No open serial connection to close.")
+        try:
+            # First, attempt to logout cleanly
+            logout(ser)
+
+            # Send break signal to force session termination
+            ser.send_break(duration=0.5)
+            time.sleep(1)
+
+            # Control hardware lines to signal disconnect
+            ser.dtr = False # Data Terminal Ready
+            ser.rts = False # Request To Send
+            time.sleep(0.5)
+
+            ser.dtr = True
+            ser.rts = True
+            time.sleep(0.5)
+
+            # Final aggressive cleanup
+            for _ in range(3):
+                ser.write(b"\x03\r\n")
+                ser.flush()
+                time.sleep(0.2)
+
+            # Clear all buffers
+            ser.reset_input_buffer()
+            ser.reset_output_buffer()
+
+            # Close the connection
+            ser.close()
+            print("[+] Serial connection closed with proper cleanup.")
+        except Exception as e:
+            print(f"[!] Error closing serial connection: {e}")
+            # Force close if error occurs
+            try:
+                ser.close()
+                print("[+] Serial connection force-closed.")
+            except:
+                pass
+        else:
+            print("[!] No open serial connection to close.")
