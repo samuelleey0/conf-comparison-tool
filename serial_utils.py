@@ -136,28 +136,28 @@ def logout(ser, timeout=2):
         # Send Ctrl+C first to interrupt any running command
         ser.write(b"\x03")
         ser.flush()
-        time.sleep(0.2)
+        time.sleep(0.1)
 
         # If in enable (#) mode, exit to user (>) mode first
         ser.write(b"exit\n")
         ser.flush()
-        time.sleep(0.3)
+        time.sleep(0.2)
 
         # Logout from user mode
         for logout_cmd in [b"logout\r\n", b"exit\r\n", b"quit\r\n"]:
             ser.write(logout_cmd)
             ser.flush()
-            time.sleep(0.3)
+            time.sleep(0.2)
 
         # Send break to force disconnect
-        ser.send_break(duration=0.2)
-        time.sleep(0.2)
+        ser.send_break(duration=0.15)
+        time.sleep(0.1)
 
         # Send additional exits to ensure cleanup
         for _ in range(2):
             ser.write(b"\x03\r\n") # Ctrl-C + Enter
             ser.flush()
-            time.sleep(0.2)
+            time.sleep(0.1)
 
         # Clear any remaining buffer
         ser.reset_input_buffer()
