@@ -138,11 +138,6 @@ def logout(ser, timeout=5):
         ser.flush()
         time.sleep(0.5)
 
-        # Try 'end' command to exit config mode if stuck there
-        ser.write(b"end\r\n")
-        ser.flush()
-        time.sleep(1)
-
         # If in enable (#) mode, exit to user (>) mode first
         ser.write(b"exit\n")
         ser.flush()
@@ -200,7 +195,7 @@ def clear_session(ser):
         time.sleep(0.3)
 
         # Try to exit from any mode
-        for exit_cmd in [b"end\r\n", b"exit\r\n", b"quit\r\n"]:
+        for exit_cmd in [ b"exit\r\n", b"quit\r\n"]:
             ser.write(exit_cmd)
             ser.flush()
             time.sleep(0.5)
