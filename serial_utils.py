@@ -209,7 +209,7 @@ def clear_session(ser):
         print(f"[DEBUG] Error during session clear: {e}")
 
 
-def close_connection(ser):
+def logout_close_connection(ser):
     """
     Close the serial connection.
     """

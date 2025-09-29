@@ -6,8 +6,7 @@ from serial_utils import (
     disable_paging,
     send_command,
     enter_enable_mode,
-    logout,
-    close_connection,
+    logout_close_connection,
 )
 from remote_utils import (
     connect_ssh,
@@ -40,11 +39,10 @@ def main():
             print("[*] Sending 'show running-config'...")
             output = send_command(ser, "show running-config", timeout=30)
             print("Router output:\n", output)
-            logout(ser)
         except Exception as e:
             print(f"Error: {e}")
         finally:
-            close_connection(ser)
+            logout_close_connection(ser)
     elif conn_type == "2":
         host, username, password = ssh_credentials()
         client, shell = connect_ssh(host, username, password)
