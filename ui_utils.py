@@ -26,7 +26,7 @@ def choose_serial_port():
         # macOS default
         port = (
             input("Enter device path (default: /dev/tty.usbserial-0001): ").strip()
-            or "/dev/tty.usbserial-0001"
+            or "/dev/cu.usbserial-10"
         )
     elif choice == "4":
         port = input("Enter your serial device path (e.g., /dev/ttyACM0): ").strip()
