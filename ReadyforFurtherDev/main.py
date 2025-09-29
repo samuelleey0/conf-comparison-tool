@@ -1,0 +1,80 @@
+
+import time
+from asyncio import timeout
+
+from serial_utils import (
+    connect_to_serial,
+    disable_paging,
+    send_command,
+    enter_enable_mode,
+    logout_close_connection,
+)
+from remote_utils import (
+    connect_ssh,
+    disable_paging_ssh,
+    enter_enable_mode_ssh,
+    send_command_ssh,
+)
+from ui_utils import (
+    choose_connection_type,
+    choose_serial_port,
+    ssh_credentials
+)
+
+
+
+def main():
+    # List of commands to run
+    commands = ["show running-config", "show ip interface brief"]
+    conn_type = choose_connection_type()
+
+    if conn_type == "1":
+        port = choose_serial_port()
+        ser = connect_to_serial(port)
+        if ser is None:
+            print("[+] Failed to connect to device. Exiting.")
+            exit(1)
+        try:
+            print("[*] Entering enable mode...")
+            output = enter_enable_mode(ser)
+            print(output)
+            print("[*] Disabling paging...")
+            disable_paging(ser)
+            for cmd in commands:
+                print(f"[*] Sending '{cmd}'...")
+                output = send_command(ser, cmd, timeout=30)
+                print(f"Router output for '{cmd}':\n{output}\n{'-'*50}")
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            logout_close_connection(ser)
+    elif conn_type == "2":
+        host, username, password = ssh_credentials()
+        client, shell = connect_ssh(host, username, password)
+        if client is None or shell is None:
+            print("[+] Failed to connect via SSH. Exiting.")
+            exit(1)
+        try:
+            print("[*] Entering enable mode...")
+            output = enter_enable_mode_ssh(shell)
+            print(output)
+            print("[*] Disabling paging...")
+            disable_paging_ssh(shell)
+            for cmd in commands:
+                print(f"[*] Sending '{cmd}'...")
+                output = send_command_ssh(shell, cmd, timeout=30)
+                print(f"Router output for '{cmd}':\n{output}\n{'-'*50}")
+            print("Router output:\n", output)
+
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            shell.close()
+            client.close()
+            print("[+] SSH connection closed.")
+    else:
+        print("Invalid choice.")
+
+
+if __name__ == "__main__":
+    main()
