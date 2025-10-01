@@ -4,19 +4,22 @@ from os import makedirs
 from pathlib import Path
 
 
-def save_output_to_file(command: str, output: str, exam_name: str, student_id: str = None, session_id: str = None, base_dir="logs"):
+def save_output_to_file(command: str, output: str, exam_name: str, student_id: str = None, session_id: str = None, hostname: str = None, base_dir="logs"):
     """
     Save Cisco device command output to a text file.
     Each command goes into its own file.
     Example path: ~/Documents/TNE20002_SkillExam_8-10am/Session1/102778907/show_running-config.txt
     """
 
+    if not hostname:
+        raise ValueError("Hostname must be provided to save output files.")
+
     # Build directory path
     if base_dir is None:
         base_dir = str(Path.home() / "Documents") # Default to ~/Documents
 
-    dir_path = os.path.join(base_dir, exam_name, session_id if session_id else "Session1", student_id if student_id else "UnknownID")
-    os,makedirs(dir_path, exist_ok=True)
+    dir_path = os.path.join(base_dir, exam_name, session_id if session_id else "Session1", student_id if student_id else "UnknownID", hostname)
+    os.makedirs(dir_path, exist_ok=True)
 
     # Clean command string for filename
     safe_command = command.replace(" ", "_").replace("/", "_")
@@ -67,7 +70,7 @@ def build_base_path():
             print("Try again.\n")
 
         base_path = os.path.expanduser(
-            f"~/Documents/{exam_name}/{session_id}/{student_id}"
+            f"~/Documents/{exam_name}/{session_id}/{student_id}/"
         )
         os.makedirs(base_path, exist_ok=True)
         print(f"[+] Logs will be saved in: {base_path}")
@@ -77,7 +80,12 @@ def build_base_path():
             print(f"[!] Exiting as per user request. Directory created {base_path}")
             return None
 
-        return base_path
+        return {
+            "exam_name": exam_name,
+            "session_id": session_id,
+            "student_id": student_id,
+            "base_path": base_path
+        }
     except KeyboardInterrupt:
         print("\nInput cancelled by user. No directory created.")
         return None

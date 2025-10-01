@@ -8,12 +8,14 @@ from serial_utils import (
     send_command,
     enter_enable_mode,
     logout_close_connection,
+    get_hostname,
 )
 from remote_utils import (
     connect_ssh,
     disable_paging_ssh,
     enter_enable_mode_ssh,
     send_command_ssh,
+    get_hostname_ssh,
 )
 from ui_utils import (
     choose_connection_type,
@@ -29,8 +31,15 @@ def main():
     # List of commands to run
     commands = ["show running-config", "show ip interface brief"]
 
-    # === Build structured directory path ===
-    base_path = build_base_path()
+    # === Get path info dynamically ===
+    path_info = build_base_path()
+    if path_info is None:
+        return
+
+    exam_name = path_info["exam_name"]
+    session_id = path_info["session_id"]
+    student_id = path_info["student_id"]
+    base_path = path_info["base_path"]
 
     conn_type = choose_connection_type()
 
@@ -46,10 +55,15 @@ def main():
             print(output)
             print("[*] Disabling paging...")
             disable_paging(ser)
+
+            # Get hostname first
+            hostname = get_hostname(ser)
+            print(f"[+] Detected hostname: {hostname}")
+
             for cmd in commands:
                 print(f"[*] Sending '{cmd}'...")
                 output = send_command(ser, cmd, timeout=30)
-                # save_output_to_file(cmd, output, base_path)
+                save_output_to_file(cmd, output, exam_name, session_id, student_id, hostname, base_dir=base_path)
                 print(f"Router output for '{cmd}':\n{output}\n{'-'*50}")
         except Exception as e:
             print(f"Error: {e}")
@@ -67,10 +81,15 @@ def main():
             print(output)
             print("[*] Disabling paging...")
             disable_paging_ssh(shell)
+
+            # Get hostname first
+            hostname = get_hostname_ssh(shell)
+            print(f"[+] Detected hostname: {hostname}")
+
             for cmd in commands:
                 print(f"[*] Sending '{cmd}'...")
                 output = send_command_ssh(shell, cmd, timeout=30)
-                # save_output_to_file(cmd, output, base_path)
+                save_output_to_file(cmd, output, exam_name, session_id, student_id, hostname, base_dir=base_path)
                 print(f"Router output for '{cmd}':\n{output}\n{'-'*50}")
             print("Router output:\n", output)
 
