@@ -3,6 +3,133 @@ from datetime import datetime
 from os import makedirs
 from pathlib import Path
 
+
+def load_students_from_file():
+    """
+    Load student IDs from a CSV or text file.
+    CSV format: student_id,name (optional)
+    Text format: one student ID per line
+    """
+    print("\n=== Load Students from File ===")
+    file_path = input("Enter path to CSV/TXT file (or drag & drop): ").strip()
+
+    # Remove quotes if file was dragged and dropped
+    file_path = file_path.strip('"\'')
+
+    if not os.path.exists(file_path):
+        print(f"[!] File not found: {file_path}")
+        return None
+
+    students = []
+
+    try:
+        # Detect file type and load accordingly
+        if file_path.lower().endswith('.csv'):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    if row and row[0].strip():  # Skip empty rows
+                        student_id = row[0].strip()
+                        name = row[1].strip() if len(row) > 1 else ""
+                        students.append({"id": student_id, "name": name})
+        else:
+            # Treat as text file
+            with open(file_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    student_id = line.strip()
+                    if student_id:  # Skip empty lines
+                        students.append({"id": student_id, "name": ""})
+
+        if not students:
+            print("[!] No student IDs found in file.")
+            return None
+
+        print(f"[+] Loaded {len(students)} student IDs:")
+        for i, student in enumerate(students[:5], 1):  # Show first 5
+            display_name = f" ({student['name']})" if student['name'] else ""
+            print(f"  {i}. {student['id']}{display_name}")
+
+        if len(students) > 5:
+            print(f"  ... and {len(students) - 5} more")
+
+        return students
+
+    except Exception as e:
+        print(f"[!] Error reading file: {e}")
+        return None
+
+
+def create_bulk_directories():
+    """
+    Create directories for multiple students from file input.
+    """
+    try:
+        # Get exam and session info
+        while True:
+            exam_name = input("Enter Exam Name (UNITCODE_Purpose_Time): ").strip()
+            if exam_name:
+                break
+            print("Exam Name cannot be empty. Please try again.")
+
+        while True:
+            session_id = input("Enter Session ID (e.g., Session1): ").strip()
+            if session_id:
+                break
+            print("Session ID cannot be empty. Please try again.")
+
+        # Load students from file
+        students = load_students_from_file()
+        if not students:
+            return None
+
+        print(f"\nConfirm bulk directory creation:")
+        print(f"  Exam Name: {exam_name}")
+        print(f"  Session ID: {session_id}")
+        print(f"  Students: {len(students)} students")
+
+        confirm = input("Create directories for all students? (y/n): ").strip().lower()
+        if confirm != "y":
+            return None
+
+        # Create directories for all students
+        created_paths = []
+        base_docs_path = os.path.expanduser("~/Documents")
+
+        for student in students:
+            student_path = os.path.join(base_docs_path, exam_name, session_id, student["id"])
+            os.makedirs(student_path, exist_ok=True)
+            created_paths.append({
+                "base_path": student_path,
+                "exam_name": exam_name,
+                "session_id": session_id,
+                "student_id": student["id"],
+                "display": f"{exam_name}/{session_id}/{student['id']}"
+            })
+
+        print(f"[+] Created {len(created_paths)} directories")
+
+        # Let user select which student to work with
+        print("\n=== Select Student to Work With ===")
+        for i, path_info in enumerate(created_paths, 1):
+            print(f"{i}. {path_info['student_id']}")
+
+        while True:
+            try:
+                choice = input(f"\nSelect student (1-{len(created_paths)}): ").strip()
+                choice_num = int(choice)
+                if 1 <= choice_num <= len(created_paths):
+                    selected = created_paths[choice_num - 1]
+                    print(f"[+] Selected: {selected['display']}")
+                    return selected
+                else:
+                    print(f"Invalid choice. Please enter 1-{len(created_paths)}.")
+            except ValueError:
+                print("Invalid input. Please enter a number.")
+
+    except KeyboardInterrupt:
+        print("\nOperation cancelled by user.")
+        return None
+
 def list_existing_directories():
     """
     List existing exam directories and let user select one.
@@ -68,11 +195,13 @@ def build_base_path():
     print("2. Select existing directory")
 
     while True:
-        choice = input("Choose option (1 or 2): ").strip()
+        choice = input("Choose option (1, 2, or 3): ").strip()
         if choice == "1":
             return create_new_directory()
         elif choice == "2":
             return select_existing_directory()
+        elif choice == "3":
+            return create_bulk_directories()
         else:
             print("Invalid choice. Please enter 1 or 2.")
 
