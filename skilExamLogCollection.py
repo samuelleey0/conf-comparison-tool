@@ -1,5 +1,3 @@
-from serial.serialjava import device
-
 from serial_utils import (
     connect_to_serial,
     disable_paging,
