@@ -13,56 +13,51 @@ def list_existing_directories():
         print("[!] Documents folder not found.")
         return None
 
-    # Look for exam directories (folders with pattern like TNE20002_*)
+    # Look for all student directories
+    student_paths = []
     exam_dirs = [d for d in docs_path.iterdir() if d.is_dir() and not d.name.startswith('.')]
 
-    if not exam_dirs:
-        print("[!] No existing directories found in Documents.")
+    for exam_dir in exam_dirs:
+        session_dirs = [s for s in exam_dir.iterdir() if s.is_dir()]
+        for session_dir in session_dirs:
+            student_dirs = [st for st in session_dir.iterdir() if st.is_dir()]
+            for student_dir in student_dirs:
+                student_paths.append({
+                    "path": str(student_dir),
+                    "exam_name": exam_dir.name,
+                    "session_id": session_dir.name,
+                    "student_id": student_dir.name,
+                    "display": f"{exam_dir.name}/{session_dir.name}/{student_dir.name}"
+                })
+
+    if not student_paths:
+        print("[!] No existing student directories found in Documents.")
         return None
 
     print("\n=== Existing Directories ===")
-    for i, exam_dir in enumerate(exam_dirs, 1):
-        # Look for session subdirectories
-        session_dirs = [s for s in exam_dir.iterdir() if s.is_dir()]
-        if session_dirs:
-            for session_dir in session_dirs:
-                student_dirs = [st for st in session_dir.iterdir() if st.is_dir()]
-                if student_dirs:
-                    for student_dir in student_dirs:
-                        print(f"{i}. {exam_dir.name}/{session_dir.name}/{student_dir.name}")
-                        break
-                break
-        else:
-            print(f"{i}. {exam_dir.name} (no sessions found)")
+    for i, path_info in enumerate(student_paths, start=1):
+        print(f"{i}. {path_info['display']}")
 
     while True:
         try:
-            choice = input(f"\nSelect directory (1-{len(exam_dirs)}) or 'b' to go back: ").strip()
+            choice = input(f"\nSelect directory (1-{len(student_paths)}) or 'b' to go back: ").strip()
             if choice.lower() == 'b':
                 return None
 
             choice_num = int(choice)
-            if 1 <= choice_num <= len(exam_dirs):
-                selected_dir = exam_dirs[choice_num - 1]
-
-                # Find the student directory path
-                for session_dir in selected_dir.iterdir():
-                    if session_dir.is_dir():
-                        for student_dir in session_dir.iterdir():
-                            if student_dir.is_dir():
-                                return {
-                                    "base_path": str(student_dir),
-                                    "exam_name": selected_dir.name,
-                                    "session_id": session_dir.name,
-                                    "student_id": student_dir.name
-                                }
-
-                print("[!] No valid student directory found in selected exam.")
-                return None
+            if 1 <= choice_num <= len(student_paths):
+                selected = student_paths[choice_num - 1]
+                return {
+                    "base_path": selected["path"],
+                    "exam_name": selected["exam_name"],
+                    "session_id": selected["session_id"],
+                    "student_id": selected["student_id"]
+                }
             else:
-                print(f"Invalid choice. Please enter 1-{len(exam_dirs)} or 'b'.")
+                print(f"Invalid choice. Please enter 1-{len(student_paths)} or 'b'.")
         except ValueError:
             print("Invalid input. Please enter a number or 'b'.")
+
 
 def build_base_path():
     """
