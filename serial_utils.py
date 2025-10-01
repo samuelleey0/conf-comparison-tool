@@ -8,27 +8,49 @@ from netmiko.netmiko_globals import MAX_BUFFER
 READ_TIMEOUT = 8  # seconds
 MAX_BUFFER = 4096  # 4KB
 
-def send_keepalive(ser, stop_event, interval=30):
-    """
-    Send periodic keepalive signals to prevent device sleep/timeout.
-    Runs in a separate thread.
-    """
-    while not stop_event.is_set():
-        try:
-            if ser.is_open:
-                # Send a harmless command that doesn't affect device state
-                ser.write(b"\r")  # Just a carriage return
-                ser.flush()
-                print("[DEBUG] Keepalive signal sent")
-            stop_event.wait(interval)  # Wait for interval or stop signal
-        except Exception as e:
-            print(f"[DEBUG] Keepalive error: {e}")
-            break
+# def wake_device(ser, expected_prompts=[">", "#"], attempts=5, delay=1):
+#     """
+#     Wake the Cisco device by sending carriage returns and Ctrl-C until a prompt is detected.
+#     Prevents timeout if the device was idle too long.
+#     """
+#     buffer = b""
+#     ser.timeout = 1
+#     for i in range(attempts):
+#         # Send carriage return
+#         ser.write(b"\r")
+#         ser.flush()
+#         time.sleep(delay)
+#
+#         # Try Ctrl-C as backup
+#         if i == 2:
+#             ser.write(b"\x03")  # Ctrl-C
+#             ser.flush()
+#             time.sleep(0.5)
+#         elif i == 4:
+#             ser.write(b"\x1a")  # Ctrl-Z (back to exec mode)
+#             ser.flush()
+#             time.sleep(0.5)
+#
+#         # Read response
+#         data = ser.read(1024)
+#         if data:
+#             buffer += data
+#             decoded = buffer.decode(errors="ignore")
+#             print(f"[DEBUG] Wake attempt {i+1}, received: {decoded}")
+#
+#             # Check for prompt
+#             for prompt in expected_prompts:
+#                 if prompt in decoded:
+#                     print(f"[+] Device woke up, found prompt: {prompt}")
+#                     return True
+#
+#     print("[!] Failed to wake device, no prompt found.")
+#     return False
 
 
-def connect_to_serial_with_keepalive(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
+def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
     """
-    Establish a serial connection to Cisco device with keepalive function.
+    Establish a serial connection to Cisco device.
     """
     print(f"[DEBUG] Attempting to open serial port: {port} at {baudrate} baud")
     try:
@@ -39,21 +61,15 @@ def connect_to_serial_with_keepalive(port: str, baudrate: int = 9600, timeout=RE
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
             timeout=1,
-            # Prevent OS-level sleep
-            write_timeout=None,
-            inter_byte_timeout=None,
         )
-
-        # Set hardware flow control to prevent sleep
-        ser.dtr = True
-        ser.rts = True
         print("[DEBUG] Serial port opened successfully.")
 
         # Clear any existing session first
         clear_session(ser)
 
         # Wake device before waiting for prompt
-        wake_up_device(ser)
+        # if not wake_device(ser):
+        #     print("[!] Warning: Device may still be idle or stuck.")
 
         output = wait_for_prompt(ser, [">", "#"], timeout=timeout, wake=True)
         print(f"[+] Connected. Device prompt: {output.strip().splitlines()[-1]}")
@@ -61,46 +77,6 @@ def connect_to_serial_with_keepalive(port: str, baudrate: int = 9600, timeout=RE
     except serial.SerialException as e:
         print(f"[!] Error communicating...: {e}")
         return None
-
-def wake_up_device(ser, attempts=5):
-    """
-    Aggressively wake up the device from sleep mode.
-    """
-    print("[DEBUG] Waking up device...")
-
-    for attempt in range(attempts):
-        try:
-            # Clear buffers
-            ser.reset_input_buffer()
-            ser.reset_output_buffer()
-
-            # Send multiple wake signals
-            wake_signals = [
-                b"\r\n",  # Carriage return + line feed
-                b" ",  # Space character
-                b"\x03",  # Ctrl+C
-                b"\r",  # Just carriage return
-            ]
-
-            for signal in wake_signals:
-                ser.write(signal)
-                ser.flush()
-                time.sleep(0.5)
-
-                # Check if device responded
-                if ser.in_waiting > 0:
-                    response = ser.read(ser.in_waiting)
-                    print(f"[DEBUG] Device responded: {response.decode(errors='ignore')}")
-                    return True
-
-            print(f"[DEBUG] Wake attempt {attempt + 1}/{attempts}")
-            time.sleep(1)
-
-        except Exception as e:
-            print(f"[DEBUG] Wake attempt {attempt + 1} failed: {e}")
-
-    print("[DEBUG] Device wake-up completed")
-    return False
 
 
 def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
@@ -154,79 +130,39 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
     )
 
 
-def send_command_with_keepalive(ser, command, expected_prompt="#", timeout=20, keepalive_interval=10):
+def send_command(ser, command, expected_prompt="#", timeout=20):
     """
-    Send command with built-in keepalive for long-running commands.
+    Send a command to the Cisco device and read response.
     """
-    print(f"[DEBUG] Sending command: {command}")
+    if isinstance(command, str):
+        ser.write(command.encode("utf-8") + b"\n")
+    else:
+        ser.write(command + b"\n")
+    ser.flush()
+    buffer = b""
+    start_time = time.time()
+    ser.timeout = 0.1 # Faster polling
 
-    # Start keepalive thread for long commands
-    stop_keepalive = threading.Event()
-    keepalive_thread = None
+    while time.time() - start_time < timeout:
+        data = ser.read(1024)
+        if not data:
+            continue
+        buffer += data
+        if expected_prompt.encode() in buffer:
+            break
 
-    if timeout > keepalive_interval:
-        keepalive_thread = threading.Thread(
-            target=send_keepalive,
-            args=(ser, stop_keepalive, keepalive_interval)
-        )
-        keepalive_thread.daemon = True
-        keepalive_thread.start()
-
-    try:
-        # Send the command
-        if isinstance(command, str):
-            ser.write(command.encode("utf-8") + b"\r\n")
-        else:
-            ser.write(command + b"\r\n")
-        ser.flush()
-
-        buffer = b""
-        start_time = time.time()
-        ser.timeout = 0.5  # Faster polling for responsiveness
-
-        while time.time() - start_time < timeout:
-            data = ser.read(1024)
-            if data:
-                buffer += data
-                print(f"[DEBUG] Received {len(data)} bytes")
-
-                # Check for prompt
-                decoded = buffer.decode("utf-8", errors="ignore")
-                if re.search(rf"{re.escape(expected_prompt)}\s*$", decoded, re.MULTILINE):
-                    break
-
-                # Handle --More-- prompts
-                if "--More--" in decoded:
-                    ser.write(b" ")  # Send space to continue
-                    ser.flush()
-            else:
-                # Send periodic keepalive during long waits
-                time.sleep(0.1)
-
-        # Stop keepalive
-        if keepalive_thread:
-            stop_keepalive.set()
-            keepalive_thread.join(timeout=1)
-
-        output = buffer.decode("utf-8", errors="ignore")
-        # Clean output
-        output = re.sub(r"--More--", "", output)
-        output = re.sub(r"\x1b\[.*?[@-~]", "", output)  # Remove ANSI codes
-        output = re.sub(r"\r\n", "\n", output)  # Normalize line endings
-
-        return output.strip()
-
-    except Exception as e:
-        if keepalive_thread:
-            stop_keepalive.set()
-        raise e
+    output = buffer.decode("utf-8", errors="ignore")
+    # Clean junk (--More--, ANSI codes, etc.)
+    output = re.sub(r"--More--", "", output)
+    output = re.sub(r"\x1b\[.*?[@-~]", "", output)
+    return output.strip()
 
 def get_hostname(ser, timeout=5):
     """
     Extract hostname from device using CLI prompt.
     Returns a string like 'R1' or 'SW1'.
     """
-    output = send_command_with_keepalive(ser, "show running-config | include hostname", timeout=timeout)
+    output = send_command(ser, "show running-config | include hostname", timeout=timeout)
 
     for line in output.splitlines():
         if line.strip().startswith("hostname"):
@@ -238,14 +174,14 @@ def disable_paging(ser, prompt="#", timeout=5):
     """
     Disable paging on Cisco device to get full output.
     """
-    send_command_with_keepalive(ser, "terminal length 0", expected_prompt=prompt, timeout=timeout)
+    send_command(ser, "terminal length 0", expected_prompt=prompt, timeout=timeout)
 
 
 def enter_enable_mode(ser, timeout=5):
     """
     Enter privileged EXEC mode (> to #).
     """
-    output = send_command_with_keepalive(ser, "enable", expected_prompt="#", timeout=timeout)
+    output = send_command(ser, "enable", expected_prompt="#", timeout=timeout)
     return output
 
 
