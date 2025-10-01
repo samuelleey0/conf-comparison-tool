@@ -1,7 +1,8 @@
+from ReadyforFurtherDev.remote_utils import send_command_ssh
 from serial_utils import (
-    connect_to_serial,
+    connect_to_serial_with_keepalive,
     disable_paging,
-    send_command,
+    send_command_with_keepalive,
     enter_enable_mode,
     logout_close_connection,
     get_hostname,
@@ -67,7 +68,7 @@ def main():
 
     # Serial connection only
     port = choose_serial_port()
-    ser = connect_to_serial(port)
+    ser = connect_to_serial_with_keepalive(port)
     if ser is None:
         print("[!] Failed to connect to device. Exiting.")
         exit(1)
@@ -85,7 +86,7 @@ def main():
 
         for i, cmd in enumerate(commands, 1):
             print(f"[*] Executing command {i}/{len(commands)}: '{cmd}'...")
-            output = send_command(ser, cmd, timeout=30)
+            output = send_command_with_keepalive(ser, cmd, timeout=30)
             save_output_to_file(cmd, output, exam_name, session_id, student_id, hostname, base_dir=base_path)
             print(f"[+] Command '{cmd}' executed and saved.\n")
             print(f"Router output for '{cmd}':\n{output}\n{'-'*50}")
