@@ -39,6 +39,20 @@ def send_command_ssh(shell, command, expected_prompt="#", timeout=10):
     return buffer.strip()
 
 
+def get_hostname_ssh(shell, timeout=10):
+    """
+    Extract hostname dynamically from Cisco IOS device via SSH.
+    Works for both routers and switches.
+    """
+    output = send_command_ssh(shell, "show running-config | include hostname", timeout=timeout)
+
+    for line in output.splitlines():
+        if line.strip().startswith("hostname"):
+            return line.split()[1]  # e.g. 'R1', 'SW1'
+
+    return "CiscoDevice"
+
+
 def disable_paging_ssh(shell, prompt="#", timeout=5):
     return send_command_ssh(
         shell, "terminal length 0", expected_prompt=prompt, timeout=timeout

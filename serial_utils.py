@@ -112,6 +112,18 @@ def send_command(ser, command, expected_prompt="#", timeout=20):
     output = re.sub(r"\x1b\[.*?[@-~]", "", output)
     return output.strip()
 
+def get_hostname(ser, timeout=5):
+    """
+    Extract hostname from device using CLI prompt.
+    Returns a string like 'R1' or 'SW1'.
+    """
+    output = send_command(ser, "show running-config | include hostname", timeout=timeout)
+
+    for line in output.splitlines():
+        if line.strip().startswith("hostname"):
+            return line.split()[1]  # e.g. 'R1'
+    return "CiscoDevice"
+
 
 def disable_paging(ser, prompt="#", timeout=5):
     """
