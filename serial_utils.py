@@ -8,44 +8,44 @@ from netmiko.netmiko_globals import MAX_BUFFER
 READ_TIMEOUT = 8  # seconds
 MAX_BUFFER = 4096  # 4KB
 
-def wake_device(ser, expected_prompts=[">", "#"], attempts=5, delay=1):
-    """
-    Wake the Cisco device by sending carriage returns and Ctrl-C until a prompt is detected.
-    Prevents timeout if the device was idle too long.
-    """
-    buffer = b""
-    ser.timeout = 1
-    for i in range(attempts):
-        # Send carriage return
-        ser.write(b"\r")
-        ser.flush()
-        time.sleep(delay)
-
-        # Try Ctrl-C as backup
-        if i == 2:
-            ser.write(b"\x03")  # Ctrl-C
-            ser.flush()
-            time.sleep(0.5)
-        elif i == 4:
-            ser.write(b"\x1a")  # Ctrl-Z (back to exec mode)
-            ser.flush()
-            time.sleep(0.5)
-
-        # Read response
-        data = ser.read(1024)
-        if data:
-            buffer += data
-            decoded = buffer.decode(errors="ignore")
-            print(f"[DEBUG] Wake attempt {i+1}, received: {decoded}")
-
-            # Check for prompt
-            for prompt in expected_prompts:
-                if prompt in decoded:
-                    print(f"[+] Device woke up, found prompt: {prompt}")
-                    return True
-
-    print("[!] Failed to wake device, no prompt found.")
-    return False
+# def wake_device(ser, expected_prompts=[">", "#"], attempts=5, delay=1):
+#     """
+#     Wake the Cisco device by sending carriage returns and Ctrl-C until a prompt is detected.
+#     Prevents timeout if the device was idle too long.
+#     """
+#     buffer = b""
+#     ser.timeout = 1
+#     for i in range(attempts):
+#         # Send carriage return
+#         ser.write(b"\r")
+#         ser.flush()
+#         time.sleep(delay)
+#
+#         # Try Ctrl-C as backup
+#         if i == 2:
+#             ser.write(b"\x03")  # Ctrl-C
+#             ser.flush()
+#             time.sleep(0.5)
+#         elif i == 4:
+#             ser.write(b"\x1a")  # Ctrl-Z (back to exec mode)
+#             ser.flush()
+#             time.sleep(0.5)
+#
+#         # Read response
+#         data = ser.read(1024)
+#         if data:
+#             buffer += data
+#             decoded = buffer.decode(errors="ignore")
+#             print(f"[DEBUG] Wake attempt {i+1}, received: {decoded}")
+#
+#             # Check for prompt
+#             for prompt in expected_prompts:
+#                 if prompt in decoded:
+#                     print(f"[+] Device woke up, found prompt: {prompt}")
+#                     return True
+#
+#     print("[!] Failed to wake device, no prompt found.")
+#     return False
 
 
 def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
@@ -68,8 +68,8 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
         clear_session(ser)
 
         # Wake device before waiting for prompt
-        if not wake_device(ser):
-            print("[!] Warning: Device may still be idle or stuck.")
+        # if not wake_device(ser):
+        #     print("[!] Warning: Device may still be idle or stuck.")
 
         output = wait_for_prompt(ser, [">", "#"], timeout=timeout, wake=True)
         print(f"[+] Connected. Device prompt: {output.strip().splitlines()[-1]}")
