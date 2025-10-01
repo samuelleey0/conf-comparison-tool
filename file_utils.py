@@ -14,11 +14,15 @@ def save_output_to_file(command: str, output: str, exam_name: str, student_id: s
     if not hostname:
         raise ValueError("Hostname must be provided to save output files.")
 
-    # Build directory path
-    if base_dir is None:
-        base_dir = str(Path.home() / "Documents") # Default to ~/Documents
+    # If base_dir is already a complete path, just append the hostname
+    if base_dir and os.path.isabs(base_dir):
+        dir_path = os.path.join(base_dir, hostname)
+    else:
+        # Build directory path
+        if base_dir is None:
+            base_dir = str(Path.home() / "Documents") # Default to ~/Documents
+        dir_path = os.path.join(base_dir, exam_name, session_id if session_id else "Session1", student_id if student_id else "UnknownID", hostname)
 
-    dir_path = os.path.join(base_dir, exam_name, session_id if session_id else "Session1", student_id if student_id else "UnknownID", hostname)
     os.makedirs(dir_path, exist_ok=True)
 
     # Clean command string for filename
