@@ -193,6 +193,7 @@ def build_base_path():
     print("\n=== Directory Setup ===")
     print("1. Create new directory structure")
     print("2. Select existing directory")
+    print("3. Create bulk directories from student file (CSV/TXT)")
 
     while True:
         choice = input("Choose option (1, 2, or 3): ").strip()
