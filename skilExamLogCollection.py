@@ -96,7 +96,7 @@ def main():
         logout_close_connection(ser)
         print("[+] Serial connection closed.")
 
-    print(f"\n [+] All commands completed for {device_type.upper()}: '{hostname}'.")
+    print(f"\n[+] All commands completed for {device_type.upper()}: '{hostname}'.")
     print(f"[+] Logs saved in: {base_path}/{hostname}/")
 
 if __name__ == "__main__":
