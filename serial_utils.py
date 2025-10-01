@@ -226,7 +226,7 @@ def get_hostname(ser, timeout=5):
     Extract hostname from device using CLI prompt.
     Returns a string like 'R1' or 'SW1'.
     """
-    output = send_command(ser, "show running-config | include hostname", timeout=timeout)
+    output = send_command_with_keepalive(ser, "show running-config | include hostname", timeout=timeout)
 
     for line in output.splitlines():
         if line.strip().startswith("hostname"):
@@ -238,14 +238,14 @@ def disable_paging(ser, prompt="#", timeout=5):
     """
     Disable paging on Cisco device to get full output.
     """
-    send_command(ser, "terminal length 0", expected_prompt=prompt, timeout=timeout)
+    send_command_with_keepalive(ser, "terminal length 0", expected_prompt=prompt, timeout=timeout)
 
 
 def enter_enable_mode(ser, timeout=5):
     """
     Enter privileged EXEC mode (> to #).
     """
-    output = send_command(ser, "enable", expected_prompt="#", timeout=timeout)
+    output = send_command_with_keepalive(ser, "enable", expected_prompt="#", timeout=timeout)
     return output
 
 
