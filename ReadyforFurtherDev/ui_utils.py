@@ -1,3 +1,5 @@
+from serial_utils import send_command
+
 def choose_connection_type():
     print("Choose connection type:")
     print("1. Serial")
