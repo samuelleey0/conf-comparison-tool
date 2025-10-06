@@ -1,3 +1,5 @@
+from asyncio import Timeout
+
 import serial
 import time
 import re
@@ -48,13 +50,23 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
     if wake and not buffer:
         ser.reset_input_buffer() # clear junk buffer
         time.sleep(2) # wait for device to stabilize
-        ser.write(b"\r") # wake terminal
-        ser.flush()
+        max_attempts = 5
+        for attempt in range(max_attempts):
+            ser.write(b"\r") # wake terminal
+            ser.flush()
+            print(f"[DEBUG] Sent wake-up carriage return to device (attempt {attempt+1}/{max_attempts}).")
+            time.sleep(1.5) # wait for response
+            wake_buffer = b""
+            while ser.in_waiting > 0:
+                wake_buffer += ser.read(1024)
+            decoded = wake_buffer.decode(errors='ignore')
+            if any(re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE) for prompt in expected_prompts):
+                print(f"[DEBUG] Device awake, found prompt: {decoded.strip().splitlines()[-1]}")
+                buffer += wake_buffer
+                break
         print("[DEBUG] Sent wake-up carriage return to device.")
 
     print(f"[DEBUG] Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
-
-    # Stop at here
 
     while time.time() - start_time < timeout:
         if ser.in_waiting > 0:
@@ -65,19 +77,40 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
                 buffer += data
                 # Check buffer size
                 print(f"[DEBUG] Current buffer size: {len(buffer)} bytes")
-
-                if len(buffer) > MAX_BUFFER:
-                    buffer = buffer[-MAX_BUFFER:] # keep only last MAX_BUFFER bytes
-                    print(f"[DEBUG] Buffer exceeded {MAX_BUFFER} bytes, truncating.")
-
                 decoded = buffer.decode(errors='ignore')
-                # Debugging: see what's coming in
-                print(f"[DEBUG] Received data: {data.decode(errors='ignore')}")
 
                 for prompt in expected_prompts:
                     if re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE):
                         print(f"[DEBUG] Found prompt: {prompt}")
-                        return decoded
+
+                        # Send logout until 'Press RETURN to get started' is seen
+                        for _ in range(5):
+                            ser.write(b"logout\n")
+                            ser.flush()
+                            time.sleep(0.5)
+                            logout_buffer = b""
+                            while ser.in_waiting > 0:
+                                logout_buffer += ser.read(1024)
+                            if b"Press RETURN to get started" in logout_buffer:
+                                print("[DEBUG] Detected 'Press RETURN to get started' after logout.")
+                                ser.write(b"\r") # wake terminal again
+                                ser.flush()
+                                time.sleep(1)
+
+                                # Read any prompt after activation
+                                activation_buffer = b""
+                                while ser.in_waiting > 0:
+                                    activation_buffer += ser.read(1024)
+                                buffer += activation_buffer
+                                return buffer.decode(errors='ignore')
+                            raise TimeoutError("Did not receive 'Press RETURN to get started' after logout attempts.")
+
+                # Only truncate buffer after checking for prompts
+                if len(buffer) > MAX_BUFFER:
+                    buffer = buffer[-MAX_BUFFER:] # keep only last MAX_BUFFER bytes
+                    print(f"[DEBUG] Buffer exceeded {MAX_BUFFER} bytes, truncating.")
+
+                print(f"[DEBUG] Received data: {data.decode(errors='ignore')}")
         else:
             time.sleep(0.1)  # Avoid busy waiting
     print(f"[DEBUG] Final buffer before timeout:\n{buffer.decode(errors='ignore')}")
