@@ -126,3 +126,103 @@ pip list
 ```
 
 ---
+
+## Setup on Ubuntu with PCIe Serial Port
+
+This section guides you through preparing an Ubuntu desktop with a **PCIe serial interface** to run the scripts.
+
+### Hardware & Driver Setup
+
+1. **Install the PCIe Serial Card** properly on the desktop.
+2. Confirm the system detects it:
+    ```sh
+    lspci | grep -i serial
+    ```
+    You should see something like:
+    ```
+    0000:03:00.0 Serial controller: Oxford Semiconductor Ltd OXPCIe952 Dual Serial Port
+    ```
+3. Check if the serial port device is created:
+    ```sh
+    dmesg | grep tty
+    ```
+    or
+    ```sh
+    ls /dev/ttyS* /dev/ttyUSB* 2>/dev/null
+    ```
+    Typical outputs: `/dev/ttyS4`, `/dev/ttyS5`, etc.
+
+If the serial ports do not appear, load the driver manually:
+
+```sh
+sudo modprobe 8250_pci
+```
+
+---
+
+### Permissions
+
+Grant the current user permission to access serial devices:
+
+```sh
+sudo usermod -aG dialout $USER
+```
+
+Then **log out and log back in** before continuing.
+
+---
+
+### Identify Serial Port
+
+After reboot or device replug:
+
+```sh
+dmesg | grep tty
+```
+
+Example result:
+
+```
+[  5.321877] serial8250: ttyS4 at I/O 0x3020 (irq = 17) is a 16550A
+```
+
+Use the correct port in your Python script, for example:
+
+```python
+port = "/dev/ttyS4"
+```
+
+---
+
+### 🐍 4️⃣ Python Environment
+
+Ensure your Python environment (virtual or system) includes the required packages:
+
+```sh
+pip install -r requirements.txt
+```
+
+```sh
+python3 main.py
+```
+
+---
+
+### Test Serial Communication
+
+Verify the serial link using **Minicom** before running the automation script:
+
+```sh
+sudo apt install minicom
+sudo minicom -D /dev/ttyS4 -b 9600
+```
+
+Default serial settings for Cisco devices:
+
+-   **Baudrate:** 9600
+-   **Data bits:** 8
+-   **Parity:** None
+-   **Stop bits:** 1
+-   **Flow control:** None
+
+---
