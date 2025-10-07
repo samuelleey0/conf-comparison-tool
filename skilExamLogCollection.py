@@ -1,3 +1,5 @@
+import time
+
 from serial_utils import (
     connect_to_serial,
     disable_paging,
@@ -67,6 +69,7 @@ def main():
 
     # Serial connection only
     port = choose_serial_port()
+    time.sleep(2)
     ser = connect_to_serial(port)
     if ser is None:
         print("[!] Failed to connect to device. Exiting.")
@@ -94,6 +97,7 @@ def main():
         print(f"[!] Error: {e}")
     finally:
         logout_close_connection(ser)
+        time.sleep(2)
         print("[+] Serial connection closed.")
 
     print(f"\n[+] All commands completed for {device_type.upper()}: '{hostname}'.")
