@@ -67,7 +67,7 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
             if any(re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE) for prompt in expected_prompts):
                 print(f"[DEBUG] Device awake, found prompt: {decoded.strip().splitlines()[-1]}")
                 buffer += wake_buffer
-                return buffer.decode(errors='ignore')
+                # return buffer.decode(errors='ignore')
         print("[DEBUG] Sent wake-up carriage return to device.")
 
     print(f"[DEBUG] Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
