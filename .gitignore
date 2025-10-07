@@ -1,2 +1,13 @@
-# Ignore Python virtual environment
+# Python virtual environment
 fyp-venv/
+__pycache__/
+*.pyc
+
+# Node / Electron
+node_modules/
+electron-gui/node_modules/
+electron-gui/package-lock.json
+
+# Logs and temp files
+*.log
+*.DS_Store
