@@ -28,6 +28,9 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
 
         # Clear any existing session first
         clear_session(ser)
+        time.sleep(2)
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
 
         output = wait_for_prompt(ser, [">", "#"], timeout=timeout, wake=True)
         print(f"[+] Connected. Device prompt: {output.strip().splitlines()[-1]}")
