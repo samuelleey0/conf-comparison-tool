@@ -55,7 +55,7 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
             ser.write(b"\r") # wake terminal
             ser.flush()
             print(f"[DEBUG] Sent wake-up carriage return to device (attempt {attempt+1}/{max_attempts}).")
-            time.sleep(1.5) # wait for response
+            time.sleep(2) # wait for response
             wake_buffer = b""
             while ser.in_waiting > 0:
                 wake_buffer += ser.read(1024)
@@ -63,7 +63,7 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
             if any(re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE) for prompt in expected_prompts):
                 print(f"[DEBUG] Device awake, found prompt: {decoded.strip().splitlines()[-1]}")
                 buffer += wake_buffer
-                break
+                return buffer.decode(errors='ignore')
         print("[DEBUG] Sent wake-up carriage return to device.")
 
     print(f"[DEBUG] Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
