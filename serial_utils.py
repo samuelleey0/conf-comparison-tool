@@ -60,6 +60,7 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
             while ser.in_waiting > 0:
                 wake_buffer += ser.read(1024)
             decoded = wake_buffer.decode(errors='ignore')
+            print(f"[DEBUG] Wake attempt {attempt+1} captured:\n{decoded}")
             if any(re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE) for prompt in expected_prompts):
                 print(f"[DEBUG] Device awake, found prompt: {decoded.strip().splitlines()[-1]}")
                 buffer += wake_buffer
