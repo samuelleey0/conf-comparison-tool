@@ -1,13 +1,45 @@
-# Python virtual environment
+# -------------------------
+# Python
+# -------------------------
+# Virtual environment
 fyp-venv/
+venv/
+.env/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.pytest_cache/
+*.coverage
 
+# -------------------------
 # Node / Electron
+# -------------------------
 node_modules/
 electron-gui/node_modules/
 electron-gui/package-lock.json
+electron-gui/dist/
+electron-gui/out/
+electron-gui/.webpack/
 
-# Logs and temp files
+# -------------------------
+# Logs and temporary files
+# -------------------------
 *.log
+*.tmp
 *.DS_Store
+*.swp
+*.bak
+
+# -------------------------
+# IDE / Editor configs
+# -------------------------
+.vscode/
+.idea/
+*.iml
+
+# -------------------------
+# System / Cache files
+# -------------------------
+Thumbs.db
+.DS_Store
