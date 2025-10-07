@@ -67,11 +67,40 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
             if any(re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE) for prompt in expected_prompts):
                 print(f"[DEBUG] Device awake, found prompt: {decoded.strip().splitlines()[-1]}")
                 buffer += wake_buffer
-                # return buffer.decode(errors='ignore')
+                prompt_found = True
         print("[DEBUG] Sent wake-up carriage return to device.")
 
     print(f"[DEBUG] Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
 
+    if buffer:
+        decoded = buffer.decode(errors='ignore')
+        for prompt in expected_prompts:
+            if re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE):
+                print(f"[DEBUG] Found prompt: {prompt}")
+
+                # Send logout until 'Press RETURN to get started' is seen
+                for _ in range(5):
+                    ser.write(b"logout\n")
+                    ser.flush()
+                    time.sleep(0.5)
+                    logout_buffer = b""
+                    while ser.in_waiting > 0:
+                        logout_buffer += ser.read(1024)
+                    if b"Press RETURN to get started" in logout_buffer:
+                        print("[DEBUG] Detected 'Press RETURN to get started' after logout.")
+                        ser.write(b"\r") # wake terminal again
+                        ser.flush()
+                        time.sleep(1)
+
+                        # Read any prompt after activation
+                        activation_buffer = b""
+                        while ser.in_waiting > 0:
+                            activation_buffer += ser.read(1024)
+                        buffer += activation_buffer
+                        return buffer.decode(errors='ignore')
+                    raise TimeoutError("Did not receive 'Press RETURN to get started' after logout attempts.")
+
+    print(f"[DEBUG] Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
     while time.time() - start_time < timeout:
         if ser.in_waiting > 0:
             print(f"[DEBUG] ser.in_waiting={ser.in_waiting}")
@@ -79,15 +108,11 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
             print(f"[DEBUG] ser.read(1024) returned {len(data)} bytes")
             if data:
                 buffer += data
-                # Check buffer size
                 print(f"[DEBUG] Current buffer size: {len(buffer)} bytes")
                 decoded = buffer.decode(errors='ignore')
-
                 for prompt in expected_prompts:
                     if re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE):
                         print(f"[DEBUG] Found prompt: {prompt}")
-
-                        # Send logout until 'Press RETURN to get started' is seen
                         for _ in range(5):
                             ser.write(b"logout\n")
                             ser.flush()
@@ -97,18 +122,15 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
                                 logout_buffer += ser.read(1024)
                             if b"Press RETURN to get started" in logout_buffer:
                                 print("[DEBUG] Detected 'Press RETURN to get started' after logout.")
-                                ser.write(b"\r") # wake terminal again
+                                ser.write(b"\r")
                                 ser.flush()
                                 time.sleep(1)
-
-                                # Read any prompt after activation
                                 activation_buffer = b""
                                 while ser.in_waiting > 0:
                                     activation_buffer += ser.read(1024)
                                 buffer += activation_buffer
                                 return buffer.decode(errors='ignore')
-                            raise TimeoutError("Did not receive 'Press RETURN to get started' after logout attempts.")
-
+                        raise TimeoutError("Did not receive 'Press RETURN to get started' after logout attempts.")
                 # Only truncate buffer after checking for prompts
                 if len(buffer) > MAX_BUFFER:
                     buffer = buffer[-MAX_BUFFER:] # keep only last MAX_BUFFER bytes
