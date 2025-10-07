@@ -48,6 +48,8 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
     buffer = b""
     start_time = time.time()
     ser.timeout = 1  # Set a short timeout for read operations
+
+    prompt_found = False
     print(f"[DEBUG] Serial settings: port={ser.port}, baudrate={ser.baudrate}, timeout={ser.timeout}")
 
     if wake and not buffer:
@@ -68,6 +70,9 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
                 print(f"[DEBUG] Device awake, found prompt: {decoded.strip().splitlines()[-1]}")
                 buffer += wake_buffer
                 prompt_found = True
+                break
+        if not prompt_found:
+            print("[DEBUG] No prompt detected after wake attempts, proceeding to wait for prompt.")
         print("[DEBUG] Sent wake-up carriage return to device.")
 
     print(f"[DEBUG] Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
