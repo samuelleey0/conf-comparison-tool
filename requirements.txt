@@ -1,3 +1,4 @@
+# === Core Networking & Cisco Libraries ===
 bcrypt>=3.1.7
 cffi>=1.14.0
 cryptography>=3.3.2
@@ -17,3 +18,14 @@ ruamel.yaml>=0.16.10
 ruamel.yaml.clib>=0.2.0
 scp>=0.13.0
 textfsm>=1.1.0
+
+# === Web Backend / API (for Electron integration) ===
+Flask>=3.0.0
+Werkzeug>=3.0.0
+Jinja2>=3.1.0
+itsdangerous>=2.2.0
+blinker>=1.9.0
+click>=8.1.0
+
+# === Optional Utilities ===
+requests>=2.31.0

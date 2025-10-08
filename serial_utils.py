@@ -23,7 +23,7 @@ def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
             bytesize=serial.EIGHTBITS,
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
-            timeout=0.5,
+            timeout=1,
         )
         print("[DEBUG] Serial port opened successfully.")
 
