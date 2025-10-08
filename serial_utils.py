@@ -447,7 +447,7 @@ def logout(ser, timeout=2):
 
         # Logout from user mode
         for logout_cmd in [b"logout\r\n", b"exit\r\n", b"quit\r\n"]:
-            try: 
+            try:
                 ser.write(logout_cmd)
                 ser.flush()
                 time.sleep(0.2)
@@ -550,5 +550,7 @@ def logout_close_connection(ser):
                 pass
             time.sleep(0.15)
             dbg("Serial connection closed with proper cleanup.")
+        except Exception as e:
+            dbg(f"Error during logout/close: {e}")
     else:
         print("[!] No open serial connection to close.")
