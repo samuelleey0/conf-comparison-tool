@@ -45,6 +45,7 @@ def main():
 
     if conn_type == "1":
         port = choose_serial_port()
+        time.sleep(2)
         ser = connect_to_serial(port)
         if ser is None:
             print("[+] Failed to connect to device. Exiting.")
@@ -64,11 +65,15 @@ def main():
                 print(f"[*] Sending '{cmd}'...")
                 output = send_command(ser, cmd, timeout=30)
                 save_output_to_file(cmd, output, exam_name, session_id, student_id, hostname, base_dir=base_path)
+                print(f"[+] Command '{cmd}' executed and saved.\n")
                 print(f"Router output for '{cmd}':\n{output}\n{'-'*50}")
         except Exception as e:
             print(f"Error: {e}")
         finally:
             logout_close_connection(ser)
+            time.sleep(2)
+            print("[+] Serial connection closed.")
+            print(f"[+] Logs saved in: {base_path}/{hostname}/")
     elif conn_type == "2":
         host, username, password = ssh_credentials()
         client, shell = connect_ssh(host, username, password)
@@ -90,6 +95,7 @@ def main():
                 print(f"[*] Sending '{cmd}'...")
                 output = send_command_ssh(shell, cmd, timeout=30)
                 save_output_to_file(cmd, output, exam_name, session_id, student_id, hostname, base_dir=base_path)
+                print(f"[+] Command '{cmd}' executed and saved.\n")
                 print(f"Router output for '{cmd}':\n{output}\n{'-'*50}")
             print("Router output:\n", output)
 
@@ -99,6 +105,7 @@ def main():
             shell.close()
             client.close()
             print("[+] SSH connection closed.")
+            print(f"[+] Logs saved in: {base_path}/{hostname}/")
     else:
         print("Invalid choice.")
 
