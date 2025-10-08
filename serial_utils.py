@@ -4,44 +4,158 @@ import serial
 import time
 import re
 import threading
-
+import logging
 from netmiko.netmiko_globals import MAX_BUFFER
 
 READ_TIMEOUT = 8  # seconds
 MAX_BUFFER = 4096  # 4KB
 
+DEBUG = False
+logger = logging.getLogger("serial_utils")
 
-def connect_to_serial(port: str, baudrate: int = 9600, timeout=READ_TIMEOUT):
-    """
-    Establish a serial connection to Cisco device.
-    """
-    print(f"[DEBUG] Attempting to open serial port: {port} at {baudrate} baud")
+
+def dbg(msg):
+    if DEBUG:
+        print(f"[DEBUG] {msg}")
+
+
+def _reset_buffers(ser):
+    """Reset input/output buffers with fallbacks for older pyserial versions."""
     try:
-        ser = serial.Serial(
-            port=port,  # Console cable device (e.g., /dev/ttyUSB0)
-            baudrate=9600,
-            bytesize=serial.EIGHTBITS,
-            parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_ONE,
-            timeout=1,
-        )
-        print("[DEBUG] Serial port opened successfully.")
-
-        # Clear any existing session first
-        clear_session(ser)
-        time.sleep(2)
         ser.reset_input_buffer()
         ser.reset_output_buffer()
+    except Exception:
+        try:
+            ser.flushInput()
+            ser.flushOutput()
+        except Exception:
+            pass
 
-        output = wait_for_prompt(ser, [">", "#"], timeout=timeout, wake=True)
-        print(f"[+] Connected. Device prompt: {output.strip().splitlines()[-1]}")
-        return ser
-    except serial.SerialException as e:
-        print(f"[!] Error communicating...: {e}")
-        return None
+
+def connect_to_serial(
+    port: str, baudrate: int = 9600, timeout=READ_TIMEOUT, attempts: int = 3
+):
+    """
+    Establish a serial connection to a Cisco device.
+    Will retry open+wake up to `attempts` times if no prompt is seen.
+    Returns an open Serial object or None.
+    """
+    dbg(f"Attempting to open serial port: {port} at {baudrate} baud")
+    last_exc = None
+    for attempt in range(1, attempts + 1):
+        try:
+            ser = serial.Serial(
+                port=port,  # Console cable device (e.g., /dev/ttyUSB0)
+                baudrate=baudrate,
+                bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE,
+                timeout=0.5,
+            )
+            dbg(f"Serial port opened successfully (attempt {attempt}).")
+            time.sleep(0.05)
+            _reset_buffers(ser)
+
+            try:
+                output = wait_for_prompt(ser, [">", "#"], timeout=timeout, wake=True)
+                dbg(f"Connected. Device prompt: {output.strip().splitlines()[-1]}")
+                return ser
+            except TimeoutError as e:
+                dbg(f"Prompt not found on attempt {attempt}: {e}")
+                last_exc = e
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+                time.sleep(0.5)
+                continue
+        except serial.SerialException as e:
+            dbg(f"Error opening serial port on attempt {attempt}: {e}")
+            last_exc = e
+            time.sleep(0.5)
+            continue
+
+    dbg(
+        f"All {attempts} attempts to open serial port or detect prompt failed on {port}."
+    )
+    if last_exc and DEBUG:
+        dbg(f"Last exception: {last_exc}")
+    return None
 
 
 def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
+    """
+    Read from serial until one of expected_prompts is seen or timeout.
+    - expected_prompts: list of strings to detect (e.g., [">", "#", "(config)#"])
+    - timeout: total seconds to wait
+    - wake: whether to attempt a short wake sequence (CRs) while reading
+    Raises TimeoutError on failure.
+    """
+    start = time.time()
+    buffer = b""
+    ser.timeout = 0.4
+    wake_sent = 0
+    last_read_time = time.time()
+
+    # ensure buffers are clear before starting
+    _reset_buffers(ser)
+
+    # Send a first wake CR immediately
+    if wake:
+        try:
+            ser.write(b"\r\n")
+            ser.flush()
+            dbg("Initial wake sent")
+            wake_sent = 1
+        except Exception as e:
+            dbg(f"Error sending initial wake: {e}")
+
+    while time.time() - start < timeout:
+        try:
+            # read available data (non-blocking up to per-read timeout)
+            data = ser.read(1024)
+        except Exception:
+            data = b""
+
+        if data:
+            buffer += data
+            last_read_time = time.time()
+            # keep buffer bounded
+            if len(buffer) > MAX_BUFFER:
+                buffer = buffer[-MAX_BUFFER:]
+            decoded = buffer.decode(errors="ignore")
+            # check each expected prompt at line end
+            for prompt in expected_prompts:
+                if re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE):
+                    return decoded
+            # handle possible activation text
+            if b"Press RETURN to get started" in buffer:
+                try:
+                    ser.write(b"\r\n")
+                    ser.flush()
+                except Exception:
+                    pass
+        else:
+            # no data read this cycle: if wake enabled, send additional CRs spaced out
+            elapsed = time.time() - start
+            # send up to 3 wake CRs distributed within first part of timeout
+            if wake and wake_sent < 3 and elapsed >= wake_sent * (timeout / 6.0):
+                try:
+                    ser.write(b"\r\n")
+                    ser.flush()
+                    dbg(f"Sent wake CR (#{wake_sent + 1}) after {elapsed:.2f}s")
+                    wake_sent += 1
+                except Exception as e:
+                    dbg(f"Error sending wake CR: {e}")
+            time.sleep(0.08)
+
+    # timed out
+    dbg(f"wait_for_prompt timed out, buffer:\n{buffer.decode(errors='ignore')}")
+    raise TimeoutError(
+        f"Did not receive expected prompt(s) {expected_prompts} in {timeout} seconds."
+    )
+
+    # def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
     """
     Wait for specific prompts from the Cisco device.
     Optionally send a wake-up carriage return first.
@@ -49,6 +163,10 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
     buffer = b""
     start_time = time.time()
     ser.timeout = 1  # Set a short timeout for read operations
+    wake_sent = 0
+    last_read_time = time.time()
+
+    _reset_buffers(ser)
 
     prompt_found = False
     print(
@@ -87,7 +205,48 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
             )
         print("[DEBUG] Sent wake-up carriage return to device.")
 
-    print(f"[DEBUG] Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
+    dbg(f"[DEBUG] Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
+    prompt_found = False
+    dbg(
+        f"Serial settings: port={ser.port}, baudrate={ser.baudrate}, timeout={ser.timeout}"
+    )
+
+    if wake:
+        try:
+            try:
+                ser.reset_input_buffer()  # clear junk buffer
+            except Exception:
+                try:
+                    ser.flushInput()
+                except Exception:
+                    pass
+            time.sleep(0.1)  # wait for device to stabilize
+            wake_attempts = 3
+            for attempt in range(wake_attempts):
+                ser.write(b"\r")  # wake terminal
+                ser.flush()
+                dbg(
+                    f"Sent wake-up carriage return to device (attempt {attempt+1}/{wake_attempts})."
+                )
+                time.sleep(0.25)  # wait for response
+                if ser.in_waiting:
+                    wake_buffer = ser.read(ser.in_waiting or 1)
+                    decoded = wake_buffer.decode(errors="ignore")
+                    dbg(f"Wake attempt {attempt+1} captured:\n{decoded}")
+                    if any(
+                        re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE)
+                        for prompt in expected_prompts
+                    ):
+                        dbg(
+                            f"Device awake, found prompt: {decoded.strip().splitlines()[-1]}"
+                        )
+                        buffer += wake_buffer
+                        prompt_found = True
+                        break
+        except Exception as e:
+            dbg(f"Error during wake attempts: {e}")
+
+    dbg(f"Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
 
     if buffer:
         decoded = buffer.decode(errors="ignore")
@@ -120,6 +279,27 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
                     raise TimeoutError(
                         "Did not receive 'Press RETURN to get started' after logout attempts."
                     )
+
+                for _ in range(3):
+                    ser.write(b"logout\n")
+                    ser.flush()
+                    time.sleep(0.2)
+                    logout_buffer = b""
+                    if ser.in_waiting:
+                        logout_buffer += ser.read(ser.in_waiting or 1)
+                    if b"Press RETURN to get started" in logout_buffer:
+                        dbg(
+                            "[DEBUG] Detected 'Press RETURN to get started' after logout."
+                        )
+                        ser.write(b"\r\n")
+                        ser.flush()
+                        time.sleep(0.2)
+                        activation_buffer = b""
+                        while ser.in_waiting > 0:
+                            activation_buffer += ser.read(ser.in_waiting or 1)
+                            buffer += activation_buffer
+                        return buffer.decode(errors="ignore")
+                dbg("Logout attempts did not produce activation; continue to wait.")
 
     print(f"[DEBUG] Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
     while time.time() - start_time < timeout:
@@ -164,6 +344,28 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
                 print(f"[DEBUG] Received data: {data.decode(errors='ignore')}")
         else:
             time.sleep(0.1)  # Avoid busy waiting
+    while time.time() - start_time < timeout:
+        try:
+            if ser.in_waiting > 0:
+                dbg(f"ser.in_waiting={ser.in_waiting}")
+                data = ser.read(ser.in_waiting or 1)
+                dbg(f"ser.read() returned {len(data)} bytes")
+                if data:
+                    buffer += data
+                    if len(buffer) > MAX_BUFFER:
+                        buffer = buffer[-MAX_BUFFER:]
+                        dbg(f"Buffer exceeded {MAX_BUFFER} bytes, truncating.")
+                    decoded = buffer.decode(errors="ignore")
+                    for prompt in expected_prompts:
+                        if re.search(
+                            rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE
+                        ):
+                            dbg(f"Found prompt: {prompt}")
+                            return buffer.decode(errors="ignore")
+            else:
+                time.sleep(0.05)
+        except Exception as e:
+            dbg(f"Read loop error: {e}")
     print(f"[DEBUG] Final buffer before timeout:\n{buffer.decode(errors='ignore')}")
     raise TimeoutError(
         f"Did not receive expected prompt(s) {expected_prompts} in {timeout} seconds."
@@ -245,23 +447,27 @@ def logout(ser, timeout=2):
 
         # Logout from user mode
         for logout_cmd in [b"logout\r\n", b"exit\r\n", b"quit\r\n"]:
-            ser.write(logout_cmd)
-            ser.flush()
-            time.sleep(0.2)
+            try: 
+                ser.write(logout_cmd)
+                ser.flush()
+                time.sleep(0.2)
+            except Exception as e:
+                pass
+        _reset_buffers(ser)
 
-        # Send break to force disconnect
-        ser.send_break(duration=0.15)
-        time.sleep(0.1)
+        # # Send break to force disconnect
+        # ser.send_break(duration=0.15)
+        # time.sleep(0.1)
 
-        # Send additional exits to ensure cleanup
-        for _ in range(2):
-            ser.write(b"\x03\r\n")  # Ctrl-C + Enter
-            ser.flush()
-            time.sleep(0.1)
+        # # Send additional exits to ensure cleanup
+        # for _ in range(2):
+        #     ser.write(b"\x03\r\n")  # Ctrl-C + Enter
+        #     ser.flush()
+        #     time.sleep(0.1)
 
-        # Clear any remaining buffer
-        ser.reset_input_buffer()
-        ser.reset_output_buffer()
+        # # Clear any remaining buffer
+        # ser.reset_input_buffer()
+        # ser.reset_output_buffer()
 
         print("[DEBUG] Thorough logout sequence completed.")
     except Exception as e:
@@ -320,30 +526,29 @@ def logout_close_connection(ser):
             logout(ser)
 
             # Send break signal to force session termination
-            ser.send_break(duration=0.2)
-            time.sleep(0.2)
+            try:
+                ser.send_break(duration=0.2)
+                time.sleep(0.2)
+            except Exception as e:
+                pass
 
             # Control hardware lines to signal disconnect
-            ser.dtr = False  # Data Terminal Ready
-            ser.rts = False  # Request To Send
-            time.sleep(0.2)
-            ser.dtr = True
-            ser.rts = True
-
-            # Clear all buffers
-            ser.reset_input_buffer()
-            ser.reset_output_buffer()
+            try:
+                ser.dtr = False  # Data Terminal Ready
+                ser.rts = False  # Request To Send
+                time.sleep(0.2)
+                ser.dtr = True
+                ser.rts = True
+            except Exception as e:
+                pass
+            _reset_buffers(ser)
 
             # Close the connection
-            ser.close()
-            print("[+] Serial connection closed with proper cleanup.")
-        except Exception as e:
-            print(f"[!] Error closing serial connection: {e}")
-            # Force close if error occurs
             try:
                 ser.close()
-                print("[+] Serial connection force-closed.")
-            except:
+            except Exception as e:
                 pass
+            time.sleep(0.15)
+            dbg("Serial connection closed with proper cleanup.")
     else:
         print("[!] No open serial connection to close.")
