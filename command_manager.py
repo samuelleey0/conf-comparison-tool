@@ -3,15 +3,18 @@ import json
 import os
 
 BASE_DIR = os.path.dirname(__file__)
-COMMANDS_PATH = os.path.join(BASE_DIR, "commands.json")
+CONFIG_DIR = os.path.join(BASE_DIR, "config")
+os.makedirs(CONFIG_DIR, exist_ok=True)  # Ensure the directory exists
+COMMANDS_PATH = os.path.join(CONFIG_DIR, "commands.json")
 
 DEFAULT_COMMANDS = [
     "show ip interface brief",
     "show running-config",
     "show version",
     "show vlan brief",
-    "show ip route"
+    "show ip route",
 ]
+
 
 def load_commands():
     if not os.path.exists(COMMANDS_PATH):
@@ -28,15 +31,18 @@ def load_commands():
         save_commands(DEFAULT_COMMANDS)
         return list(DEFAULT_COMMANDS)
 
+
 def save_commands(cmds):
     with open(COMMANDS_PATH, "w") as f:
         json.dump(cmds, f, indent=4)
+
 
 def display(cmds):
     print("\n--- Command List ---")
     for i, c in enumerate(cmds, 1):
         print(f"{i}. {c}")
     print("--------------------")
+
 
 def select(cmds):
     display(cmds)
@@ -51,12 +57,14 @@ def select(cmds):
             pass
     return selected
 
+
 def add(cmds):
     new = input("Enter new command: ").strip()
     if new and new not in cmds:
         cmds.append(new)
         save_commands(cmds)
         print(f"Added: {new}")
+
 
 def remove(cmds):
     display(cmds)
@@ -68,6 +76,7 @@ def remove(cmds):
         print(f"Removed: {removed}")
     except:
         print("Invalid choice.")
+
 
 def command_menu():
     cmds = load_commands()
@@ -92,6 +101,7 @@ def command_menu():
             return []
         else:
             print("Invalid.")
+
 
 if __name__ == "__main__":
     result = command_menu()
