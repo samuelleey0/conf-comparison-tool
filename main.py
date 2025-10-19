@@ -20,10 +20,16 @@ from ui_utils import choose_connection_type, choose_serial_port, ssh_credentials
 
 from file_utils import save_output_to_file, build_base_path
 
+from command_manager import command_menu
+
 
 def main():
     # List of commands to run
-    commands = ["show running-config", "show ip interface brief"]
+    # commands = ["show running-config", "show ip interface brief"]
+    commands = command_menu()
+    if not commands:
+        print("[!] No commands selected. Exiting.")
+        return
 
     # === Get path info dynamically ===
     path_info = build_base_path()

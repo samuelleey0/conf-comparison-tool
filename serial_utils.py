@@ -40,7 +40,7 @@ def connect_to_serial(
     Will retry open+wake up to `attempts` times if no prompt is seen.
     Returns an open Serial object or None.
     """
-    dbg(f"Attempting to open serial port: {port} at {baudrate} baud")
+    print(f"[INFO] Attempting to open serial port: {port} at {baudrate} baud")
     last_exc = None
     for attempt in range(1, attempts + 1):
         try:
@@ -52,31 +52,33 @@ def connect_to_serial(
                 stopbits=serial.STOPBITS_ONE,
                 timeout=0.5,
             )
-            dbg(f"Serial port opened successfully (attempt {attempt}).")
+            print(f"[INFO] Serial port opened successfully (attempt {attempt}).")
             time.sleep(0.05)
             _reset_buffers(ser)
 
             try:
                 output = wait_for_prompt(ser, [">", "#"], timeout=timeout, wake=True)
-                dbg(f"Connected. Device prompt: {output.strip().splitlines()[-1]}")
+                print(
+                    f"[INFO] Connected. Device prompt: {output.strip().splitlines()[-1]}"
+                )
                 return ser
             except TimeoutError as e:
                 dbg(f"Prompt not found on attempt {attempt}: {e}")
                 last_exc = e
                 try:
-                    ser.close()
+                    logout_close_connection(ser)
                 except Exception:
                     pass
                 time.sleep(0.5)
                 continue
         except serial.SerialException as e:
-            dbg(f"Error opening serial port on attempt {attempt}: {e}")
+            print(f"[ERROR] Error opening serial port on attempt {attempt}: {e}")
             last_exc = e
             time.sleep(0.5)
             continue
 
-    dbg(
-        f"All {attempts} attempts to open serial port or detect prompt failed on {port}."
+    print(
+        f"[ERROR] All {attempts} attempts to open serial port or detect prompt failed on {port}."
     )
     if last_exc and DEBUG:
         dbg(f"Last exception: {last_exc}")
@@ -95,7 +97,6 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
     buffer = b""
     ser.timeout = 0.4
     wake_sent = 0
-    last_read_time = time.time()
 
     # ensure buffers are clear before starting
     _reset_buffers(ser)
@@ -119,7 +120,6 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
 
         if data:
             buffer += data
-            last_read_time = time.time()
             # keep buffer bounded
             if len(buffer) > MAX_BUFFER:
                 buffer = buffer[-MAX_BUFFER:]
@@ -469,9 +469,9 @@ def logout(ser, timeout=2):
         # ser.reset_input_buffer()
         # ser.reset_output_buffer()
 
-        print("[DEBUG] Thorough logout sequence completed.")
+        dbg("Thorough logout sequence completed.")
     except Exception as e:
-        print(f"[DEBUG] Error during logout: {e}")
+        dbg(f"Error during logout: {e}")
 
 
 def clear_session(ser):
@@ -511,9 +511,9 @@ def clear_session(ser):
         ser.reset_input_buffer()
         ser.reset_output_buffer()
 
-        print("[DEBUG] Aggressive Session cleared.")
+        dbg("Aggressive Session cleared.")
     except Exception as e:
-        print(f"[DEBUG] Error during session clear: {e}")
+        dbg(f"Error during session clear: {e}")
 
 
 def logout_close_connection(ser):
@@ -525,23 +525,27 @@ def logout_close_connection(ser):
             # First, attempt to logout cleanly
             logout(ser)
 
+            clear_session(ser)
+
+            time.sleep(0.2)
+
             # Send break signal to force session termination
-            try:
-                ser.send_break(duration=0.2)
-                time.sleep(0.2)
-            except Exception as e:
-                pass
+            # try:
+            #     ser.send_break(duration=0.2)
+            #     time.sleep(0.2)
+            # except Exception as e:
+            #     pass
 
             # Control hardware lines to signal disconnect
-            try:
-                ser.dtr = False  # Data Terminal Ready
-                ser.rts = False  # Request To Send
-                time.sleep(0.2)
-                ser.dtr = True
-                ser.rts = True
-            except Exception as e:
-                pass
-            _reset_buffers(ser)
+            # try:
+            #     ser.dtr = False  # Data Terminal Ready
+            #     ser.rts = False  # Request To Send
+            #     time.sleep(0.2)
+            #     ser.dtr = True
+            #     ser.rts = True
+            # except Exception as e:
+            #     pass
+            # _reset_buffers(ser)
 
             # Close the connection
             try:
@@ -549,8 +553,8 @@ def logout_close_connection(ser):
             except Exception as e:
                 pass
             time.sleep(0.15)
-            dbg("Serial connection closed with proper cleanup.")
+            print("[INFO] Serial connection closed with proper cleanup.")
         except Exception as e:
-            dbg(f"Error during logout/close: {e}")
+            print(f"[ERROR] Error during logout/close: {e}")
     else:
         print("[!] No open serial connection to close.")
