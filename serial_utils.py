@@ -91,6 +91,7 @@ def connect_to_serial(
                         f"Prompt not found on connection retry {connection_retries}: {e}"
                     )
                     connection_retries += 1
+                    logout_close_connection(ser)
                     time.sleep(connection_retry_interval)
                     continue
 
