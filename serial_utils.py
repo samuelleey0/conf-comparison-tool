@@ -48,7 +48,7 @@ def connect_to_serial(
             # Check if the serial device exists (Linux/macOS: /dev/ttyUSB0, Windows: COMx)
             if not os.path.exists(port) and not port.startswith("COM"):
                 print(f"[WARNING] Serial device {port} not found. Check connection.")
-                time.sleep(2)  # Wait before retrying
+                time.sleep(3.5)  # Wait before retrying
                 continue
 
             ser = serial.Serial(
