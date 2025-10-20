@@ -3,6 +3,7 @@ from asyncio import Timeout
 import serial
 import time
 import re
+import os
 import threading
 import logging
 from netmiko.netmiko_globals import MAX_BUFFER
@@ -44,6 +45,12 @@ def connect_to_serial(
     last_exc = None
     for attempt in range(1, attempts + 1):
         try:
+            # Check if the serial device exists (Linux/macOS: /dev/ttyUSB0, Windows: COMx)
+            if not os.path.exists(port) and not port.startswith("COM"):
+                print(f"[WARNING] Serial device {port} not found. Check connection.")
+                time.sleep(2)  # Wait before retrying
+                continue
+
             ser = serial.Serial(
                 port=port,  # Console cable device (e.g., /dev/ttyUSB0)
                 baudrate=baudrate,
@@ -80,6 +87,7 @@ def connect_to_serial(
     print(
         f"[ERROR] All {attempts} attempts to open serial port or detect prompt failed on {port}."
     )
+    print("[HINT] Check if the device is plugged in and try again.")
     if last_exc and DEBUG:
         dbg(f"Last exception: {last_exc}")
     return None
