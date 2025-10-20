@@ -34,21 +34,35 @@ def _reset_buffers(ser):
 
 
 def connect_to_serial(
-    port: str, baudrate: int = 9600, timeout=READ_TIMEOUT, attempts: int = 3
+    port: str,
+    baudrate: int = 9600,
+    timeout=READ_TIMEOUT,
+    cable_retry_interval: int = 3,
+    connection_retry_interval: int = 1,
+    max_cable_retries: int = 10,
+    max_connection_retries: int = 5,
 ):
     """
     Establish a serial connection to a Cisco device.
-    Will retry open+wake up to `attempts` times if no prompt is seen.
+    Handles cases where the serial cable is unplugged and reconnected.
+    - cable_retry_interval: Time (in seconds) to wait between cable detection retries.
+    - connection_retry_interval: Time (in seconds) to wait between connection retries.
+    - max_cable_retries: Maximum number of retries for detecting the serial cable.
+    - max_connection_retries: Maximum number of retries for the connection process.
     Returns an open Serial object or None.
     """
     print(f"[INFO] Attempting to open serial port: {port} at {baudrate} baud")
+    cable_retries = 0
+    connection_retries = 0
     last_exc = None
-    for attempt in range(1, attempts + 1):
+
+    while cable_retries < max_cable_retries:
         try:
             # Check if the serial device exists (Linux/macOS: /dev/ttyUSB0, Windows: COMx)
             if not os.path.exists(port) and not port.startswith("COM"):
                 print(f"[WARNING] Serial device {port} not found. Check connection.")
-                time.sleep(3.5)  # Wait before retrying
+                cable_retries += 1
+                time.sleep(cable_retry_interval)  # Wait before retrying
                 continue
 
             ser = serial.Serial(
@@ -59,38 +73,59 @@ def connect_to_serial(
                 stopbits=serial.STOPBITS_ONE,
                 timeout=0.5,
             )
-            print(f"[INFO] Serial port opened successfully (attempt {attempt}).")
+            print(f"[INFO] Serial port opened successfully (attempt {cable_retries}).")
             time.sleep(0.05)
             _reset_buffers(ser)
 
-            try:
-                output = wait_for_prompt(ser, [">", "#"], timeout=timeout, wake=True)
-                print(
-                    f"[INFO] Connected. Device prompt: {output.strip().splitlines()[-1]}"
-                )
-                return ser
-            except TimeoutError as e:
-                dbg(f"Prompt not found on attempt {attempt}: {e}")
-                last_exc = e
+            while connection_retries < max_connection_retries:
                 try:
-                    logout_close_connection(ser)
-                except Exception:
-                    pass
-                time.sleep(0.5)
-                continue
+                    output = wait_for_prompt(
+                        ser, [">", "#"], timeout=timeout, wake=True
+                    )
+                    print(
+                        f"[INFO] Connected. Device prompt: {output.strip().splitlines()[-1]}"
+                    )
+                    return ser
+                except TimeoutError as e:
+                    dbg(
+                        f"Prompt not found on connection retry {connection_retries}: {e}"
+                    )
+                    connection_retries += 1
+                    time.sleep(connection_retry_interval)
+                    continue
+
+            print(f"[ERROR] Failed to connect after {max_connection_retries} attempts.")
+            logout_close_connection(ser)
+            cable_retries += 1
+            connection_retries = 0
+            time.sleep(cable_retry_interval)
+
         except serial.SerialException as e:
-            print(f"[ERROR] Error opening serial port on attempt {attempt}: {e}")
+            print(
+                f"[ERROR] Error opening serial port on cable retry {cable_retries}: {e}"
+            )
             last_exc = e
-            time.sleep(0.5)
+            cable_retries += 1
+            time.sleep(cable_retry_interval)
             continue
 
     print(
-        f"[ERROR] All {attempts} attempts to open serial port or detect prompt failed on {port}."
+        f"[ERROR] All {max_cable_retries} attempts to open serial port or detect prompt failed on {port}."
     )
     print("[HINT] Check if the device is plugged in and try again.")
     if last_exc and DEBUG:
         dbg(f"Last exception: {last_exc}")
     return None
+
+
+def reconnect_serial(
+    port, baudrate, timeout=READ_TIMEOUT, retry_interval=3, max_retries=10
+):
+    """
+    Reconnect to the serial device if the connection is lost.
+    """
+    print("[WARNING] Serial connection lost. Attempting to reconnect...")
+    return connect_to_serial(port, baudrate, timeout, retry_interval, max_retries)
 
 
 def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
@@ -160,222 +195,6 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
 
     # timed out
     dbg(f"wait_for_prompt timed out, buffer:\n{buffer.decode(errors='ignore')}")
-    raise TimeoutError(
-        f"Did not receive expected prompt(s) {expected_prompts} in {timeout} seconds."
-    )
-
-    # def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
-    """
-    Wait for specific prompts from the Cisco device.
-    Optionally send a wake-up carriage return first.
-    """
-    buffer = b""
-    start_time = time.time()
-    ser.timeout = 1  # Set a short timeout for read operations
-    wake_sent = 0
-    last_read_time = time.time()
-
-    _reset_buffers(ser)
-
-    prompt_found = False
-    print(
-        f"[DEBUG] Serial settings: port={ser.port}, baudrate={ser.baudrate}, timeout={ser.timeout}"
-    )
-
-    if wake and not buffer:
-        ser.reset_input_buffer()  # clear junk buffer
-        time.sleep(2)  # wait for device to stabilize
-        max_attempts = 5
-        for attempt in range(max_attempts):
-            ser.write(b"\r")  # wake terminal
-            ser.flush()
-            print(
-                f"[DEBUG] Sent wake-up carriage return to device (attempt {attempt+1}/{max_attempts})."
-            )
-            time.sleep(2)  # wait for response
-            wake_buffer = b""
-            while ser.in_waiting > 0:
-                wake_buffer += ser.read(1024)
-            decoded = wake_buffer.decode(errors="ignore")
-            print(f"[DEBUG] Wake attempt {attempt+1} captured:\n{decoded}")
-            if any(
-                re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE)
-                for prompt in expected_prompts
-            ):
-                print(
-                    f"[DEBUG] Device awake, found prompt: {decoded.strip().splitlines()[-1]}"
-                )
-                buffer += wake_buffer
-                prompt_found = True
-                break
-        if not prompt_found:
-            print(
-                "[DEBUG] No prompt detected after wake attempts, proceeding to wait for prompt."
-            )
-        print("[DEBUG] Sent wake-up carriage return to device.")
-
-    dbg(f"[DEBUG] Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
-    prompt_found = False
-    dbg(
-        f"Serial settings: port={ser.port}, baudrate={ser.baudrate}, timeout={ser.timeout}"
-    )
-
-    if wake:
-        try:
-            try:
-                ser.reset_input_buffer()  # clear junk buffer
-            except Exception:
-                try:
-                    ser.flushInput()
-                except Exception:
-                    pass
-            time.sleep(0.1)  # wait for device to stabilize
-            wake_attempts = 3
-            for attempt in range(wake_attempts):
-                ser.write(b"\r")  # wake terminal
-                ser.flush()
-                dbg(
-                    f"Sent wake-up carriage return to device (attempt {attempt+1}/{wake_attempts})."
-                )
-                time.sleep(0.25)  # wait for response
-                if ser.in_waiting:
-                    wake_buffer = ser.read(ser.in_waiting or 1)
-                    decoded = wake_buffer.decode(errors="ignore")
-                    dbg(f"Wake attempt {attempt+1} captured:\n{decoded}")
-                    if any(
-                        re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE)
-                        for prompt in expected_prompts
-                    ):
-                        dbg(
-                            f"Device awake, found prompt: {decoded.strip().splitlines()[-1]}"
-                        )
-                        buffer += wake_buffer
-                        prompt_found = True
-                        break
-        except Exception as e:
-            dbg(f"Error during wake attempts: {e}")
-
-    dbg(f"Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
-
-    if buffer:
-        decoded = buffer.decode(errors="ignore")
-        for prompt in expected_prompts:
-            if re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE):
-                print(f"[DEBUG] Found prompt: {prompt}")
-
-                # Send logout until 'Press RETURN to get started' is seen
-                for _ in range(5):
-                    ser.write(b"logout\n")
-                    ser.flush()
-                    time.sleep(0.5)
-                    logout_buffer = b""
-                    while ser.in_waiting > 0:
-                        logout_buffer += ser.read(1024)
-                    if b"Press RETURN to get started" in logout_buffer:
-                        print(
-                            "[DEBUG] Detected 'Press RETURN to get started' after logout."
-                        )
-                        ser.write(b"\r")  # wake terminal again
-                        ser.flush()
-                        time.sleep(1)
-
-                        # Read any prompt after activation
-                        activation_buffer = b""
-                        while ser.in_waiting > 0:
-                            activation_buffer += ser.read(1024)
-                        buffer += activation_buffer
-                        return buffer.decode(errors="ignore")
-                    raise TimeoutError(
-                        "Did not receive 'Press RETURN to get started' after logout attempts."
-                    )
-
-                for _ in range(3):
-                    ser.write(b"logout\n")
-                    ser.flush()
-                    time.sleep(0.2)
-                    logout_buffer = b""
-                    if ser.in_waiting:
-                        logout_buffer += ser.read(ser.in_waiting or 1)
-                    if b"Press RETURN to get started" in logout_buffer:
-                        dbg(
-                            "[DEBUG] Detected 'Press RETURN to get started' after logout."
-                        )
-                        ser.write(b"\r\n")
-                        ser.flush()
-                        time.sleep(0.2)
-                        activation_buffer = b""
-                        while ser.in_waiting > 0:
-                            activation_buffer += ser.read(ser.in_waiting or 1)
-                            buffer += activation_buffer
-                        return buffer.decode(errors="ignore")
-                dbg("Logout attempts did not produce activation; continue to wait.")
-
-    print(f"[DEBUG] Waiting for prompts: {expected_prompts} (timeout: {timeout}s)")
-    while time.time() - start_time < timeout:
-        if ser.in_waiting > 0:
-            print(f"[DEBUG] ser.in_waiting={ser.in_waiting}")
-            data = ser.read(1024)
-            print(f"[DEBUG] ser.read(1024) returned {len(data)} bytes")
-            if data:
-                buffer += data
-                print(f"[DEBUG] Current buffer size: {len(buffer)} bytes")
-                decoded = buffer.decode(errors="ignore")
-                for prompt in expected_prompts:
-                    if re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE):
-                        print(f"[DEBUG] Found prompt: {prompt}")
-                        for _ in range(5):
-                            ser.write(b"logout\n")
-                            ser.flush()
-                            time.sleep(0.5)
-                            logout_buffer = b""
-                            while ser.in_waiting > 0:
-                                logout_buffer += ser.read(1024)
-                            if b"Press RETURN to get started" in logout_buffer:
-                                print(
-                                    "[DEBUG] Detected 'Press RETURN to get started' after logout."
-                                )
-                                ser.write(b"\r")
-                                ser.flush()
-                                time.sleep(1)
-                                activation_buffer = b""
-                                while ser.in_waiting > 0:
-                                    activation_buffer += ser.read(1024)
-                                buffer += activation_buffer
-                                return buffer.decode(errors="ignore")
-                        raise TimeoutError(
-                            "Did not receive 'Press RETURN to get started' after logout attempts."
-                        )
-                # Only truncate buffer after checking for prompts
-                if len(buffer) > MAX_BUFFER:
-                    buffer = buffer[-MAX_BUFFER:]  # keep only last MAX_BUFFER bytes
-                    print(f"[DEBUG] Buffer exceeded {MAX_BUFFER} bytes, truncating.")
-
-                print(f"[DEBUG] Received data: {data.decode(errors='ignore')}")
-        else:
-            time.sleep(0.1)  # Avoid busy waiting
-    while time.time() - start_time < timeout:
-        try:
-            if ser.in_waiting > 0:
-                dbg(f"ser.in_waiting={ser.in_waiting}")
-                data = ser.read(ser.in_waiting or 1)
-                dbg(f"ser.read() returned {len(data)} bytes")
-                if data:
-                    buffer += data
-                    if len(buffer) > MAX_BUFFER:
-                        buffer = buffer[-MAX_BUFFER:]
-                        dbg(f"Buffer exceeded {MAX_BUFFER} bytes, truncating.")
-                    decoded = buffer.decode(errors="ignore")
-                    for prompt in expected_prompts:
-                        if re.search(
-                            rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE
-                        ):
-                            dbg(f"Found prompt: {prompt}")
-                            return buffer.decode(errors="ignore")
-            else:
-                time.sleep(0.05)
-        except Exception as e:
-            dbg(f"Read loop error: {e}")
-    print(f"[DEBUG] Final buffer before timeout:\n{buffer.decode(errors='ignore')}")
     raise TimeoutError(
         f"Did not receive expected prompt(s) {expected_prompts} in {timeout} seconds."
     )
