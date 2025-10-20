@@ -10,7 +10,7 @@ from netmiko.netmiko_globals import MAX_BUFFER
 READ_TIMEOUT = 8  # seconds
 MAX_BUFFER = 4096  # 4KB
 
-DEBUG = False
+DEBUG = True
 logger = logging.getLogger("serial_utils")
 
 
