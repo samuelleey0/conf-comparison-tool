@@ -103,16 +103,6 @@ def connect_to_serial(
     return None
 
 
-def reconnect_serial(
-    port, baudrate, timeout=READ_TIMEOUT, retry_interval=3, max_retries=10
-):
-    """
-    Reconnect to the serial device if the connection is lost.
-    """
-    print("[WARNING] Serial connection lost. Attempting to reconnect...")
-    return connect_to_serial(port, baudrate, timeout, retry_interval, max_retries)
-
-
 def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
     """
     Read from serial until one of expected_prompts is seen or timeout.
@@ -268,20 +258,6 @@ def logout(ser, timeout=2):
                 pass
         _reset_buffers(ser)
 
-        # # Send break to force disconnect
-        # ser.send_break(duration=0.15)
-        # time.sleep(0.1)
-
-        # # Send additional exits to ensure cleanup
-        # for _ in range(2):
-        #     ser.write(b"\x03\r\n")  # Ctrl-C + Enter
-        #     ser.flush()
-        #     time.sleep(0.1)
-
-        # # Clear any remaining buffer
-        # ser.reset_input_buffer()
-        # ser.reset_output_buffer()
-
         dbg("Thorough logout sequence completed.")
     except Exception as e:
         dbg(f"Error during logout: {e}")
@@ -341,24 +317,6 @@ def logout_close_connection(ser):
             clear_session(ser)
 
             time.sleep(0.2)
-
-            # Send break signal to force session termination
-            # try:
-            #     ser.send_break(duration=0.2)
-            #     time.sleep(0.2)
-            # except Exception as e:
-            #     pass
-
-            # Control hardware lines to signal disconnect
-            # try:
-            #     ser.dtr = False  # Data Terminal Ready
-            #     ser.rts = False  # Request To Send
-            #     time.sleep(0.2)
-            #     ser.dtr = True
-            #     ser.rts = True
-            # except Exception as e:
-            #     pass
-            # _reset_buffers(ser)
 
             # Close the connection
             try:

@@ -72,7 +72,7 @@ def main():
                     hostname,
                     base_dir=base_path,
                 )
-                print(f"Router output for '{cmd}':\n{output}\n{'-'*50}")
+                print(f"[*] Router output for '{cmd}':\n{output}\n{'-'*50}")
         except Exception as e:
             print(f"Error: {e}")
         finally:
@@ -106,7 +106,7 @@ def main():
                     hostname,
                     base_dir=base_path,
                 )
-                print(f"Router output for '{cmd}':\n{output}\n{'-'*50}")
+                print(f"[*] Router output for '{cmd}':\n{output}\n{'-'*50}")
             print("Router output:\n", output)
 
         except Exception as e:
