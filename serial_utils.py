@@ -133,6 +133,7 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
                 try:
                     ser.write(b"\r\n")
                     ser.flush()
+                    dbg("Sent RETURN after 'Press RETURN to get started'")
                 except Exception:
                     pass
         else:
