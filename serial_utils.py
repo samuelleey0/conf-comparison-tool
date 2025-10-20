@@ -52,8 +52,8 @@ def connect_to_serial(
     Returns an open Serial object or None.
     """
     print(f"[INFO] Attempting to open serial port: {port} at {baudrate} baud")
-    cable_retries = 0
-    connection_retries = 0
+    cable_retries = 1
+    connection_retries = 1
     last_exc = None
 
     while cable_retries < max_cable_retries:
