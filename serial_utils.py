@@ -37,81 +37,65 @@ def connect_to_serial(
     port: str,
     baudrate: int = 9600,
     timeout=READ_TIMEOUT,
-    cable_retry_interval: int = 3,
-    connection_retry_interval: int = 1,
-    max_cable_retries: int = 10,
-    max_connection_retries: int = 5,
+    retry_interval: int = 3,
+    max_retries: int = 10,
 ):
     """
     Establish a serial connection to a Cisco device.
-    Handles cases where the serial cable is unplugged and reconnected.
-    - cable_retry_interval: Time (in seconds) to wait between cable detection retries.
-    - connection_retry_interval: Time (in seconds) to wait between connection retries.
-    - max_cable_retries: Maximum number of retries for detecting the serial cable.
-    - max_connection_retries: Maximum number of retries for the connection process.
+    Handles cases where the serial cable is unplugged or the device is unresponsive.
+    - retry_interval: Time (in seconds) to wait between retries.
+    - max_retries: Maximum number of retries for the entire connection process.
     Returns an open Serial object or None.
     """
     print(f"[INFO] Attempting to open serial port: {port} at {baudrate} baud")
-    cable_retries = 1
-    connection_retries = 1
+    retries = 0
     last_exc = None
 
-    while cable_retries < max_cable_retries:
+    while retries < max_retries:
         try:
             # Check if the serial device exists (Linux/macOS: /dev/ttyUSB0, Windows: COMx)
             if not os.path.exists(port) and not port.startswith("COM"):
                 print(f"[WARNING] Serial device {port} not found. Check connection.")
-                cable_retries += 1
-                time.sleep(cable_retry_interval)  # Wait before retrying
+                retries += 1
+                time.sleep(retry_interval)
                 continue
 
+            # Attempt to open the serial port
             ser = serial.Serial(
-                port=port,  # Console cable device (e.g., /dev/ttyUSB0)
+                port=port,
                 baudrate=baudrate,
                 bytesize=serial.EIGHTBITS,
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE,
                 timeout=0.5,
             )
-            print(f"[INFO] Serial port opened successfully (attempt {cable_retries}).")
+            print(f"[INFO] Serial port opened successfully (attempt {retries + 1}).")
             time.sleep(0.05)
             _reset_buffers(ser)
 
-            while connection_retries < max_connection_retries:
-                try:
-                    output = wait_for_prompt(
-                        ser, [">", "#"], timeout=timeout, wake=True
-                    )
-                    print(
-                        f"[INFO] Connected. Device prompt: {output.strip().splitlines()[-1]}"
-                    )
-                    return ser
-                except TimeoutError as e:
-                    dbg(
-                        f"Prompt not found on connection retry {connection_retries}: {e}"
-                    )
-                    connection_retries += 1
-                    logout_close_connection(ser)
-                    time.sleep(connection_retry_interval)
-                    continue
-
-            print(f"[ERROR] Failed to connect after {max_connection_retries} attempts.")
-            logout_close_connection(ser)
-            cable_retries += 1
-            connection_retries = 0
-            time.sleep(cable_retry_interval)
+            # Attempt to detect the prompt
+            try:
+                output = wait_for_prompt(ser, [">", "#"], timeout=timeout, wake=True)
+                print(
+                    f"[INFO] Connected. Device prompt: {output.strip().splitlines()[-1]}"
+                )
+                return ser
+            except TimeoutError as e:
+                dbg(f"Prompt not found on attempt {retries + 1}: {e}")
+                logout_close_connection(ser)
+                retries += 1
+                time.sleep(retry_interval)
+                continue
 
         except serial.SerialException as e:
-            print(
-                f"[ERROR] Error opening serial port on cable retry {cable_retries}: {e}"
-            )
+            print(f"[ERROR] Error opening serial port on attempt {retries + 1}: {e}")
             last_exc = e
-            cable_retries += 1
-            time.sleep(cable_retry_interval)
+            retries += 1
+            time.sleep(retry_interval)
             continue
 
     print(
-        f"[ERROR] All {max_cable_retries} attempts to open serial port or detect prompt failed on {port}."
+        f"[ERROR] All {max_retries} attempts to open serial port or detect prompt failed on {port}."
     )
     print("[HINT] Check if the device is plugged in and try again.")
     if last_exc and DEBUG:
