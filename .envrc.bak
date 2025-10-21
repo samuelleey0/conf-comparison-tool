@@ -1,3 +1,0 @@
-if [ -d ./fyp-venv ]; then
-  source ./fyp-venv/bin/activate
-fi
