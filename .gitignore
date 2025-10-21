@@ -17,7 +17,6 @@ __pycache__/
 # -------------------------
 node_modules/
 electron-gui/node_modules/
-electron-gui/package-lock.json
 electron-gui/dist/
 electron-gui/out/
 electron-gui/.webpack/
