@@ -38,7 +38,7 @@ def connect_to_serial(
     baudrate: int = 9600,
     timeout=READ_TIMEOUT,
     retry_interval: int = 3,
-    max_retries: int = 10,
+    max_retries: int = 5,
 ):
     """
     Establish a serial connection to a Cisco device.

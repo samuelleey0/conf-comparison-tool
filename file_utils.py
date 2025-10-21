@@ -15,7 +15,7 @@ def load_students_from_file():
     file_path = input("Enter path to CSV/TXT file (or drag & drop): ").strip()
 
     # Remove quotes if file was dragged and dropped
-    file_path = file_path.strip('"\'')
+    file_path = file_path.strip("\"'")
 
     if not os.path.exists(file_path):
         print(f"[!] File not found: {file_path}")
@@ -25,8 +25,8 @@ def load_students_from_file():
 
     try:
         # Detect file type and load accordingly
-        if file_path.lower().endswith('.csv'):
-            with open(file_path, 'r', encoding='utf-8') as f:
+        if file_path.lower().endswith(".csv"):
+            with open(file_path, "r", encoding="utf-8") as f:
                 reader = csv.reader(f)
                 for row in reader:
                     if row and row[0].strip():  # Skip empty rows
@@ -35,7 +35,7 @@ def load_students_from_file():
                         students.append({"id": student_id, "name": name})
         else:
             # Treat as text file
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 for line in f:
                     student_id = line.strip()
                     if student_id:  # Skip empty lines
@@ -47,7 +47,7 @@ def load_students_from_file():
 
         print(f"[+] Loaded {len(students)} student IDs:")
         for i, student in enumerate(students[:5], 1):  # Show first 5
-            display_name = f" ({student['name']})" if student['name'] else ""
+            display_name = f" ({student['name']})" if student["name"] else ""
             print(f"  {i}. {student['id']}{display_name}")
 
         if len(students) > 5:
@@ -97,15 +97,19 @@ def create_bulk_directories():
         base_docs_path = os.path.expanduser("~/Documents")
 
         for student in students:
-            student_path = os.path.join(base_docs_path, exam_name, session_id, student["id"])
+            student_path = os.path.join(
+                base_docs_path, exam_name, session_id, student["id"]
+            )
             os.makedirs(student_path, exist_ok=True)
-            created_paths.append({
-                "base_path": student_path,
-                "exam_name": exam_name,
-                "session_id": session_id,
-                "student_id": student["id"],
-                "display": f"{exam_name}/{session_id}/{student['id']}"
-            })
+            created_paths.append(
+                {
+                    "base_path": student_path,
+                    "exam_name": exam_name,
+                    "session_id": session_id,
+                    "student_id": student["id"],
+                    "display": f"{exam_name}/{session_id}/{student['id']}",
+                }
+            )
 
         print(f"[+] Created {len(created_paths)} directories")
 
@@ -131,6 +135,7 @@ def create_bulk_directories():
         print("\nOperation cancelled by user.")
         return None
 
+
 def list_existing_directories():
     """
     List existing exam directories and let user select one.
@@ -143,20 +148,24 @@ def list_existing_directories():
 
     # Look for all student directories
     student_paths = []
-    exam_dirs = [d for d in docs_path.iterdir() if d.is_dir() and not d.name.startswith('.')]
+    exam_dirs = [
+        d for d in docs_path.iterdir() if d.is_dir() and not d.name.startswith(".")
+    ]
 
     for exam_dir in exam_dirs:
         session_dirs = [s for s in exam_dir.iterdir() if s.is_dir()]
         for session_dir in session_dirs:
             student_dirs = [st for st in session_dir.iterdir() if st.is_dir()]
             for student_dir in student_dirs:
-                student_paths.append({
-                    "path": str(student_dir),
-                    "exam_name": exam_dir.name,
-                    "session_id": session_dir.name,
-                    "student_id": student_dir.name,
-                    "display": f"{exam_dir.name}/{session_dir.name}/{student_dir.name}"
-                })
+                student_paths.append(
+                    {
+                        "path": str(student_dir),
+                        "exam_name": exam_dir.name,
+                        "session_id": session_dir.name,
+                        "student_id": student_dir.name,
+                        "display": f"{exam_dir.name}/{session_dir.name}/{student_dir.name}",
+                    }
+                )
 
     if not student_paths:
         print("[!] No existing student directories found in Documents.")
@@ -168,8 +177,10 @@ def list_existing_directories():
 
     while True:
         try:
-            choice = input(f"\nSelect directory (1-{len(student_paths)}) or 'b' to go back: ").strip()
-            if choice.lower() == 'b':
+            choice = input(
+                f"\nSelect directory (1-{len(student_paths)}) or 'b' to go back: "
+            ).strip()
+            if choice.lower() == "b":
                 return None
 
             choice_num = int(choice)
@@ -179,7 +190,7 @@ def list_existing_directories():
                     "base_path": selected["path"],
                     "exam_name": selected["exam_name"],
                     "session_id": selected["session_id"],
-                    "student_id": selected["student_id"]
+                    "student_id": selected["student_id"],
                 }
             else:
                 print(f"Invalid choice. Please enter 1-{len(student_paths)} or 'b'.")
@@ -207,13 +218,16 @@ def build_base_path():
         else:
             print("Invalid choice. Please enter 1 or 2.")
 
+
 def create_new_directory():
     """
     Original function to create new directory structure.
     """
     try:
         while True:
-            exam_name = input("Enter Exam Name (UNITCODE_Purpose_Time: TNE20002_SkillExam_8-10am): ").strip()
+            exam_name = input(
+                "Enter Exam Name (UNITCODE_Purpose_Time: TNE20002_SkillExam_8-10am): "
+            ).strip()
             if not exam_name:
                 print("Exam Name cannot be empty. Please try again.")
                 continue
@@ -237,11 +251,17 @@ def create_new_directory():
                 break
             print("Try again.\n")
 
-        base_path = os.path.expanduser(f"~/Documents/{exam_name}/{session_id}/{student_id}")
+        base_path = os.path.expanduser(
+            f"~/Documents/{exam_name}/{session_id}/{student_id}"
+        )
         os.makedirs(base_path, exist_ok=True)
         print(f"[+] Directory created: {base_path}")
 
-        proceed = input("Do you want to continue? (y to continue / q to quit): ").strip().lower()
+        proceed = (
+            input("Do you want to continue? (y to continue / q to quit): ")
+            .strip()
+            .lower()
+        )
         if proceed == "q":
             print(f"[!] Exiting as per user request. Directory created at {base_path}")
             return None
@@ -250,11 +270,12 @@ def create_new_directory():
             "base_path": base_path,
             "exam_name": exam_name,
             "session_id": session_id,
-            "student_id": student_id
+            "student_id": student_id,
         }
     except KeyboardInterrupt:
         print("\nInput cancelled by user. No directory created.")
         return None
+
 
 def select_existing_directory():
     """
@@ -263,7 +284,11 @@ def select_existing_directory():
     path_info = list_existing_directories()
     if path_info:
         print(f"[+] Selected directory: {path_info['base_path']}")
-        proceed = input("Do you want to continue? (y to continue / q to quit): ").strip().lower()
+        proceed = (
+            input("Do you want to continue? (y to continue / q to quit): ")
+            .strip()
+            .lower()
+        )
         if proceed == "q":
             print("[!] Exiting as per user request.")
             return None
@@ -273,7 +298,15 @@ def select_existing_directory():
         return create_new_directory()
 
 
-def save_output_to_file(command: str, output: str, exam_name: str, student_id: str = None, session_id: str = None, hostname: str = None, base_dir="logs"):
+def save_output_to_file(
+    command: str,
+    output: str,
+    exam_name: str,
+    student_id: str = None,
+    session_id: str = None,
+    hostname: str = None,
+    base_dir="logs",
+):
     """
     Save Cisco device command output to a text file.
     Each command goes into its own file.
@@ -289,8 +322,14 @@ def save_output_to_file(command: str, output: str, exam_name: str, student_id: s
     else:
         # Build directory path
         if base_dir is None:
-            base_dir = str(Path.home() / "Documents") # Default to ~/Documents
-        dir_path = os.path.join(base_dir, exam_name, session_id if session_id else "Session1", student_id if student_id else "UnknownID", hostname)
+            base_dir = str(Path.home() / "Documents")  # Default to ~/Documents
+        dir_path = os.path.join(
+            base_dir,
+            exam_name,
+            session_id if session_id else "Session1",
+            student_id if student_id else "UnknownID",
+            hostname,
+        )
 
     os.makedirs(dir_path, exist_ok=True)
 
@@ -307,58 +346,21 @@ def save_output_to_file(command: str, output: str, exam_name: str, student_id: s
 
     print(f"[+] Output for '{command}' saved to {file_path}")
     return file_path
-#
-# def build_base_path():
-#     """
-#     Ask user for exam/session/student and build path automatically.
-#     Ensures directory is only created after confirmation and handles user interruption.
-#     """
-#     try:
-#         while True:
-#             while True:
-#                 exam_name = input("Enter Exam Name (UNITCODE_Purpose_Time: TNE20002_SkillExam_8-10am): ").strip()
-#                 if exam_name:
-#                     break
-#                 print("Exam Name cannot be empty. Please try again.")
-#
-#             while True:
-#                 session_id = input("Enter Session ID (e.g., Session1): ").strip()
-#                 if session_id:
-#                     break
-#                 print("Session ID cannot be empty. Please try again.")
-#
-#             while True:
-#                 student_id = input("Enter Student ID (e.g., 101XXXXXX): ").strip()
-#                 if student_id:
-#                     break
-#                 print("Student ID cannot be empty. Please try again.")
-#
-#             print(f"\nPlease confirm your entries:")
-#             print(f"  Exam Name: {exam_name}")
-#             print(f"  Session ID: {session_id}")
-#             print(f"  Student ID: {student_id}")
-#             confirm = input("Is this correct? (y/n): ").strip().lower()
-#             if confirm == "y":
-#                 break
-#             print("Try again.\n")
-#
-#         base_path = os.path.expanduser(
-#             f"~/Documents/{exam_name}/{session_id}/{student_id}/"
-#         )
-#         os.makedirs(base_path, exist_ok=True)
-#         print(f"[+] Logs will be saved in: {base_path}")
-#
-#         proceed = input("Do you want to continue to establish connection? (y to continue / q to quit): ").strip().lower()
-#         if proceed == "q":
-#             print(f"[!] Exiting as per user request. Directory created {base_path}")
-#             return None
-#
-#         return {
-#             "exam_name": exam_name,
-#             "session_id": session_id,
-#             "student_id": student_id,
-#             "base_path": base_path
-#         }
-#     except KeyboardInterrupt:
-#         print("\nInput cancelled by user. No directory created.")
-#         return None
+
+
+def del_partial_logs(base_path, exam_name, session_id, student_id, hostname):
+    """
+    Delete all log files for the current session if the collection is incomplete.
+    """
+    log_dir = os.path.join(base_path, exam_name, session_id, student_id, hostname)
+    if os.path.exists(log_dir):
+        print(f"[INFO] Deleting partial logs in {log_dir}...")
+        for root, dirs, files in os.walk(log_dir, topdown=False):
+            for file in files:
+                os.remove(os.path.join(root, file))
+            for dir in dirs:
+                os.rmdir(os.path.join(root, dir))
+        os.rmdir(log_dir)
+        print("[INFO] Partial logs deleted.")
+    else:
+        print("[INFO] No partial logs found to delete.")

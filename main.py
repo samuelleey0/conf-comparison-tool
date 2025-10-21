@@ -18,7 +18,7 @@ from remote_utils import (
 )
 from ui_utils import choose_connection_type, choose_serial_port, ssh_credentials
 
-from file_utils import save_output_to_file, build_base_path
+from file_utils import save_output_to_file, build_base_path, del_partial_logs
 
 from command_manager import command_menu
 
@@ -45,38 +45,69 @@ def main():
 
     if conn_type == "1":
         port = choose_serial_port()
-        ser = connect_to_serial(port)
-        if ser is None:
-            print("[+] Failed to connect to device. Exiting.")
-            exit(1)
-        try:
-            print("[*] Entering enable mode...")
-            output = enter_enable_mode(ser)
-            print(output)
-            print("[*] Disabling paging...")
-            disable_paging(ser)
+        retry_count = 0
+        max_retries = 3
 
-            # Get hostname first
-            hostname = get_hostname(ser)
-            print(f"[+] Detected hostname: {hostname}")
+        while retry_count <= max_retries:
+            ser = connect_to_serial(port)
+            if ser is None:
+                print("[+] Failed to connect to device. Exiting.")
+                exit(1)
+            try:
+                print("[*] Entering enable mode...")
+                output = enter_enable_mode(ser)
+                print(output)
+                print("[*] Disabling paging...")
+                disable_paging(ser)
 
-            for cmd in commands:
-                print(f"[*] Sending '{cmd}'...")
-                output = send_command(ser, cmd, timeout=30)
-                save_output_to_file(
-                    cmd,
-                    output,
-                    exam_name,
-                    session_id,
-                    student_id,
-                    hostname,
-                    base_dir=base_path,
-                )
-                print(f"[*] Router output for '{cmd}':\n{output}\n{'-'*50}")
-        except Exception as e:
-            print(f"Error: {e}")
-        finally:
-            logout_close_connection(ser)
+                # Get hostname first
+                hostname = get_hostname(ser)
+                print(f"[+] Detected hostname: {hostname}")
+
+                remaining_commands = commands.copy()
+
+                for cmd in remaining_commands[:]:
+                    try:
+                        print(f"[*] Sending '{cmd}'...")
+                        output = send_command(ser, cmd, timeout=30)
+                        save_output_to_file(
+                            cmd,
+                            output,
+                            exam_name,
+                            session_id,
+                            student_id,
+                            hostname,
+                            base_dir=base_path,
+                        )
+                        print(f"[*] Router output for '{cmd}':\n{output}\n{'-'*50}")
+                        remaining_commands.remove(cmd)
+                    except Exception as e:
+                        print(f"[ERROR] Failed to execute command '{cmd}': {e}")
+                        print("[INFO] Attempting to reconnect...")
+                        break
+
+                if not remaining_commands:
+                    print("[INFO] All commands executed successfully.")
+                    break
+                else:
+                    print(
+                        f"[WARNING] {len(remaining_commands)} commands remaining. Retrying..."
+                    )
+                    retry_count += 1
+                    print(f"[INFO] Retrying... ({retry_count}/{max_retries})")
+
+            except Exception as e:
+                print(f"Error: {e}")
+            finally:
+                logout_close_connection(ser)
+
+        if retry_count >= max_retries and remaining_commands:
+            print("[ERROR] Maximum retries reached. Some commands were not executed:")
+            del_partial_logs(base_path, exam_name, session_id, student_id, hostname)
+            print(
+                "[INFO] Partial logs deleted. Please re-run the process to collect all logs."
+            )
+
     elif conn_type == "2":
         host, username, password = ssh_credentials()
         client, shell = connect_ssh(host, username, password)

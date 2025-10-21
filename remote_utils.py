@@ -14,7 +14,7 @@ def connect_ssh(host, username, password, port=22, timeout=10):
             password=password,
             timeout=timeout,
             allow_agent=False,
-            look_for_keys=False
+            look_for_keys=False,
         )
     except Exception as e:
         print(f"[!] SSH connection failed: {e}")
@@ -44,7 +44,9 @@ def get_hostname_ssh(shell, timeout=10):
     Extract hostname dynamically from Cisco IOS device via SSH.
     Works for both routers and switches.
     """
-    output = send_command_ssh(shell, "show running-config | include hostname", timeout=timeout)
+    output = send_command_ssh(
+        shell, "show running-config | include hostname", timeout=timeout
+    )
 
     for line in output.splitlines():
         if line.strip().startswith("hostname"):
