@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Select Commands</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="container">
+    <h2>Select Cisco Commands</h2>
+    <form id="commandForm">
+      <label><input type="checkbox" name="command" value="show running-config"> show running-config</label><br>
+      <label><input type="checkbox" name="command" value="show ip interface brief"> show ip interface brief</label><br>
+      <label><input type="checkbox" name="command" value="show vlan brief"> show vlan brief</label><br>
+      <label><input type="checkbox" name="command" value="show spanning-tree"> show spanning-tree</label><br>
+      <label><input type="checkbox" name="command" value="show port-security"> show port-security</label><br>
+      <label><input type="checkbox" name="command" value="show etherchannel summary"> show etherchannel summary</label><br>
+      <label><input type="checkbox" name="command" value="show ip route"> show ip route</label><br>
+      <label><input type="checkbox" name="command" value="show ip access-lists"> show ip access-lists</label><br>
+      <label><input type="checkbox" name="command" value="show ip nat translations"> show ip nat translations</label><br>
+    </form>
+    <button onclick="startExecution()">Start</button>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>

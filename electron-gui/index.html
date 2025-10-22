@@ -1,18 +1,17 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Automated Cisco Marking Tool</title>
+  <meta charset="UTF-8">
+  <title>Student Session</title>
+  <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-  <h2>🧠 Cisco Device Command Test</h2>
-
-  <button onclick="connectSerial()">Connect via Serial</button>
-  <button onclick="runSerialCommands()">Run Serial Commands</button>
-  <button onclick="runSSHCommands()">Run SSH Commands</button>
-
-  <pre id="output"></pre>
-
+  <div class="container">
+    <h2>Enter Student & Session Info</h2>
+    <input id="studentID" placeholder="Student ID"><br>
+    <input id="sessionID" placeholder="Session ID"><br>
+    <button onclick="saveStudentSession()">Next</button>
+  </div>
   <script src="renderer.js"></script>
 </body>
 </html>
