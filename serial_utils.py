@@ -146,14 +146,14 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
             for prompt in expected_prompts:
                 if re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE):
                     return decoded
-            # handle possible activation text
-            if b"Press RETURN to get started" in buffer:
-                try:
-                    ser.write(b"\r\n")
-                    ser.flush()
-                    dbg("Sent RETURN after 'Press RETURN to get started'")
-                except Exception:
-                    pass
+                # handle possible activation text
+                if b"Press RETURN to get started" in buffer:
+                    try:
+                        ser.write(b"\r\n")
+                        ser.flush()
+                        dbg("Sent RETURN after 'Press RETURN to get started'")
+                    except Exception:
+                        pass
         else:
             # no data read this cycle: if wake enabled, send additional CRs spaced out
             elapsed = time.time() - start
