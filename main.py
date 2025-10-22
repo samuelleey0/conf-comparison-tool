@@ -24,8 +24,8 @@ from command_manager import command_menu
 
 
 def main():
-    # List of commands to run
-    # commands = ["show running-config", "show ip interface brief"]
+
+    # Command checklist to run
     commands = command_menu()
     if not commands:
         print("[!] No commands selected. Exiting.")
@@ -100,13 +100,15 @@ def main():
                 print(f"Error: {e}")
             finally:
                 logout_close_connection(ser)
-
-        if retry_count >= max_retries and remaining_commands:
+        if retry_count > max_retries and remaining_commands:
             print("[ERROR] Maximum retries reached. Some commands were not executed:")
             del_partial_logs(base_path, exam_name, session_id, student_id, hostname)
             print(
                 "[INFO] Partial logs deleted. Please re-run the process to collect all logs."
             )
+
+            retry_count = 0
+            commands = remaining_commands
 
     elif conn_type == "2":
         host, username, password = ssh_credentials()
