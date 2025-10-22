@@ -175,9 +175,11 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
     )
 
 
-def send_command(ser, command, expected_prompt="#", timeout=20):
+def send_command(ser, command, expected_prompt=">", timeout=20):
     """
-    Send a command to the Cisco device and read response.
+    Send a command to the Cisco device and read the response.
+    Assumes the prompt is '>', but if '(config)#' is detected, sends 'end'
+    to exit configuration mode and proceeds to the next command.
     """
     if isinstance(command, str):
         ser.write(command.encode("utf-8") + b"\n")
@@ -193,14 +195,22 @@ def send_command(ser, command, expected_prompt="#", timeout=20):
         if not data:
             continue
         buffer += data
-        if expected_prompt.encode() in buffer:
-            break
+        decoded = buffer.decode("utf-8", errors="ignore")
 
-    output = buffer.decode("utf-8", errors="ignore")
-    # Clean junk (--More--, ANSI codes, etc.)
-    output = re.sub(r"--More--", "", output)
-    output = re.sub(r"\x1b\[.*?[@-~]", "", output)
-    return output.strip()
+        if "(config)#" in decoded:
+            print("[INFO] Device entered configuration mode. Exiting to EXEC mode...")
+            ser.write(b"end\n")
+            ser.flush()
+            time.sleep(0.2)
+            buffer = b""
+            continue
+        if expected_prompt in decoded or "#" in decoded:
+            decoded = re.sub(r"--More--", "", decoded)
+            decoded = re.sub(r"\x1b\[.*?[@-~]", "", decoded)
+            return decoded.strip()
+    raise TimeoutError(
+        f" [ERROR] Command '{command}' timed out after {timeout} seconds."
+    )
 
 
 def get_hostname(ser, timeout=5):
@@ -229,14 +239,11 @@ def enter_enable_mode(ser, timeout=5):
     """
     Enter privileged EXEC mode (> to # or (config)# to #).
     """
-    if "(config)#" in output:
-        print("[INFO] Device is in configuration mode. Exiting to EXEC mode...")
-        output = send_command(ser, "end", expected_prompt="#", timeout=3)
-    else:
-        output = send_command(ser, "enable", expected_prompt="#", timeout=timeout)
+    output = send_command(ser, "enable", expected_prompt="#", timeout=timeout)
 
     if "#" not in output:
         raise Exception("[ERROR] Failed to enter privileged EXEC mode.")
+
     return output
 
 
