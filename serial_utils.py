@@ -230,6 +230,13 @@ def enter_enable_mode(ser, timeout=5):
     Enter privileged EXEC mode (> to #).
     """
     output = send_command(ser, "enable", expected_prompt="#", timeout=timeout)
+
+    if "(config)#" in output:
+        print("[INFO] Device is in configuration mode. Existing to EXEC mode...")
+        send_command(ser, "end", expected_prompt="#", timeout=3)
+
+    if "#" not in output:
+        raise Exception("[ERROR] Failed to enter privileged EXEC mode.")
     return output
 
 
