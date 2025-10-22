@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Execution</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="container">
+    <h2>Executing Commands...</h2>
+    <div id="info"></div>
+  </div>
+
+  <script>
+    const student = localStorage.getItem('studentID');
+    const session = localStorage.getItem('sessionID');
+    const type = localStorage.getItem('connectionType');
+    const cmds = JSON.parse(localStorage.getItem('commands') || "[]");
+
+    document.getElementById('info').innerHTML = `
+      <p><b>Student ID:</b> ${student}</p>
+      <p><b>Session ID:</b> ${session}</p>
+      <p><b>Connection:</b> ${type}</p>
+      <p><b>Commands:</b><br>${cmds.join('<br>')}</p>
+    `;
+  </script>
+</body>
+</html>

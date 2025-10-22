@@ -1,24 +1,42 @@
-const { app, BrowserWindow } = require('electron');
-const { spawn } = require('child_process');
+// electron-gui/main.js
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const { spawn } = require('child_process');
+
+let mainWindow;
+let flaskProcess;
 
 function createWindow() {
-  const win = new BrowserWindow({
-    width: 1000,
+  mainWindow = new BrowserWindow({
+    width: 900,
     height: 700,
     webPreferences: {
+      preload: path.join(__dirname, 'renderer.js'),
       nodeIntegration: true,
-      contextIsolation: false
-    }
+      contextIsolation: false,
+    },
   });
-  win.loadFile('index.html');
+
+  mainWindow.loadFile('index.html');
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    if (flaskProcess) flaskProcess.kill('SIGINT');
+  });
+}
+
+// Launch Flask backend
+function startFlask() {
+  const flaskPath = path.join(__dirname, '..', 'server.py');
+  flaskProcess = spawn('python', [flaskPath], { shell: true });
+  flaskProcess.stdout.on('data', (data) => console.log(`[Flask]: ${data}`));
+  flaskProcess.stderr.on('data', (data) => console.error(`[Flask Error]: ${data}`));
 }
 
 app.whenReady().then(() => {
-  const flask = spawn('python', ['../server.py']);
-  flask.stdout.on('data', data => console.log(`🐍 [Flask]: ${data}`));
-  flask.stderr.on('data', data => console.error(`🐍 [Flask Error]: ${data}`));
-  flask.on('close', code => console.log(`Flask server exited with code ${code}`));
-
+  startFlask();
   createWindow();
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
 });
