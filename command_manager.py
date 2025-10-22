@@ -10,7 +10,7 @@ COMMANDS_PATH = os.path.join(CONFIG_DIR, "commands.json")
 DEFAULT_COMMANDS = [
     "show ip interface brief",
     "show running-config",
-    "show version",
+    "show spanning-tree",
     "show vlan brief",
     "show ip route",
 ]
