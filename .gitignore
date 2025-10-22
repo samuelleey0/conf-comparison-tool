@@ -30,6 +30,7 @@ electron-gui/.webpack/
 *.swp
 *.bak
 commands.json
+config/
 
 # -------------------------
 # IDE / Editor configs
