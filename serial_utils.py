@@ -227,13 +227,13 @@ def disable_paging(ser, prompt="#", timeout=5):
 
 def enter_enable_mode(ser, timeout=5):
     """
-    Enter privileged EXEC mode (> to #).
+    Enter privileged EXEC mode (> to # or (config)# to #).
     """
-    output = send_command(ser, "enable", expected_prompt="#", timeout=timeout)
-
     if "(config)#" in output:
-        print("[INFO] Device is in configuration mode. Existing to EXEC mode...")
-        send_command(ser, "end", expected_prompt="#", timeout=3)
+        print("[INFO] Device is in configuration mode. Exiting to EXEC mode...")
+        output = send_command(ser, "end", expected_prompt="#", timeout=3)
+    else:
+        output = send_command(ser, "enable", expected_prompt="#", timeout=timeout)
 
     if "#" not in output:
         raise Exception("[ERROR] Failed to enter privileged EXEC mode.")
