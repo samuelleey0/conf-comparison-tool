@@ -29,6 +29,7 @@ electron-gui/.webpack/
 *.DS_Store
 *.swp
 *.bak
+commands.json
 
 # -------------------------
 # IDE / Editor configs
