@@ -1,17 +1,82 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Student Session</title>
-  <link rel="stylesheet" href="assets/style.css">
+  <meta charset="UTF-8" />
+  <title>Directory Setup</title>
+  <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
-  <div class="container">
-    <h2>Enter Student & Session Info</h2>
-    <input id="studentID" placeholder="Student ID"><br>
-    <input id="sessionID" placeholder="Session ID"><br>
-    <button onclick="saveStudentSession()">Next</button>
+  <div class="container wide" id="directoryPage">
+    <h2>Directory Setup</h2>
+
+    <div class="directory-options">
+      <button type="button" id="showCreateBtn">Create New Directory</button>
+      <button type="button" id="showExistingBtn">Use Existing Directory</button>
+      <button type="button" id="showBulkBtn">Bulk Create from File</button>
+    </div>
+
+    <section id="createSection" class="directory-section hidden">
+      <h3>Create New Directory</h3>
+      <form id="createDirectoryForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="createExamName">Exam Name</label>
+            <input type="text" id="createExamName" placeholder="TNE20002_SkillExam_8-10am" required />
+          </div>
+          <div class="form-group">
+            <label for="createSessionId">Session ID</label>
+            <input type="text" id="createSessionId" placeholder="Session1" required />
+          </div>
+          <div class="form-group">
+            <label for="createStudentId">Student ID</label>
+            <input type="text" id="createStudentId" placeholder="101XXXXXX" required />
+          </div>
+        </div>
+        <button type="submit" id="create-directory-btn">Create & Continue</button>
+      </form>
+    </section>
+
+    <section id="existingSection" class="directory-section hidden">
+      <h3>Use Existing Directory</h3>
+      <p class="hint">Select the existing student folder from Finder to continue.</p>
+      <div class="existing-picker">
+        <button type="button" class="secondary" id="chooseDirectoryBtn">Choose Folder</button>
+        <span id="selectedDirectoryLabel" class="selected-path">No directory selected</span>
+      </div>
+      <div class="actions align-left">
+        <button type="button" class="secondary" id="clearExistingSelectionBtn">Clear</button>
+        <button type="button" id="use-existing-btn">Use Selected</button>
+      </div>
+      <div id="existingInfoBox" class="info-box hidden"></div>
+    </section>
+
+    <section id="bulkSection" class="directory-section hidden">
+      <h3>Bulk Create (CSV/TXT)</h3>
+      <form id="bulkCreateForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="bulkExamName">Exam Name</label>
+            <input type="text" id="bulkExamName" placeholder="TNE20002_SkillExam_8-10am" required />
+          </div>
+          <div class="form-group">
+            <label for="bulkSessionId">Session ID</label>
+            <input type="text" id="bulkSessionId" placeholder="Session1" required />
+          </div>
+          <div class="form-group">
+            <label for="bulkFile">Student File</label>
+            <input type="file" id="bulkFile" accept=".csv,.txt" required />
+          </div>
+        </div>
+        <button type="submit" id="bulk-create-btn">Create Directories</button>
+      </form>
+      <div id="bulkResults" class="info-box hidden"></div>
+    </section>
+
+    <div class="actions">
+      <button type="button" class="secondary" id="goToCommandsBtn">Skip to Commands</button>
+    </div>
   </div>
+
   <script src="renderer.js"></script>
 </body>
 </html>

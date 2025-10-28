@@ -1,28 +1,17 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Execution</title>
-  <link rel="stylesheet" href="assets/style.css">
+  <meta charset="UTF-8" />
+  <title>Execution Status</title>
+  <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
-  <div class="container">
-    <h2>Executing Commands...</h2>
-    <div id="info"></div>
+  <div class="container wide">
+    <h2>Execution Status</h2>
+    <p>This screen is reserved for future enhancements. You can monitor execution directly on the commands screen.</p>
+    <button type="button" onclick="goTo('commands.html')">Return to Commands</button>
   </div>
 
-  <script>
-    const student = localStorage.getItem('studentID');
-    const session = localStorage.getItem('sessionID');
-    const type = localStorage.getItem('connectionType');
-    const cmds = JSON.parse(localStorage.getItem('commands') || "[]");
-
-    document.getElementById('info').innerHTML = `
-      <p><b>Student ID:</b> ${student}</p>
-      <p><b>Session ID:</b> ${session}</p>
-      <p><b>Connection:</b> ${type}</p>
-      <p><b>Commands:</b><br>${cmds.join('<br>')}</p>
-    `;
-  </script>
+  <script src="renderer.js"></script>
 </body>
 </html>
