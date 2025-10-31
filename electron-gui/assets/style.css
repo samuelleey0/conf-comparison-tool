@@ -20,6 +20,10 @@ body {
   height: 100%;
 }
 
+html {
+  background-color: var(--color-cisco-neutral);
+}
+
 body {
   font-family: "Segoe UI", Arial, sans-serif;
   background-color: var(--color-cisco-neutral);
@@ -32,7 +36,7 @@ body {
 body:not(.welcome-body) {
   flex-direction: column;
   align-items: stretch;
-  background: linear-gradient(155deg, rgba(0, 160, 223, 0.12), rgba(0, 80, 115, 0.22));
+  background: transparent;
   overflow-x: hidden;
 }
 
@@ -250,23 +254,23 @@ button.block {
 
 /* Center the directory page shell for the directory body */
 .directory-body {
-  /* Override the page-level flex alignment so the directory card can be centered */
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh; /* ensure it can center vertically */
-  padding: 40px 0; /* breathing room on small screens */
-  padding-top: 0px;
+  align-items: stretch;
+  justify-content: flex-start;
+  min-height: 100vh;
+  background: linear-gradient(155deg, rgba(0, 160, 223, 0.12), rgba(0, 80, 115, 0.18));
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
+  padding: 0 0 40px;
 }
 
 .directory-body .page-shell {
   max-width: 880px;
   width: 100%;
-  margin: auto;
+  margin: 40px auto 0;
   box-sizing: border-box;
-  /* prevent the page-shell from growing to fill vertical space */
-  flex: 0 0 auto;
 }
 
 .directory-card {
@@ -495,7 +499,11 @@ button.block {
   justify-content: flex-start;
   min-height: 100vh;
   margin: 0;
-  background: linear-gradient(160deg, rgba(0, 160, 223, 0.12), rgba(0, 80, 115, 0.15));
+  padding: 0px 0 56px;
+  background: linear-gradient(160deg, rgba(0, 160, 223, 0.12), rgba(0, 80, 115, 0.18));
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
   box-sizing: border-box;
 }
 
@@ -506,7 +514,7 @@ button.block {
   justify-content: center;
   width: 100%;
   flex: 1;
-  padding: 100px 20px 60px;  /* ✅ 100px top offset for navbar */
+  padding: 32px 20px;
   box-sizing: border-box;
 }
 
@@ -518,13 +526,13 @@ button.block {
   justify-content: center;
   max-width: 1100px;
   width: 100%;
-  height: 600px;                  /* ✅ consistent height for both boxes */
+  min-height: 520px;
+  margin-bottom: 32px;
 }
 .commands-sidebar{
   height: 100%;                   /* ✅ equal height */
   display: flex;
   flex-direction: column;
-
   justify-content: flex-start;
 }
 
@@ -672,8 +680,24 @@ button.block {
 }
 /* Connection page */
 
+.connection-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0px 0 64px;
+  background: linear-gradient(150deg, rgba(0, 160, 223, 0.12), rgba(0, 80, 115, 0.2));
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
+  box-sizing: border-box;
+}
+
 .connection-body .page-shell {
   width: min(1100px, 100%);
+  margin-top: 16px;
 }
 
 .connection-layout {
@@ -684,6 +708,7 @@ button.block {
   max-width: 1240px;               /* ✅ allow more space overall */
   margin: 0 auto;                  /* center the grid */
   align-items: stretch;
+  margin-bottom: 36px;
 }
 
 
