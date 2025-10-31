@@ -91,8 +91,7 @@ function startFlask() {
  */
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 780,
+    fullscreen: true,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,

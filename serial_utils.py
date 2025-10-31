@@ -39,6 +39,7 @@ def connect_to_serial(
     timeout=READ_TIMEOUT,
     retry_interval: int = 3,
     max_retries: int = 5,
+    status_cb=None,
 ):
     """
     Establish a serial connection to a Cisco device.
@@ -47,7 +48,15 @@ def connect_to_serial(
     - max_retries: Maximum number of retries for the entire connection process.
     Returns an open Serial object or None.
     """
-    print(f"[INFO] Attempting to open serial port: {port} at {baudrate} baud")
+    def emit(message):
+        print(message, flush=True)
+        if status_cb:
+            try:
+                status_cb(message)
+            except Exception:
+                pass
+
+    emit(f"[INFO] Attempting to open serial port: {port} at {baudrate} baud")
     retries = 0
     last_exc = None
 
@@ -55,7 +64,7 @@ def connect_to_serial(
         try:
             # Check if the serial device exists (Linux/macOS: /dev/ttyUSB0, Windows: COMx)
             if not os.path.exists(port) and not port.startswith("COM"):
-                print(f"[WARNING] Serial device {port} not found. Check connection.")
+                emit(f"[WARNING] Serial device {port} not found. Check connection.")
                 retries += 1
                 time.sleep(retry_interval)
                 continue
@@ -69,14 +78,14 @@ def connect_to_serial(
                 stopbits=serial.STOPBITS_ONE,
                 timeout=0.5,
             )
-            print(f"[INFO] Serial port opened successfully (attempt {retries + 1}).")
+            emit(f"[INFO] Serial port opened successfully (attempt {retries + 1}).")
             time.sleep(0.05)
             _reset_buffers(ser)
 
             # Attempt to detect the prompt
             try:
                 output = wait_for_prompt(ser, [">", "#"], timeout=timeout, wake=True)
-                print(
+                emit(
                     f"[INFO] Connected. Device prompt: {output.strip().splitlines()[-1]}"
                 )
                 return ser
@@ -88,16 +97,16 @@ def connect_to_serial(
                 continue
 
         except serial.SerialException as e:
-            print(f"[ERROR] Error opening serial port on attempt {retries + 1}: {e}")
+            emit(f"[ERROR] Error opening serial port on attempt {retries + 1}: {e}")
             last_exc = e
             retries += 1
             time.sleep(retry_interval)
             continue
 
-    print(
+    emit(
         f"[ERROR] All {max_retries} attempts to open serial port or detect prompt failed on {port}."
     )
-    print("[HINT] Check if the device is plugged in and try again.")
+    emit("[HINT] Check if the device is plugged in and try again.")
     if last_exc and DEBUG:
         dbg(f"Last exception: {last_exc}")
     return None

@@ -5,11 +5,20 @@
   <title>Execution Status</title>
   <link rel="stylesheet" href="assets/style.css" />
 </head>
-<body>
-  <div class="container wide">
-    <h2>Execution Status</h2>
-    <p>This screen is reserved for future enhancements. You can monitor execution directly on the commands screen.</p>
-    <button type="button" onclick="goTo('commands.html')">Return to Commands</button>
+<body class="execution-body">
+  <div id="navbarContainer"></div>
+
+  <div class="page-shell execution-shell">
+    <section class="page-card execution-card" id="executionPage">
+      <header class="page-header">
+        <h1 class="page-title">Execution Status</h1>
+        <p class="page-subtitle">A placeholder view for expanded reporting.</p>
+      </header>
+      <p>This screen is reserved for future enhancements. You can monitor execution directly on the commands screen.</p>
+      <div class="actions justify-start">
+        <button type="button" class="primary" onclick="goTo('commands.html')">Return to Commands</button>
+      </div>
+    </section>
   </div>
 
   <script src="renderer.js"></script>

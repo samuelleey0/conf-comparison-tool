@@ -5,40 +5,66 @@
   <title>Connection Setup</title>
   <link rel="stylesheet" href="assets/style.css" />
 </head>
-<body>
-  <div class="container" id="connectionPage">
-    <h2>Select Connection Type</h2>
-    <form id="connectionForm">
-      <div class="form-group">
-        <label><input type="radio" name="connType" value="serial" checked /> Serial</label>
-        <label><input type="radio" name="connType" value="ssh" /> SSH</label>
-      </div>
+<body class="connection-body">
+  <div id="navbarContainer"></div>
 
-      <div id="serialFields">
-        <p class="hint">Choose the preset that matches your system or select custom.</p>
-        <div class="inline-options">
-          <label><input type="radio" name="serialPreset" value="linux" checked /> Linux (/dev/ttyUSB0)</label>
-          <label><input type="radio" name="serialPreset" value="windows" /> Windows (COM3)</label>
-          <label><input type="radio" name="serialPreset" value="mac" /> macOS (/dev/cu.usbserial-10)</label>
-          <label><input type="radio" name="serialPreset" value="custom" /> Custom</label>
+  <div class="page-shell connection-shell">
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">Connection & Execution</h1>
+        <p class="page-subtitle">Confirm how you will connect and monitor the live run results.</p>
+      </div>
+    </header>
+
+    <div class="connection-layout" id="connectionPage">
+      <section class="connection-panel page-card">
+        <h2 class="section-title">Connection Setup</h2>
+        <form id="connectionForm">
+          <div class="form-group">
+            <label><input type="radio" name="connType" value="serial" checked /> Serial</label>
+            <label><input type="radio" name="connType" value="ssh" /> SSH</label>
+          </div>
+
+          <div id="serialFields">
+            <p class="hint">Choose the preset that matches your system or select custom.</p>
+            <div class="inline-options">
+              <label><input type="radio" name="serialPreset" value="linux" checked /> Linux (/dev/ttyUSB0)</label>
+              <label><input type="radio" name="serialPreset" value="windows" /> Windows (COM3)</label>
+              <label><input type="radio" name="serialPreset" value="mac" /> macOS (/dev/cu.usbserial-10)</label>
+              <label><input type="radio" name="serialPreset" value="custom" /> Custom</label>
+            </div>
+            <label for="serialPort">Serial Port</label>
+            <input type="text" id="serialPort" placeholder="/dev/ttyUSB0" />
+          </div>
+
+          <div id="sshFields" class="hidden">
+            <label for="sshHost">SSH Host</label><br>
+            <input type="text" id="sshHost" placeholder="192.168.1.1" /><br>
+            <label for="sshUser">SSH Username</label><br>
+            <input type="text" id="sshUser" placeholder="admin" /><br>
+            <label for="sshPass">SSH Password</label><br>
+            <input type="password" id="sshPass" placeholder="Password" />
+          </div>
+
+          <button type="button" id="connection-next">Connect</button>
+        </form>
+        <div id="selectedCommandsInfo" class="info-box hidden"></div>
+      </section>
+
+      <section class="connection-status">
+        <header class="connection-status__header">
+          <h3>Execution Status</h3>
+          <button type="button" id="clearLogBtn" class="link-btn">Clear Log</button>
+        </header>
+        <div class="status-panel modern">
+          <label for="progress">Progress</label>
+          <progress id="progress" value="0" max="100"></progress>
+          <pre id="log" class="log"></pre>
         </div>
-        <label for="serialPort">Serial Port</label>
-        <input type="text" id="serialPort" placeholder="/dev/ttyUSB0" />
-      </div>
-
-      <div id="sshFields" class="hidden">
-        <label for="sshHost">SSH Host</label>
-        <input type="text" id="sshHost" placeholder="192.168.1.1" />
-        <label for="sshUser">SSH Username</label>
-        <input type="text" id="sshUser" placeholder="admin" />
-        <label for="sshPass">SSH Password</label>
-        <input type="password" id="sshPass" placeholder="Password" />
-      </div>
-
-      <button type="button" id="connection-next">Next</button>
-    </form>
-    <div class="actions">
-      <button type="button" id="backToDirectoryBtn">Back to Directory Setup</button>
+        <div class="actions justify-end">
+          <button type="button" id="startExecutionBtn" class="primary">Run Selected Commands</button>
+        </div>
+      </section>
     </div>
   </div>
 

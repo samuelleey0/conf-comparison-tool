@@ -23,11 +23,38 @@ try {
 }
 
 let selectedExistingPath = null;
+let selectedExistingDisplay = null;
+let statusModalOverlay = null;
+let statusModalMessageEl = null;
+let statusModalCloseBtn = null;
+let statusModalHideTimeout = null;
+
+function nowTimestamp() {
+  return new Date().toLocaleTimeString();
+}
+
+function appendLogLine(message) {
+  const log = document.getElementById("log");
+  if (!log) return;
+  log.innerText += `${message}\n`;
+  log.scrollTop = log.scrollHeight;
+}
 
 function goTo(page) {
   window.location.href = page;
 }
 window.goTo = goTo;
+
+function loadNavbar() {
+  const container = document.getElementById("navbarContainer");
+  if (!container) return;
+  fetch("navbar.html")
+    .then((res) => res.text())
+    .then((html) => {
+      container.outerHTML = html;
+    })
+    .catch((err) => console.error("Failed to load navbar:", err));
+}
 
 async function fetchJson(path, options = {}) {
   const res = await fetch(`${API_ROOT}${path}`, {
@@ -78,18 +105,76 @@ function ensureDirectoryConfigured() {
   return true;
 }
 
+function ensureStatusModalElements() {
+  if (statusModalOverlay) return statusModalOverlay;
+
+  statusModalOverlay = document.createElement("div");
+  statusModalOverlay.id = "statusModalOverlay";
+  statusModalOverlay.className = "status-modal-overlay";
+
+  const box = document.createElement("div");
+  box.className = "status-modal-box";
+
+  const spinner = document.createElement("div");
+  spinner.className = "status-modal-spinner";
+
+  statusModalMessageEl = document.createElement("p");
+  statusModalMessageEl.className = "status-modal-message";
+
+  statusModalCloseBtn = document.createElement("button");
+  statusModalCloseBtn.type = "button";
+  statusModalCloseBtn.className = "status-modal-close secondary";
+  statusModalCloseBtn.textContent = "Close";
+  statusModalCloseBtn.addEventListener("click", () => hideStatusModal());
+
+  box.append(spinner, statusModalMessageEl, statusModalCloseBtn);
+  statusModalOverlay.appendChild(box);
+  document.body.appendChild(statusModalOverlay);
+  return statusModalOverlay;
+}
+
+function showStatusModal(message, state = "info") {
+  const overlay = ensureStatusModalElements();
+  if (statusModalHideTimeout) {
+    clearTimeout(statusModalHideTimeout);
+    statusModalHideTimeout = null;
+  }
+  overlay.dataset.state = state;
+  statusModalMessageEl.textContent = message;
+  statusModalCloseBtn.style.display = state === "pending" ? "none" : "inline-block";
+  overlay.classList.add("visible");
+  return overlay;
+}
+
+function updateStatusModal(overlay, message, state = "info", autoHide = false) {
+  const modal = overlay || ensureStatusModalElements();
+  modal.dataset.state = state;
+  statusModalMessageEl.textContent = message;
+  statusModalCloseBtn.style.display = state === "pending" ? "none" : "inline-block";
+  if (autoHide) {
+    statusModalHideTimeout = setTimeout(() => hideStatusModal(), 1500);
+  }
+}
+
+function hideStatusModal() {
+  if (statusModalHideTimeout) {
+    clearTimeout(statusModalHideTimeout);
+    statusModalHideTimeout = null;
+  }
+  if (statusModalOverlay) {
+    statusModalOverlay.classList.remove("visible");
+  }
+}
+
 // -----------------------------
 // Directory setup page
 // -----------------------------
 
 function setupWelcomePage() {
+  loadNavbar();
   const startBtn = document.getElementById("startSetupBtn");
-  const viewCommandsBtn = document.getElementById("viewCommandsBtn");
   if (startBtn) {
     startBtn.addEventListener("click", () => goTo("index.html"));
-  }
-  if (viewCommandsBtn) {
-    viewCommandsBtn.addEventListener("click", () => goTo("commands.html"));
   }
 }
 
@@ -213,7 +298,7 @@ async function handleCreateDirectory(event) {
       display: `${data.exam_name}/${data.session_id}/${data.student_id}`,
     });
     alert(data.message);
-    goTo("connection.html");
+    goTo("commands.html");
   } catch (err) {
     console.error(err);
     alert(`Failed to create directory: ${err.message}`);
@@ -246,7 +331,7 @@ async function handleUseExistingDirectory() {
       `${data.exam_name}/${data.session_id}/${data.student_id}`
     );
     alert(data.message);
-    goTo("connection.html");
+    goTo("commands.html");
   } catch (err) {
     console.error(err);
     alert(`Failed to use directory: ${err.message}`);
@@ -317,6 +402,7 @@ async function handleBulkCreate(event) {
 }
 
 function setupDirectoryPage() {
+  loadNavbar();
   const sections = {
     create: document.getElementById("createSection"),
     existing: document.getElementById("existingSection"),
@@ -351,7 +437,6 @@ function setupDirectoryPage() {
   const useBtn = document.getElementById("use-existing-btn");
   const chooseBtn = document.getElementById("chooseDirectoryBtn");
   const clearBtn = document.getElementById("clearExistingSelectionBtn");
-  const skipBtn = document.getElementById("goToCommandsBtn");
 
   if (createForm) createForm.addEventListener("submit", handleCreateDirectory);
   if (bulkForm) bulkForm.addEventListener("submit", handleBulkCreate);
@@ -360,13 +445,6 @@ function setupDirectoryPage() {
   if (clearBtn) clearBtn.addEventListener("click", () =>
     setSelectedExistingDirectory(null)
   );
-
-  if (skipBtn) {
-    skipBtn.addEventListener("click", () => {
-      if (!ensureDirectoryConfigured()) return;
-      goTo("commands.html");
-    });
-  }
 
   const storedMode = localStorage.getItem("directoryMode");
   if (storedMode === "existing") {
@@ -377,6 +455,9 @@ function setupDirectoryPage() {
   } else {
     setSelectedExistingDirectory(null);
   }
+
+  const defaultSection = storedMode === "existing" ? "existing" : "create";
+  showSection(defaultSection);
 }
 
 // -----------------------------
@@ -417,6 +498,15 @@ async function saveConnection() {
   }
   const conn = type.value;
   const payload = { connection: conn };
+  const connectBtn = document.getElementById("connection-next");
+  const originalBtnText = connectBtn ? connectBtn.textContent : null;
+  const progress = document.getElementById("progress");
+  if (progress) progress.value = 0;
+
+  let connectionSucceeded = false;
+  let finalHostname = null;
+  let errorMessage = "";
+  let errorLogged = false;
 
   if (conn === "ssh") {
     const host = document.getElementById("sshHost").value.trim();
@@ -432,11 +522,121 @@ async function saveConnection() {
     payload.serial = { port };
   }
 
+  let timeoutId;
   try {
-    const data = await fetchJson("/api/connect", {
+    if (connectBtn) {
+      connectBtn.textContent = "Connecting...";
+      connectBtn.disabled = true;
+    }
+    const modal = showStatusModal("Connecting... Please wait.", "pending");
+    const controller = new AbortController();
+    const connectionTimeoutMs = 15000;
+    timeoutId = setTimeout(() => controller.abort(), connectionTimeoutMs);
+    const response = await fetch(`${API_ROOT}/api/connect`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
+
+    if (!response.ok || !response.body) {
+      const text = await response.text();
+      throw new Error(text || response.statusText || "Connection failed");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        let payloadObj = null;
+        try {
+          payloadObj = JSON.parse(trimmed);
+        } catch (err) {
+          appendLogLine(trimmed);
+          continue;
+        }
+
+        const { type: evtType, msg, hostname, trace, success } = payloadObj;
+        const pct = typeof payloadObj.progress_pct === "number" ? payloadObj.progress_pct : null;
+        if (pct !== null && progress) {
+          progress.value = Math.min(100, Math.max(0, pct));
+        }
+        if (evtType === "progress") {
+          appendLogLine(`[${nowTimestamp()}] ${msg}`);
+        } else if (evtType === "success") {
+          connectionSucceeded = true;
+          finalHostname = hostname || null;
+          const successMsg = msg || "Connection established.";
+          appendLogLine(`[SUCCESS] ${successMsg}`);
+          updateStatusModal(modal, successMsg, "success", true);
+        } else if (evtType === "error") {
+          errorMessage = msg || "Connection failed.";
+          appendLogLine(`[ERROR] ${errorMessage}`);
+          errorLogged = true;
+          if (trace) {
+            appendLogLine(trace);
+          }
+          updateStatusModal(modal, errorMessage, "error");
+        }
+
+        if (evtType === "done") {
+          if (!success && !connectionSucceeded && !errorMessage) {
+            errorMessage = "Connection failed.";
+            updateStatusModal(modal, errorMessage, "error");
+          }
+        }
+      }
+    }
+
+    if (buffer.trim()) {
+      try {
+        const payloadObj = JSON.parse(buffer.trim());
+        const { type: evtType, msg, hostname, trace } = payloadObj;
+        const pct = typeof payloadObj.progress_pct === "number" ? payloadObj.progress_pct : null;
+        if (pct !== null && progress) {
+          progress.value = Math.min(100, Math.max(0, pct));
+        }
+        if (evtType === "progress") {
+          appendLogLine(`[${nowTimestamp()}] ${msg}`);
+        } else if (evtType === "success") {
+          connectionSucceeded = true;
+          finalHostname = hostname || null;
+          const successMsg = msg || "Connection established.";
+          appendLogLine(`[SUCCESS] ${successMsg}`);
+          updateStatusModal(modal, successMsg, "success", true);
+        } else if (evtType === "error") {
+          errorMessage = msg || "Connection failed.";
+          appendLogLine(`[ERROR] ${errorMessage}`);
+          errorLogged = true;
+          if (trace) appendLogLine(trace);
+          updateStatusModal(modal, errorMessage, "error");
+        }
+      } catch (err) {
+        appendLogLine(buffer.trim());
+      }
+    }
+
+    if (!connectionSucceeded) {
+      if (!errorMessage) errorMessage = "Connection failed.";
+      if (!errorLogged) {
+        appendLogLine(`[ERROR] ${errorMessage}`);
+      }
+      updateStatusModal(modal, errorMessage, "error");
+      return;
+    }
+
+    if (progress) progress.value = 100;
+
     localStorage.setItem("connection", conn);
     if (conn === "ssh") {
       localStorage.setItem("sshHost", payload.ssh.host);
@@ -445,15 +645,41 @@ async function saveConnection() {
     } else {
       localStorage.setItem("serialPort", payload.serial.port);
     }
-    alert(data.message);
-    goTo("commands.html");
+    if (finalHostname) {
+      localStorage.setItem("connectedHostname", finalHostname);
+    }
+    renderSelectedCommandsInfo();
+    if (isPendingExecution()) {
+      const commands = getStoredCommands();
+      if (commands.length) {
+        startExecution({ commands, initiatedFromConnection: true });
+      }
+    }
   } catch (err) {
     console.error(err);
-    alert(`Connection failed: ${err.message}`);
+    if (!connectionSucceeded) {
+      if (err.name === "AbortError") {
+        showStatusModal(
+          "Connection timed out. Please check the device and try again.",
+          "error"
+        );
+      } else {
+        showStatusModal(`Connection failed: ${err.message}`, "error");
+      }
+    }
+  } finally {
+    if (typeof timeoutId !== "undefined") {
+      clearTimeout(timeoutId);
+    }
+    if (connectBtn) {
+      connectBtn.disabled = false;
+      connectBtn.textContent = originalBtnText || "Connect";
+    }
   }
 }
 
 function setupConnectionPage() {
+  loadNavbar();
   if (!ensureDirectoryConfigured()) return;
 
   const form = document.getElementById("connectionForm");
@@ -498,11 +724,61 @@ function setupConnectionPage() {
   if (backBtn) {
     backBtn.addEventListener("click", () => goTo("index.html"));
   }
+
+  document
+    .getElementById("clearLogBtn")
+    ?.addEventListener("click", (evt) => {
+      evt.preventDefault();
+      clearExecutionLog();
+    });
+
+  document
+    .getElementById("startExecutionBtn")
+    ?.addEventListener("click", (evt) => {
+      evt.preventDefault();
+      const commands = getStoredCommands();
+      if (!commands.length) {
+        alert("Select commands on the Commands page before running.");
+        goTo("commands.html");
+        return;
+      }
+      startExecution({ commands, initiatedFromConnection: true });
+    });
+
+  renderSelectedCommandsInfo();
+
+  if (isPendingExecution()) {
+    const pendingCommands = getStoredCommands();
+    if (pendingCommands.length && localStorage.getItem("connection")) {
+      startExecution({ commands: pendingCommands, initiatedFromConnection: true });
+    }
+  }
 }
 
 // -----------------------------
 // Commands page
 // -----------------------------
+
+function updateCommandSelectionState() {
+  const badge = document.getElementById("commandCount");
+  if (!badge) return;
+  const checkboxes = document.querySelectorAll('input[name="command"]');
+  const selected = Array.from(checkboxes).filter((cb) => cb.checked).length;
+  const total = checkboxes.length;
+  badge.textContent = total
+    ? `${selected} selected of ${total}`
+    : "0 selected";
+}
+
+function toggleSelectAllCommands() {
+  const checkboxes = Array.from(document.querySelectorAll('input[name="command"]'));
+  if (!checkboxes.length) return;
+  const allSelected = checkboxes.every((cb) => cb.checked);
+  checkboxes.forEach((cb) => {
+    cb.checked = !allSelected;
+  });
+  updateCommandSelectionState();
+}
 
 function renderCommandList(commands = []) {
   const container = document.getElementById("commandsList");
@@ -511,26 +787,39 @@ function renderCommandList(commands = []) {
 
   if (!commands.length) {
     container.innerHTML =
-      "<p>No commands defined. Add a command using the form above.</p>";
+      "<p class=\"hint\">No commands defined. Add a command using the form on the left.</p>";
+    updateCommandSelectionState();
     return;
   }
 
   commands.forEach((cmd, idx) => {
-    const wrapper = document.createElement("div");
-    wrapper.className = "command-item";
+    const tile = document.createElement("div");
+    tile.className = "command-tile";
 
-    const label = document.createElement("label");
-    label.innerHTML = `<input type="checkbox" name="command" value="${cmd}" id="cmd_${idx}"> ${cmd}`;
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.name = "command";
+    checkbox.value = cmd;
+    checkbox.id = `cmd_${idx}`;
+
+    const nameLabel = document.createElement("label");
+    nameLabel.className = "command-name";
+    nameLabel.setAttribute("for", `cmd_${idx}`);
+    nameLabel.textContent = cmd;
 
     const removeBtn = document.createElement("button");
     removeBtn.type = "button";
     removeBtn.dataset.command = cmd;
     removeBtn.textContent = "Remove";
+    removeBtn.className = "remove-btn";
 
-    wrapper.appendChild(label);
-    wrapper.appendChild(removeBtn);
-    container.appendChild(wrapper);
+    tile.appendChild(checkbox);
+    tile.appendChild(nameLabel);
+    tile.appendChild(removeBtn);
+    container.appendChild(tile);
   });
+
+  updateCommandSelectionState();
 }
 
 async function loadCommandsList() {
@@ -543,6 +832,7 @@ async function loadCommandsList() {
   } catch (err) {
     console.error(err);
     container.innerHTML = `<p class="error">Failed to load commands: ${err.message}</p>`;
+    updateCommandSelectionState();
   }
 }
 
@@ -582,18 +872,99 @@ async function removeCommand(command) {
     alert(`Failed to remove command: ${err.message}`);
   }
 }
+function getStoredCommands() {
+  try {
+    const raw = localStorage.getItem("selectedCommands");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    return [];
+  }
+}
 
-async function startExecution() {
+function setStoredCommands(commands) {
+  localStorage.setItem("selectedCommands", JSON.stringify(commands));
+}
+
+function clearPendingExecutionFlag() {
+  localStorage.removeItem("pendingExecution");
+}
+
+function setPendingExecutionFlag() {
+  localStorage.setItem("pendingExecution", "true");
+}
+
+function isPendingExecution() {
+  return localStorage.getItem("pendingExecution") === "true";
+}
+
+function clearExecutionLog() {
+  const log = document.getElementById("log");
+  if (log) log.innerText = "";
+  const progress = document.getElementById("progress");
+  if (progress) progress.value = 0;
+}
+
+function renderSelectedCommandsInfo() {
+  const infoBox = document.getElementById("selectedCommandsInfo");
+  if (!infoBox) return;
+  const commands = getStoredCommands();
+  if (!commands.length) {
+    infoBox.classList.add("hidden");
+    infoBox.innerHTML = "";
+    return;
+  }
+  infoBox.classList.remove("hidden");
+  infoBox.innerHTML = "";
+  const heading = document.createElement("strong");
+  heading.textContent = `${commands.length} command(s) selected:`;
+  infoBox.appendChild(heading);
+  const list = document.createElement("ul");
+  commands.forEach((cmd) => {
+    const li = document.createElement("li");
+    li.textContent = cmd;
+    list.appendChild(li);
+  });
+  infoBox.appendChild(list);
+}
+
+async function startExecution({ commands, initiatedFromConnection = false } = {}) {
   if (!ensureDirectoryConfigured()) return;
 
-  const commands = Array.from(
-    document.querySelectorAll('input[name="command"]:checked')
-  ).map((i) => i.value);
+  let commandsToRun = Array.isArray(commands) ? commands : null;
+  if (!commandsToRun) {
+    commandsToRun = Array.from(
+      document.querySelectorAll('input[name="command"]:checked')
+    ).map((i) => i.value);
+  }
 
-  if (!commands.length) {
+  if (!commandsToRun.length) {
     alert("Select at least one command to execute.");
     return;
   }
+
+  setStoredCommands(commandsToRun);
+  renderSelectedCommandsInfo();
+
+  const log = document.getElementById("log");
+  const progress = document.getElementById("progress");
+  const hasStatusUI = log && progress;
+  const connectionType = localStorage.getItem("connection");
+
+  if (!hasStatusUI || !connectionType) {
+    setPendingExecutionFlag();
+    if (!connectionType && initiatedFromConnection) {
+      alert("Configure the connection before running commands.");
+    }
+    if (!initiatedFromConnection) {
+      goTo("connection.html");
+    }
+    return;
+  }
+
+  clearPendingExecutionFlag();
+  clearExecutionLog();
 
   const directoryMode = localStorage.getItem("directoryMode") || "create";
   const basePath = localStorage.getItem("basePath");
@@ -601,16 +972,10 @@ async function startExecution() {
     exam_name: localStorage.getItem("examName"),
     session_id: localStorage.getItem("sessionId"),
     student_id: localStorage.getItem("studentId"),
-    connection: localStorage.getItem("connection"),
-    commands,
+    connection: connectionType,
+    commands: commandsToRun,
     log_mode: directoryMode,
   };
-
-  if (!payload.connection) {
-    alert("Connection settings missing. Please configure the connection first.");
-    goTo("connection.html");
-    return;
-  }
 
   if (directoryMode === "existing") {
     if (!basePath) {
@@ -621,7 +986,7 @@ async function startExecution() {
     payload.log_dir = basePath;
   }
 
-  if (payload.connection === "ssh") {
+  if (connectionType === "ssh") {
     payload.ssh = {
       host: localStorage.getItem("sshHost"),
       username: localStorage.getItem("sshUser"),
@@ -633,14 +998,11 @@ async function startExecution() {
     };
   }
 
-  const log = document.getElementById("log");
-  const progress = document.getElementById("progress");
   const startBtn = document.getElementById("startExecutionBtn");
-  log.innerText = "";
-  progress.value = 0;
-  const total = commands.length;
-  let finished = 0;
   if (startBtn) startBtn.disabled = true;
+
+  const total = commandsToRun.length;
+  let finished = 0;
 
   try {
     const res = await fetch(`${API_ROOT}/api/execute`, {
@@ -668,20 +1030,33 @@ async function startExecution() {
         if (!line.trim()) continue;
         try {
           const obj = JSON.parse(line);
+          const pct = typeof obj.progress_pct === "number" ? obj.progress_pct : null;
           if (obj.type === "progress") {
             log.innerText += `[${new Date().toLocaleTimeString()}] ${obj.msg}\n`;
-            if (obj.cmd_done) {
+            if (pct !== null && progress) {
+              progress.value = Math.min(100, Math.max(0, pct));
+            }
+            if (obj.cmd_done && progress) {
               finished++;
-              progress.value = Math.round((finished / total) * 100);
+              if (pct === null) {
+                progress.value = Math.round((finished / total) * 100);
+              }
             }
           } else if (obj.type === "result") {
             log.innerText += `[RESULT] ${obj.msg}\n`;
             if (obj.files) {
               obj.files.forEach((f) => (log.innerText += `  ${f}\n`));
             }
+            if (pct !== null && progress) {
+              progress.value = Math.min(100, Math.max(0, pct));
+            }
           } else if (obj.type === "done") {
             log.innerText += `\n[FINISHED] ${obj.msg}\n`;
-            progress.value = 100;
+            if (pct !== null && progress) {
+              progress.value = Math.min(100, Math.max(0, pct));
+            } else {
+              if (progress) progress.value = 100;
+            }
           } else if (obj.type === "error") {
             log.innerText += `[ERROR] ${obj.msg}\n`;
             if (obj.trace) log.innerText += `${obj.trace}\n`;
@@ -698,14 +1073,17 @@ async function startExecution() {
     log.innerText += `[ERROR] ${err}\n`;
   } finally {
     if (startBtn) startBtn.disabled = false;
+    updateCommandSelectionState();
   }
 }
 window.startExecution = startExecution;
 
 function setupCommandsPage() {
+  loadNavbar();
   if (!ensureDirectoryConfigured()) return;
 
   loadCommandsList();
+  updateCommandSelectionState();
 
   document
     .getElementById("addCommandBtn")
@@ -732,15 +1110,22 @@ function setupCommandsPage() {
     });
 
   document
+    .getElementById("commandsList")
+    ?.addEventListener("change", () => updateCommandSelectionState());
+
+  document
+    .getElementById("selectAllBtn")
+    ?.addEventListener("click", (evt) => {
+      evt.preventDefault();
+      toggleSelectAllCommands();
+    });
+
+  document
     .getElementById("startExecutionBtn")
     ?.addEventListener("click", (evt) => {
       evt.preventDefault();
       startExecution();
     });
-
-  document
-    .getElementById("backToConnectionBtn")
-    ?.addEventListener("click", () => goTo("connection.html"));
 }
 
 // -----------------------------
@@ -748,6 +1133,7 @@ function setupCommandsPage() {
 // -----------------------------
 
 document.addEventListener("DOMContentLoaded", () => {
+  loadNavbar();
   if (document.getElementById("welcomePage")) setupWelcomePage();
   if (document.getElementById("directoryPage")) setupDirectoryPage();
   if (document.getElementById("connectionForm")) setupConnectionPage();
