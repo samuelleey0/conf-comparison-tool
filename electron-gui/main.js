@@ -91,12 +91,14 @@ function startFlask() {
  */
 function createWindow() {
   mainWindow = new BrowserWindow({
-    fullscreen: true,
+    // fullscreen: true, // Remove fullscreen
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
     },
   });
+
+  mainWindow.maximize(); // Add this line to maximize the window
 
   mainWindow.loadFile(path.join(__dirname, 'welcome.html'));
 
