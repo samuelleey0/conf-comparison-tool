@@ -15,10 +15,10 @@ Mac / Ubuntu (Linux):
 
 ```bash
 ssh-keygen -t ed25519 -C "your_email@example.com"
+```
 
 Press Enter to accept the default file location (~/.ssh/id_ed25519).
 Set a passphrase for extra security (optional).
-```
 
 Windows (PowerShell or Git Bash):
 
@@ -52,18 +52,19 @@ Copy your public key:
 cat ~/.ssh/id_ed25519.pub
 ```
 
-(Windows: `bash type Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub`)
+(Windows: type `Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub`)
 
-Go to GitHub → Settings → SSH and GPG keys
-Click New SSH key, paste your public key, and save.
+Go to _GitHub_ → _Settings_ → _SSH and GPG keys_. Click _New SSH key_, paste your public key, and save.
 
 4. Test SSH Connection
 
 ```bash
 ssh -T git@github.com
+```
 
 Expected output:
 
+```bash
 Hi ! You’ve successfully authenticated, but GitHub does not provide shell access.
 ```
 
@@ -141,9 +142,11 @@ This section guides you through preparing an Ubuntu desktop with a PCIe serial i
 
 ```bash
 lspci | grep -i serial
+```
 
 Example:
 
+```bash
 0000:03:00.0 Serial controller: Oxford Semiconductor Ltd OXPCIe952 Dual Serial Port
 ```
 
@@ -159,7 +162,7 @@ or
 ls /dev/ttyS* /dev/ttyUSB* 2>/dev/null
 ```
 
-Typical outputs: `bash /dev/ttyS4, /dev/ttyUSB0`
+Typical outputs: `/dev/ttyS4, /dev/ttyUSB0`
 
 If missing, load the driver manually:
 
@@ -245,7 +248,7 @@ This GUI allows instructors to run configurations, view outputs, and store logs 
 
 1. Install Required Software
 
-#### Python 3.10+
+-   Python 3.10+
 
 ```bash
 python3 --version
@@ -253,7 +256,7 @@ python3 --version
 
 If missing, install from python.org/downloads
 
-#### Node.js + npm
+-   Node.js + npm
 
 ```bash
 node -v
@@ -319,6 +322,6 @@ Notes
 
 -   Flask runs automatically inside Electron — no need to start it manually.
 -   Outputs are stored in:
-    ~/Documents/<ExamName>/<SessionID>/<StudentID>/<Hostname>
+    `~/Documents/<ExamName>/<SessionID>/<StudentID>/<Hostname>`
 
 ---
