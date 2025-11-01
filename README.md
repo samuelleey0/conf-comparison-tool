@@ -17,7 +17,7 @@ Mac / Ubuntu (Linux):
 ssh-keygen -t ed25519 -C "your_email@example.com"
 ```
 
-Press Enter to accept the default file location (~/.ssh/id_ed25519).
+Press `Enter` to accept the default file location (`~/.ssh/id_ed25519`).
 Set a passphrase for extra security (optional).
 
 Windows (PowerShell or Git Bash):
