@@ -78,6 +78,8 @@ def connect_to_serial(
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE,
                 timeout=0.5,
+                dsrdtr=False,
+                rtscts=False,
             )
 
             ser.dtr = True  # Ensure DTR is set to True to avoid connection issues
