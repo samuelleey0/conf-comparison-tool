@@ -78,9 +78,11 @@ def connect_to_serial(
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE,
                 timeout=0.5,
-                dsrdtr=False,
-                rtscts=False,
             )
+
+            ser.dtr = True  # Ensure DTR is set to True to avoid connection issues
+            ser.rts = True  # Ensure RTS is set to True to avoid connection issues
+            time.sleep(0.2)
             emit(f"[INFO] Serial port opened successfully (attempt {retries + 1}).")
             time.sleep(0.05)
             _reset_buffers(ser)
