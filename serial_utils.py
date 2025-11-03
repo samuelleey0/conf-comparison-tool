@@ -48,6 +48,7 @@ def connect_to_serial(
     - max_retries: Maximum number of retries for the entire connection process.
     Returns an open Serial object or None.
     """
+
     def emit(message):
         print(message, flush=True)
         if status_cb:
@@ -77,6 +78,8 @@ def connect_to_serial(
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE,
                 timeout=0.5,
+                dsrdtr=False,
+                rtscts=False,
             )
             emit(f"[INFO] Serial port opened successfully (attempt {retries + 1}).")
             time.sleep(0.05)
