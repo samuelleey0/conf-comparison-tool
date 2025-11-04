@@ -41,6 +41,14 @@ function appendLogLine(message) {
   log.scrollTop = log.scrollHeight;
 }
 
+function setProgressValue(value) {
+  const progressEl = document.getElementById("progress");
+  const labelEl = document.getElementById("progressValue");
+  const clamped = Math.min(100, Math.max(0, Math.round(value)));
+  if (progressEl) progressEl.value = clamped;
+  if (labelEl) labelEl.textContent = `${clamped}%`;
+}
+
 function goTo(page) {
   window.location.href = page;
 }
@@ -503,8 +511,7 @@ async function saveConnection({ autoRun = false, triggerButton = null } = {}) {
   const payload = { connection: conn };
   const connectBtn = triggerButton || null;
   const originalBtnText = connectBtn ? connectBtn.textContent : null;
-  const progress = document.getElementById("progress");
-  if (progress) progress.value = 0;
+  setProgressValue(0);
 
   let connectionSucceeded = false;
   let finalHostname = null;
@@ -607,8 +614,8 @@ async function saveConnection({ autoRun = false, triggerButton = null } = {}) {
 
         const { type: evtType, msg, hostname, trace, success } = payloadObj;
         const pct = typeof payloadObj.progress_pct === "number" ? payloadObj.progress_pct : null;
-        if (pct !== null && progress) {
-          progress.value = Math.min(100, Math.max(0, pct));
+        if (pct !== null) {
+          setProgressValue(pct);
         }
         if (evtType === "progress") {
           appendLogLine(`[${nowTimestamp()}] ${msg}`);
@@ -642,8 +649,8 @@ async function saveConnection({ autoRun = false, triggerButton = null } = {}) {
         const payloadObj = JSON.parse(buffer.trim());
         const { type: evtType, msg, hostname, trace } = payloadObj;
         const pct = typeof payloadObj.progress_pct === "number" ? payloadObj.progress_pct : null;
-        if (pct !== null && progress) {
-          progress.value = Math.min(100, Math.max(0, pct));
+        if (pct !== null) {
+          setProgressValue(pct);
         }
         if (evtType === "progress") {
           appendLogLine(`[${nowTimestamp()}] ${msg}`);
@@ -675,7 +682,7 @@ async function saveConnection({ autoRun = false, triggerButton = null } = {}) {
       return;
     }
 
-    if (progress) progress.value = 100;
+    setProgressValue(100);
 
     localStorage.setItem("connection", conn);
     if (conn === "ssh") {
@@ -1057,6 +1064,7 @@ async function startExecution({ commands, initiatedFromConnection = false } = {}
 
   const startBtn = document.getElementById("startExecutionBtn");
   if (startBtn) startBtn.disabled = true;
+  setProgressValue(0);
 
   const total = commandsToRun.length;
   let finished = 0;
@@ -1090,13 +1098,13 @@ async function startExecution({ commands, initiatedFromConnection = false } = {}
           const pct = typeof obj.progress_pct === "number" ? obj.progress_pct : null;
           if (obj.type === "progress") {
             log.innerText += `[${new Date().toLocaleTimeString()}] ${obj.msg}\n`;
-            if (pct !== null && progress) {
-              progress.value = Math.min(100, Math.max(0, pct));
+            if (pct !== null) {
+              setProgressValue(pct);
             }
-            if (obj.cmd_done && progress) {
+            if (obj.cmd_done) {
               finished++;
               if (pct === null) {
-                progress.value = Math.round((finished / total) * 100);
+                setProgressValue((finished / total) * 100);
               }
             }
           } else if (obj.type === "result") {
@@ -1104,15 +1112,15 @@ async function startExecution({ commands, initiatedFromConnection = false } = {}
             if (obj.files) {
               obj.files.forEach((f) => (log.innerText += `  ${f}\n`));
             }
-            if (pct !== null && progress) {
-              progress.value = Math.min(100, Math.max(0, pct));
+            if (pct !== null) {
+              setProgressValue(pct);
             }
           } else if (obj.type === "done") {
             log.innerText += `\n[FINISHED] ${obj.msg}\n`;
-            if (pct !== null && progress) {
-              progress.value = Math.min(100, Math.max(0, pct));
+            if (pct !== null) {
+              setProgressValue(pct);
             } else {
-              if (progress) progress.value = 100;
+              setProgressValue(100);
             }
           } else if (obj.type === "error") {
             log.innerText += `[ERROR] ${obj.msg}\n`;

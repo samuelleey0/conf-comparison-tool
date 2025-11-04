@@ -749,6 +749,20 @@ button.block {
   gap: 10px;
 }
 
+.progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.progress-value {
+  font-weight: 600;
+  color: var(--color-cisco-blue-dark);
+  min-width: 48px;
+  text-align: right;
+}
+
 .status-panel.modern {
   border: 1px solid rgba(0, 80, 115, 0.08);
   border-radius: 16px;

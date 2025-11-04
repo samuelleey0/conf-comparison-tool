@@ -56,7 +56,10 @@
           <button type="button" id="clearLogBtn" class="link-btn">Clear Log</button>
         </header>
         <div class="status-panel modern">
-          <label for="progress">Progress</label>
+          <div class="progress-row">
+            <label for="progress">Progress</label>
+            <span id="progressValue" class="progress-value">0%</span>
+          </div>
           <progress id="progress" value="0" max="100"></progress>
           <pre id="log" class="log"></pre>
         </div>
