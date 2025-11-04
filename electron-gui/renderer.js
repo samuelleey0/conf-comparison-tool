@@ -28,6 +28,7 @@ let statusModalOverlay = null;
 let statusModalMessageEl = null;
 let statusModalCloseBtn = null;
 let statusModalHideTimeout = null;
+let autoRunAfterConnect = false;
 
 function nowTimestamp() {
   return new Date().toLocaleTimeString();
@@ -490,15 +491,17 @@ function toggleConnectionFields() {
   }
 }
 
-async function saveConnection() {
+async function saveConnection({ autoRun = false, triggerButton = null } = {}) {
+  autoRunAfterConnect = autoRun;
   const type = document.querySelector('input[name="connType"]:checked');
   if (!type) {
     alert("Please choose a connection type.");
+    autoRunAfterConnect = false;
     return;
   }
   const conn = type.value;
   const payload = { connection: conn };
-  const connectBtn = document.getElementById("connection-next");
+  const connectBtn = triggerButton || null;
   const originalBtnText = connectBtn ? connectBtn.textContent : null;
   const progress = document.getElementById("progress");
   if (progress) progress.value = 0;
@@ -509,16 +512,52 @@ async function saveConnection() {
   let errorLogged = false;
 
   if (conn === "ssh") {
-    const host = document.getElementById("sshHost").value.trim();
-    const user = document.getElementById("sshUser").value.trim();
-    const pass = document.getElementById("sshPass").value;
+    const storedHost = localStorage.getItem("sshHost") || "";
+    const storedUser = localStorage.getItem("sshUser") || "";
+    const storedPass = localStorage.getItem("sshPass") || "";
+
+    const hostInput = document.getElementById("sshHost");
+    const userInput = document.getElementById("sshUser");
+    const passInput = document.getElementById("sshPass");
+
+    let host = hostInput?.value.trim() || "";
+    let user = userInput?.value.trim() || "";
+    let pass = passInput?.value || "";
+
+    if (autoRunAfterConnect) {
+      host = storedHost || host;
+      user = storedUser || user;
+      pass = storedPass || pass;
+    } else {
+      if (!host && storedHost) host = storedHost;
+      if (!user && storedUser) user = storedUser;
+      if (!pass && storedPass) pass = storedPass;
+    }
+
     if (!host || !user || !pass) {
       alert("Please provide SSH host, username and password.");
+      autoRunAfterConnect = false;
       return;
     }
+
+    if (hostInput && hostInput.value.trim() !== host) hostInput.value = host;
+    if (userInput && userInput.value.trim() !== user) userInput.value = user;
+    if (passInput && passInput.value !== pass) passInput.value = pass;
+
     payload.ssh = { host, username: user, password: pass };
   } else {
-    const port = document.getElementById("serialPort").value.trim() || "/dev/ttyUSB0";
+    const storedPort = localStorage.getItem("serialPort") || "";
+    const portInput = document.getElementById("serialPort");
+    let port = portInput ? portInput.value.trim() : "";
+    if (autoRunAfterConnect && storedPort) {
+      port = storedPort;
+    } else if (!port && storedPort) {
+      port = storedPort;
+    }
+    if (!port) port = "/dev/ttyUSB0";
+    if (portInput && portInput.value.trim() !== port) {
+      portInput.value = port;
+    }
     payload.serial = { port };
   }
 
@@ -632,6 +671,7 @@ async function saveConnection() {
         appendLogLine(`[ERROR] ${errorMessage}`);
       }
       updateStatusModal(modal, errorMessage, "error");
+      autoRunAfterConnect = false;
       return;
     }
 
@@ -649,6 +689,14 @@ async function saveConnection() {
       localStorage.setItem("connectedHostname", finalHostname);
     }
     renderSelectedCommandsInfo();
+    const storedCommands = getStoredCommands();
+    if (autoRunAfterConnect && storedCommands.length) {
+      startExecution({ commands: storedCommands, initiatedFromConnection: true });
+    } else if (autoRunAfterConnect && !storedCommands.length) {
+      alert("Select commands on the Commands page before running.");
+      goTo("commands.html");
+    }
+    autoRunAfterConnect = false;
     if (isPendingExecution()) {
       const commands = getStoredCommands();
       if (commands.length) {
@@ -670,11 +718,13 @@ async function saveConnection() {
   } finally {
     if (typeof timeoutId !== "undefined") {
       clearTimeout(timeoutId);
+      timeoutId = undefined;
     }
     if (connectBtn) {
       connectBtn.disabled = false;
       connectBtn.textContent = originalBtnText || "Connect";
     }
+    autoRunAfterConnect = false;
   }
 }
 
@@ -694,11 +744,18 @@ function setupConnectionPage() {
     toggleConnectionFields();
 
     form.addEventListener("submit", (evt) => evt.preventDefault());
+
     document
-      .getElementById("connection-next")
+      .getElementById("reconnectRunBtn")
       ?.addEventListener("click", (evt) => {
         evt.preventDefault();
-        saveConnection();
+        const commands = getStoredCommands();
+        if (!commands.length) {
+          alert("Select commands on the Commands page before running.");
+          goTo("commands.html");
+          return;
+        }
+        saveConnection({ autoRun: true, triggerButton: evt.currentTarget });
       });
   }
 
