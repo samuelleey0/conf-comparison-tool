@@ -46,7 +46,6 @@
             <input type="password" id="sshPass" placeholder="Password" />
           </div>
 
-          <button type="button" id="connection-next">Connect</button>
         </form>
         <div id="selectedCommandsInfo" class="info-box hidden"></div>
       </section>
@@ -57,11 +56,15 @@
           <button type="button" id="clearLogBtn" class="link-btn">Clear Log</button>
         </header>
         <div class="status-panel modern">
-          <label for="progress">Progress</label>
+          <div class="progress-row">
+            <label for="progress">Progress</label>
+            <span id="progressValue" class="progress-value">0%</span>
+          </div>
           <progress id="progress" value="0" max="100"></progress>
           <pre id="log" class="log"></pre>
         </div>
         <div class="actions justify-end">
+          <button type="button" id="reconnectRunBtn" class="secondary">Reconnect &amp; Run</button>
           <button type="button" id="startExecutionBtn" class="primary">Run Selected Commands</button>
         </div>
       </section>

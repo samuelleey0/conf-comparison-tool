@@ -28,6 +28,7 @@ let statusModalOverlay = null;
 let statusModalMessageEl = null;
 let statusModalCloseBtn = null;
 let statusModalHideTimeout = null;
+let autoRunAfterConnect = false;
 
 function nowTimestamp() {
   return new Date().toLocaleTimeString();
@@ -38,6 +39,14 @@ function appendLogLine(message) {
   if (!log) return;
   log.innerText += `${message}\n`;
   log.scrollTop = log.scrollHeight;
+}
+
+function setProgressValue(value) {
+  const progressEl = document.getElementById("progress");
+  const labelEl = document.getElementById("progressValue");
+  const clamped = Math.min(100, Math.max(0, Math.round(value)));
+  if (progressEl) progressEl.value = clamped;
+  if (labelEl) labelEl.textContent = `${clamped}%`;
 }
 
 function goTo(page) {
@@ -490,18 +499,19 @@ function toggleConnectionFields() {
   }
 }
 
-async function saveConnection() {
+async function saveConnection({ autoRun = false, triggerButton = null } = {}) {
+  autoRunAfterConnect = autoRun;
   const type = document.querySelector('input[name="connType"]:checked');
   if (!type) {
     alert("Please choose a connection type.");
+    autoRunAfterConnect = false;
     return;
   }
   const conn = type.value;
   const payload = { connection: conn };
-  const connectBtn = document.getElementById("connection-next");
+  const connectBtn = triggerButton || null;
   const originalBtnText = connectBtn ? connectBtn.textContent : null;
-  const progress = document.getElementById("progress");
-  if (progress) progress.value = 0;
+  setProgressValue(0);
 
   let connectionSucceeded = false;
   let finalHostname = null;
@@ -509,16 +519,52 @@ async function saveConnection() {
   let errorLogged = false;
 
   if (conn === "ssh") {
-    const host = document.getElementById("sshHost").value.trim();
-    const user = document.getElementById("sshUser").value.trim();
-    const pass = document.getElementById("sshPass").value;
+    const storedHost = localStorage.getItem("sshHost") || "";
+    const storedUser = localStorage.getItem("sshUser") || "";
+    const storedPass = localStorage.getItem("sshPass") || "";
+
+    const hostInput = document.getElementById("sshHost");
+    const userInput = document.getElementById("sshUser");
+    const passInput = document.getElementById("sshPass");
+
+    let host = hostInput?.value.trim() || "";
+    let user = userInput?.value.trim() || "";
+    let pass = passInput?.value || "";
+
+    if (autoRunAfterConnect) {
+      host = storedHost || host;
+      user = storedUser || user;
+      pass = storedPass || pass;
+    } else {
+      if (!host && storedHost) host = storedHost;
+      if (!user && storedUser) user = storedUser;
+      if (!pass && storedPass) pass = storedPass;
+    }
+
     if (!host || !user || !pass) {
       alert("Please provide SSH host, username and password.");
+      autoRunAfterConnect = false;
       return;
     }
+
+    if (hostInput && hostInput.value.trim() !== host) hostInput.value = host;
+    if (userInput && userInput.value.trim() !== user) userInput.value = user;
+    if (passInput && passInput.value !== pass) passInput.value = pass;
+
     payload.ssh = { host, username: user, password: pass };
   } else {
-    const port = document.getElementById("serialPort").value.trim() || "/dev/ttyUSB0";
+    const storedPort = localStorage.getItem("serialPort") || "";
+    const portInput = document.getElementById("serialPort");
+    let port = portInput ? portInput.value.trim() : "";
+    if (autoRunAfterConnect && storedPort) {
+      port = storedPort;
+    } else if (!port && storedPort) {
+      port = storedPort;
+    }
+    if (!port) port = "/dev/ttyUSB0";
+    if (portInput && portInput.value.trim() !== port) {
+      portInput.value = port;
+    }
     payload.serial = { port };
   }
 
@@ -568,8 +614,8 @@ async function saveConnection() {
 
         const { type: evtType, msg, hostname, trace, success } = payloadObj;
         const pct = typeof payloadObj.progress_pct === "number" ? payloadObj.progress_pct : null;
-        if (pct !== null && progress) {
-          progress.value = Math.min(100, Math.max(0, pct));
+        if (pct !== null) {
+          setProgressValue(pct);
         }
         if (evtType === "progress") {
           appendLogLine(`[${nowTimestamp()}] ${msg}`);
@@ -603,8 +649,8 @@ async function saveConnection() {
         const payloadObj = JSON.parse(buffer.trim());
         const { type: evtType, msg, hostname, trace } = payloadObj;
         const pct = typeof payloadObj.progress_pct === "number" ? payloadObj.progress_pct : null;
-        if (pct !== null && progress) {
-          progress.value = Math.min(100, Math.max(0, pct));
+        if (pct !== null) {
+          setProgressValue(pct);
         }
         if (evtType === "progress") {
           appendLogLine(`[${nowTimestamp()}] ${msg}`);
@@ -632,10 +678,11 @@ async function saveConnection() {
         appendLogLine(`[ERROR] ${errorMessage}`);
       }
       updateStatusModal(modal, errorMessage, "error");
+      autoRunAfterConnect = false;
       return;
     }
 
-    if (progress) progress.value = 100;
+    setProgressValue(100);
 
     localStorage.setItem("connection", conn);
     if (conn === "ssh") {
@@ -649,6 +696,14 @@ async function saveConnection() {
       localStorage.setItem("connectedHostname", finalHostname);
     }
     renderSelectedCommandsInfo();
+    const storedCommands = getStoredCommands();
+    if (autoRunAfterConnect && storedCommands.length) {
+      startExecution({ commands: storedCommands, initiatedFromConnection: true });
+    } else if (autoRunAfterConnect && !storedCommands.length) {
+      alert("Select commands on the Commands page before running.");
+      goTo("commands.html");
+    }
+    autoRunAfterConnect = false;
     if (isPendingExecution()) {
       const commands = getStoredCommands();
       if (commands.length) {
@@ -670,11 +725,13 @@ async function saveConnection() {
   } finally {
     if (typeof timeoutId !== "undefined") {
       clearTimeout(timeoutId);
+      timeoutId = undefined;
     }
     if (connectBtn) {
       connectBtn.disabled = false;
       connectBtn.textContent = originalBtnText || "Connect";
     }
+    autoRunAfterConnect = false;
   }
 }
 
@@ -694,11 +751,18 @@ function setupConnectionPage() {
     toggleConnectionFields();
 
     form.addEventListener("submit", (evt) => evt.preventDefault());
+
     document
-      .getElementById("connection-next")
+      .getElementById("reconnectRunBtn")
       ?.addEventListener("click", (evt) => {
         evt.preventDefault();
-        saveConnection();
+        const commands = getStoredCommands();
+        if (!commands.length) {
+          alert("Select commands on the Commands page before running.");
+          goTo("commands.html");
+          return;
+        }
+        saveConnection({ autoRun: true, triggerButton: evt.currentTarget });
       });
   }
 
@@ -1000,6 +1064,7 @@ async function startExecution({ commands, initiatedFromConnection = false } = {}
 
   const startBtn = document.getElementById("startExecutionBtn");
   if (startBtn) startBtn.disabled = true;
+  setProgressValue(0);
 
   const total = commandsToRun.length;
   let finished = 0;
@@ -1033,13 +1098,13 @@ async function startExecution({ commands, initiatedFromConnection = false } = {}
           const pct = typeof obj.progress_pct === "number" ? obj.progress_pct : null;
           if (obj.type === "progress") {
             log.innerText += `[${new Date().toLocaleTimeString()}] ${obj.msg}\n`;
-            if (pct !== null && progress) {
-              progress.value = Math.min(100, Math.max(0, pct));
+            if (pct !== null) {
+              setProgressValue(pct);
             }
-            if (obj.cmd_done && progress) {
+            if (obj.cmd_done) {
               finished++;
               if (pct === null) {
-                progress.value = Math.round((finished / total) * 100);
+                setProgressValue((finished / total) * 100);
               }
             }
           } else if (obj.type === "result") {
@@ -1047,15 +1112,15 @@ async function startExecution({ commands, initiatedFromConnection = false } = {}
             if (obj.files) {
               obj.files.forEach((f) => (log.innerText += `  ${f}\n`));
             }
-            if (pct !== null && progress) {
-              progress.value = Math.min(100, Math.max(0, pct));
+            if (pct !== null) {
+              setProgressValue(pct);
             }
           } else if (obj.type === "done") {
             log.innerText += `\n[FINISHED] ${obj.msg}\n`;
-            if (pct !== null && progress) {
-              progress.value = Math.min(100, Math.max(0, pct));
+            if (pct !== null) {
+              setProgressValue(pct);
             } else {
-              if (progress) progress.value = 100;
+              setProgressValue(100);
             }
           } else if (obj.type === "error") {
             log.innerText += `[ERROR] ${obj.msg}\n`;
