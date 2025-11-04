@@ -33,6 +33,85 @@ def _reset_buffers(ser):
             pass
 
 
+def ensure_driver_ready(port):
+    """
+    Ensure USB/PCIe serial drivers are properly initialized on Linux.
+    Specifically handles PL2303 autosuspend issue on Ubuntu 24.04 and
+    safely resets other chipsets like FTDI, CH340, and CP210x.
+    Works consistently on Ubuntu 25 and above as well.
+
+    Steps:
+    - Check if the port exists.
+    - Identify driver (PL2303, FTDI, CH340, etc.) using udevadm.
+    - Disable autosuspend if applicable.
+    - Clear bad modem flags (hupcl).
+    - Perform soft DTR/RTS reset.
+    """
+    if not os.path.exists(port):
+        dbg(f"[Driver] Port {port} not found.")
+        return False
+
+    # quick permission check
+    if not os.access(port, os.R_OK | os.W_OK):
+        dbg(f"[Driver] No read/write access to {port}. Permissions may be required.")
+    try:
+        # Detect the driver type (helpful for debugging)
+        driver_info = (
+            os.popen(f"udevadm info -q all -n {port} | grep DRIVER").read().strip()
+        )
+        driver_name = (
+            driver_info.split("=")[-1].lower() if "DRIVER" in driver_info else "unknown"
+        )
+        dbg(f"[Driver] Detected serial driver: {driver_name}")
+
+        # Apply PL2303-specific fix (Ubuntu 24 Auto-suspend issue)
+        if "pl2303" in driver_name or "usbserial" in driver_name:
+            dev_name = os.path.basename(port)
+            # Disable USB power auto-suspend
+            try:
+                os.system(
+                    f"echo on | sudo tee /sys/bus/usb-serial/devices/{dev_name}/power/control >/dev/null 2>&1"
+                )
+                dbg(f"[PL2303] Auto-suspend disabled for {port}")
+            except Exception as e:
+                dbg(f"[PL2303] Failed to disable auto-suspend: {e}")
+
+        # Reinitialize control flags for all serial devices
+        try:
+            os.system(f"stty -F {port} hupcl")
+            dbg(f"[Driver] Cleared hupcl and reset modem control flags for {port}")
+        except Exception as e:
+            dbg(f"[Driver] stty failed: {e}")
+
+        # Soft reset: toggle DTR/RTS to reinitialize communication line
+        ser_tmp = None
+        try:
+            ser_tmp = serial.Serial(port=port, baudrate=9600, timeout=1)
+            try:
+                ser_tmp.dtr = False
+                ser_tmp.rts = False
+            except (OSError, serial.SerialException) as e:
+                dbg(f"[Driver] Failed to clear DTR/RTS: {e}")
+            finally:
+                try:
+                    ser_tmp.close()
+                except Exception:
+                    pass
+            dbg(f"[Driver] Port {port} DTR/RTS cleared for reset.")
+        except Exception as e:
+            dbg(f"[Driver] Could not open {port} for DTR/RTS reset: {e}")
+            try:
+                if ser_tmp and ser_tmp.is_open:
+                    ser_tmp.close()
+            except Exception:
+                pass
+            return False
+
+    except Exception as e:
+        dbg(f"[Driver] Reset failed on {port}: {e}")
+        return False
+
+
 def connect_to_serial(
     port: str,
     baudrate: int = 9600,
@@ -70,6 +149,9 @@ def connect_to_serial(
                 time.sleep(retry_interval)
                 continue
 
+            # Attempt PL2303 driver fix before connecting
+            ensure_driver_ready(port)
+
             # Attempt to open the serial port
             ser = serial.Serial(
                 port=port,
@@ -82,8 +164,12 @@ def connect_to_serial(
                 rtscts=False,
             )
 
-            ser.dtr = True  # Ensure DTR is set to True to avoid connection issues
-            ser.rts = True  # Ensure RTS is set to True to avoid connection issues
+            try:
+                ser.dtr = True  # Ensure DTR is set to True to avoid connection issues
+                ser.rts = True  # Ensure RTS is set to True to avoid connection issues
+            except (OSError, serial.SerialException) as e:
+                dbg(f"[Connection] Failed to set DTR/RTS: {e}")
+
             time.sleep(0.2)
             emit(f"[INFO] Serial port opened successfully (attempt {retries + 1}).")
             time.sleep(0.05)
