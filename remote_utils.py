@@ -1,67 +1,153 @@
-import telnetlib
+try:
+    import telnetlib  # Standard library (Python <= 3.12)
+
+    TELNET_MODE = "builtin"
+except Exception:
+    # Dynamically import telnetlib3 to avoid static analysis errors for unknown modules.
+    # If telnetlib3 is not installed, telnetlib will be set to None and TELNET_MODE to None,
+    # remote_connect will handle the absence and return (None, None).
+    import importlib
+
+    try:
+        telnetlib = importlib.import_module("telnetlib3")
+        TELNET_MODE = "asyncio"
+    except Exception:
+        telnetlib = None
+        TELNET_MODE = None
 import time
 import re
 import logging
+import asyncio
 
 logger = logging.getLogger("remote_utils")
 
 
+class AsyncShellAdapter:
+    """
+    Thin synchronous adapter around telnetlib3 reader/writer so existing
+    sync code can call write(...) and read_very_eager().
+
+    Note: adapter uses asyncio.run for each operation (simple & safe).
+    """
+
+    def __init__(self, reader, writer):
+        self._reader = reader
+        self._writer = writer
+
+    def write(self, data):
+        # Accept bytes or str
+        if isinstance(data, bytes):
+            text = data.decode("utf-8", errors="ignore")
+        else:
+            text = str(data)
+
+        async def _awrite():
+            self._writer.write(text)
+            try:
+                await self._writer.drain()
+            except Exception:
+                # some telnetlib3 writers may not expose drain or it may be noop
+                pass
+
+        asyncio.run(_awrite())
+
+    def read_very_eager(self):
+        """
+        Try to read available data quickly. Returns bytes (to match telnetlib API).
+        """
+
+        async def _aread():
+            try:
+                # read up to 4096 bytes with small timeout
+                return await asyncio.wait_for(self._reader.read(4096), timeout=0.1)
+            except asyncio.TimeoutError:
+                return ""
+            except Exception:
+                return ""
+
+        res = asyncio.run(_aread())
+        if res is None:
+            res = ""
+        return res.encode("utf-8", errors="ignore")
+
+
 def remote_connect(host, username="", password="", timeout=10):
     """
-    Establish a Telnet connection and return (client_like, shell_like).
-    Keeps the original function name to avoid changing callers.
+    Establish Telnet connection (sync for telnetlib, async for telnetlib3 fallback)
     """
     try:
-        print(f"Connecting to {host} via Telnet...")
-        tn = telnetlib.Telnet(host, timeout=timeout)
+        print(f"Connecting to {host} via Telnet ({TELNET_MODE})...")
+
+        if TELNET_MODE == "builtin":
+            tn = telnetlib.Telnet(host, timeout=timeout)
+            try:
+                # read initial banner / login prompt
+                time.sleep(0.4)
+                banner = tn.read_very_eager().decode("utf-8", errors="ignore")
+
+                # common login prompt patterns
+                if (
+                    re.search(r"(?:username|login)[:\s]", banner, re.IGNORECASE)
+                    and username
+                ):
+                    tn.write(username.encode("ascii") + b"\n")
+                    time.sleep(0.2)
+                    # then expect password
+                    tn.read_until(b"Password:", timeout=2)
+                    tn.write(password.encode("ascii") + b"\n")
+                elif "Password:" in banner and password:
+                    # some devices present only password prompt
+                    tn.write(password.encode("ascii") + b"\n")
+                else:
+                    # no auth prompts detected; proceed
+                    pass
+
+                # wait until we get a device prompt (>, # or (config)#)
+                start = time.time()
+                buf = ""
+                while time.time() - start < timeout:
+                    time.sleep(0.2)
+                    try:
+                        data = tn.read_very_eager()
+                    except Exception:
+                        data = b""
+                    if data:
+                        buf += data.decode("utf-8", errors="ignore")
+                        if re.search(
+                            r"(?:\S+#\s*$)|(?:\S+>\s*$)|(?:\(config\)#\s*$)", buf, re.M
+                        ):
+                            break
+
+                print(f"[INFO] Connected via Telnet. Device prompt detected.")
+                # return both values so existing callers that expect (client, shell) work
+                return tn, tn
+            except Exception as e:
+                print(f"[!] Telnet post-login handling failed: {e}")
+                try:
+                    tn.close()
+                except Exception:
+                    pass
+                return None, None
+
+        elif TELNET_MODE == "asyncio":
+            import asyncio
+
+            async def async_connect():
+                reader, writer = await telnetlib.open_connection(host, 23)
+                # send credentials if needed
+                if username:
+                    writer.write(username + "\n")
+                if password:
+                    writer.write(password + "\n")
+                await writer.drain()
+                return reader, writer
+
+            # Run the async function in a blocking context
+            reader, writer = asyncio.run(async_connect())
+            return reader, writer
+
     except Exception as e:
         print(f"[!] Telnet connection failed: {e}")
-        return None, None
-
-    try:
-        # read initial banner / login prompt
-        time.sleep(0.4)
-        banner = tn.read_very_eager().decode("utf-8", errors="ignore")
-
-        # common login prompt patterns
-        if re.search(r"(?:username|login)[:\s]", banner, re.IGNORECASE) and username:
-            tn.write(username.encode("ascii") + b"\n")
-            time.sleep(0.2)
-            # then expect password
-            tn.read_until(b"Password:", timeout=2)
-            tn.write(password.encode("ascii") + b"\n")
-        elif "Password:" in banner and password:
-            # some devices present only password prompt
-            tn.write(password.encode("ascii") + b"\n")
-        else:
-            # no auth prompts detected; proceed
-            pass
-
-        # wait until we get a device prompt (>, # or (config)#)
-        start = time.time()
-        buf = ""
-        while time.time() - start < timeout:
-            time.sleep(0.2)
-            try:
-                data = tn.read_very_eager()
-            except Exception:
-                data = b""
-            if data:
-                buf += data.decode("utf-8", errors="ignore")
-                if re.search(
-                    r"(?:\S+#\s*$)|(?:\S+>\s*$)|(?:\(config\)#\s*$)", buf, re.M
-                ):
-                    break
-
-        print(f"[INFO] Connected via Telnet. Device prompt detected.")
-        # return both values so existing callers that expect (client, shell) work
-        return tn, tn
-    except Exception as e:
-        print(f"[!] Telnet post-login handling failed: {e}")
-        try:
-            tn.close()
-        except Exception:
-            pass
         return None, None
 
 
