@@ -32,8 +32,7 @@ def _reset_buffers(ser):
         except Exception:
             pass
 
-
-def ensure_driver_ready(port):
+    # def ensure_driver_ready(port):
     """
     Ensure USB/PCIe serial drivers are properly initialized on Linux.
     Specifically handles PL2303 autosuspend issue on Ubuntu 24.04 and
@@ -150,7 +149,7 @@ def connect_to_serial(
                 continue
 
             # Attempt PL2303 driver fix before connecting
-            ensure_driver_ready(port)
+            # ensure_driver_ready(port)
 
             # Attempt to open the serial port
             ser = serial.Serial(
