@@ -110,7 +110,7 @@ def main():
             commands = remaining_commands
 
     elif conn_type == "2":
-        host, port, username, password = remote_credentials()
+        host, remote_password, enable_password = remote_credentials()
         retry_count = 0
         max_retries = 3
 
@@ -118,7 +118,7 @@ def main():
         remaining_commands = commands.copy()
 
         while retry_count <= max_retries:
-            client, shell = remote_connect(host, username, password, port=port)
+            client, shell = remote_connect(host, remote_password, enable_password)
             if client is None or shell is None:
                 print("[+] Failed to connect via Telnet. Exiting.")
                 exit(1)

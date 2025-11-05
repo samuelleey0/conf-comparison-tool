@@ -6,14 +6,14 @@ import logging
 logger = logging.getLogger("remote_utils")
 
 
-def remote_connect(host, username="", password="", port=22, timeout=10):
+def remote_connect(host, username="", password="", timeout=10):
     """
     Establish a Telnet connection and return (client_like, shell_like).
     Keeps the original function name to avoid changing callers.
     """
     try:
-        print(f"Connecting to {host}:{port} via Telnet...")
-        tn = telnetlib.Telnet(host, port, timeout)
+        print(f"Connecting to {host} via Telnet...")
+        tn = telnetlib.Telnet(host, timeout=timeout)
     except Exception as e:
         print(f"[!] Telnet connection failed: {e}")
         return None, None
@@ -145,9 +145,56 @@ def disable_paging_remote(shell, prompt="#", timeout=5):
     )
 
 
-def enter_enable_mode_remote(shell, prompt="#", timeout=5):
+def enter_enable_mode_remote(shell, enable_password=None, prompt="#", timeout=5):
     """
-    Attempt to enter enable (privileged EXEC) mode. If device prompts for a password,
-    this function does not supply one (keeps parity with original behaviour).
+    Attempt to enter enable (privileged EXEC) mode.
+    If device prompts for an enable password, send enable_password (if provided).
+    Returns the prompt output when in privileged mode or raises on timeout.
     """
-    return send_command_remote(shell, "enable", expected_prompt=prompt, timeout=timeout)
+    if not shell:
+        raise ValueError("Shell (telnet) is None")
+
+    # send enable
+    try:
+        shell.write(b"enable\n")
+    except Exception:
+        try:
+            shell.write(b"enable\r\n")
+        except Exception:
+            raise
+
+    buf = ""
+    start = time.time()
+    while time.time() - start < timeout:
+        time.sleep(0.2)
+        try:
+            data = shell.read_very_eager()
+        except Exception:
+            data = b""
+        if not data:
+            continue
+
+        chunk = data.decode("utf-8", errors="ignore")
+        buf += chunk
+
+        # If device asks for enable password
+        if "Password:" in buf or "password:" in buf:
+            if not enable_password:
+                raise Exception("Device requested enable password but none provided.")
+            # send provided enable password
+            try:
+                shell.write(enable_password.encode("utf-8") + b"\n")
+            except Exception:
+                shell.write(enable_password.encode("ascii", errors="ignore") + b"\n")
+            buf = ""
+            # continue to wait for prompt after password
+            continue
+
+        # strip ANSI for reliable detection
+        clean = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", buf)
+
+        # check for privileged prompt patterns
+        if re.search(r"(?:\S+#\s*$)|(?:\(config\)#\s*$)", clean, re.M):
+            return clean.strip()
+
+    raise TimeoutError("Timed out waiting for privileged prompt after 'enable'.")

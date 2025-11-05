@@ -37,9 +37,18 @@ def choose_serial_port():
 
 
 def remote_credentials():
-    host = input("Enter device IP address: ").strip()
-    port_input = input("Enter port (default 23 for Telnet): ").strip()
-    port = int(port_input) if port_input else 23
-    username = input("Enter username: ").strip()
-    password = input("Enter password: ").strip()
-    return host, port, username, password
+    """
+    Prompt for remote (telnet) connection info.
+
+    Returns: (host, port, telnet_password, enable_password)
+    - telnet_password: password for the telnet login (may be blank)
+    - enable_password: privilege EXEC (enable) password (may be blank)
+    """
+    host = input("Enter device IP: ").strip()
+    remote_password = input("Enter password: ").strip()
+    enable_password = input(
+        "Enable (exec) password (leave blank to reuse telnet password): "
+    ).strip()
+    if not enable_password:
+        enable_password = remote_password  # reuse telnet password if not provided
+    return host, remote_password, enable_password
