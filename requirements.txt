@@ -18,6 +18,7 @@ ruamel.yaml>=0.16.10
 ruamel.yaml.clib>=0.2.0
 scp>=0.13.0
 textfsm>=1.1.0
+telnetlib3>=1.1.1
 
 # === Web Backend / API (for Electron integration) ===
 Flask>=3.0.0
