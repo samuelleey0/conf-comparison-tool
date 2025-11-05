@@ -18,11 +18,11 @@ from serial_utils import (
     get_hostname,
 )
 from remote_utils import (
-    connect_ssh,
-    disable_paging_ssh,
-    enter_enable_mode_ssh,
-    send_command_ssh,
-    get_hostname_ssh,
+    remote_connect,
+    disable_paging_remote,
+    enter_enable_mode_remote,
+    send_command_remote,
+    get_hostname_remote,
 )
 from command_manager import load_commands, save_commands
 
@@ -104,19 +104,13 @@ def _set_ssh_connection_locked(client, shell, host, username, hostname):
 
 def _update_cached_serial_hostname(hostname):
     with connection_lock:
-        if (
-            connection_cache["type"] == "serial"
-            and connection_cache["serial"]["ser"]
-        ):
+        if connection_cache["type"] == "serial" and connection_cache["serial"]["ser"]:
             connection_cache["serial"]["hostname"] = hostname
 
 
 def _update_cached_ssh_hostname(hostname):
     with connection_lock:
-        if (
-            connection_cache["type"] == "ssh"
-            and connection_cache["ssh"]["client"]
-        ):
+        if connection_cache["type"] == "ssh" and connection_cache["ssh"]["client"]:
             connection_cache["ssh"]["hostname"] = hostname
 
 
@@ -134,7 +128,7 @@ def _is_ssh_transport_active(info):
 
 
 def _acquire_ssh_connection(host, username, password):
-    return connect_ssh(host, username, password)
+    return remote_connect(host, username, password)
 
 
 def stream_json_line(obj):
@@ -155,9 +149,13 @@ def _validate_directory_payload(data):
     student_id = data.get("studentId")
 
     if not all([exam_name, session_id, student_id]):
-        return None, jsonify(
-            {"status": "error", "message": "Missing examName/sessionId/studentId"}
-        ), 400
+        return (
+            None,
+            jsonify(
+                {"status": "error", "message": "Missing examName/sessionId/studentId"}
+            ),
+            400,
+        )
     return (exam_name, session_id, student_id), None, None
 
 
@@ -223,7 +221,8 @@ def api_select_directory():
         )
 
     return (
-        jsonify({"status": "error", "message": f"Path not found: {existing_path}"}), 404
+        jsonify({"status": "error", "message": f"Path not found: {existing_path}"}),
+        404,
     )
 
 
@@ -285,9 +284,7 @@ def api_bulk_directories():
         student_id = (student.get("id") or "").strip()
         if not student_id:
             continue
-        student_dir = (
-            base_docs_path / exam_name / session_id / student_id
-        )
+        student_dir = base_docs_path / exam_name / session_id / student_id
         student_dir.mkdir(parents=True, exist_ok=True)
         created.append(
             {
@@ -458,54 +455,73 @@ def api_connect():
         host, user, pwd = ssh.get("host"), ssh.get("username"), ssh.get("password")
         if not all([host, user, pwd]):
             print("[API][connect][ssh] Missing credentials.", flush=True)
-            yield stream_json_line({
-                "type": "error",
-                "msg": "Missing SSH credentials (host, username, password).",
-            })
+            yield stream_json_line(
+                {
+                    "type": "error",
+                    "msg": "Missing SSH credentials (host, username, password).",
+                }
+            )
             yield stream_json_line({"type": "done", "success": False})
             return
 
         print(f"[API][connect][ssh] Connecting to {host} ...", flush=True)
-        yield stream_json_line({"type": "progress", "msg": f"Connecting to {host} via SSH..."})
+        yield stream_json_line(
+            {"type": "progress", "msg": f"Connecting to {host} via SSH..."}
+        )
         cached = False
         client = None
         shell = None
         try:
-            client, shell = connect_ssh(host, user, pwd)
+            client, shell = remote_connect(host, user, pwd)
             if not client or not shell:
                 print(f"[API][connect][ssh] Connection to {host} failed.", flush=True)
-                yield stream_json_line({"type": "error", "msg": "SSH connection failed."})
+                yield stream_json_line(
+                    {"type": "error", "msg": "SSH connection failed."}
+                )
                 yield stream_json_line({"type": "done", "success": False})
                 return
 
             print("[API][connect][ssh] Entering enable mode...", flush=True)
-            yield stream_json_line({"type": "progress", "msg": "Entering enable mode..."})
-            enter_enable_mode_ssh(shell)
+            yield stream_json_line(
+                {"type": "progress", "msg": "Entering enable mode..."}
+            )
+            enter_enable_mode_remote(shell)
             print("[API][connect][ssh] Disabling paging...", flush=True)
             yield stream_json_line({"type": "progress", "msg": "Disabling paging..."})
-            disable_paging_ssh(shell)
+            disable_paging_remote(shell)
             try:
-                hostname = get_hostname_ssh(shell) or host
+                hostname = get_hostname_remote(shell) or host
                 print(f"[API][connect][ssh] Detected hostname: {hostname}", flush=True)
-                yield stream_json_line({"type": "progress", "msg": f"Detected hostname: {hostname}"})
+                yield stream_json_line(
+                    {"type": "progress", "msg": f"Detected hostname: {hostname}"}
+                )
             except Exception:
                 hostname = host
                 print("[API][connect][ssh] Hostname detection failed.", flush=True)
-                yield stream_json_line({"type": "progress", "msg": "Connected but hostname detection failed."})
+                yield stream_json_line(
+                    {
+                        "type": "progress",
+                        "msg": "Connected but hostname detection failed.",
+                    }
+                )
 
             with connection_lock:
                 _set_ssh_connection_locked(client, shell, host, user, hostname)
                 cached = True
 
             print(f"[API][connect][ssh] Connected to {hostname}", flush=True)
-            yield stream_json_line({
-                "type": "success",
-                "msg": f"Connected to {hostname}",
-                "hostname": hostname,
-                "host": host,
-                "persistent": True,
-            })
-            yield stream_json_line({"type": "done", "success": True, "hostname": hostname, "host": host})
+            yield stream_json_line(
+                {
+                    "type": "success",
+                    "msg": f"Connected to {hostname}",
+                    "hostname": hostname,
+                    "host": host,
+                    "persistent": True,
+                }
+            )
+            yield stream_json_line(
+                {"type": "done", "success": True, "hostname": hostname, "host": host}
+            )
         except Exception as exc:
             print(f"[API][connect][ssh] EXCEPTION: {exc}", flush=True)
             if not cached:
@@ -519,7 +535,9 @@ def api_connect():
                         client.close()
                     except Exception:
                         pass
-            yield stream_json_line({"type": "error", "msg": str(exc), "trace": traceback.format_exc()})
+            yield stream_json_line(
+                {"type": "error", "msg": str(exc), "trace": traceback.format_exc()}
+            )
             yield stream_json_line({"type": "done", "success": False})
 
     if conn == "serial":
@@ -527,7 +545,9 @@ def api_connect():
     elif conn == "ssh":
         generator = ssh_generator()
     else:
-        return Response(stream_error("Invalid connection type"), mimetype="text/plain", status=400)
+        return Response(
+            stream_error("Invalid connection type"), mimetype="text/plain", status=400
+        )
 
     return Response(stream_with_context(generator), mimetype="text/plain")
 
@@ -591,7 +611,9 @@ def api_save_log():
     if not (exam_name and session_id and student_id):
         return jsonify({"status": "error", "message": "Missing directory info"}), 400
 
-    base_dir = os.path.expanduser(os.path.join("~/Documents", exam_name, session_id, student_id))
+    base_dir = os.path.expanduser(
+        os.path.join("~/Documents", exam_name, session_id, student_id)
+    )
     os.makedirs(base_dir, exist_ok=True)
     path = os.path.join(base_dir, filename)
 
@@ -765,7 +787,11 @@ def api_execute():
                         )
                         files_written.append(file_path)
                         completed = min(total_commands, completed + 1)
-                        pct = round((completed / total_commands) * 100) if total_commands else 100
+                        pct = (
+                            round((completed / total_commands) * 100)
+                            if total_commands
+                            else 100
+                        )
                         yield stream_json_line(
                             {
                                 "type": "progress",
@@ -855,10 +881,10 @@ def api_execute():
                         "progress_pct": 0,
                     }
                 )
-                enter_enable_mode_ssh(shell)
-                disable_paging_ssh(shell)
+                enter_enable_mode_remote(shell)
+                disable_paging_remote(shell)
                 try:
-                    hostname = get_hostname_ssh(shell) or hostname or host
+                    hostname = get_hostname_remote(shell) or hostname or host
                 except Exception:
                     hostname = hostname or host
 
@@ -879,7 +905,7 @@ def api_execute():
                         {"type": "progress", "msg": f"Running '{cmd}'..."}
                     )
                     try:
-                        output = send_command_ssh(shell, cmd, timeout=30)
+                        output = send_command_remote(shell, cmd, timeout=30)
                         file_path = save_output_to_file(
                             cmd,
                             output,
@@ -891,7 +917,11 @@ def api_execute():
                         )
                         files_written.append(file_path)
                         completed = min(total_commands, completed + 1)
-                        pct = round((completed / total_commands) * 100) if total_commands else 100
+                        pct = (
+                            round((completed / total_commands) * 100)
+                            if total_commands
+                            else 100
+                        )
                         yield stream_json_line(
                             {
                                 "type": "progress",
@@ -917,9 +947,11 @@ def api_execute():
                     "type": "result",
                     "msg": "All commands executed successfully.",
                     "files": files_written,
-                    "progress_pct": round((completed / total_commands) * 100)
-                    if total_commands
-                    else 100,
+                    "progress_pct": (
+                        round((completed / total_commands) * 100)
+                        if total_commands
+                        else 100
+                    ),
                 }
             )
             yield stream_json_line(
@@ -932,12 +964,8 @@ def api_execute():
         except Exception as exc:  # Unexpected runtime exception
             tb = traceback.format_exc()
             if hostname:
-                del_partial_logs(
-                    base_path, exam_name, session_id, student_id, hostname
-                )
-            yield stream_json_line(
-                {"type": "error", "msg": str(exc), "trace": tb}
-            )
+                del_partial_logs(base_path, exam_name, session_id, student_id, hostname)
+            yield stream_json_line({"type": "error", "msg": str(exc), "trace": tb})
         finally:
             if ser and close_serial_after:
                 try:
@@ -956,6 +984,7 @@ def api_execute():
                     pass
 
     return Response(generate(), mimetype="text/plain")
+
 
 # -------------------------------------------------
 # ✅ Run Flask
