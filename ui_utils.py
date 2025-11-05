@@ -1,9 +1,7 @@
-from serial_utils import send_command
-
 def choose_connection_type():
     print("Choose connection type:")
     print("1. Serial")
-    print("2. SSH/Remote")
+    print("2. Remote")
     return input("Enter choice (1-2): ").strip()
 
 
@@ -37,8 +35,11 @@ def choose_serial_port():
         port = "/dev/ttyUSB0"
     return port
 
-def ssh_credentials():
+
+def remote_credentials():
     host = input("Enter device IP address: ").strip()
-    username = input("Enter SSH username: ").strip()
-    password = input("Enter SSH password: ").strip()
-    return host, username, password
+    port_input = input("Enter port (default 23 for Telnet): ").strip()
+    port = int(port_input) if port_input else 23
+    username = input("Enter username: ").strip()
+    password = input("Enter password: ").strip()
+    return host, port, username, password
