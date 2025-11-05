@@ -135,8 +135,6 @@ def remote_connect(host, username="", password="", timeout=10):
             async def async_connect():
                 reader, writer = await telnetlib.open_connection(host, 23)
                 # send credentials if needed
-                if username:
-                    writer.write(username + "\n")
                 if password:
                     writer.write(password + "\n")
                 await writer.drain()
