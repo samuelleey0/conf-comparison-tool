@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Welcome | Automated Cisco Configuration & Marking System</title>
+  <style>
+    /* ====== RESET & BASE ====== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: "Segoe UI", "Roboto", "Open Sans", sans-serif;
+    }
+
+    body.welcome-body {
+      height: 100vh;
+      overflow: hidden;
+      background: #ffffff;
+      color: #1a1a1a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ====== HERO SECTION ====== */
+    .welcome-hero {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(145deg, #f6f9fc 0%, #ffffff 100%);
+    }
+
+    .welcome-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    /* ====== MAIN CARD ====== */
+    .welcome-content {
+      position: relative;
+      z-index: 2;
+      background: #ffffff;
+      border: 1px solid #e5e5e5;
+      padding: 3.5rem 4rem;
+      width: 95%;
+      max-width: 720px;
+      box-shadow: 0 6px 25px rgba(0, 0, 0, 0.08);
+      text-align: center;
+    }
+
+    /* ====== LOGOS (JUSTIFIED LEFT & RIGHT) ====== */
+    .welcome-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+
+    .logo {
+      height: 70px;
+      object-fit: contain;
+    }
+
+    /* ====== TEXT SECTION ====== */
+    .welcome-text h2 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: #005073;
+      letter-spacing: 0.8px;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+    }
+
+    .welcome-text p {
+      font-size: 1.05rem;
+      color: #555;
+      opacity: 0.9;
+      margin-bottom: 1.2rem;
+    }
+
+    .divider {
+      width: 60px;
+      height: 3px;
+      background: #005073;
+      margin: 1.2rem auto 0;
+      border-radius: 3px;
+    }
+
+    /* ====== LOADING LINE ====== */
+    .loading-line {
+      position: relative;
+      width: 100%;
+      height: 4px;
+      background: #e0e0e0;
+      overflow: hidden;
+      margin-top: 2rem;
+      opacity: 1;
+      animation: fadeOut 0.5s ease forwards;
+      animation-delay: 2.3s; /* disappears before button appears */
+    }
+
+    .loading-line::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, #0078d7, #0056b3);
+      animation: loadingMove 2s ease-in-out forwards;
+    }
+
+    @keyframes loadingMove {
+      0% { width: 0; }
+      100% { width: 100%; }
+    }
+
+    @keyframes fadeOut {
+      to { opacity: 0; visibility: hidden; }
+    }
+
+    /* ====== BUTTON ====== */
+    .welcome-actions {
+      margin-top: 2.5rem;
+      opacity: 0;
+      transition: opacity 0.8s ease;
+      animation: showButton 0.8s ease forwards;
+      animation-delay: 2.5s; /* appear after loading finishes */
+    }
+
+    @keyframes showButton {
+      to { opacity: 1; }
+    }
+
+    button.primary {
+      background: linear-gradient(90deg, #0078d7, #0056b3);
+      border: none;
+      color: #ffffff;
+      font-size: 1.05rem;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      padding: 0.9rem 2.5rem;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      box-shadow: 0 4px 14px rgba(0, 87, 179, 0.25);
+    }
+
+    button.primary:hover {
+      background: linear-gradient(90deg, #005fa3, #004080);
+      box-shadow: 0 6px 20px rgba(0, 87, 179, 0.35);
+    }
+
+    button.primary:active {
+      transform: scale(0.97);
+      box-shadow: 0 3px 10px rgba(0, 87, 179, 0.25);
+    }
+
+    /* ====== RESPONSIVE ====== */
+    @media (max-width: 768px) {
+      .welcome-header {
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+      }
+
+      .welcome-content {
+        padding: 2.5rem;
+        width: 90%;
+      }
+
+      .logo {
+        height: 60px;
+      }
+
+      .welcome-text h2 {
+        font-size: 1.7rem;
+      }
+
+      .welcome-text p {
+        font-size: 0.95rem;
+      }
+    }
+  </style>
+</head>
+
+<body class="welcome-body" id="welcomePage">
+  <div class="welcome-hero">
+    <div class="welcome-overlay"></div>
+
+    <div class="welcome-content formal">
+      <div class="welcome-header">
+        <img src="assets/cisco-logo.svg" alt="Cisco Logo" class="logo cisco-logo" />
+        <img src="assets/swinburne-logo.svg" alt="Swinburne Logo" class="logo swinburne-logo" />
+      </div>
+
+      <div class="welcome-text">
+        <h2>Cisco Configuration System</h2>
+        <p>Developed by Swinburne University Sarawak Campus</p>
+        <div class="divider"></div>
+      </div>
+
+      <div class="loading-line"></div>
+
+      <div class="welcome-actions">
+        <button type="button" id="startSetupBtn" class="primary">Begin Setup</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
