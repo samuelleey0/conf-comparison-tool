@@ -966,8 +966,7 @@ function isPendingExecution() {
 function clearExecutionLog() {
   const log = document.getElementById("log");
   if (log) log.innerText = "";
-  const progress = document.getElementById("progress");
-  if (progress) progress.value = 0;
+  setProgressValue(0);
 }
 
 function renderSelectedCommandsInfo() {

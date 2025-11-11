@@ -36,8 +36,9 @@ body {
 body:not(.welcome-body) {
   flex-direction: column;
   align-items: stretch;
-  background: transparent;
+  background: #f6f7fb;
   overflow-x: hidden;
+  padding-left: 220px;
 }
 
 h1,
@@ -166,9 +167,9 @@ button.block {
 
 .page-shell {
   width: 100%;
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 48px 24px 72px;
+  padding: 40px 50px 72px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -259,10 +260,7 @@ button.block {
   align-items: stretch;
   justify-content: flex-start;
   min-height: 100vh;
-  background: linear-gradient(155deg, rgba(0, 160, 223, 0.12), rgba(0, 80, 115, 0.18));
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-attachment: fixed;
+  background: #f6f7fb;
   padding: 0 0 40px;
 }
 
@@ -495,18 +493,14 @@ button.block {
 .commands-body {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: flex-start;
   min-height: 100vh;
   margin: 0;
-  padding: 0px 0 56px;
-  background: linear-gradient(160deg, rgba(0, 160, 223, 0.12), rgba(0, 80, 115, 0.18));
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-attachment: fixed;
+  padding: 24px 0 56px;
+  background: #f6f7fb;
   box-sizing: border-box;
 }
-
 
 .commands-shell {
   display: flex;
@@ -514,39 +508,67 @@ button.block {
   justify-content: center;
   width: 100%;
   flex: 1;
-  padding: 32px 20px;
+  padding: 32px 0 48px;
   box-sizing: border-box;
 }
 
-.commands-layout {
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 32px;
-  align-items: stretch;           /* ✅ both cards same height */
-  justify-content: center;
-  max-width: 1100px;
+.commands-shell .page-header {
+  text-align: left;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e3e6ec;
   width: 100%;
-  min-height: 520px;
-  margin-bottom: 32px;
 }
-.commands-sidebar{
-  height: 100%;                   /* ✅ equal height */
+
+.commands-shell .page-title {
+  font-size: 2rem;
+  letter-spacing: -0.5px;
+  color: #1f3b73;
+}
+
+.commands-shell .page-subtitle {
+  color: #6b7280;
+  margin-top: 8px;
+}
+
+.commands-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 100%;
+}
+
+.commands-sidebar {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
+  padding: 24px 26px;
+  border: 1px solid #e0e6f0;
+  box-shadow: 0 8px 24px rgba(15, 30, 65, 0.08);
+  background: #ffffff;
+  border-radius: 20px;
 }
 
 .commands-card {
-  height: 100%;                   /* ✅ equal height */
+  height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  padding: 28px 30px;
+  border: 1px solid #e0e6f0;
+  border-radius: 20px;
+  box-shadow: 0 8px 24px rgba(15, 30, 65, 0.08);
+  background: #ffffff;
 }
 
 .command-actions.stacked {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.command-actions.stacked input {
+  flex: 1 1 240px;
 }
 
 .commands-main {
@@ -555,7 +577,6 @@ button.block {
   gap: 24px;
   min-width: 0;
 }
-
 
 .commands-card.fill {
   flex: 1;
@@ -568,6 +589,9 @@ button.block {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  border-bottom: 1px solid #eef0f4;
+  padding-bottom: 12px;
+  margin-bottom: 18px;
 }
 
 .card-header > div {
@@ -579,7 +603,7 @@ button.block {
 
 .card-title {
   margin: 0;
-  color: var(--color-cisco-blue-dark);
+  color: #1f3b73;
   font-size: 1.35rem;
 }
 
@@ -587,23 +611,22 @@ button.block {
   display: inline-block;
   padding: 4px 10px;
   border-radius: 999px;
-  background: rgba(0, 160, 223, 0.16);
-  color: var(--color-cisco-blue-dark);
+  background: #e8eefb;
+  color: #1f3b73;
   font-size: 0.85rem;
   font-weight: 600;
 }
 
 .link-btn {
   background: none;
-  color: var(--color-cisco-blue);
+  color: #1f3b73;
   box-shadow: none;
   padding: 6px 10px;
+  text-decoration: underline;
 }
 
 .link-btn:hover {
-  text-decoration: underline;
-  transform: none;
-  box-shadow: none;
+  color: #173263;
 }
 
 .command-grid {
@@ -614,15 +637,16 @@ button.block {
   min-height: 0;
   overflow-y: auto;
   padding-right: 6px;
+  margin-bottom: 20px;
 }
 
 .command-tile {
   display: flex;
   gap: 12px;
-  padding: 12px 14px;
+  padding: 12px 16px;
   border-radius: 14px;
   border: 1px solid rgba(0, 80, 115, 0.08);
-  background: rgba(0, 160, 223, 0.05);
+  background: #ffffff;
   box-shadow: 0 6px 18px rgba(0, 80, 115, 0.08);
   transition: transform 0.15s ease, box-shadow 0.15s ease, border 0.15s ease;
   align-items: center;
@@ -648,10 +672,11 @@ button.block {
 }
 
 .remove-btn {
-  background: #ff3b3b;
-  color: #ffffff;
-  padding: 4px 14px;
-  font-size: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  padding: 6px 12px;
+  font-size: 0.9rem;
   border-radius: 999px;
   box-shadow: none;
   display: flex;
@@ -660,24 +685,13 @@ button.block {
 }
 
 .remove-btn:hover {
-  background: #d81212;
-  transform: none;
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #ef4444;
 }
 
 /* Align Command Selection header with Command Library */
-.commands-shell .page-header {
-  max-width: 1100px;           /* match the grid width */
-  width: 100%;
-  margin: 0 auto;              /* center within the shell */
-  padding-left: calc(
-    (100% - 1100px) / 2 + 0px
-  );                           /* baseline alignment compensation */
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;      /* ✅ align left */
-  justify-content: flex-start;
-  text-align: left;
-}
+/* header styling defined above */
 /* Connection page */
 
 .connection-body {
@@ -964,6 +978,14 @@ progress::-moz-progress-bar {
 
   .welcome-text {
     padding: 16px;
+  }
+
+  body:not(.welcome-body) {
+    padding-left: 0;
+  }
+
+  .page-shell {
+    padding: 32px 20px 56px;
   }
 }
 
