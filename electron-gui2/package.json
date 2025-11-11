@@ -1,0 +1,16 @@
+{
+  "name": "electron-gui2",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "devDependencies": {
+    "electron": "^39.1.2"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
