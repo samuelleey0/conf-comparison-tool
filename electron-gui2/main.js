@@ -1,5 +1,6 @@
 // electron-gui/main.js
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+app.commandLine.appendSwitch('no-sandbox');
 const path = require('path');
 const { spawn } = require('child_process');
 const net = require('net');
