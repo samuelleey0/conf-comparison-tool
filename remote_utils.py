@@ -4,8 +4,97 @@ import logging
 import paramiko
 import socket
 import os
+import subprocess
 
 logger = logging.getLogger("remote_utils")
+
+
+def clear_arp_entry(
+    ip: str, interface: str | None = None, allow_flush_all: bool = False
+) -> bool:
+    """
+    Try to remove a single ARP/neighbor entry for `ip`.
+    Attempts, in order:
+        1) ip neigh del <ip> dev <iface> (if iface known)
+        2) detect iface via `ip neigh show <ip>` and delete
+        3) ip neigh del <ip> (some kernels accept this)
+        4) arp -d <ip> (if arp command available)
+        5) ip neigh flush to <ip>
+    If all fail and allow_flush_all is True, will attempt `ip neigh flush all` as a last resort.
+    Returns True on success, False otherwise.
+    """
+
+    def run(cmd, use_sudo=False):
+        full = (["sudo"] + cmd) if use_sudo else cmd
+        try:
+            res = subprocess.run(full, capture_output=True, text=True)
+            return res.returncode == 0, res
+        except FileNotFoundError as e:
+            return False, e
+        except Exception as e:
+            return False, e
+
+    # 1) If iface supplied, try targeted delete
+    if interface:
+        ok, res = run(["ip", "neigh", "del", ip, "dev", interface])
+        if ok:
+            print(f"[INFO] Cleared ARP entry {ip} on {interface}")
+            return True
+
+    # 2) Try to detect interface from `ip neigh show <ip>`
+    ok, res = run(["ip", "neigh", "show", ip])
+    if ok and isinstance(res, subprocess.CompletedProcess):
+        out = (res.stdout or "").strip()
+        m = re.search(r"\bdev\s+(\S+)\b", out)
+        if m:
+            iface = m.group(1)
+            ok2, res2 = run(["ip", "neigh", "del", ip, "dev", iface])
+            if ok2:
+                print(f"[INFO] Cleared ARP entry {ip} on {iface}")
+                return True
+
+    # 3) Try a generic ip neigh del <ip>
+    ok, res = run(["ip", "neigh", "del", ip])
+    if ok:
+        print(f"[INFO] Cleared ARP entry {ip} (no iface)")
+        return True
+
+    # 4) Try arp -d <ip> (net-tools)
+    ok, res = run(["arp", "-d", ip])
+    if ok:
+        print(f"[INFO] Cleared ARP entry {ip} using arp -d")
+        return True
+
+    # 5) Try ip neigh flush to <ip>
+    ok, res = run(["ip", "neigh", "flush", "to", ip])
+    if ok:
+        print(f"[INFO] Flushed neighbor entry for {ip} using ip neigh flush to")
+        return True
+
+    # 6) Try sudo fallbacks for the above (permission issues)
+    for cmd in (
+        ["ip", "neigh", "del", ip],
+        ["arp", "-d", ip],
+        ["ip", "neigh", "flush", "to", ip],
+    ):
+        ok, res = run(cmd, use_sudo=True)
+        if ok:
+            print(f"[INFO] Cleared ARP entry {ip} (via sudo): {' '.join(cmd)}")
+            return True
+
+    # 7) Last resort: optional flush all (dangerous) only if explicitly allowed
+    if allow_flush_all:
+        ok, res = run(["ip", "neigh", "flush", "all"], use_sudo=True)
+        if ok:
+            print("[WARN] Flushed all ARP/neighbor entries (allow_flush_all=True).")
+            return True
+
+    # report failure
+    stderr = ""
+    if isinstance(res, subprocess.CompletedProcess):
+        stderr = (res.stderr or "").strip()
+    print(f"[WARN] Unable to clear ARP entry for {ip}. Last result: {stderr}")
+    return False
 
 
 def remote_connect(host, username="", password="", port="22", timeout=10):

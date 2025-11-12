@@ -14,6 +14,7 @@ from remote_utils import (
     enter_enable_mode_remote,
     send_command_remote,
     get_hostname_remote,
+    clear_arp_entry,
 )
 from ui_utils import choose_connection_type, choose_serial_port, remote_credentials
 
@@ -120,7 +121,7 @@ def main():
         while retry_count <= max_retries:
             client = remote_connect(host, username, password)
             if client is None:
-                print("[+] Failed to connect via Telnet. Exiting.")
+                print("[+] Failed to connect via SSH. Exiting.")
                 exit(1)
             try:
                 print("[*] Entering enable mode...")
@@ -151,6 +152,11 @@ def main():
                     except Exception as e:
                         print(f"[ERROR] Failed to execute command '{cmd}': {e}")
                         print("[INFO] Attempting to reconnect...")
+                        # clear ARP for this host before retrying (best-effort)
+                        try:
+                            clear_arp_entry(host)
+                        except Exception:
+                            pass
                         break
 
                 if not remaining_commands:
@@ -170,6 +176,10 @@ def main():
                 try:
                     if client is not None:
                         client.close()
+                except Exception:
+                    pass
+                try:
+                    clear_arp_entry(host)
                 except Exception:
                     pass
                 print("[+] SSH connection closed.")
