@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
-import sys, os, time
+import sys
+import os
+import time
+import subprocess
 
 
 def get_mac(iface):
@@ -8,6 +10,25 @@ def get_mac(iface):
             return f.read().strip().lower()
     except Exception:
         return None
+
+
+def _safe_read(path):
+    try:
+        with open(path, "r") as f:
+            return f.read().strip()
+    except Exception:
+        return None
+
+
+def _wait_for_mac(mac, wait_timeout, wait_interval):
+    deadline = time.time() + wait_timeout
+    while time.time() < deadline:
+        for candidate in os.listdir("/sys/class/net"):
+            cand_mac = _safe_read(f"/sys/class/net/{candidate}/address")
+            if cand_mac and cand_mac.lower() == mac:
+                return candidate
+        time.sleep(wait_interval)
+    return None
 
 
 def main(argv):
@@ -51,6 +72,7 @@ def main(argv):
         print(f"[ERROR] bind/unbind files not found under driver {driver_dir}.")
         return 8
 
+    # Attempt unbind
     try:
         with open(unbind_path, "w") as f:
             f.write(device_name)
@@ -58,27 +80,105 @@ def main(argv):
         print(f"[ERROR] Failed to unbind device: {e}")
         return 9
 
+    # brief pause to allow kernel to tear down
     time.sleep(1.0)
 
+    # First attempt: try direct re-bind (may fail if sysfs entry removed)
+    bind_failed = False
     try:
         with open(bind_path, "w") as f:
             f.write(device_name)
     except Exception as e:
-        print(f"[ERROR] Failed to bind device: {e}")
-        return 10
+        print(f"[WARN] Direct bind attempt failed: {e}")
+        bind_failed = True
 
-    deadline = time.time() + wait_timeout
-    while time.time() < deadline:
-        for candidate in os.listdir("/sys/class/net"):
-            try:
-                with open(f"/sys/class/net/{candidate}/address", "r") as f:
-                    cand_mac = f.read().strip().lower()
-            except Exception:
-                cand_mac = None
-            if cand_mac == mac:
-                print(f"[INFO] Adapter with MAC {mac} reappeared as {candidate}.")
+    # If direct bind worked, wait for MAC to reappear
+    if not bind_failed:
+        candidate = _wait_for_mac(mac, wait_timeout, wait_interval)
+        if candidate:
+            print(f"[INFO] Adapter with MAC {mac} reappeared as {candidate}.")
+            return 0
+        # if bind succeeded but MAC not seen, continue to other recovery steps
+
+    # Recovery path if direct bind failed or no interface appeared:
+    driver_name = os.path.basename(driver_dir)
+    print(
+        f"[INFO] Attempting recovery for driver '{driver_name}' (module reload + udev trigger)."
+    )
+
+    # Try ip link down/up on device path if available (gentle)
+    try:
+        # try bring link down/up by original iface name (best-effort)
+        subprocess.run(
+            ["ip", "link", "set", iface, "down"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        time.sleep(0.3)
+        subprocess.run(
+            ["ip", "link", "set", iface, "up"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        pass
+
+    # Try module reload (remove then add), best-effort
+    try:
+        subprocess.run(
+            ["modprobe", "-r", driver_name],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        time.sleep(0.5)
+        subprocess.run(
+            ["modprobe", driver_name],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        print(f"[WARN] Module reload attempt encountered error: {e}")
+
+    # Trigger udev to re-create devices
+    try:
+        subprocess.run(
+            ["udevadm", "trigger"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        subprocess.run(
+            ["udevadm", "settle"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        pass
+
+    # Wait for MAC to reappear after recovery steps
+    candidate = _wait_for_mac(mac, wait_timeout, wait_interval)
+    if candidate:
+        print(f"[INFO] Adapter with MAC {mac} reappeared as {candidate}.")
+        return 0
+
+    # Final fallback: attempt direct bind again if sysfs entry reappeared
+    if os.path.exists(bind_path):
+        try:
+            with open(bind_path, "w") as f:
+                f.write(device_name)
+            candidate = _wait_for_mac(mac, 5.0, wait_interval)
+            if candidate:
+                print(
+                    f"[INFO] Adapter with MAC {mac} reappeared as {candidate} after fallback bind."
+                )
                 return 0
-        time.sleep(wait_interval)
+        except Exception as e:
+            print(f"[WARN] Final fallback bind failed: {e}")
 
     print(f"[WARN] Timed out waiting for adapter with MAC {mac} to reappear.")
     return 11
