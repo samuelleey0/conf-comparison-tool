@@ -14,7 +14,6 @@ from remote_utils import (
     enter_enable_mode_remote,
     send_command_remote,
     get_hostname_remote,
-    clear_arp_entry,
 )
 from ui_utils import choose_connection_type, choose_serial_port, remote_credentials
 
