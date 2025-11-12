@@ -153,10 +153,10 @@ def main():
                         print(f"[ERROR] Failed to execute command '{cmd}': {e}")
                         print("[INFO] Attempting to reconnect...")
                         # clear ARP for this host before retrying (best-effort)
-                        try:
-                            clear_arp_entry(host)
-                        except Exception:
-                            pass
+                        # try:
+                        #     clear_arp_entry(host)
+                        # except Exception:
+                        #     pass
                         break
 
                 if not remaining_commands:
@@ -178,10 +178,10 @@ def main():
                         client.close()
                 except Exception:
                     pass
-                try:
-                    clear_arp_entry(host)
-                except Exception:
-                    pass
+                # try:
+                #     clear_arp_entry(host)
+                # except Exception:
+                #     pass
                 print("[+] SSH connection closed.")
 
         if retry_count > max_retries and remaining_commands:
