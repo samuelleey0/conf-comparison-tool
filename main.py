@@ -14,6 +14,7 @@ from remote_utils import (
     enter_enable_mode_remote,
     send_command_remote,
     get_hostname_remote,
+    toggle_usb_adapter,
 )
 from ui_utils import choose_connection_type, choose_serial_port, remote_credentials
 
@@ -111,6 +112,9 @@ def main():
 
     elif conn_type == "2":
         host, username, password = remote_credentials()
+        iface = input(
+            "Enter USB Ethernet adapter interface (e.g. eth1); leave blank to skip toggle: "
+        ).strip()
         retry_count = 0
         max_retries = 3
 
@@ -118,6 +122,12 @@ def main():
         remaining_commands = commands.copy()
 
         while retry_count <= max_retries:
+            if iface:
+                ok = toggle_usb_adapter(iface)
+                if not ok:
+                    print(
+                        "[WARNING] toggle_usb_adapter failed or timed out; continuing without replug."
+                    )
             client = remote_connect(host, username, password)
             if client is None:
                 print("[+] Failed to connect via SSH. Exiting.")
