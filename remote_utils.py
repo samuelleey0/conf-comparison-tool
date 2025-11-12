@@ -67,6 +67,15 @@ def remote_connect(host, username="", password="", port="22", timeout=10):
                 transport.start_client(timeout=timeout)
                 transport.auth_password(username=username, password=password)
                 client._transport = transport
+                # Open shell once and store it on client
+                try:
+                    client._shell = client.invoke_shell()
+                    logger.info(
+                        "Shell channel opened and stored on client (DH fallback)."
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to invoke shell after DH fallback: {e}")
+                    client._shell = None
                 return client
             except Exception as e2:
                 logger.error(f"Failed to connect after adjusting kex algorithms: {e2}")
@@ -97,6 +106,14 @@ def remote_connect(host, username="", password="", port="22", timeout=10):
         logger.error(f"Unexpected error during SSH connect: {e}")
         return None
 
+    # Open shell once and store it on client
+    try:
+        client._shell = client.invoke_shell()
+        logger.info("Shell channel opened and stored on client.")
+    except Exception as e:
+        logger.warning(f"Failed to invoke shell: {e}")
+        client._shell = None
+
     return client
 
 
@@ -104,15 +121,22 @@ def send_command_remote(client, command, expected_prompt="#", timeout=10):
     """
     Send command over an active SSHClient instance's shell channel and return output.
     Handles (config)# by sending 'end' and continuing to wait for prompt.
+    Reuses the shell channel opened at connection time.
     """
     if not client:
         raise ValueError("SSH client is None")
 
-    try:
-        shell = client.invoke_shell()
-    except Exception as e:
-        logger.error(f"Failed to invoke shell: {e}")
-        return ""
+    shell = getattr(client, "_shell", None)
+    if shell is None:
+        logger.info("No existing shell channel found, invoking new shell.")
+        try:
+            shell = client.invoke_shell()
+            client._shell = shell
+        except Exception as e:
+            logger.error(f"Failed to invoke shell: {e}")
+            return ""
+    else:
+        logger.info("Reusing existing shell channel for command.")
 
     shell.settimeout(timeout)
     buffer = ""
@@ -182,54 +206,35 @@ def disable_paging_remote(client, prompt="#", timeout=5):
 
 
 def enter_enable_mode_remote(client, prompt="#", timeout=5):
-    """
-    Attempt to enter enable (privileged EXEC) mode.
-    Returns the prompt output when in privileged mode or raises on timeout.
-    """
     if not client:
         raise ValueError("SSH client is None")
 
-    try:
+    shell = getattr(client, "_shell", None)
+    if shell is None:
         shell = client.invoke_shell()
-    except Exception as e:
-        logger.error(f"Failed to invoke shell: {e}")
-        raise
+        client._shell = shell
 
     shell.settimeout(timeout)
-    buf = ""
+    time.sleep(0.5)
+    initial_output = ""
+    while shell.recv_ready():
+        initial_output += shell.recv(4096).decode(errors="ignore")
+
+    # Check current mode
+    if "#" in initial_output:
+        logger.info("Already in privileged EXEC mode, skipping 'enable'.")
+        return initial_output.strip()
+
+    # Otherwise send enable
+    logger.info("Not in privileged mode, sending 'enable'.")
+    shell.send("enable\n")
+
+    buffer = ""
     start = time.time()
-
-    try:
-        shell.send("enable\n")
-    except Exception:
-        try:
-            shell.send("enable\r\n")
-        except Exception:
-            raise
-
     while time.time() - start < timeout:
-        try:
-            if shell.recv_ready():
-                data = shell.recv(4096)
-            else:
-                time.sleep(0.2)
-                continue
-        except socket.timeout:
-            continue
-        except Exception:
-            data = b""
-
-        if not data:
-            continue
-
-        chunk = data.decode("utf-8", errors="ignore")
-        buf += chunk
-
-        # strip ANSI for reliable detection
-        clean = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", buf)
-
-        # check for privileged prompt patterns
-        if re.search(r"(?:\S+#\s*$)|(?:\(config\)#\s*$)", clean, re.M):
-            return clean.strip()
-
+        if shell.recv_ready():
+            buffer += shell.recv(4096).decode(errors="ignore")
+            if "#" in buffer:
+                return buffer.strip()
+        time.sleep(0.2)
     raise TimeoutError("Timed out waiting for privileged prompt after 'enable'.")
