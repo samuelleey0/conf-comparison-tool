@@ -1,4 +1,7 @@
 import time
+import os
+import shutil
+import subprocess
 
 from serial_utils import (
     connect_to_serial,
@@ -122,11 +125,37 @@ def main():
         remaining_commands = commands.copy()
 
         while retry_count <= max_retries:
+            # attempt logical replug if interface provided
             if iface:
-                ok = toggle_usb_adapter(iface)
-                if not ok:
+                replug_ok = False
+                if os.geteuid() == 0:
+
+                    # running as root: call function directly
+                    try:
+                        replug_ok = toggle_usb_adapter(iface)
+                    except Exception as e:
+                        print(f"[WARN] toggle_usb_adapter failed: {e}")
+                        replug_ok = False
+                else:
+
+                    # not root: try helper script via sudo (must be installed at /usr/local/sbin/replug_usb_eth.py)
+                    helper = "/usr/local/sbin/replug_usb_eth.py"
+                    if shutil.which("sudo") and os.path.exists(helper):
+                        try:
+                            subprocess.run(["sudo", helper, iface], check=True)
+                            replug_ok = True
+                        except subprocess.CalledProcessError as e:
+                            print(f"[WARN] replug helper failed (rc={e.returncode})")
+                            replug_ok = False
+                    else:
+                        print(
+                            "[WARN] Cannot replug adapter: helper missing or sudo not available."
+                        )
+                        replug_ok = False
+
+                if not replug_ok:
                     print(
-                        "[WARNING] toggle_usb_adapter failed or timed out; continuing without replug."
+                        "[INFO] Proceeding without logical replug (adapter may already be fine)."
                     )
             client = remote_connect(host, username, password)
             if client is None:
