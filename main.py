@@ -110,7 +110,7 @@ def main():
             commands = remaining_commands
 
     elif conn_type == "2":
-        host, remote_password, enable_password = remote_credentials()
+        host, username, password = remote_credentials()
         retry_count = 0
         max_retries = 3
 
@@ -118,7 +118,7 @@ def main():
         remaining_commands = commands.copy()
 
         while retry_count <= max_retries:
-            client, shell = remote_connect(host, remote_password, enable_password)
+            client, shell = remote_connect(host, username, password)
             if client is None or shell is None:
                 print("[+] Failed to connect via Telnet. Exiting.")
                 exit(1)
@@ -166,7 +166,7 @@ def main():
             except Exception as e:
                 print(f"Error: {e}")
             finally:
-                # Close telnet session(s) safely
+                # Close SSH session(s) safely
                 try:
                     if shell:
                         shell.close()
@@ -177,7 +177,7 @@ def main():
                         client.close()
                 except Exception:
                     pass
-                print("[+] Telnet connection closed.")
+                print("[+] SSH connection closed.")
 
         if retry_count > max_retries and remaining_commands:
             print("[ERROR] Maximum retries reached. Some commands were not executed:")
