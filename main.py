@@ -144,19 +144,68 @@ def main():
                         try:
                             subprocess.run(["sudo", helper, iface], check=True)
                             replug_ok = True
+                            # wait for interface to be present and have an IP
+                            print(
+                                "[INFO] Waiting for interface to come up and get IP (30s)..."
+                            )
+                            deadline = time.time() + 30
+                            got_ip = False
+                            while time.time() < deadline:
+                                if os.path.exists(f"/sys/class/net/{iface}"):
+                                    # check for an IPv4 address on the interface
+                                    try:
+                                        out = subprocess.check_output(
+                                            ["ip", "-4", "addr", "show", iface],
+                                            text=True,
+                                        )
+                                        if "inet " in out:
+                                            got_ip = True
+                                            break
+                                    except Exception:
+                                        pass
+                                time.sleep(0.8)
+                            if not got_ip:
+                                # try nmcli activation if available
+                                if shutil.which("nmcli"):
+                                    print(
+                                        "[INFO] No IP assigned yet; trying NetworkManager activation (nmcli)..."
+                                    )
+                                    try:
+                                        subprocess.run(
+                                            [
+                                                "sudo",
+                                                "nmcli",
+                                                "device",
+                                                "connect",
+                                                iface,
+                                            ],
+                                            check=False,
+                                        )
+                                    except Exception:
+                                        pass
+                                    # wait a bit more
+                                    deadline = time.time() + 15
+                                    while time.time() < deadline:
+                                        try:
+                                            out = subprocess.check_output(
+                                                ["ip", "-4", "addr", "show", iface],
+                                                text=True,
+                                            )
+                                            if "inet " in out:
+                                                got_ip = True
+                                                break
+                                        except Exception:
+                                            pass
+                                        time.sleep(0.8)
+                            if got_ip:
+                                print(f"[INFO] Interface {iface} has IP now.")
+                            else:
+                                print(
+                                    f"[WARN] Interface {iface} did not get IP after replug; proceeding anyway."
+                                )
                         except subprocess.CalledProcessError as e:
                             print(f"[WARN] replug helper failed (rc={e.returncode})")
                             replug_ok = False
-                    else:
-                        print(
-                            "[WARN] Cannot replug adapter: helper missing or sudo not available."
-                        )
-                        replug_ok = False
-
-                if not replug_ok:
-                    print(
-                        "[INFO] Proceeding without logical replug (adapter may already be fine)."
-                    )
             client = remote_connect(host, username, password)
             if client is None:
                 print("[+] Failed to connect via SSH. Exiting.")
