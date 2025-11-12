@@ -1,218 +1,170 @@
-try:
-    import telnetlib  # Standard library (Python <= 3.12)
-
-    TELNET_MODE = "builtin"
-except Exception:
-    # Dynamically import telnetlib3 to avoid static analysis errors for unknown modules.
-    # If telnetlib3 is not installed, telnetlib will be set to None and TELNET_MODE to None,
-    # remote_connect will handle the absence and return (None, None).
-    import importlib
-
-    try:
-        telnetlib = importlib.import_module("telnetlib3")
-        TELNET_MODE = "asyncio"
-    except Exception:
-        telnetlib = None
-        TELNET_MODE = None
 import time
 import re
 import logging
-import asyncio
+import paramiko
+import socket
+import os
 
 logger = logging.getLogger("remote_utils")
 
 
-class AsyncShellAdapter:
+def remote_connect(host, username="", password="", port="22", timeout=10):
     """
-    Thin synchronous adapter around telnetlib3 reader/writer so existing
-    sync code can call write(...) and read_very_eager().
-
-    Note: adapter uses asyncio.run for each operation (simple & safe).
+    Establish SSH connection using Paramiko.
+    Automatically accepts unknown host keys.
+    Handles conflicting host keys and Diffie-Hellman key exchange mismatches.
+    Returns an active Paramiko SSHClient instance with an invoked shell channel.
     """
+    client = paramiko.SSHClient()
+    client.load_system_host_keys()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    def __init__(self, reader, writer):
-        self._reader = reader
-        self._writer = writer
+    known_hosts_path = os.path.expanduser("~/.ssh/known_hosts")
 
-    def write(self, data):
-        # Accept bytes or str
-        if isinstance(data, bytes):
-            text = data.decode("utf-8", errors="ignore")
-        else:
-            text = str(data)
+    def remove_host_key(hostname):
+        if not os.path.exists(known_hosts_path):
+            return
+        try:
+            with open(known_hosts_path, "r") as f:
+                lines = f.readlines()
+            with open(known_hosts_path, "w") as f:
+                for line in lines:
+                    if not line.startswith(hostname):
+                        f.write(line)
+            logger.info(
+                f"Removed conflicting host key entry for {hostname} from known_hosts."
+            )
+        except Exception as e:
+            logger.warning(f"Failed to remove host key for {hostname}: {e}")
 
-        async def _awrite():
-            self._writer.write(text)
-            try:
-                await self._writer.drain()
-            except Exception:
-                # some telnetlib3 writers may not expose drain or it may be noop
-                pass
-
-        asyncio.run(_awrite())
-
-    def read_very_eager(self):
-        """
-        Try to read available data quickly. Returns bytes (to match telnetlib API).
-        """
-
-        async def _aread():
-            try:
-                # read up to 4096 bytes with small timeout
-                return await asyncio.wait_for(self._reader.read(4096), timeout=0.1)
-            except asyncio.TimeoutError:
-                return ""
-            except Exception:
-                return ""
-
-        res = asyncio.run(_aread())
-        if res is None:
-            res = ""
-        return res.encode("utf-8", errors="ignore")
-
-
-def remote_connect(host, username="", password="", timeout=10):
-    """
-    Establish Telnet connection (sync for telnetlib, async for telnetlib3 fallback)
-    """
     try:
-        print(f"Connecting to {host} via Telnet ({TELNET_MODE})...")
+        client.connect(
+            hostname=host,
+            port=port,
+            username=username,
+            password=password,
+            timeout=timeout,
+            allow_agent=False,
+            look_for_keys=False,
+        )
+    except paramiko.ssh_exception.SSHException as exc:
 
-        if TELNET_MODE == "builtin":
-            tn = telnetlib.Telnet(host, timeout=timeout)
+        # Handle Diffie-Hellman group exchange mismatch by appending compatible algorithms
+        if "kex alg" in str(exc).lower() or "diffie-hellman" in str(exc).lower():
+            logger.info(
+                "Detected DH key exchange issue, adjusting algorithms and retrying."
+            )
             try:
-                # read initial banner / login prompt
-                time.sleep(0.4)
-                banner = tn.read_very_eager().decode("utf-8", errors="ignore")
-
-                # common login prompt patterns
-                if (
-                    re.search(r"(?:username|login)[:\s]", banner, re.IGNORECASE)
-                    and username
-                ):
-                    tn.write(username.encode("ascii") + b"\n")
-                    time.sleep(0.2)
-                    # then expect password
-                    tn.read_until(b"Password:", timeout=2)
-                    tn.write(password.encode("ascii") + b"\n")
-                elif "Password:" in banner and password:
-                    # some devices present only password prompt
-                    tn.write(password.encode("ascii") + b"\n")
-                else:
-                    # no auth prompts detected; proceed
-                    pass
-
-                # wait until we get a device prompt (>, # or (config)#)
-                start = time.time()
-                buf = ""
-                while time.time() - start < timeout:
-                    time.sleep(0.2)
-                    try:
-                        data = tn.read_very_eager()
-                    except Exception:
-                        data = b""
-                    if data:
-                        buf += data.decode("utf-8", errors="ignore")
-                        if re.search(
-                            r"(?:\S+#\s*$)|(?:\S+>\s*$)|(?:\(config\)#\s*$)", buf, re.M
-                        ):
-                            break
-
-                print(f"[INFO] Connected via Telnet. Device prompt detected.")
-                # return both values so existing callers that expect (client, shell) work
-                return tn, tn
-            except Exception as e:
-                print(f"[!] Telnet post-login handling failed: {e}")
-                try:
-                    tn.close()
-                except Exception:
-                    pass
-                return None, None
-
-        elif TELNET_MODE == "asyncio":
-            import asyncio
-
-            async def async_connect():
-                reader, writer = await telnetlib.open_connection(host, 23)
-                # send credentials if needed
-                if password:
-                    writer.write(password + "\n")
-                await writer.drain()
-                return reader, writer
-
-            # Run the async function in a blocking context
-            reader, writer = asyncio.run(async_connect())
-            return reader, writer
-
+                transport = paramiko.Transport((host, 22))
+                # Append compatible kex algorithms
+                compatible_kex = [
+                    "diffie-hellman-group1-sha1",
+                    "diffie-hellman-group14-sha1",
+                    "diffie-hellman-group-exchange-sha1",
+                    "diffie-hellman-group-exchange-sha256",
+                ]
+                transport.get_security_options().key_exchanges += compatible_kex
+                transport.start_client(timeout=timeout)
+                transport.auth_password(username=username, password=password)
+                client._transport = transport
+                return client
+            except Exception as e2:
+                logger.error(f"Failed to connect after adjusting kex algorithms: {e2}")
+                return None
+        else:
+            logger.error(f"SSHException during connect: {exc}")
+            return None
+    except paramiko.ssh_exception.NoValidConnectionsError as exc:
+        logger.error(f"Unable to connect to {host}: {exc}")
+        return None
+    except paramiko.ssh_exception.BadHostKeyException as exc:
+        # Remove conflicting host key and retry once
+        logger.warning(f"Bad host key for {host}, removing and retrying: {exc}")
+        remove_host_key(host)
+        try:
+            client.connect(
+                hostname=host,
+                username=username,
+                password=password,
+                timeout=timeout,
+                allow_agent=False,
+                look_for_keys=False,
+            )
+        except Exception as e:
+            logger.error(f"Failed to connect after removing bad host key: {e}")
+            return None
     except Exception as e:
-        print(f"[!] Telnet connection failed: {e}")
-        return None, None
+        logger.error(f"Unexpected error during SSH connect: {e}")
+        return None
+
+    return client
 
 
-def send_command_remote(shell, command, expected_prompt="#", timeout=10):
+def send_command_remote(client, command, expected_prompt="#", timeout=10):
     """
-    Send command over a telnetlib.Telnet instance and return output.
+    Send command over an active SSHClient instance's shell channel and return output.
     Handles (config)# by sending 'end' and continuing to wait for prompt.
     """
-    if not shell:
-        raise ValueError("Shell (telnet) is None")
-
-    if not command.endswith("\n"):
-        to_send = command + "\n"
-    else:
-        to_send = command
+    if not client:
+        raise ValueError("SSH client is None")
 
     try:
-        shell.write(to_send.encode("ascii"))
-    except Exception:
-        # some telnetlib implementations expect bytes; tolerate errors
-        shell.write(to_send.encode("utf-8", errors="ignore"))
+        shell = client.invoke_shell()
+    except Exception as e:
+        logger.error(f"Failed to invoke shell: {e}")
+        return ""
 
+    shell.settimeout(timeout)
     buffer = ""
-    start_time = time.time()
+    try:
+        # Clear any initial data
+        time.sleep(0.5)
+        while shell.recv_ready():
+            shell.recv(4096)
 
-    while time.time() - start_time < timeout:
-        time.sleep(0.2)
-        try:
-            data = shell.read_very_eager()
-        except Exception:
-            data = b""
-        if data:
-            chunk = data.decode("utf-8", errors="ignore")
-            buffer += chunk
+        shell.send(command if command.endswith("\n") else command + "\n")
+        start_time = time.time()
 
-            # if device is in config mode, send 'end' and continue
-            if "(config)#" in buffer:
-                logger.info(
-                    "Detected (config)# prompt -- sending 'end' to exit config mode"
-                )
-                try:
-                    shell.write(b"end\n")
-                except Exception:
-                    pass
+        while time.time() - start_time < timeout:
+            if shell.recv_ready():
+                recv = shell.recv(4096).decode("utf-8", errors="ignore")
+                buffer += recv
+
+                # if device is in config mode, send 'end' and continue
+                if "(config)#" in buffer:
+                    logger.info(
+                        "Detected (config)# prompt -- sending 'end' to exit config mode"
+                    )
+                    shell.send("end\n")
+                    time.sleep(0.2)
+                    buffer = ""
+                    continue
+
+                # clean ANSI escapes for reliable prompt detection
+                clean = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", buffer)
+
+                # check for expected prompt or common privileged prompt '#'
+                if expected_prompt and expected_prompt in clean:
+                    return clean.strip()
+                if "#" in clean or ">" in clean:
+                    return clean.strip()
+            else:
                 time.sleep(0.2)
-                buffer = ""
-                continue
-
-            # clean ANSI escapes for reliable prompt detection
-            clean = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", buffer)
-
-            # check for expected prompt or common privileged prompt '#'
-            if expected_prompt and expected_prompt in clean:
-                return clean.strip()
-            if "#" in clean or ">" in clean:
-                return clean.strip()
+    except socket.timeout:
+        pass
+    except Exception as e:
+        logger.error(f"Error during send_command_remote: {e}")
 
     # timeout: return whatever we have (strip) to avoid losing partial output
     return buffer.strip()
 
 
-def get_hostname_remote(shell, timeout=10):
+def get_hostname_remote(client, timeout=10):
     """
-    Extract hostname dynamically from device via Telnet.
+    Extract hostname dynamically from device via SSH.
     """
     output = send_command_remote(
-        shell, "show running-config | include hostname", timeout=timeout
+        client, "show running-config | include hostname", timeout=timeout
     )
 
     for line in output.splitlines():
@@ -223,56 +175,55 @@ def get_hostname_remote(shell, timeout=10):
     return "CiscoDevice"
 
 
-def disable_paging_remote(shell, prompt="#", timeout=5):
+def disable_paging_remote(client, prompt="#", timeout=5):
     return send_command_remote(
-        shell, "terminal length 0", expected_prompt=prompt, timeout=timeout
+        client, "terminal length 0", expected_prompt=prompt, timeout=timeout
     )
 
 
-def enter_enable_mode_remote(shell, enable_password=None, prompt="#", timeout=5):
+def enter_enable_mode_remote(client, prompt="#", timeout=5):
     """
     Attempt to enter enable (privileged EXEC) mode.
-    If device prompts for an enable password, send enable_password (if provided).
     Returns the prompt output when in privileged mode or raises on timeout.
     """
-    if not shell:
-        raise ValueError("Shell (telnet) is None")
+    if not client:
+        raise ValueError("SSH client is None")
 
-    # send enable
     try:
-        shell.write(b"enable\n")
+        shell = client.invoke_shell()
+    except Exception as e:
+        logger.error(f"Failed to invoke shell: {e}")
+        raise
+
+    shell.settimeout(timeout)
+    buf = ""
+    start = time.time()
+
+    try:
+        shell.send("enable\n")
     except Exception:
         try:
-            shell.write(b"enable\r\n")
+            shell.send("enable\r\n")
         except Exception:
             raise
 
-    buf = ""
-    start = time.time()
     while time.time() - start < timeout:
-        time.sleep(0.2)
         try:
-            data = shell.read_very_eager()
+            if shell.recv_ready():
+                data = shell.recv(4096)
+            else:
+                time.sleep(0.2)
+                continue
+        except socket.timeout:
+            continue
         except Exception:
             data = b""
+
         if not data:
             continue
 
         chunk = data.decode("utf-8", errors="ignore")
         buf += chunk
-
-        # If device asks for enable password
-        if "Password:" in buf or "password:" in buf:
-            if not enable_password:
-                raise Exception("Device requested enable password but none provided.")
-            # send provided enable password
-            try:
-                shell.write(enable_password.encode("utf-8") + b"\n")
-            except Exception:
-                shell.write(enable_password.encode("ascii", errors="ignore") + b"\n")
-            buf = ""
-            # continue to wait for prompt after password
-            continue
 
         # strip ANSI for reliable detection
         clean = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", buf)
