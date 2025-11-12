@@ -118,25 +118,25 @@ def main():
         remaining_commands = commands.copy()
 
         while retry_count <= max_retries:
-            client, shell = remote_connect(host, username, password)
-            if client is None or shell is None:
+            client = remote_connect(host, username, password)
+            if client is None:
                 print("[+] Failed to connect via Telnet. Exiting.")
                 exit(1)
             try:
                 print("[*] Entering enable mode...")
-                output = enter_enable_mode_remote(shell)
+                output = enter_enable_mode_remote(client)
                 print(output)
                 print("[*] Disabling paging...")
-                disable_paging_remote(shell)
+                disable_paging_remote(client)
 
                 # Get hostname first
-                hostname = get_hostname_remote(shell)
+                hostname = get_hostname_remote(client)
                 print(f"[+] Detected hostname: {hostname}")
 
                 for cmd in remaining_commands[:]:
                     try:
                         print(f"[*] Sending '{cmd}'...")
-                        output = send_command_remote(shell, cmd, timeout=30)
+                        output = send_command_remote(client, cmd, timeout=30)
                         save_output_to_file(
                             cmd,
                             output,
@@ -168,12 +168,7 @@ def main():
             finally:
                 # Close SSH session(s) safely
                 try:
-                    if shell:
-                        shell.close()
-                except Exception:
-                    pass
-                try:
-                    if client and client is not shell:
+                    if client is not None:
                         client.close()
                 except Exception:
                     pass
