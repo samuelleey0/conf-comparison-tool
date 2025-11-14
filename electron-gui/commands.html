@@ -16,15 +16,16 @@
         <p class="page-subtitle">Review the catalog, add new commands, and choose what to execute.</p>
       </div>
     </header>
-
     <div class="commands-layout" id="commandsPage">
       <aside class="commands-sidebar page-card">
         <h2 class="section-title">Command Library</h2>
         <p class="hint">Select the commands to execute or add new ones below.</p>
-        <div class="command-actions stacked">
+        <div class="command-actions">
           <input type="text" id="newCommandInput" placeholder="Enter new command" />
-          <button type="button" id="addCommandBtn" class="primary block">Add Command</button>
-          <button type="button" id="refreshCommandsBtn" class="secondary block">Refresh</button>
+          <div class="command-actions__buttons">
+            <button type="button" id="addCommandBtn" class="primary">Add Command</button>
+            <button type="button" id="refreshCommandsBtn" class="secondary">Refresh</button>
+          </div>
         </div>
       </aside>
 

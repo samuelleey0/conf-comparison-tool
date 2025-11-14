@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <title>Connection Setup</title>
@@ -22,17 +22,17 @@
         <h2 class="section-title">Connection Setup</h2>
         <form id="connectionForm">
           <div class="form-group">
-            <label><input type="radio" name="connType" value="serial" checked /> Serial</label>
-            <label><input type="radio" name="connType" value="ssh" /> SSH</label>
+            <label class="choice-label"><input type="radio" name="connType" value="serial" checked /> Serial</label>
+            <label class="choice-label"><input type="radio" name="connType" value="ssh" /> SSH</label>
           </div>
 
           <div id="serialFields">
             <p class="hint">Choose the preset that matches your system or select custom.</p>
             <div class="inline-options">
-              <label><input type="radio" name="serialPreset" value="linux" checked /> Linux (/dev/ttyUSB0)</label>
-              <label><input type="radio" name="serialPreset" value="windows" /> Windows (COM3)</label>
-              <label><input type="radio" name="serialPreset" value="mac" /> macOS (/dev/cu.usbserial-10)</label>
-              <label><input type="radio" name="serialPreset" value="custom" /> Custom</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="linux" checked /> Linux (/dev/ttyUSB0)</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="windows" /> Windows (COM3)</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="mac" /> macOS (/dev/cu.usbserial-10)</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="custom" /> Custom</label>
             </div>
             <label for="serialPort">Serial Port</label>
             <input type="text" id="serialPort" placeholder="/dev/ttyUSB0" />
@@ -46,7 +46,6 @@
             <label for="sshPass">SSH Password</label><br>
             <input type="password" id="sshPass" placeholder="Password" />
           </div>
-
         </form>
         <div id="selectedCommandsInfo" class="info-box hidden"></div>
       </section>

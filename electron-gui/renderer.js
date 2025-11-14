@@ -1,6 +1,7 @@
 // electron-gui/renderer.js
 
 const API_ROOT = "http://127.0.0.1:5050";
+const SIDEBAR_COLLAPSE_KEY = "sidebarCollapsed";
 const SERIAL_PRESETS = {
   linux: "/dev/ttyUSB0",
   windows: "COM3",
@@ -29,6 +30,8 @@ let statusModalMessageEl = null;
 let statusModalCloseBtn = null;
 let statusModalHideTimeout = null;
 let autoRunAfterConnect = false;
+
+restoreSidebarPreference();
 
 function nowTimestamp() {
   return new Date().toLocaleTimeString();
@@ -61,8 +64,63 @@ function loadNavbar() {
     .then((res) => res.text())
     .then((html) => {
       container.outerHTML = html;
+      initNavbarInteractions();
+      highlightActiveNavLink();
     })
     .catch((err) => console.error("Failed to load navbar:", err));
+}
+
+function initNavbarInteractions() {
+  const toggleBtn = document.getElementById("sidebarToggle");
+  if (!toggleBtn || !document.body) return;
+
+  const syncButtonState = () => {
+    const collapsed = document.body.classList.contains("sidebar-collapsed");
+    toggleBtn.classList.toggle("collapsed", collapsed);
+    toggleBtn.setAttribute("aria-expanded", (!collapsed).toString());
+  };
+
+  toggleBtn.addEventListener("click", () => {
+    const nextCollapsed = !document.body.classList.contains("sidebar-collapsed");
+    document.body.classList.toggle("sidebar-collapsed", nextCollapsed);
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(SIDEBAR_COLLAPSE_KEY, nextCollapsed ? "1" : "0");
+    }
+    syncButtonState();
+  });
+
+  syncButtonState();
+}
+
+function highlightActiveNavLink() {
+  const links = document.querySelectorAll(".app-navbar__links a");
+  if (!links.length) return;
+  let current = window.location.pathname.split("/").pop() || "index.html";
+  current = current.toLowerCase();
+  links.forEach((link) => {
+    const target =
+      (link.getAttribute("href") || "")
+        .split("/")
+        .pop()
+        .toLowerCase() || "index.html";
+    const isActive = target === current;
+    link.classList.toggle("active", isActive);
+  });
+}
+
+function restoreSidebarPreference() {
+  if (typeof document === "undefined") return;
+  const applyState = () => {
+    if (typeof localStorage === "undefined") return;
+    const collapsed = localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "1";
+    document.body.classList.toggle("sidebar-collapsed", collapsed);
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", applyState, { once: true });
+  } else {
+    applyState();
+  }
 }
 
 async function fetchJson(path, options = {}) {
