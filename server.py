@@ -17,12 +17,12 @@ from serial_utils import (
     logout_close_connection,
     get_hostname,
 )
-from remote_utils import (
-    remote_connect,
-    disable_paging_remote,
-    enter_enable_mode_remote,
-    send_command_remote,
-    get_hostname_remote,
+from ssh_utils import (
+    connect_ssh,
+    disable_paging_ssh,
+    enter_enable_mode_ssh,
+    send_command_ssh,
+    get_hostname_ssh,
 )
 from command_manager import load_commands, save_commands
 
@@ -128,7 +128,7 @@ def _is_ssh_transport_active(info):
 
 
 def _acquire_ssh_connection(host, username, password):
-    return remote_connect(host, username, password)
+    return connect_ssh(host, username, password)
 
 
 def stream_json_line(obj):
@@ -485,12 +485,12 @@ def api_connect():
             yield stream_json_line(
                 {"type": "progress", "msg": "Entering enable mode..."}
             )
-            enter_enable_mode_remote(shell)
+            enter_enable_mode_ssh(shell)
             print("[API][connect][ssh] Disabling paging...", flush=True)
             yield stream_json_line({"type": "progress", "msg": "Disabling paging..."})
-            disable_paging_remote(shell)
+            disable_paging_ssh(shell)
             try:
-                hostname = get_hostname_remote(shell) or host
+                hostname = get_hostname_ssh(shell) or host
                 print(f"[API][connect][ssh] Detected hostname: {hostname}", flush=True)
                 yield stream_json_line(
                     {"type": "progress", "msg": f"Detected hostname: {hostname}"}
@@ -881,10 +881,10 @@ def api_execute():
                         "progress_pct": 0,
                     }
                 )
-                enter_enable_mode_remote(shell)
-                disable_paging_remote(shell)
+                enter_enable_mode_ssh(shell)
+                disable_paging_ssh(shell)
                 try:
-                    hostname = get_hostname_remote(shell) or hostname or host
+                    hostname = get_hostname_ssh(shell) or hostname or host
                 except Exception:
                     hostname = hostname or host
 
@@ -905,7 +905,7 @@ def api_execute():
                         {"type": "progress", "msg": f"Running '{cmd}'..."}
                     )
                     try:
-                        output = send_command_remote(shell, cmd, timeout=30)
+                        output = send_command_ssh(shell, cmd, timeout=30)
                         file_path = save_output_to_file(
                             cmd,
                             output,
