@@ -13,6 +13,7 @@ DEFAULT_COMMANDS = [
     "show spanning-tree",
     "show vlan brief",
     "show ip route",
+    "show etherchannel summary",
 ]
 
 
