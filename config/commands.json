@@ -1,7 +1,7 @@
 [
     "show ip interface brief",
     "show running-config",
-    "show version",
+    "show etherchannel summary",
     "show vlan brief",
     "show ip route",
     "show spanning-tree"
