@@ -115,9 +115,6 @@ def main():
 
     elif conn_type == "2":
         host, username, password = remote_credentials()
-        iface = input(
-            "Enter USB Ethernet adapter interface (e.g. eth1); leave blank to skip toggle: "
-        ).strip()
         retry_count = 0
         max_retries = 3
 
@@ -125,87 +122,6 @@ def main():
         remaining_commands = commands.copy()
 
         while retry_count <= max_retries:
-            # # attempt logical replug if interface provided
-            # if iface:
-            #     replug_ok = False
-            #     if os.geteuid() == 0:
-
-            #         # running as root: call function directly
-            #         try:
-            #             replug_ok = toggle_usb_adapter(iface)
-            #         except Exception as e:
-            #             print(f"[WARN] toggle_usb_adapter failed: {e}")
-            #             replug_ok = False
-            #     else:
-
-            #         # not root: try helper script via sudo (must be installed at /usr/local/sbin/replug_usb_eth.py)
-            #         helper = "/usr/local/sbin/replug_usb_eth.py"
-            #         if shutil.which("sudo") and os.path.exists(helper):
-            #             try:
-            #                 subprocess.run(["sudo", helper, iface], check=True)
-            #                 replug_ok = True
-            #                 # wait for interface to be present and have an IP
-            #                 print(
-            #                     "[INFO] Waiting for interface to come up and get IP (30s)..."
-            #                 )
-            #                 deadline = time.time() + 30
-            #                 got_ip = False
-            #                 while time.time() < deadline:
-            #                     if os.path.exists(f"/sys/class/net/{iface}"):
-            #                         # check for an IPv4 address on the interface
-            #                         try:
-            #                             out = subprocess.check_output(
-            #                                 ["ip", "-4", "addr", "show", iface],
-            #                                 text=True,
-            #                             )
-            #                             if "inet " in out:
-            #                                 got_ip = True
-            #                                 break
-            #                         except Exception:
-            #                             pass
-            #                     time.sleep(0.8)
-            #                 if not got_ip:
-            #                     # try nmcli activation if available
-            #                     if shutil.which("nmcli"):
-            #                         print(
-            #                             "[INFO] No IP assigned yet; trying NetworkManager activation (nmcli)..."
-            #                         )
-            #                         try:
-            #                             subprocess.run(
-            #                                 [
-            #                                     "sudo",
-            #                                     "nmcli",
-            #                                     "device",
-            #                                     "connect",
-            #                                     iface,
-            #                                 ],
-            #                                 check=False,
-            #                             )
-            #                         except Exception:
-            #                             pass
-            #                         # wait a bit more
-            #                         deadline = time.time() + 15
-            #                         while time.time() < deadline:
-            #                             try:
-            #                                 out = subprocess.check_output(
-            #                                     ["ip", "-4", "addr", "show", iface],
-            #                                     text=True,
-            #                                 )
-            #                                 if "inet " in out:
-            #                                     got_ip = True
-            #                                     break
-            #                             except Exception:
-            #                                 pass
-            #                             time.sleep(0.8)
-            #                 if got_ip:
-            #                     print(f"[INFO] Interface {iface} has IP now.")
-            #                 else:
-            #                     print(
-            #                         f"[WARN] Interface {iface} did not get IP after replug; proceeding anyway."
-            #                     )
-            #             except subprocess.CalledProcessError as e:
-            #                 print(f"[WARN] replug helper failed (rc={e.returncode})")
-            #                 replug_ok = False
             client = remote_connect(host, username, password)
             if client is None:
                 print("[+] Failed to connect via SSH. Exiting.")
