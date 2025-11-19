@@ -22,7 +22,7 @@
         <h2 class="section-title">Connection Setup</h2>
         <form id="connectionForm">
           <div class="form-group">
-            <label class="choice-label"><input type="radio" name="connType" value="serial" checked /> Serial</label>
+            <label class="choice-label"><input type="radio" name="connType" value="serial" /> Serial</label>
             <label class="choice-label"><input type="radio" name="connType" value="ssh" /> SSH</label>
           </div>
 
@@ -45,6 +45,9 @@
             <input type="text" id="sshUser" placeholder="admin" /><br>
             <label for="sshPass">SSH Password</label><br>
             <input type="password" id="sshPass" placeholder="Password" />
+            <br>
+            <label for="sshPort">SSH Port</label><br>
+            <input type="text" id="sshPort" placeholder="22" />
           </div>
         </form>
         <div id="selectedCommandsInfo" class="info-box hidden"></div>
@@ -64,7 +67,7 @@
           <pre id="log" class="log"></pre>
         </div>
         <div class="actions justify-end">
-          <button type="button" id="reconnectRunBtn" class="secondary">Reconnect &amp; Run</button>
+          <button type="button" id="reconnectRunBtn" class="secondary">Connect &amp; Run</button>
           <button type="button" id="startExecutionBtn" class="primary">Run Selected Commands</button>
         </div>
       </section>

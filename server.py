@@ -13,7 +13,6 @@ import serial
 # Reuse your helpers
 from file_utils import save_output_to_file, del_partial_logs
 from serial_utils import (
-    connect_to_serial,
     disable_paging,
     send_command,
     enter_enable_mode,
@@ -44,6 +43,12 @@ connection_cache = {
         "port": None,
     },
 }
+
+current_mode = None  # Tracks the currently active connection mode ("serial" or "ssh")
+serial_conn = None
+ssh_client = None
+ssh_credentials = {}
+serial_settings = {}
 
 
 def connect_serial(port="/dev/ttyUSB0", baudrate=9600, status_cb=None):
@@ -103,6 +108,7 @@ def connect_serial(port="/dev/ttyUSB0", baudrate=9600, status_cb=None):
 
 
 def _release_serial_connection_locked():
+    global serial_conn, current_mode
     ser = connection_cache["serial"]["ser"]
     if ser:
         try:
@@ -112,9 +118,13 @@ def _release_serial_connection_locked():
     connection_cache["serial"] = {"ser": None, "port": None, "hostname": None}
     if connection_cache["type"] == "serial":
         connection_cache["type"] = None
+    serial_conn = None
+    if current_mode == "serial":
+        current_mode = None
 
 
 def _release_ssh_connection_locked():
+    global ssh_client, current_mode
     shell = connection_cache["ssh"]["shell"]
     client = connection_cache["ssh"]["client"]
     if shell:
@@ -137,9 +147,13 @@ def _release_ssh_connection_locked():
     }
     if connection_cache["type"] == "ssh":
         connection_cache["type"] = None
+    ssh_client = None
+    if current_mode == "ssh":
+        current_mode = None
 
 
-def _set_serial_connection_locked(ser, port, hostname):
+def _set_serial_connection_locked(ser, port, hostname, baudrate=9600):
+    global serial_conn, ssh_client, current_mode, serial_settings
     _release_serial_connection_locked()
     _release_ssh_connection_locked()
     connection_cache["type"] = "serial"
@@ -148,9 +162,14 @@ def _set_serial_connection_locked(ser, port, hostname):
         "port": port,
         "hostname": hostname,
     }
+    serial_conn = ser
+    ssh_client = None
+    current_mode = "serial"
+    serial_settings = {"port": port, "baudrate": baudrate}
 
 
 def _set_ssh_connection_locked(client, host, username, hostname, port):
+    global serial_conn, ssh_client, current_mode
     _release_serial_connection_locked()
     _release_ssh_connection_locked()
     connection_cache["type"] = "ssh"
@@ -162,6 +181,9 @@ def _set_ssh_connection_locked(client, host, username, hostname, port):
         "hostname": hostname,
         "port": port,
     }
+    serial_conn = None
+    ssh_client = client
+    current_mode = "ssh"
 
 
 def _update_cached_serial_hostname(hostname):
@@ -385,10 +407,26 @@ def api_connect():
         payload["done"] = True
         return stream_json_line(payload)
 
+    if mode not in {"serial", "ssh"}:
+        return Response(
+            stream_error("Invalid connection type"), mimetype="text/plain", status=400
+        )
+
+    with connection_lock:
+        if mode == "serial":
+            _release_ssh_connection_locked()
+        elif mode == "ssh":
+            _release_serial_connection_locked()
+        global current_mode
+        current_mode = mode
+
     def serial_generator():
+        global current_mode, serial_settings
         serial_cfg = data.get("serial") or {}
         port = serial_cfg.get("port", "/dev/ttyUSB0")
         baudrate = serial_cfg.get("baudrate") or serial_cfg.get("baud") or 9600
+        with connection_lock:
+            serial_settings = {"port": port, "baudrate": baudrate}
 
         with connection_lock:
             cached_info = connection_cache["serial"]
@@ -464,7 +502,9 @@ def api_connect():
                     hostname = "device"
 
                 with connection_lock:
-                    _set_serial_connection_locked(ser, port, hostname)
+                    _set_serial_connection_locked(
+                        ser, port, hostname, baudrate=baudrate
+                    )
                     cached = True
 
                 queue.put(("success", {"hostname": hostname, "port": port}))
@@ -510,17 +550,22 @@ def api_connect():
                 return
             elif event == "error":
                 print(f"[API][connect][serial] ERROR: {payload}", flush=True)
+                if current_mode == "serial":
+                    current_mode = None
                 yield stream_json_line({"type": "error", "msg": payload})
                 yield stream_json_line({"type": "done", "success": False})
                 return
             elif event == "exception":
                 msg, tb = payload
                 print(f"[API][connect][serial] EXCEPTION: {msg}", flush=True)
+                if current_mode == "serial":
+                    current_mode = None
                 yield stream_json_line({"type": "error", "msg": msg, "trace": tb})
                 yield stream_json_line({"type": "done", "success": False})
                 return
 
     def ssh_generator():
+        global current_mode, ssh_credentials
         ssh = data.get("ssh") or {}
         host = ssh.get("host") or data.get("host")
         user = ssh.get("username") or data.get("username")
@@ -533,6 +578,8 @@ def api_connect():
 
         if not all([host, user, pwd]):
             print("[API][connect][ssh] Missing credentials.", flush=True)
+            if current_mode == "ssh":
+                current_mode = None
             yield stream_json_line(
                 {
                     "type": "error",
@@ -555,6 +602,14 @@ def api_connect():
         client = None
         shell = None
         try:
+            with connection_lock:
+                ssh_credentials = {
+                    "host": host,
+                    "username": user,
+                    "password": pwd,
+                    "port": port_value,
+                }
+
             client, shell = _acquire_ssh_connection(host, user, pwd, port_value)
             if not client:
                 print(
@@ -565,6 +620,8 @@ def api_connect():
                     {"type": "error", "msg": "SSH connection failed."}
                 )
                 yield stream_json_line({"type": "done", "success": False})
+                if current_mode == "ssh":
+                    current_mode = None
                 return
 
             print("[API][connect][ssh] Entering enable mode...", flush=True)
@@ -632,15 +689,13 @@ def api_connect():
                 {"type": "error", "msg": str(exc), "trace": traceback.format_exc()}
             )
             yield stream_json_line({"type": "done", "success": False})
+            if current_mode == "ssh":
+                current_mode = None
 
     if mode == "serial":
         generator = serial_generator()
-    elif mode == "ssh":
-        generator = ssh_generator()
     else:
-        return Response(
-            stream_error("Invalid connection type"), mimetype="text/plain", status=400
-        )
+        generator = ssh_generator()
 
     return Response(stream_with_context(generator), mimetype="text/plain")
 
@@ -753,20 +808,28 @@ def _ensure_base_path(data):
 def api_execute():
     data = request.get_json() or {}
     commands = data.get("commands") or []
-    connection = (data.get("mode") or data.get("connection") or "").lower()
+    global current_mode
+    requested_mode = (
+        data.get("mode") or data.get("connection") or current_mode or ""
+    ).lower()
+
+    print(
+        f"[DEBUG] /api/execute called with mode={requested_mode}, current_mode={current_mode}",
+        flush=True,
+    )
 
     if not commands:
         return jsonify({"status": "error", "message": "No commands provided"}), 400
-    if connection not in {"serial", "ssh"}:
-        with connection_lock:
-            cached_type = connection_cache["type"]
-        if cached_type in {"serial", "ssh"}:
-            connection = cached_type
-        else:
-            return (
-                jsonify({"status": "error", "message": "Invalid connection type"}),
-                400,
-            )
+    if not requested_mode:
+        return (
+            jsonify({"status": "error", "message": "No connection mode selected."}),
+            400,
+        )
+    if requested_mode not in {"serial", "ssh"}:
+        return (
+            jsonify({"status": "error", "message": "Invalid connection type"}),
+            400,
+        )
 
     total_commands = len(commands)
 
@@ -778,6 +841,7 @@ def api_execute():
         return jsonify({"status": "error", "message": str(exc)}), 400
 
     def generate():
+        global current_mode
         hostname = None
         files_written = []
         client = None
@@ -794,47 +858,47 @@ def api_execute():
             }
         )
 
+        with connection_lock:
+            if requested_mode:
+                current_mode = requested_mode
+
         try:
-            if connection == "serial":
-                port = data.get("serial", {}).get("port", "/dev/ttyUSB0")
-                ser = None
-                hostname = None
-                using_cached_serial = False
-                close_serial_after = True
+            if requested_mode == "serial":
+                global serial_settings
+                serial_payload = data.get("serial") or {}
+                requested_port = serial_payload.get("port")
+                requested_baud = serial_payload.get("baudrate") or serial_payload.get(
+                    "baud"
+                )
 
                 with connection_lock:
                     cached_info = connection_cache["serial"]
-                    cached_ser = cached_info["ser"]
-                    if (
-                        connection_cache["type"] == "serial"
-                        and cached_ser
-                        and cached_ser.is_open
-                        and cached_info.get("port") == port
-                    ):
-                        ser = cached_ser
-                        hostname = cached_info.get("hostname")
-                        using_cached_serial = True
-                        close_serial_after = False
-                    elif cached_ser:
-                        _release_serial_connection_locked()
-                if not using_cached_serial:
+                    cached_ser = (
+                        serial_conn if serial_conn and serial_conn.is_open else None
+                    )
+                    port = requested_port or serial_settings.get("port")
+                    baudrate = requested_baud or serial_settings.get("baudrate") or 9600
+                    hostname = cached_info.get("hostname") if cached_ser else None
+
+                if not port:
                     yield stream_json_line(
                         {
-                            "type": "progress",
-                            "msg": f"Connecting over serial: {port}",
-                            "progress_pct": 0,
+                            "type": "error",
+                            "msg": "Serial mode selected but no port configured. Please connect via serial first.",
                         }
                     )
-                    ser = connect_to_serial(port)
-                    if not ser:
-                        yield stream_json_line(
-                            {
-                                "type": "error",
-                                "msg": f"Failed to open serial port {port}",
-                            }
-                        )
-                        return
-                else:
+                    return
+
+                with connection_lock:
+                    serial_settings = {"port": port, "baudrate": baudrate}
+
+                ser = None
+                using_cached_serial = False
+                close_serial_after = False
+
+                if cached_ser:
+                    ser = cached_ser
+                    using_cached_serial = True
                     yield stream_json_line(
                         {
                             "type": "progress",
@@ -843,6 +907,24 @@ def api_execute():
                             "progress_pct": 0,
                         }
                     )
+                else:
+                    yield stream_json_line(
+                        {
+                            "type": "progress",
+                            "msg": f"Connecting over serial: {port}",
+                            "progress_pct": 0,
+                        }
+                    )
+                    try:
+                        ser = connect_serial(port, baudrate=baudrate)
+                    except Exception as exc:
+                        yield stream_json_line(
+                            {
+                                "type": "error",
+                                "msg": f"Failed to open serial port {port}: {exc}",
+                            }
+                        )
+                        return
                 yield stream_json_line(
                     {
                         "type": "progress",
@@ -861,6 +943,10 @@ def api_execute():
                 if using_cached_serial:
                     _update_cached_serial_hostname(hostname)
                 else:
+                    with connection_lock:
+                        _set_serial_connection_locked(
+                            ser, port, hostname, baudrate=baudrate
+                        )
                     yield stream_json_line(
                         {
                             "type": "progress",
@@ -913,15 +999,52 @@ def api_execute():
                         return
 
             else:  # SSH
+                global ssh_credentials
                 ssh_data = data.get("ssh") or {}
-                host = ssh_data.get("host") or data.get("host")
-                username = ssh_data.get("username") or data.get("username")
-                password = ssh_data.get("password") or data.get("password")
-                raw_port = ssh_data.get("port") or data.get("port")
+                with connection_lock:
+                    stored_creds = dict(ssh_credentials)
+                host = (
+                    ssh_data.get("host")
+                    or data.get("host")
+                    or stored_creds.get("host")
+                )
+                username = (
+                    ssh_data.get("username")
+                    or data.get("username")
+                    or stored_creds.get("username")
+                )
+                password = (
+                    ssh_data.get("password")
+                    or data.get("password")
+                    or stored_creds.get("password")
+                )
+                raw_port = (
+                    ssh_data.get("port")
+                    or data.get("port")
+                    or stored_creds.get("port")
+                    or 22
+                )
                 try:
-                    port_value = int(str(raw_port)) if raw_port is not None else None
+                    port_value = int(str(raw_port))
                 except (TypeError, ValueError):
-                    port_value = None
+                    port_value = 22
+
+                if not all([host, username, password]):
+                    yield stream_json_line(
+                        {
+                            "type": "error",
+                            "msg": "Missing SSH credentials (host/username/password).",
+                        }
+                    )
+                    return
+
+                with connection_lock:
+                    ssh_credentials = {
+                        "host": host,
+                        "username": username,
+                        "password": password,
+                        "port": port_value,
+                    }
 
                 client = None
                 hostname = None
@@ -930,42 +1053,28 @@ def api_execute():
 
                 with connection_lock:
                     cached_info = connection_cache["ssh"]
-                    cached_port = cached_info.get("port")
-                    if port_value is None:
-                        port_value = cached_port or 22
-                    active = (
-                        connection_cache["type"] == "ssh"
+                    cached_client = (
+                        ssh_client
+                        if connection_cache["type"] == "ssh"
+                        and ssh_client
                         and _is_ssh_transport_active(cached_info)
+                        else None
                     )
-                    if active:
+                    cached_port = cached_info.get("port")
+                    if cached_client:
                         cached_host = cached_info.get("host")
                         cached_user = cached_info.get("username")
-                        if host and cached_host != host:
-                            active = False
-                        if username and cached_user != username:
-                            active = False
-                        if cached_port and port_value != cached_port:
-                            active = False
-                    if active:
-                        client = cached_info["client"]
-                        hostname = cached_info.get("hostname") or host or cached_info.get(
-                            "host"
-                        )
-                        host = host or cached_info.get("host")
-                        username = username or cached_info.get("username")
-                        close_ssh_after = False
-                        using_cached_ssh = True
-                    elif cached_info.get("client"):
-                        _release_ssh_connection_locked()
-
-                if not using_cached_ssh and not all([host, username, password]):
-                    yield stream_json_line(
-                        {
-                            "type": "error",
-                            "msg": "Missing SSH credentials (host/username/password).",
-                        }
-                    )
-                    return
+                        if (
+                            cached_host == host
+                            and cached_user == username
+                            and (cached_port or port_value) == port_value
+                        ):
+                            client = cached_client
+                            hostname = cached_info.get("hostname") or host
+                            close_ssh_after = False
+                            using_cached_ssh = True
+                        else:
+                            _release_ssh_connection_locked()
 
                 if using_cached_ssh:
                     yield stream_json_line(
@@ -1011,6 +1120,12 @@ def api_execute():
                 if using_cached_ssh:
                     _update_cached_ssh_hostname(hostname)
                 else:
+                    with connection_lock:
+                        _set_ssh_connection_locked(
+                            client, host, username, hostname, port_value
+                        )
+                        client = ssh_client
+                        close_ssh_after = False
                     yield stream_json_line(
                         {
                             "type": "progress",

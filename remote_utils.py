@@ -105,7 +105,7 @@ def toggle_usb_adapter(iface, wait_timeout=15, wait_interval=0.5):
     return False
 
 
-def remote_connect(host, username="", password="", port="22", timeout=10):
+def remote_connect(host, username="", password="", port="22", timeout=20):
     """
     Establish SSH connection using Paramiko.
     Automatically accepts unknown host keys.
