@@ -34,27 +34,6 @@ def _reset_buffers(ser):
             pass
 
 
-def _wait_for_port_free(port_path, timeout=3.0, poll=0.2):
-    """
-    Try to open the device node non‑blocking to check it's not stuck by the kernel/another process.
-    Return True when we can open&close it, False on timeout.
-    """
-    deadline = time.time() + timeout
-    flags = os.O_RDWR | getattr(os, "O_NOCTTY", 0) | getattr(os, "O_NONBLOCK", 0)
-    while time.time() < deadline:
-        try:
-            fd = os.open(port_path, flags)
-            os.close(fd)
-            return True
-        except OSError as e:
-            # If device node missing, bail fast (higher-level code will retry)
-            if e.errno in (errno.ENOENT, errno.ENXIO):
-                return False
-            # otherwise wait and retry (device busy / driver racing)
-            time.sleep(poll)
-    return False
-
-
 def connect_to_serial(
     port: str,
     baudrate: int = 9600,
@@ -91,14 +70,6 @@ def connect_to_serial(
                 retries += 1
                 time.sleep(retry_interval)
                 continue
-
-            if not os.path.exists(port) and not port.startswith("COM"):
-                emit(f"[WARNING] Serial device {port} not found. Check connection.")
-                retries += 1
-                time.sleep(retry_interval)
-                continue
-
-            _wait_for_port_free(port, timeout=3.0, poll=0.2)
 
             # Attempt to open the serial port
             ser = None
