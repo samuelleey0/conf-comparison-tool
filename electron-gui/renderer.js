@@ -566,7 +566,7 @@ async function saveConnection({ autoRun = false, triggerButton = null } = {}) {
     return;
   }
   const conn = type.value;
-  const payload = { connection: conn };
+  const payload = { connection: conn, mode: conn };
   const connectBtn = triggerButton || null;
   const originalBtnText = connectBtn ? connectBtn.textContent : null;
   setProgressValue(0);
@@ -609,7 +609,17 @@ async function saveConnection({ autoRun = false, triggerButton = null } = {}) {
     if (userInput && userInput.value.trim() !== user) userInput.value = user;
     if (passInput && passInput.value !== pass) passInput.value = pass;
 
-    payload.ssh = { host, username: user, password: pass };
+    const storedSshPort = localStorage.getItem("sshPort") || "22";
+    const sshPortInput = document.getElementById("sshPort");
+    let sshPortValue = sshPortInput ? sshPortInput.value.trim() : "";
+    if (!sshPortValue) {
+      sshPortValue = storedSshPort || "22";
+    }
+    payload.ssh = { host, username: user, password: pass, port: sshPortValue };
+    payload.host = host;
+    payload.username = user;
+    payload.password = pass;
+    payload.port = sshPortValue;
   } else {
     const storedPort = localStorage.getItem("serialPort") || "";
     const portInput = document.getElementById("serialPort");
@@ -747,6 +757,7 @@ async function saveConnection({ autoRun = false, triggerButton = null } = {}) {
       localStorage.setItem("sshHost", payload.ssh.host);
       localStorage.setItem("sshUser", payload.ssh.username);
       localStorage.setItem("sshPass", payload.ssh.password);
+      localStorage.setItem("sshPort", payload.ssh.port);
     } else {
       localStorage.setItem("serialPort", payload.serial.port);
     }
@@ -803,7 +814,7 @@ function setupConnectionPage() {
   const backBtn = document.getElementById("backToDirectoryBtn");
 
   if (form) {
-    const savedConn = localStorage.getItem("connection") || "serial";
+    const savedConn = localStorage.getItem("connection");
     const targetRadio = Array.from(radios).find((r) => r.value === savedConn);
     if (targetRadio) targetRadio.checked = true;
     toggleConnectionFields();
@@ -842,6 +853,10 @@ function setupConnectionPage() {
   document.getElementById("sshHost").value = localStorage.getItem("sshHost") || "";
   document.getElementById("sshUser").value = localStorage.getItem("sshUser") || "";
   document.getElementById("sshPass").value = localStorage.getItem("sshPass") || "";
+  const sshPortInput = document.getElementById("sshPort");
+  if (sshPortInput) {
+    sshPortInput.value = localStorage.getItem("sshPort") || "22";
+  }
 
   if (backBtn) {
     backBtn.addEventListener("click", () => goTo("index.html"));
@@ -869,12 +884,7 @@ function setupConnectionPage() {
 
   renderSelectedCommandsInfo();
 
-  if (isPendingExecution()) {
-    const pendingCommands = getStoredCommands();
-    if (pendingCommands.length && localStorage.getItem("connection")) {
-      startExecution({ commands: pendingCommands, initiatedFromConnection: true });
-    }
-  }
+  // pending execution is triggered after a successful connection, not automatically on page load
 }
 
 // -----------------------------
@@ -1071,7 +1081,11 @@ async function startExecution({ commands, initiatedFromConnection = false } = {}
   const log = document.getElementById("log");
   const progress = document.getElementById("progress");
   const hasStatusUI = log && progress;
-  const connectionType = localStorage.getItem("connection");
+  let connectionType = localStorage.getItem("connection");
+  const selectedConnRadio = document.querySelector('input[name="connType"]:checked');
+  if (selectedConnRadio) {
+    connectionType = selectedConnRadio.value;
+  }
 
   if (!hasStatusUI || !connectionType) {
     setPendingExecutionFlag();
@@ -1094,6 +1108,7 @@ async function startExecution({ commands, initiatedFromConnection = false } = {}
     session_id: localStorage.getItem("sessionId"),
     student_id: localStorage.getItem("studentId"),
     connection: connectionType,
+    mode: connectionType,
     commands: commandsToRun,
     log_mode: directoryMode,
   };
@@ -1108,11 +1123,29 @@ async function startExecution({ commands, initiatedFromConnection = false } = {}
   }
 
   if (connectionType === "ssh") {
+    const sshHostInput = document.getElementById("sshHost");
+    const sshUserInput = document.getElementById("sshUser");
+    const sshPassInput = document.getElementById("sshPass");
+    let sshHost =
+      sshHostInput?.value.trim() || localStorage.getItem("sshHost") || "";
+    let sshUser =
+      sshUserInput?.value.trim() || localStorage.getItem("sshUser") || "";
+    let sshPass =
+      sshPassInput?.value || localStorage.getItem("sshPass") || "";
+    let sshPort =
+      document.getElementById("sshPort")?.value.trim() ||
+      localStorage.getItem("sshPort") ||
+      "22";
     payload.ssh = {
-      host: localStorage.getItem("sshHost"),
-      username: localStorage.getItem("sshUser"),
-      password: localStorage.getItem("sshPass"),
+      host: sshHost,
+      username: sshUser,
+      password: sshPass,
+      port: sshPort,
     };
+    payload.host = sshHost;
+    payload.username = sshUser;
+    payload.password = sshPass;
+    payload.port = sshPort;
   } else {
     payload.serial = {
       port: localStorage.getItem("serialPort") || SERIAL_PRESETS.linux,
