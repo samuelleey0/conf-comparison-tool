@@ -7,6 +7,7 @@ import os
 import threading
 import logging
 from netmiko.netmiko_globals import MAX_BUFFER
+import errno
 
 READ_TIMEOUT = 8  # seconds
 MAX_BUFFER = 4096  # 4KB
@@ -31,6 +32,27 @@ def _reset_buffers(ser):
             ser.flushOutput()
         except Exception:
             pass
+
+
+def _wait_for_port_free(port_path, timeout=3.0, poll=0.2):
+    """
+    Try to open the device node non‑blocking to check it's not stuck by the kernel/another process.
+    Return True when we can open&close it, False on timeout.
+    """
+    deadline = time.time() + timeout
+    flags = os.O_RDWR | getattr(os, "O_NOCTTY", 0) | getattr(os, "O_NONBLOCK", 0)
+    while time.time() < deadline:
+        try:
+            fd = os.open(port_path, flags)
+            os.close(fd)
+            return True
+        except OSError as e:
+            # If device node missing, bail fast (higher-level code will retry)
+            if e.errno in (errno.ENOENT, errno.ENXIO):
+                return False
+            # otherwise wait and retry (device busy / driver racing)
+            time.sleep(poll)
+    return False
 
 
 def connect_to_serial(
@@ -70,28 +92,54 @@ def connect_to_serial(
                 time.sleep(retry_interval)
                 continue
 
-            # Attempt PL2303 driver fix before connecting
-            # ensure_driver_ready(port)
+            if not os.path.exists(port) and not port.startswith("COM"):
+                emit(f"[WARNING] Serial device {port} not found. Check connection.")
+                retries += 1
+                time.sleep(retry_interval)
+                continue
+
+            _wait_for_port_free(port, timeout=3.0, poll=0.2)
 
             # Attempt to open the serial port
-            ser = serial.Serial(
-                port=port,
-                baudrate=baudrate,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE,
-                timeout=0.5,
-                dsrdtr=False,
-                rtscts=False,
-            )
+            ser = None
+            open_exec = None
+            for open_try in range(6):
+                try:
+                    ser = serial.Serial(
+                        port=port,
+                        baudrate=baudrate,
+                        bytesize=serial.EIGHTBITS,
+                        parity=serial.PARITY_NONE,
+                        stopbits=serial.STOPBITS_ONE,
+                        timeout=0.5,
+                        dsrdtr=False,
+                        rtscts=False,
+                    )
+                    open_exec = None
+                    break
+                except serial.SerialException as e:
+                    open_exec = e
+                    dbg(f"Serial open attempt {open_try + 1} failed: {e}")
+                    time.sleep(1.0)
+                    try:
+                        if ser is not None and getattr(ser, "is_open", False):
+                            ser.close()
+                    except Exception:
+                        pass
 
+            if open_exec is not None and ser is None:
+                emit(f"[ERROR] Failed to open serial port: {open_exec}")
+                last_exc = open_exec
+                retries += 1
+                time.sleep(retry_interval)
+                continue
             try:
                 ser.dtr = True  # Ensure DTR is set to True to avoid connection issues
                 ser.rts = True  # Ensure RTS is set to True to avoid connection issues
-            except (OSError, serial.SerialException) as e:
+            except Exception as e:
                 dbg(f"[Connection] Failed to set DTR/RTS: {e}")
 
-            time.sleep(0.2)
+            time.sleep(0.4)
             emit(f"[INFO] Serial port opened successfully (attempt {retries + 1}).")
             time.sleep(0.05)
             _reset_buffers(ser)
@@ -106,6 +154,7 @@ def connect_to_serial(
             except TimeoutError as e:
                 dbg(f"Prompt not found on attempt {retries + 1}: {e}")
                 logout_close_connection(ser)
+                time.sleep(0.5)
                 retries += 1
                 time.sleep(retry_interval)
                 continue
