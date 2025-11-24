@@ -326,7 +326,6 @@ def api_connect():
         with connection_lock:
             stored_port = last_used_serial_settings.get("port")
             stored_baud = last_used_serial_settings.get("baudrate", 9600)
-            existing_ser = serial_conn if serial_conn and serial_conn.is_open else None
             existing_hostname = serial_hostname or "device"
         port = serial_cfg.get("port") or stored_port or "/dev/ttyUSB0"
         baudrate = (
@@ -336,36 +335,8 @@ def api_connect():
             last_used_serial_settings["port"] = port
             last_used_serial_settings["baudrate"] = baudrate
 
-        if existing_ser and stored_port == port:
-            print(
-                f"[API][connect][serial] Reusing cached session ({port})", flush=True
-            )
-            with connection_lock:
-                current_mode = "serial"
-            yield stream_json_line(
-                {"type": "progress", "msg": f"Reusing existing serial session on {port}"}
-            )
-            yield stream_json_line(
-                {
-                    "type": "success",
-                    "msg": f"Connected to {existing_hostname}",
-                    "hostname": existing_hostname,
-                    "port": port,
-                    "persistent": True,
-                }
-            )
-            yield stream_json_line(
-                {
-                    "type": "done",
-                    "success": True,
-                    "hostname": existing_hostname,
-                    "port": port,
-                }
-            )
-            return
-
-        _close_ssh_connection()
         _close_serial_connection()
+        _close_ssh_connection()
 
         yield stream_json_line(
             {
@@ -783,75 +754,67 @@ def api_execute():
 
             ser = None
             reuse = False
-            if existing_ser and stored_port == port:
-                ser = existing_ser
-                hostname = stored_hostname
-                reuse = True
-                with connection_lock:
-                    current_mode = "serial"
-            else:
-                _close_ssh_connection()
-                _close_serial_connection()
+            _close_ssh_connection()
+            _close_serial_connection()
+            yield stream_json_line(
+                {
+                    "type": "progress",
+                    "msg": f"Connecting over serial: {port}",
+                    "progress_pct": 0,
+                }
+            )
+            try:
+                ser = connect_to_serial(
+                    port=port,
+                    baudrate=baudrate,
+                    timeout=READ_TIMEOUT,
+                    retry_interval=3,
+                    max_retries=5,
+                )
+            except Exception as exc:
+                yield stream_json_line(
+                    {
+                        "type": "error",
+                        "msg": f"Failed to open serial port {port}: {exc}",
+                    }
+                )
+                return False
+            try:
                 yield stream_json_line(
                     {
                         "type": "progress",
-                        "msg": f"Connecting over serial: {port}",
+                        "msg": "Ensuring privileged access...",
                         "progress_pct": 0,
                     }
                 )
+                enter_enable_mode(ser)
+                yield stream_json_line(
+                    {
+                        "type": "progress",
+                        "msg": "Disabling paging...",
+                        "progress_pct": 0,
+                    }
+                )
+                disable_paging(ser)
                 try:
-                    ser = connect_to_serial(
-                        port=port,
-                        baudrate=baudrate,
-                        timeout=READ_TIMEOUT,
-                        retry_interval=3,
-                        max_retries=5,
-                    )
-                except Exception as exc:
-                    yield stream_json_line(
-                        {
-                            "type": "error",
-                            "msg": f"Failed to open serial port {port}: {exc}",
-                        }
-                    )
-                    return False
-                try:
-                    yield stream_json_line(
-                        {
-                            "type": "progress",
-                            "msg": "Ensuring privileged access...",
-                            "progress_pct": 0,
-                        }
-                    )
-                    enter_enable_mode(ser)
-                    yield stream_json_line(
-                        {
-                            "type": "progress",
-                            "msg": "Disabling paging...",
-                            "progress_pct": 0,
-                        }
-                    )
-                    disable_paging(ser)
-                    try:
-                        hostname = get_hostname(ser) or "device"
-                    except Exception:
-                        hostname = "device"
-                except Exception as exc:
-                    logout_close_connection(ser)
-                    yield stream_json_line(
-                        {"type": "error", "msg": f"Serial initialization failed: {exc}"}
-                    )
-                    return False
-                _update_serial_state(ser, port, baudrate, hostname)
+                    hostname = get_hostname(ser) or "device"
+                except Exception:
+                    hostname = "device"
+            except Exception as exc:
+                logout_close_connection(ser)
+                yield stream_json_line(
+                    {"type": "error", "msg": f"Serial initialization failed: {exc}"}
+                )
+                return False
+            _update_serial_state(ser, port, baudrate, hostname)
 
-            if not reuse:
-                yield stream_json_line(
-                    {
-                        "type": "progress",
-                        "msg": f"Connected to {hostname} via serial.",
-                        "progress_pct": 0,
-                    }
-                )
+            yield stream_json_line(
+                {
+                    "type": "progress",
+                    "msg": f"Connected to {hostname} via serial.",
+                    "progress_pct": 0,
+                }
+            )
 
             local_ser = ser or serial_conn
             if not local_ser:
