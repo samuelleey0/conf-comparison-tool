@@ -8,9 +8,14 @@ const fs = require('fs');
 let mainWindow = null;
 let flaskProcess = null;
 
-ipcMain.handle('select-directory', async () => {
+ipcMain.handle('select-directory', async (event, defaultPath) => {
+  let targetPath = defaultPath;
+  if (!targetPath || typeof targetPath !== 'string') {
+    targetPath = app.getPath('documents');
+  }
   const options = {
     properties: ['openDirectory'],
+    defaultPath: targetPath,
   };
   const result = await dialog.showOpenDialog(mainWindow || undefined, options);
   if (result.canceled || !result.filePaths || !result.filePaths.length) {

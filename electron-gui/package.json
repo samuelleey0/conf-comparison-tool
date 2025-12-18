@@ -20,5 +20,8 @@
   "type": "commonjs",
   "devDependencies": {
     "electron": "^38.2.1"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
   }
 }

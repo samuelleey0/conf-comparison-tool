@@ -9,18 +9,28 @@ const SERIAL_PRESETS = {
 };
 
 let ipcRenderer = null;
+let shell = null;
 let pathModule = null;
 
 try {
-  ipcRenderer = require("electron").ipcRenderer;
+  const electron = require("electron");
+  ipcRenderer = electron.ipcRenderer;
+  shell = electron.shell;
 } catch (err) {
-  console.debug("ipcRenderer not available:", err);
+  console.debug("Electron modules not available:", err);
 }
 
 try {
   pathModule = require("path");
 } catch (err) {
   pathModule = null;
+}
+
+let XLSX = null;
+try {
+  XLSX = require("xlsx");
+} catch (err) {
+  console.debug("XLSX module not available:", err);
 }
 
 let selectedExistingPath = null;
@@ -275,18 +285,17 @@ function setSelectedExistingDirectory(pathValue, displayValue) {
   }
 }
 
-async function openExistingDirectoryDialog() {
+async function openExistingDirectoryDialog(startPath) {
   if (ipcRenderer) {
     try {
-      const selectedPath = await ipcRenderer.invoke("select-directory");
+      const selectedPath = await ipcRenderer.invoke("select-directory", startPath);
       if (selectedPath) {
         setSelectedExistingDirectory(selectedPath);
         const infoBox = document.getElementById("existingInfoBox");
         if (infoBox) {
           infoBox.classList.remove("hidden");
           infoBox.innerHTML = `
-            <strong>Selected:</strong> ${
-              deriveDirectoryDisplay(selectedPath) || selectedPath
+            <strong>Selected:</strong> ${deriveDirectoryDisplay(selectedPath) || selectedPath
             }<br/>
             <span class="hint">Click "Use Selected" to continue.</span>
           `;
@@ -334,6 +343,15 @@ function readFileAsText(file) {
     reader.onerror = () => reject(new Error("Failed to read file."));
     reader.onload = () => resolve(reader.result);
     reader.readAsText(file);
+  });
+}
+
+function readFileAsArrayBuffer(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read file as binary."));
+    reader.onload = () => resolve(reader.result);
+    reader.readAsArrayBuffer(file);
   });
 }
 
@@ -413,7 +431,7 @@ async function handleBulkCreate(event) {
   const resultsBox = document.getElementById("bulkResults");
 
   if (!fileInput.files.length) {
-    alert("Please select a CSV or TXT file.");
+    alert("Please select a file.");
     return;
   }
   if (!exam || !session) {
@@ -422,8 +440,36 @@ async function handleBulkCreate(event) {
   }
 
   try {
-    const content = await readFileAsText(fileInput.files[0]);
-    const students = parseStudentFile(content);
+    const file = fileInput.files[0];
+    let students = [];
+
+    // Check file extension
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+      if (!XLSX) {
+        throw new Error("XLSX parsing library is missing.");
+      }
+      const arrayBuffer = await readFileAsArrayBuffer(file);
+      const workbook = XLSX.read(arrayBuffer, { type: "array" });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      // Assume first column is ID, second is Name (optional)
+      // Skip header only if it looks like a header (e.g. "Student ID" string) 
+      // but for simplicity we can just process all rows and filter validity
+      students = json.map(row => {
+        const id = (row[0] || "").toString().trim();
+        const name = (row[1] || "").toString().trim();
+        return { id, name };
+      }).filter(s => s.id);
+
+    } else {
+      // Assume text/csv
+      const content = await readFileAsText(file);
+      students = parseStudentFile(content);
+    }
+
     if (!students.length) {
       alert("No student IDs detected in the file.");
       return;
@@ -436,32 +482,51 @@ async function handleBulkCreate(event) {
 
     const created = data.created || [];
     if (!created.length) {
-    resultsBox.classList.remove("hidden");
-    resultsBox.innerHTML =
-      "<strong>No directories were created. Check the file contents.</strong>";
-    return;
-  }
+      resultsBox.classList.remove("hidden");
+      resultsBox.innerHTML =
+        "<strong>No directories were created. Check the file contents.</strong>";
+      return;
+    }
 
-  resultsBox.classList.remove("hidden");
-  resultsBox.innerHTML = `
-      <strong>Created ${created.length} directories:</strong>
+    resultsBox.classList.remove("hidden");
+    resultsBox.innerHTML = `
+      <strong>Created ${created.length} directories.</strong>
       <ul>${created
         .map((dir) => `<li>${dir.display}</li>`)
         .join("")}</ul>
-      <p>The first directory is pre-selected for you below.</p>
+      <p>Opening session folder...</p>
     `;
+
+    // Let user pick via dialog
     const primary = created[0];
-    setSelectedExistingDirectory(primary.path, primary.display);
+    let sessionPath = null;
+
+    if (primary && pathModule) {
+      sessionPath = pathModule.dirname(primary.path);
+      // Removed shell.openPath to prevents double windows
+    }
+
+    // Switch to Existing tab so they can pick
+    const showExistingBtn = document.getElementById("showExistingBtn");
+    if (showExistingBtn) showExistingBtn.click();
+
+    // Clear previous
+    setSelectedExistingDirectory(null);
+
+    // Suggest they pick one
     const infoBox = document.getElementById("existingInfoBox");
     if (infoBox) {
       infoBox.classList.remove("hidden");
       infoBox.innerHTML = `
-        <strong>Ready to use:</strong> ${primary.display}<br/>
-        <span class="hint">Click "Use Selected" or choose another folder.</span>
-      `;
+       <strong>Directories Created!</strong><br/>
+       <span class="hint">Please select the specific student folder you want to use.</span>
+     `;
     }
-    const showExistingBtn = document.getElementById("showExistingBtn");
-    if (showExistingBtn) showExistingBtn.click();
+
+    // Launch the picker rooted at sessionPath to help them
+    if (sessionPath) {
+      setTimeout(() => openExistingDirectoryDialog(sessionPath), 500);
+    }
   } catch (err) {
     console.error(err);
     alert(`Bulk creation failed: ${err.message}`);
@@ -508,7 +573,12 @@ function setupDirectoryPage() {
   if (createForm) createForm.addEventListener("submit", handleCreateDirectory);
   if (bulkForm) bulkForm.addEventListener("submit", handleBulkCreate);
   if (useBtn) useBtn.addEventListener("click", handleUseExistingDirectory);
-  if (chooseBtn) chooseBtn.addEventListener("click", openExistingDirectoryDialog);
+  if (chooseBtn) {
+    chooseBtn.addEventListener("click", () => {
+      // Pass the currently selected path if it exists, otherwise undefined (which defaults to Docs)
+      openExistingDirectoryDialog(selectedExistingPath);
+    });
+  }
   if (clearBtn) clearBtn.addEventListener("click", () =>
     setSelectedExistingDirectory(null)
   );
@@ -1211,6 +1281,17 @@ async function startExecution({ commands, initiatedFromConnection = false } = {}
               setProgressValue(pct);
             } else {
               setProgressValue(100);
+            }
+            // User requested to open the directory on completion
+            if (basePath && shell && pathModule) {
+              // Try to open the specific routerorswitch subfolder first as requested
+              const subDir = pathModule.join(basePath, "routerorswitch");
+              shell.openPath(subDir).then((err) => {
+                if (err) {
+                  // Fallback to base student directory if subfolder doesn't exist
+                  shell.openPath(basePath);
+                }
+              });
             }
           } else if (obj.type === "error") {
             log.innerText += `[ERROR] ${obj.msg}\n`;
