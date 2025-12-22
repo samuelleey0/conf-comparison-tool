@@ -285,43 +285,195 @@ function setSelectedExistingDirectory(pathValue, displayValue) {
   }
 }
 
-async function openExistingDirectoryDialog(startPath) {
-  if (ipcRenderer) {
-    try {
-      const selectedPath = await ipcRenderer.invoke("select-directory", startPath);
-      if (selectedPath) {
-        setSelectedExistingDirectory(selectedPath);
-        const infoBox = document.getElementById("existingInfoBox");
-        if (infoBox) {
-          infoBox.classList.remove("hidden");
-          infoBox.innerHTML = `
-            <strong>Selected:</strong> ${deriveDirectoryDisplay(selectedPath) || selectedPath
-            }<br/>
-            <span class="hint">Click "Use Selected" to continue.</span>
-          `;
-        }
-      }
-      return;
-    } catch (err) {
-      console.error(err);
-      alert(`Failed to open directory picker: ${err.message}`);
-      return;
-    }
-  }
+// -----------------------------
+// Custom Folder Picker
+// -----------------------------
 
-  const manual = prompt("Enter the directory path:");
-  if (manual) {
-    setSelectedExistingDirectory(manual);
-    const infoBox = document.getElementById("existingInfoBox");
-    if (infoBox) {
-      infoBox.classList.remove("hidden");
-      infoBox.innerHTML = `
-        <strong>Selected:</strong> ${deriveDirectoryDisplay(manual) || manual}<br/>
-        <span class="hint">Click "Use Selected" to continue.</span>
-      `;
+let currentFolderTreeData = [];
+let pendingSelectedFolder = null;
+
+function openCustomDirectoryPicker() {
+  const overlay = document.getElementById("folderPickerOverlay");
+  const closeBtn = document.getElementById("closeFolderPickerBtn");
+  const cancelBtn = document.getElementById("cancelFolderPickerBtn");
+  const confirmBtn = document.getElementById("confirmFolderPickerBtn");
+
+  if (!overlay) return;
+
+  // Reset state
+  pendingSelectedFolder = null;
+  if (confirmBtn) confirmBtn.disabled = true;
+
+  overlay.classList.remove("hidden");
+  fetchAndRenderFolderTree();
+
+  // Event handlers
+  const close = () => overlay.classList.add("hidden");
+
+  closeBtn.onclick = close;
+  cancelBtn.onclick = close;
+
+  confirmBtn.onclick = () => {
+    if (pendingSelectedFolder) {
+      setSelectedExistingDirectory(pendingSelectedFolder.path, pendingSelectedFolder.display);
+      const infoBox = document.getElementById("existingInfoBox");
+      if (infoBox) {
+        infoBox.classList.remove("hidden");
+        infoBox.innerHTML = `
+          <strong>Selected:</strong> ${pendingSelectedFolder.display}<br/>
+          <span class="hint">Click "Use Selected" to continue.</span>
+        `;
+      }
+      close();
     }
+  };
+}
+
+async function fetchAndRenderFolderTree() {
+  const container = document.getElementById("folderTreeContainer");
+  if (!container) return;
+  container.innerHTML = '<p class="loading-text">Loading...</p>';
+
+  try {
+    const data = await fetchJson("/api/directories");
+    const dirs = data.directories || [];
+
+    if (dirs.length === 0) {
+      container.innerHTML = '<p class="empty-text">No directories found in Documents.</p>';
+      return;
+    }
+
+    // Build Hierarchy: Exam -> Session -> Student
+    const hierarchy = {};
+    dirs.forEach(d => {
+      if (!hierarchy[d.exam_name]) hierarchy[d.exam_name] = {};
+      if (!hierarchy[d.exam_name][d.session_id]) hierarchy[d.exam_name][d.session_id] = [];
+      hierarchy[d.exam_name][d.session_id].push(d);
+    });
+
+    renderTree(container, hierarchy);
+  } catch (err) {
+    container.innerHTML = `<p class="error-text">Failed to load directories: ${err.message}</p>`;
   }
 }
+
+function renderTree(container, hierarchy) {
+  container.innerHTML = "";
+  const ul = document.createElement("ul");
+  ul.className = "tree-root";
+
+  // Iterate Exams
+  Object.keys(hierarchy).sort().forEach(exam => {
+    const examLi = document.createElement("li");
+    const examLabel = document.createElement("div");
+    examLabel.className = "tree-item exam-item";
+    examLabel.textContent = `📂 ${exam}`;
+    examLi.appendChild(examLabel);
+
+    const sessionUl = document.createElement("ul");
+    sessionUl.className = "tree-children hidden";
+
+    // Iterate Sessions
+    Object.keys(hierarchy[exam]).sort().forEach(session => {
+      const sessionLi = document.createElement("li");
+      const sessionLabel = document.createElement("div");
+      sessionLabel.className = "tree-item session-item";
+      sessionLabel.textContent = `📁 ${session}`;
+      sessionLi.appendChild(sessionLabel);
+
+      const studentUl = document.createElement("ul");
+      studentUl.className = "tree-children hidden";
+
+      // Iterate Students
+      hierarchy[exam][session].forEach(student => {
+        const studentLi = document.createElement("li");
+        const studentLabel = document.createElement("div");
+        studentLabel.className = "tree-item student-item";
+        studentLabel.textContent = `👤 ${student.student_id}`; // Show name? maybe later
+        studentLabel.dataset.path = student.path;
+
+        studentLabel.onclick = (e) => {
+          e.stopPropagation();
+          document.querySelectorAll(".tree-item.selected").forEach(el => el.classList.remove("selected"));
+          studentLabel.classList.add("selected");
+          pendingSelectedFolder = student;
+          document.getElementById("confirmFolderPickerBtn").disabled = false;
+        };
+        // Double click to confirm
+        studentLabel.ondblclick = () => {
+          pendingSelectedFolder = student;
+          document.getElementById("confirmFolderPickerBtn").click();
+        };
+
+        studentLi.appendChild(studentLabel);
+        studentUl.appendChild(studentLi);
+      });
+
+      sessionLabel.onclick = (e) => {
+        e.stopPropagation();
+        studentUl.classList.toggle("hidden");
+      };
+
+      sessionLi.appendChild(studentUl);
+      sessionUl.appendChild(sessionLi);
+    });
+
+    examLabel.onclick = () => {
+      // Accordion behavior: Close all other exams
+      const allSessionUls = container.querySelectorAll(".tree-root > li > ul");
+      allSessionUls.forEach(ul => {
+        if (ul !== sessionUl) {
+          ul.classList.add("hidden");
+        }
+      });
+      sessionUl.classList.toggle("hidden");
+    };
+
+    examLi.appendChild(sessionUl);
+    ul.appendChild(examLi);
+  });
+
+  container.appendChild(ul);
+}
+
+// Replaced original openExistingDirectoryDialog
+// async function openExistingDirectoryDialog(startPath) {
+//   if (ipcRenderer) {
+//     try {
+//       const selectedPath = await ipcRenderer.invoke("select-directory", startPath);
+//       if (selectedPath) {
+//         setSelectedExistingDirectory(selectedPath);
+//         const infoBox = document.getElementById("existingInfoBox");
+//         if (infoBox) {
+//           infoBox.classList.remove("hidden");
+//           infoBox.innerHTML = `
+//             <strong>Selected:</strong> ${deriveDirectoryDisplay(selectedPath) || selectedPath
+//             }<br/>
+//             <span class="hint">Click "Use Selected" to continue.</span>
+//           `;
+//         }
+//       }
+//       return;
+//     } catch (err) {
+//       console.error(err);
+//       alert(`Failed to open directory picker: ${err.message}`);
+//       return;
+//     }
+//   }
+
+//   const manual = prompt("Enter the directory path:");
+//   if (manual) {
+//     setSelectedExistingDirectory(manual);
+//     const infoBox = document.getElementById("existingInfoBox");
+//     if (infoBox) {
+//       infoBox.classList.remove("hidden");
+//       infoBox.innerHTML = `
+//         <strong>Selected:</strong> ${deriveDirectoryDisplay(manual) || manual}<br/>
+//         <span class="hint">Click "Use Selected" to continue.</span>
+//       `;
+//     }
+//   }
+// }
 
 function parseStudentFile(content) {
   const lines = content.split(/\r?\n/);
@@ -524,9 +676,9 @@ async function handleBulkCreate(event) {
     }
 
     // Launch the picker rooted at sessionPath to help them
-    if (sessionPath) {
-      setTimeout(() => openExistingDirectoryDialog(sessionPath), 500);
-    }
+    // Note: sessionPath is for OS dialog, but for custom picker we just open it.
+    // Ideally we could filter/expand to that exam/session, but for now just opening it is fine.
+    setTimeout(() => openCustomDirectoryPicker(), 500);
   } catch (err) {
     console.error(err);
     alert(`Bulk creation failed: ${err.message}`);
@@ -576,7 +728,8 @@ function setupDirectoryPage() {
   if (chooseBtn) {
     chooseBtn.addEventListener("click", () => {
       // Pass the currently selected path if it exists, otherwise undefined (which defaults to Docs)
-      openExistingDirectoryDialog(selectedExistingPath);
+      // openExistingDirectoryDialog(selectedExistingPath);
+      openCustomDirectoryPicker();
     });
   }
   if (clearBtn) clearBtn.addEventListener("click", () =>
@@ -1173,6 +1326,11 @@ async function startExecution({ commands, initiatedFromConnection = false } = {}
 
   const directoryMode = localStorage.getItem("directoryMode") || "create";
   const basePath = localStorage.getItem("basePath");
+
+  // Get extension
+  const extSelect = document.getElementById("fileExtensionSelect");
+  const fileExtension = extSelect ? extSelect.value : ".txt";
+
   const payload = {
     exam_name: localStorage.getItem("examName"),
     session_id: localStorage.getItem("sessionId"),
@@ -1181,6 +1339,7 @@ async function startExecution({ commands, initiatedFromConnection = false } = {}
     mode: connectionType,
     commands: commandsToRun,
     log_mode: directoryMode,
+    file_extension: fileExtension,
   };
 
   if (directoryMode === "existing") {
