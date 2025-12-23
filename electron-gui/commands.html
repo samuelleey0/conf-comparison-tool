@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8" />
   <title>Select Commands</title>
   <link rel="stylesheet" href="assets/style.css" />
   <link rel="stylesheet" href="assets/nav.css" />
 </head>
+
 <body class="commands-body">
   <div id="navbarContainer"></div>
 
@@ -41,7 +43,15 @@
           <div id="commandsList" class="command-grid">
             <p>Loading commands...</p>
           </div>
-          <div class="actions justify-end">
+          <div class="actions justify-end" style="align-items: center;">
+            <label for="fileExtensionSelect" style="margin-bottom: 0; margin-right: 8px;">Format:</label>
+            <select id="fileExtensionSelect" style="width: auto; margin-right: 12px; padding: 8px 12px;">
+              <option value=".txt" selected>.txt</option>
+              <option value=".log">.log</option>
+              <option value=".conf">.conf</option>
+              <option value=".cfg">.cfg</option>
+              <option value=".ios">.ios</option>
+            </select>
             <button type="button" id="startExecutionBtn" class="primary">Start Execution</button>
           </div>
         </section>
@@ -51,4 +61,5 @@
 
   <script src="renderer.js"></script>
 </body>
+
 </html>
