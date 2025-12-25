@@ -306,6 +306,7 @@ def save_output_to_file(
     session_id: str = None,
     hostname: str = None,
     base_dir="logs",
+    extension=".txt",
 ):
     """
     Save Cisco device command output to a text file.
@@ -335,7 +336,12 @@ def save_output_to_file(
 
     # Clean command string for filename
     safe_command = command.replace(" ", "_").replace("/", "_")
-    file_name = f"{safe_command}.txt"
+    
+    # Ensure extension starts with dot
+    if not extension.startswith("."):
+        extension = f".{extension}"
+        
+    file_name = f"{safe_command}{extension}"
 
     # Full file path
     file_path = os.path.join(dir_path, file_name)

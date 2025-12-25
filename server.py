@@ -691,6 +691,7 @@ def _ensure_base_path(data):
 def api_execute():
     data = request.get_json() or {}
     commands = data.get("commands") or []
+    file_extension = data.get("file_extension", ".txt")
     requested_mode = (
         data.get("mode") or data.get("connection") or current_mode or ""
     ).lower()
@@ -779,6 +780,16 @@ def api_execute():
                     }
                 )
                 return False
+
+            if not ser:
+                yield stream_json_line(
+                    {
+                        "type": "error",
+                        "msg": f"Failed to connect to serial port {port} (device not found or unresponsive).",
+                    }
+                )
+                return False
+
             try:
                 yield stream_json_line(
                     {
@@ -840,6 +851,7 @@ def api_execute():
                         session_id,
                         hostname,
                         base_dir=base_path,
+                        extension=file_extension,
                     )
                     files_written.append(file_path)
                     completed += 1
@@ -988,6 +1000,7 @@ def api_execute():
                         session_id,
                         hostname,
                         base_dir=base_path,
+                        extension=file_extension,
                     )
                     files_written.append(file_path)
                     completed += 1
