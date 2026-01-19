@@ -58,6 +58,19 @@ class SchemeManager:
             yaml.dump(data, f, sort_keys=False)
         return True
 
+    def delete_scheme(self, scheme_id: str) -> bool:
+        """
+        Delete a scheme file by its ID. Return True on success.
+        """
+        file_path = os.path.join(self.storage_path, f"{scheme_id}.yaml")
+        if not os.path.exists(file_path):
+            return False
+        try:
+            os.remove(file_path)
+            return True
+        except Exception:
+            return False
+
     def validate_scheme(self, data: Dict) -> bool:
         """
         Basic validation to ensure required fields are present.
@@ -94,15 +107,30 @@ class SchemeManager:
 
     def prepare_rubric_for_grading(self, rubric: Dict, scheme: Dict) -> Dict:
         """
-        Replaces all {{variable}} placeholders in the rubric
-        with actual values from the scheme.
+        Merges scheme variables into the rubric.
+        Handles both simple strings and complex objects (lists).
         """
-        # Convert rubric to string to do a bulk replace
-        rubric_str = json.dumps(rubric)
-
+        # We work on a copy to avoid changing the original template
+        final_rubric = json.loads(json.dumps(rubric))
         variables = scheme.get("variables", {})
-        for key, value in variables.items():
-            placeholder = "{{" + key + "}}"
-            rubric_str = rubric_str.replace(placeholder, str(value))
 
-        return json.loads(rubric_str)
+        for crit in final_rubric.get("criteria", []):
+            pattern = crit.get("pattern", "")
+
+            # 1. Handle List Variables (e.g., VLANs)
+            # If the pattern contains a reference like {{vlans}},
+            # we attach the raw list to the criterion for the grader to use.
+            if "{{" in pattern:
+                for var_name, var_value in variables.items():
+                    placeholder = "{{" + var_name + "}}"
+                    if placeholder in pattern:
+                        if isinstance(var_value, list):
+                            # Attach the actual list data to the criterion
+                            crit["dynamic_data"] = var_value
+                        else:
+                            # Standard string replacement for Hostname/IP
+                            crit["pattern"] = pattern.replace(
+                                placeholder, str(var_value)
+                            )
+
+        return final_rubric
