@@ -1,0 +1,11 @@
+name: Alpha
+variables:
+    vlan a:
+        - id: "10"
+          name: Test1
+        - id: "20"
+          name: Test2
+        - id: "99"
+          name: Management
+    hostname: R1
+id: d1280a41

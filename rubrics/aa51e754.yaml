@@ -1,0 +1,20 @@
+name: TNE10006-MorningSession-8Jan26
+description: Skill Exam
+criteria:
+- name: Hostname
+  pattern: hostname\s+{{hostname}}
+  points: 10
+  exists_pattern: hostname
+- name: IP address on Interface
+  pattern: interface\s+GigabitEthernet0/0[\s\S]*?ip\s+address\s+192\.168\.1\.1 255\.255\.255\.0
+  points: 10
+  exists_pattern: interface\s+GigabitEthernet0/0
+- name: Banner motd
+  pattern: banner\s+motd
+  points: 10
+  exists_pattern: banner\s+motd
+- name: VLAN
+  pattern: VLAN_LOOP:{{vlan a}}
+  points: 10
+  exists_pattern: vlan
+id: aa51e754
