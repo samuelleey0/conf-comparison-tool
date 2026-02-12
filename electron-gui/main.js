@@ -24,6 +24,18 @@ ipcMain.handle('select-directory', async (event, defaultPath) => {
   return result.filePaths[0];
 });
 
+ipcMain.handle('select-file', async (event, defaultPath) => {
+  const options = {
+    properties: ['openFile'],
+    defaultPath: defaultPath || undefined,
+  };
+  const result = await dialog.showOpenDialog(mainWindow || undefined, options);
+  if (result.canceled || !result.filePaths || !result.filePaths.length) {
+    return null;
+  }
+  return result.filePaths[0];
+});
+
 /**
  * Wait until Flask port is reachable (default: 5050)
  */

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Grading System</title>
+    <link rel="stylesheet" href="assets/style.css" />
+    <link rel="stylesheet" href="assets/nav.css" />
+    <style>
+        /* Grading specific styles */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid var(--color-border);
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-size: 1rem;
+            color: var(--color-text-muted);
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+        }
+
+        .tab-btn.active {
+            color: var(--color-primary);
+            border-bottom-color: var(--color-primary);
+            font-weight: bold;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .list-group {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .list-item {
+            padding: 10px;
+            border: 1px solid var(--color-border);
+            margin-bottom: 8px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--color-bg-card);
+        }
+
+        .list-item:hover {
+            border-color: var(--color-primary);
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--color-border);
+            border-radius: 4px;
+            background: var(--color-bg-input);
+            color: var(--color-text);
+        }
+
+        .criteria-list {
+            margin-top: 10px;
+            border-top: 1px solid var(--color-border);
+            padding-top: 10px;
+        }
+
+        .criteria-item {
+            background: var(--color-bg-soft);
+            padding: 8px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .grading-result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .status-badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .status-MEET {
+            background: #2ecc71;
+            color: white;
+        }
+
+        .status-MISSING {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .status-INCORRECT {
+            background: #f39c12;
+            color: white;
+        }
+
+        .split-view {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            height: calc(100vh - 200px);
+        }
+
+        .scroll-y {
+            overflow-y: auto;
+            height: 100%;
+            padding-right: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="navbarContainer"></div>
+
+    <div class="page-shell">
+        <header class="page-header">
+            <div>
+                <h1 class="page-title">Grading System</h1>
+                <p class="page-subtitle">Manage Schemes, Rubrics and Grade Configurations.</p>
+            </div>
+        </header>
+
+        <div class="page-card fill">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('schemes')">Schemes</button>
+                <button class="tab-btn" onclick="switchTab('rubrics')">Rubrics</button>
+                <button class="tab-btn" onclick="switchTab('grading')">Run Grading</button>
+            </div>
+
+            <!-- SCHEMES TAB -->
+            <div id="tab-schemes" class="tab-content active">
+                <div class="split-view">
+                    <aside class="scroll-y">
+                        <button class="primary full-width mb-2" onclick="showCreateScheme()">+ New Scheme</button>
+                        <ul id="schemesList" class="list-group">
+                            <!-- Schemes Items -->
+                        </ul>
+                    </aside>
+                    <main class="scroll-y" id="schemeEditor" style="display:none;">
+                        <h3 id="schemeEditorTitle">Create/Edit Scheme</h3>
+                        <form id="schemeForm">
+                            <input type="hidden" id="schemeId">
+                            <div class="form-group">
+                                <label>Name</label>
+                                <input type="text" id="schemeName" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Variables (JSON key-value pairs)</label>
+                                <p class="hint">Example: {"hostname": "R1", "vlans": [{"id": "10", "name": "Sales"}]}
+                                </p>
+                                <textarea id="schemeVars" rows="10" style="font-family: monospace;"></textarea>
+                            </div>
+                            <div class="actions">
+                                <button type="submit" class="primary">Save Scheme</button>
+                                <button type="button" class="secondary" onclick="deleteScheme()">Delete</button>
+                            </div>
+                        </form>
+                    </main>
+                </div>
+            </div>
+
+            <!-- RUBRICS TAB -->
+            <div id="tab-rubrics" class="tab-content">
+                <div class="split-view">
+                    <aside class="scroll-y">
+                        <button class="primary full-width mb-2" onclick="showCreateRubric()">+ New Rubric</button>
+                        <ul id="rubricsList" class="list-group">
+                            <!-- Rubric Items -->
+                        </ul>
+                    </aside>
+                    <main class="scroll-y" id="rubricEditor" style="display:none;">
+                        <h3 id="rubricEditorTitle">Create/Edit Rubric</h3>
+                        <form id="rubricForm">
+                            <input type="hidden" id="rubricId">
+                            <div class="form-group">
+                                <label>Name</label>
+                                <input type="text" id="rubricName" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Description</label>
+                                <input type="text" id="rubricDesc">
+                            </div>
+
+                            <h4>Criteria</h4>
+                            <div id="rubricCriteriaList" class="criteria-list">
+                                <!-- Criteria Items -->
+                            </div>
+                            <button type="button" class="secondary small mt-2" onclick="addCriterionUI()">+ Add
+                                Criterion</button>
+
+                            <div class="actions mt-4">
+                                <button type="submit" class="primary">Save Rubric</button>
+                                <button type="button" class="secondary" onclick="deleteRubric()">Delete</button>
+                            </div>
+                        </form>
+                    </main>
+                </div>
+            </div>
+
+            <!-- GRADING TAB -->
+            <div id="tab-grading" class="tab-content">
+                <div class="form-group">
+                    <label>1. Select Config File</label>
+                    <div style="display:flex; gap: 10px;">
+                        <input type="text" id="gradingConfigPath" placeholder="/path/to/student/config.txt" readonly>
+                        <button type="button" class="secondary" onclick="pickConfigFile()">Browse...</button>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div class="form-group">
+                        <label>2. Select Scheme</label>
+                        <select id="gradingSchemeSelect"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>3. Select Rubric</label>
+                        <select id="gradingRubricSelect"></select>
+                    </div>
+                </div>
+
+                <button class="primary mb-4" onclick="runGrading()">Run Grading</button>
+
+                <div id="gradingResults"
+                    style="display:none; border-top: 2px solid var(--color-border); padding-top: 20px;">
+                    <h3>Grading Report</h3>
+                    <div id="gradingSummary" class="mb-4" style="font-size: 1.2em; font-weight: bold;"></div>
+                    <div id="gradingDetails"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+    <script src="grading.js"></script>
+</body>
+
+</html>

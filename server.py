@@ -28,6 +28,13 @@ from remote_utils import (
     get_hostname_remote,
 )
 from command_manager import load_commands, save_commands
+from scheme_manager import SchemeManager
+from rubric_manager import RubricManager
+from grade_manager import Grader
+
+scheme_manager = SchemeManager()
+rubric_manager = RubricManager()
+grader = Grader()
 
 app = Flask(__name__)
 
@@ -701,6 +708,135 @@ def api_save_log():
         with open(path, "w") as f:
             f.write(content)
         return jsonify({"status": "ok", "message": f"Saved log to {path}"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+
+# -------------------------------------------------
+# ✅ Grading API Endpoints
+# -------------------------------------------------
+
+# --- Schemes ---
+@app.route("/api/schemes", methods=["GET"])
+def api_list_schemes():
+    schemes = scheme_manager.get_all_schemes()
+    return jsonify({"status": "ok", "schemes": schemes})
+
+@app.route("/api/schemes", methods=["POST"])
+def api_create_scheme():
+    data = request.get_json() or {}
+    if not scheme_manager.validate_scheme(data):
+        return jsonify({"status": "error", "message": "Invalid scheme data"}), 400
+    scheme_id = scheme_manager.save_scheme(data)
+    return jsonify({"status": "ok", "id": scheme_id, "message": "Scheme created"})
+
+@app.route("/api/schemes/<scheme_id>", methods=["GET"])
+def api_get_scheme(scheme_id):
+    try:
+        scheme = scheme_manager.get_scheme_by_id(scheme_id)
+        return jsonify({"status": "ok", "scheme": scheme})
+    except Exception:
+        return jsonify({"status": "error", "message": "Scheme not found"}), 404
+
+@app.route("/api/schemes/<scheme_id>", methods=["PUT"])
+def api_update_scheme(scheme_id):
+    data = request.get_json() or {}
+    if not scheme_manager.update_scheme(scheme_id, data):
+        return jsonify({"status": "error", "message": "Failed to update scheme"}), 400
+    return jsonify({"status": "ok", "message": "Scheme updated"})
+
+@app.route("/api/schemes/<scheme_id>", methods=["DELETE"])
+def api_delete_scheme(scheme_id):
+    if scheme_manager.delete_scheme(scheme_id):
+        return jsonify({"status": "ok", "message": "Scheme deleted"})
+    return jsonify({"status": "error", "message": "Failed to delete scheme"}), 400
+
+# --- Rubrics ---
+@app.route("/api/rubrics", methods=["GET"])
+def api_list_rubrics():
+    rubrics = rubric_manager.get_rubrics()
+    return jsonify({"status": "ok", "rubrics": rubrics})
+
+@app.route("/api/rubrics", methods=["POST"])
+def api_create_rubric():
+    data = request.get_json() or {}
+    if not rubric_manager.validate_rubric(data):
+        return jsonify({"status": "error", "message": "Invalid rubric data"}), 400
+    rubric_id = rubric_manager.create_rubric(data)
+    return jsonify({"status": "ok", "id": rubric_id, "message": "Rubric created"})
+
+@app.route("/api/rubrics/<rubric_id>", methods=["GET"])
+def api_get_rubric(rubric_id):
+    rubric = rubric_manager.get_rubric_detail(rubric_id)
+    if rubric:
+        return jsonify({"status": "ok", "rubric": rubric})
+    return jsonify({"status": "error", "message": "Rubric not found"}), 404
+
+@app.route("/api/rubrics/<rubric_id>", methods=["PUT"])
+def api_update_rubric(rubric_id):
+    data = request.get_json() or {}
+    if rubric_manager.update_rubric(rubric_id, data):
+        return jsonify({"status": "ok", "message": "Rubric updated"})
+    return jsonify({"status": "error", "message": "Failed to update rubric"}), 400
+
+@app.route("/api/rubrics/<rubric_id>", methods=["DELETE"])
+def api_delete_rubric(rubric_id):
+    if rubric_manager.delete_rubric(rubric_id):
+        return jsonify({"status": "ok", "message": "Rubric deleted"})
+    return jsonify({"status": "error", "message": "Failed to delete rubric"}), 400
+
+# --- Grading Execution ---
+@app.route("/api/grade", methods=["POST"])
+def api_run_grading():
+    data = request.get_json() or {}
+    scheme_id = data.get("scheme_id")
+    rubric_id = data.get("rubric_id")
+    config_path = data.get("config_path") # Absolute path to config file
+
+    if not all([scheme_id, rubric_id, config_path]):
+        return jsonify({"status": "error", "message": "Missing required fields"}), 400
+
+    if not os.path.exists(config_path):
+        return jsonify({"status": "error", "message": "Config file not found"}), 404
+
+    try:
+        # Load resources
+        scheme = scheme_manager.get_scheme_by_id(scheme_id)
+        rubric = rubric_manager.get_rubric_detail(rubric_id)
+        
+        if not scheme or not rubric:
+             return jsonify({"status": "error", "message": "Scheme or Rubric not found"}), 404
+
+        # Read config
+        with open(config_path, "r", encoding="utf-8", errors="ignore") as f:
+            config_text = f.read()
+
+        # Prepare and Grade
+        final_rubric = scheme_manager.prepare_rubric_for_grading(rubric, scheme)
+        results = grader.grade(config_text, final_rubric)
+        
+        # Calculate score
+        total_earned = 0
+        total_possible = 0
+        for r in results:
+            if "/" in str(r.get("points", "")):
+                e, p = r["points"].split("/")
+                total_earned += int(float(e))
+                total_possible += int(float(p))
+            else:
+                 # Fallback if points aren't fraction
+                 pass
+
+        return jsonify({
+            "status": "ok", 
+            "results": results,
+            "summary": {
+                "total_earned": total_earned,
+                "total_possible": total_possible,
+                "percentage": (total_earned/total_possible*100) if total_possible > 0 else 0
+            }
+        })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
