@@ -1,0 +1,4 @@
+name: testing 2 (wrong)
+variables:
+    hostname: S1,ip=192.168.1.2
+id: 643dd712

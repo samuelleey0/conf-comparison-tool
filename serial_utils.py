@@ -7,6 +7,7 @@ import os
 import threading
 import logging
 from netmiko.netmiko_globals import MAX_BUFFER
+import errno
 
 READ_TIMEOUT = 8  # seconds
 MAX_BUFFER = 4096  # 4KB
@@ -70,28 +71,46 @@ def connect_to_serial(
                 time.sleep(retry_interval)
                 continue
 
-            # Attempt PL2303 driver fix before connecting
-            # ensure_driver_ready(port)
-
             # Attempt to open the serial port
-            ser = serial.Serial(
-                port=port,
-                baudrate=baudrate,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE,
-                timeout=0.5,
-                dsrdtr=False,
-                rtscts=False,
-            )
+            ser = None
+            open_exec = None
+            for open_try in range(6):
+                try:
+                    ser = serial.Serial(
+                        port=port,
+                        baudrate=baudrate,
+                        bytesize=serial.EIGHTBITS,
+                        parity=serial.PARITY_NONE,
+                        stopbits=serial.STOPBITS_ONE,
+                        timeout=0.5,
+                        dsrdtr=False,
+                        rtscts=False,
+                    )
+                    open_exec = None
+                    break
+                except serial.SerialException as e:
+                    open_exec = e
+                    dbg(f"Serial open attempt {open_try + 1} failed: {e}")
+                    time.sleep(1.0)
+                    try:
+                        if ser is not None and getattr(ser, "is_open", False):
+                            ser.close()
+                    except Exception:
+                        pass
 
+            if open_exec is not None and ser is None:
+                emit(f"[ERROR] Failed to open serial port: {open_exec}")
+                last_exc = open_exec
+                retries += 1
+                time.sleep(retry_interval)
+                continue
             try:
                 ser.dtr = True  # Ensure DTR is set to True to avoid connection issues
                 ser.rts = True  # Ensure RTS is set to True to avoid connection issues
-            except (OSError, serial.SerialException) as e:
+            except Exception as e:
                 dbg(f"[Connection] Failed to set DTR/RTS: {e}")
 
-            time.sleep(0.2)
+            time.sleep(0.4)
             emit(f"[INFO] Serial port opened successfully (attempt {retries + 1}).")
             time.sleep(0.05)
             _reset_buffers(ser)
@@ -106,6 +125,7 @@ def connect_to_serial(
             except TimeoutError as e:
                 dbg(f"Prompt not found on attempt {retries + 1}: {e}")
                 logout_close_connection(ser)
+                time.sleep(0.5)
                 retries += 1
                 time.sleep(retry_interval)
                 continue
