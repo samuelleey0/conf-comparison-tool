@@ -1,360 +1,361 @@
+const API_ROOT = "http://127.0.0.1:5050";
+const { ipcRenderer } = require("electron");
+const SIDEBAR_COLLAPSE_KEY = "sidebarCollapsed";
 
-// grading.js
-const GRADING_API_ROOT = "http://127.0.0.1:5050/api";
+// Navigate
+function goTo(page) {
+    window.location.href = page;
+}
 
-// -----------------------------------------------------
-// Utility: Fetch Wrapper
-// -----------------------------------------------------
-async function apiCall(endpoint, method = "GET", body = null) {
-    const options = {
-        method: method,
-        headers: { "Content-Type": "application/json" }
+// Load Navbar
+function loadNavbar() {
+    const container = document.getElementById("navbarContainer");
+    if (!container) return;
+    fetch("navbar.html")
+        .then((res) => res.text())
+        .then((html) => {
+            container.outerHTML = html;
+            initNavbarInteractions();
+            highlightActiveNavLink();
+        });
+}
+
+function highlightActiveNavLink() {
+    const links = document.querySelectorAll(".app-navbar__links a");
+    const current = "grading.html";
+    links.forEach((link) => {
+        if (link.getAttribute("href") === current) {
+            link.classList.add("active");
+        }
+    });
+}
+
+// --- State ---
+let schemes = [];
+let rubrics = [];
+
+// --- Initialization ---
+document.addEventListener("DOMContentLoaded", () => {
+    restoreSidebarPreference();
+    loadNavbar();
+    setupTabs();
+    loadSchemes();
+    loadRubrics();
+    setupEventHandlers();
+});
+
+function setupTabs() {
+    const tabs = {
+        navSchemes: "viewSchemes",
+        navRubrics: "viewRubrics",
+        navGrading: "viewGrading"
     };
-    if (body) options.body = JSON.stringify(body);
 
-    const res = await fetch(`${GRADING_API_ROOT}${endpoint}`, options);
-    const data = await res.json();
-    if (data.status === "error") throw new Error(data.message);
-    return data;
+    Object.keys(tabs).forEach(id => {
+        document.getElementById(id).addEventListener("click", () => {
+            // Update buttons
+            Object.keys(tabs).forEach(tid => document.getElementById(tid).classList.remove("active"));
+            document.getElementById(id).classList.add("active");
+
+            // Update sections
+            Object.values(tabs).forEach(sid => document.getElementById(sid).style.display = "none");
+            document.getElementById(tabs[id]).style.display = "block";
+
+            // Refresh data if needed
+            if (id === "navGrading") updateGradingDropdowns();
+        });
+    });
+
+    // Default visibility is set in CSS/HTML (active class) but explicit setting helps
+    document.getElementById("viewSchemes").style.display = "block";
+    document.getElementById("viewRubrics").style.display = "none";
+    document.getElementById("viewGrading").style.display = "none";
 }
 
-// -----------------------------------------------------
-// Tab Switching
-// -----------------------------------------------------
-function switchTab(tabName) {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+// --- Data Fetching ---
 
-    document.querySelector(`button[onclick="switchTab('${tabName}')"]`).classList.add('active');
-    document.getElementById(`tab-${tabName}`).classList.add('active');
-
-    if (tabName === 'schemes') loadSchemes();
-    if (tabName === 'rubrics') loadRubrics();
-    if (tabName === 'grading') loadGradingOptions();
+async function fetchJson(endpoint, options = {}) {
+    try {
+        const res = await fetch(`${API_ROOT}${endpoint}`, {
+            headers: { "Content-Type": "application/json" },
+            ...options
+        });
+        const data = await res.json();
+        if (data.status === "error") throw new Error(data.message);
+        return data;
+    } catch (err) {
+        alert("Error: " + err.message);
+        throw err;
+    }
 }
 
-// -----------------------------------------------------
-// Schemes Management
-// -----------------------------------------------------
 async function loadSchemes() {
     try {
-        const data = await apiCall('/schemes');
-        const list = document.getElementById('schemesList');
-        list.innerHTML = '';
-        data.schemes.forEach(s => {
-            const li = document.createElement('li');
-            li.className = 'list-item clickable';
-            li.innerHTML = `<span>${s.name}</span> <small style="color:var(--color-text-muted)">(${Object.keys(s.variables || {}).length} vars)</small>`;
-            li.onclick = () => loadSchemeDetails(s.id);
-            list.appendChild(li);
-        });
-    } catch (e) {
-        console.error("Failed to load schemes", e);
-    }
+        const data = await fetchJson("/api/schemes");
+        schemes = data.schemes || [];
+        renderSchemesList();
+    } catch (e) { console.error(e); }
 }
-
-async function loadSchemeDetails(id) {
-    try {
-        const data = await apiCall(`/schemes/${id}`);
-        const scheme = data.scheme;
-
-        document.getElementById('schemeEditor').style.display = 'block';
-        document.getElementById('schemeEditorTitle').textContent = 'Edit Scheme';
-        document.getElementById('schemeId').value = scheme.id;
-        document.getElementById('schemeName').value = scheme.name;
-        document.getElementById('schemeVars').value = JSON.stringify(scheme.variables, null, 2);
-    } catch (e) {
-        alert(e.message);
-    }
-}
-
-function showCreateScheme() {
-    document.getElementById('schemeEditor').style.display = 'block';
-    document.getElementById('schemeEditorTitle').textContent = 'Create New Scheme';
-    document.getElementById('schemeId').value = '';
-    document.getElementById('schemeName').value = '';
-    document.getElementById('schemeVars').value = '{\n  "hostname": "Router1"\n}';
-}
-
-document.getElementById('schemeForm').onsubmit = async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('schemeId').value;
-    const name = document.getElementById('schemeName').value;
-    let variables = {};
-
-    try {
-        variables = JSON.parse(document.getElementById('schemeVars').value);
-    } catch (err) {
-        alert("Invalid JSON in Variables field");
-        return;
-    }
-
-    try {
-        if (id) {
-            await apiCall(`/schemes/${id}`, 'PUT', { name, variables });
-        } else {
-            await apiCall('/schemes', 'POST', { name, variables });
-        }
-        loadSchemes();
-        showStatusModal("Scheme saved!");
-        setTimeout(hideStatusModal, 1000);
-    } catch (e) {
-        alert(e.message);
-    }
-};
-
-async function deleteScheme() {
-    const id = document.getElementById('schemeId').value;
-    if (!id) return;
-    if (!confirm("Delete this scheme?")) return;
-
-    try {
-        await apiCall(`/schemes/${id}`, 'DELETE');
-        loadSchemes();
-        document.getElementById('schemeEditor').style.display = 'none';
-    } catch (e) {
-        alert(e.message);
-    }
-}
-
-// -----------------------------------------------------
-// Rubrics Management
-// -----------------------------------------------------
-let currentRubricCriteria = [];
 
 async function loadRubrics() {
     try {
-        const data = await apiCall('/rubrics');
-        const list = document.getElementById('rubricsList');
-        list.innerHTML = '';
-        data.rubrics.forEach(r => {
-            const li = document.createElement('li');
-            li.className = 'list-item clickable';
-            li.innerHTML = `<span>${r.name}</span>`;
-            li.onclick = () => loadRubricDetails(r.id);
-            list.appendChild(li);
-        });
-    } catch (e) {
-        console.error(e);
-    }
+        const data = await fetchJson("/api/rubrics");
+        rubrics = data.rubrics || [];
+        renderRubricsList();
+    } catch (e) { console.error(e); }
 }
 
-async function loadRubricDetails(id) {
+// --- Schemes UI ---
+
+function renderSchemesList() {
+    const list = document.getElementById("schemesList");
+    list.innerHTML = "";
+    schemes.forEach(s => {
+        const el = document.createElement("div");
+        el.className = "list-item";
+        el.innerHTML = `<span>${s.name || s.id}</span> <button class="delete-btn" data-id="${s.id}">🗑️</button>`;
+        el.querySelector("span").onclick = () => editScheme(s);
+        el.querySelector(".delete-btn").onclick = (e) => {
+            e.stopPropagation();
+            deleteScheme(s.id);
+        };
+        list.appendChild(el);
+    });
+}
+
+function editScheme(scheme) {
+    document.getElementById("schemeEditor").classList.remove("hidden");
+    document.getElementById("schemeId").value = scheme ? scheme.id : "";
+    document.getElementById("schemeName").value = scheme ? scheme.name : "";
+    document.getElementById("schemeVariables").value = scheme ? JSON.stringify(scheme.variables || {}, null, 2) : "{}";
+}
+
+async function saveScheme() {
+    const id = document.getElementById("schemeId").value;
+    const name = document.getElementById("schemeName").value;
+    let variables = {};
     try {
-        const data = await apiCall(`/rubrics/${id}`);
-        const rubric = data.rubric;
-
-        document.getElementById('rubricEditor').style.display = 'block';
-        document.getElementById('rubricEditorTitle').textContent = 'Edit Rubric';
-        document.getElementById('rubricId').value = rubric.id;
-        document.getElementById('rubricName').value = rubric.name;
-        document.getElementById('rubricDesc').value = rubric.description || "";
-
-        currentRubricCriteria = rubric.criteria || [];
-        renderCriteriaList();
+        variables = JSON.parse(document.getElementById("schemeVariables").value);
     } catch (e) {
-        alert(e.message);
-    }
-}
-
-function showCreateRubric() {
-    document.getElementById('rubricEditor').style.display = 'block';
-    document.getElementById('rubricEditorTitle').textContent = 'Create New Rubric';
-    document.getElementById('rubricId').value = '';
-    document.getElementById('rubricName').value = '';
-    document.getElementById('rubricDesc').value = '';
-    currentRubricCriteria = [];
-    renderCriteriaList();
-}
-
-function renderCriteriaList() {
-    const container = document.getElementById('rubricCriteriaList');
-    container.innerHTML = '';
-
-    currentRubricCriteria.forEach((crit, idx) => {
-        const div = document.createElement('div');
-        div.className = 'criteria-item';
-        div.innerHTML = `
-            <div style="display:flex; justify-content:space-between;">
-                <strong>${crit.name}</strong>
-                <button type="button" class="icon-btn danger" onclick="removeCriterion(${idx})">&times;</button>
-            </div>
-            <div style="font-family:monospace; font-size:0.85em; color:var(--color-text-muted); margin-top:4px;">
-                Pattern: ${crit.pattern} <br/>
-                Points: ${crit.points}
-            </div>
-        `;
-        div.onclick = (e) => {
-            if (e.target.tagName !== 'BUTTON') editCriterion(idx);
-        }
-        container.appendChild(div);
-    });
-}
-
-function removeCriterion(idx) {
-    currentRubricCriteria.splice(idx, 1);
-    renderCriteriaList();
-}
-
-function editCriterion(idx) {
-    const crit = currentRubricCriteria[idx];
-    // Simple prompt for now, could be a modal
-    const name = prompt("Criterion Name:", crit.name);
-    if (name === null) return;
-    const pattern = prompt("Regex Pattern:", crit.pattern);
-    if (pattern === null) return;
-    const points = prompt("Points:", crit.points);
-    if (points === null) return;
-
-    currentRubricCriteria[idx] = { ...crit, name, pattern, points: parseInt(points) };
-    renderCriteriaList();
-}
-
-function addCriterionUI() {
-    const name = prompt("Criterion Name:");
-    if (!name) return;
-    const pattern = prompt("Regex Pattern (use {{var}} for schemes):");
-    const points = prompt("Points:", "10");
-
-    currentRubricCriteria.push({
-        name,
-        pattern: pattern || "",
-        points: parseInt(points) || 0
-    });
-    renderCriteriaList();
-}
-
-
-document.getElementById('rubricForm').onsubmit = async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('rubricId').value;
-    const name = document.getElementById('rubricName').value;
-    const description = document.getElementById('rubricDesc').value;
-
-    const payload = { name, description, criteria: currentRubricCriteria };
-
-    try {
-        if (id) {
-            await apiCall(`/rubrics/${id}`, 'PUT', payload);
-        } else {
-            await apiCall('/rubrics', 'POST', payload);
-        }
-        loadRubrics();
-        showStatusModal("Rubric saved!");
-        setTimeout(hideStatusModal, 1000);
-    } catch (e) {
-        alert(e.message);
-    }
-};
-
-async function deleteRubric() {
-    const id = document.getElementById('rubricId').value;
-    if (!id) return;
-    if (!confirm("Delete this rubric?")) return;
-
-    try {
-        await apiCall(`/rubrics/${id}`, 'DELETE');
-        loadRubrics();
-        document.getElementById('rubricEditor').style.display = 'none';
-    } catch (e) {
-        alert(e.message);
-    }
-}
-
-// -----------------------------------------------------
-// Grading Execution flows
-// -----------------------------------------------------
-async function loadGradingOptions() {
-    const schemesData = await apiCall('/schemes');
-    const rubricsData = await apiCall('/rubrics');
-
-    const schemeSel = document.getElementById('gradingSchemeSelect');
-    const rubricSel = document.getElementById('gradingRubricSelect');
-
-    schemeSel.innerHTML = '<option value="">-- Select Scheme --</option>';
-    schemesData.schemes.forEach(s => {
-        schemeSel.innerHTML += `<option value="${s.id}">${s.name}</option>`;
-    });
-
-    rubricSel.innerHTML = '<option value="">-- Select Rubric --</option>';
-    rubricsData.rubrics.forEach(r => {
-        rubricSel.innerHTML += `<option value="${r.id}">${r.name}</option>`;
-    });
-}
-
-async function pickConfigFile() {
-    let path = null;
-
-    // Check if we are in Electron with nodeIntegration
-    if (typeof require !== 'undefined') {
-        try {
-            const { ipcRenderer } = require('electron');
-            path = await ipcRenderer.invoke('select-file');
-        } catch (e) {
-            console.warn("IPC invoke failed, falling back to prompt", e);
-        }
-    }
-
-    if (!path) {
-        path = prompt("Enter full path to config file:");
-    }
-
-    if (path) {
-        document.getElementById('gradingConfigPath').value = path;
-    }
-}
-
-async function runGrading() {
-    const configPath = document.getElementById('gradingConfigPath').value;
-    const schemeId = document.getElementById('gradingSchemeSelect').value;
-    const rubricId = document.getElementById('gradingRubricSelect').value;
-
-    if (!configPath || !schemeId || !rubricId) {
-        alert("Please select all fields.");
+        alert("Invalid JSON for variables");
         return;
     }
 
-    showStatusModal("Grading...", "pending");
+    await fetchJson("/api/schemes", {
+        method: "POST",
+        body: JSON.stringify({ id, name, variables })
+    });
+
+    document.getElementById("schemeEditor").classList.add("hidden");
+    loadSchemes();
+}
+
+async function deleteScheme(id) {
+    if (!confirm("Delete this scheme?")) return;
+    await fetchJson(`/api/schemes/${id}`, { method: "DELETE" });
+    loadSchemes();
+}
+
+// --- Rubrics UI ---
+
+function renderRubricsList() {
+    const list = document.getElementById("rubricsList");
+    list.innerHTML = "";
+    rubrics.forEach(r => {
+        const el = document.createElement("div");
+        el.className = "list-item";
+        el.innerHTML = `<span>${r.name || r.id}</span> <button class="delete-btn" data-id="${r.id}">🗑️</button>`;
+        el.querySelector("span").onclick = () => editRubric(r);
+        el.querySelector(".delete-btn").onclick = (e) => {
+            e.stopPropagation();
+            deleteRubric(r.id);
+        };
+        list.appendChild(el);
+    });
+}
+
+function editRubric(rubric) {
+    document.getElementById("rubricEditor").classList.remove("hidden");
+    document.getElementById("rubricId").value = rubric ? rubric.id : "";
+    document.getElementById("rubricName").value = rubric ? rubric.name : "";
+    document.getElementById("rubricDesc").value = rubric ? rubric.description : "";
+
+    const criteriaList = document.getElementById("rubricCriteriaList");
+    criteriaList.innerHTML = "";
+    (rubric ? (rubric.criteria || []) : []).forEach(c => addCriteriaRow(c));
+}
+
+function addCriteriaRow(data = {}) {
+    const container = document.getElementById("rubricCriteriaList");
+    const div = document.createElement("div");
+    div.className = "criteria-item";
+    div.innerHTML = `
+        <input type="text" placeholder="Name" class="crit-name" value="${data.name || ''}" style="flex: 1;">
+        <input type="text" placeholder="Pattern (Regex)" class="crit-pattern" value="${(data.pattern || '').replace(/"/g, '&quot;')}" style="flex: 2; font-family: monospace;">
+        <input type="number" placeholder="Pts" class="crit-points" value="${data.points || 0}" style="width: 60px;">
+        <button class="delete-btn">x</button>
+    `;
+    div.querySelector(".delete-btn").onclick = () => div.remove();
+    container.appendChild(div);
+}
+
+async function saveRubric() {
+    const id = document.getElementById("rubricId").value;
+    const name = document.getElementById("rubricName").value;
+    const description = document.getElementById("rubricDesc").value;
+
+    const criteria = [];
+    document.querySelectorAll(".criteria-item").forEach(row => {
+        criteria.push({
+            name: row.querySelector(".crit-name").value,
+            pattern: row.querySelector(".crit-pattern").value,
+            points: parseInt(row.querySelector(".crit-points").value) || 0
+        });
+    });
+
+    await fetchJson("/api/rubrics", {
+        method: "POST",
+        body: JSON.stringify({ id, name, description, criteria })
+    });
+
+    document.getElementById("rubricEditor").classList.add("hidden");
+    loadRubrics();
+}
+
+async function deleteRubric(id) {
+    if (!confirm("Delete this rubric?")) return;
+    await fetchJson(`/api/rubrics/${id}`, { method: "DELETE" });
+    loadRubrics();
+}
+
+// --- Grading Execution ---
+
+function updateGradingDropdowns() {
+    const sSelect = document.getElementById("selectScheme");
+    const rSelect = document.getElementById("selectRubric");
+
+    sSelect.innerHTML = "";
+    schemes.forEach(s => sSelect.add(new Option(s.name || s.id, s.id)));
+
+    rSelect.innerHTML = "";
+    rubrics.forEach(r => rSelect.add(new Option(r.name || r.id, r.id)));
+}
+
+async function runGrading() {
+    const scheme_id = document.getElementById("selectScheme").value;
+    const rubric_id = document.getElementById("selectRubric").value;
+    const target_path = document.getElementById("targetInfo").value;
+
+    if (!scheme_id || !rubric_id || !target_path) {
+        alert("Please select Scheme, Rubric, and Target Directory.");
+        return;
+    }
+
+    document.getElementById("btnStartGrading").disabled = true;
+    document.getElementById("btnStartGrading").textContent = "Grading...";
+
     try {
-        const data = await apiCall('/grade', 'POST', {
-            config_path: configPath,
-            scheme_id: schemeId,
-            rubric_id: rubricId
+        const res = await fetchJson("/api/grade", {
+            method: "POST",
+            body: JSON.stringify({ scheme_id, rubric_id, target_path })
         });
 
-        hideStatusModal();
-        displayResults(data);
+        displayResults(res);
     } catch (e) {
-        hideStatusModal();
-        alert("Grading failed: " + e.message);
+        // error handled in fetchJson
+    } finally {
+        document.getElementById("btnStartGrading").disabled = false;
+        document.getElementById("btnStartGrading").textContent = "Grade Now";
     }
 }
 
 function displayResults(data) {
-    document.getElementById('gradingResults').style.display = 'block';
-    const summary = document.getElementById('gradingSummary');
-    const details = document.getElementById('gradingDetails');
+    const container = document.getElementById("gradingResults");
+    container.classList.remove("hidden");
 
-    const { total_earned, total_possible, percentage } = data.summary;
-    summary.innerHTML = `Total Score: ${total_earned} / ${total_possible} (${percentage.toFixed(1)}%)`;
+    document.getElementById("resultSummary").innerHTML = `
+        File: ${data.file || "N/A"}<br/>
+        Score: ${data.total_score} / ${data.max_score}
+    `;
 
-    details.innerHTML = '';
-    data.results.forEach(r => {
-        const div = document.createElement('div');
-        div.className = 'grading-result-item';
-        div.innerHTML = `
-            <span>${r.criterion}</span>
-            <div style="text-align:right">
-                <span class="status-badge status-${r.status}">${r.status}</span>
-                <span style="margin-left:8px; font-weight:bold;">${r.points} pts</span>
-            </div>
+    const tbody = document.getElementById("resultDetails");
+    tbody.innerHTML = "";
+
+    (data.details || []).forEach(d => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td style="padding: 8px; border-bottom: 1px solid var(--color-border);">${d.name}</td>
+            <td style="padding: 8px; border-bottom: 1px solid var(--color-border);"><code style="font-size: 0.9em;">${d.pattern}</code></td>
+            <td style="padding: 8px; border-bottom: 1px solid var(--color-border); text-align: right;">${d.score} / ${d.points}</td>
+            <td style="padding: 8px; border-bottom: 1px solid var(--color-border); text-align: center;" class="${d.score > 0 ? 'result-pass' : 'result-fail'}">
+                ${d.score > 0 ? "PASS" : "FAIL"}
+            </td>
         `;
-        details.appendChild(div);
+        tbody.appendChild(tr);
     });
 }
 
-// Initial Load
-document.addEventListener('DOMContentLoaded', () => {
-    loadNavbar();
-    switchTab('schemes');
-});
+// --- Event Handlers ---
+
+function setupEventHandlers() {
+    // Schemes
+    document.getElementById("btnNewScheme").onclick = () => editScheme(null);
+    document.getElementById("btnSaveScheme").onclick = saveScheme;
+    document.getElementById("btnCancelScheme").onclick = () => document.getElementById("schemeEditor").classList.add("hidden");
+
+    // Rubrics
+    document.getElementById("btnNewRubric").onclick = () => editRubric(null);
+    document.getElementById("btnAddCriteria").onclick = () => addCriteriaRow();
+    document.getElementById("btnSaveRubric").onclick = saveRubric;
+    document.getElementById("btnCancelRubric").onclick = () => document.getElementById("rubricEditor").classList.add("hidden");
+
+    // Grading
+    document.getElementById("btnSelectTarget").onclick = async () => {
+        try {
+            const path = await ipcRenderer.invoke("select-directory");
+            if (path) document.getElementById("targetInfo").value = path;
+        } catch (e) {
+            alert("Failed to select directory: " + e.message);
+        }
+    };
+    document.getElementById("btnStartGrading").onclick = runGrading;
+}
+
+// --- Helper Functions (Sidebar) ---
+
+function restoreSidebarPreference() {
+    if (typeof document === "undefined") return;
+    const applyState = () => {
+        if (typeof localStorage === "undefined") return;
+        const collapsed = localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "1";
+        document.body.classList.toggle("sidebar-collapsed", collapsed);
+    };
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", applyState, { once: true });
+    } else {
+        applyState();
+    }
+}
+
+function initNavbarInteractions() {
+    const toggleBtn = document.getElementById("sidebarToggle");
+    if (!toggleBtn || !document.body) return;
+
+    const syncButtonState = () => {
+        const collapsed = document.body.classList.contains("sidebar-collapsed");
+        toggleBtn.classList.toggle("collapsed", collapsed);
+        toggleBtn.setAttribute("aria-expanded", (!collapsed).toString());
+    };
+
+    toggleBtn.addEventListener("click", () => {
+        const nextCollapsed = !document.body.classList.contains("sidebar-collapsed");
+        document.body.classList.toggle("sidebar-collapsed", nextCollapsed);
+        if (typeof localStorage !== "undefined") {
+            localStorage.setItem(SIDEBAR_COLLAPSE_KEY, nextCollapsed ? "1" : "0");
+        }
+        syncButtonState();
+    });
+
+    syncButtonState();
+}

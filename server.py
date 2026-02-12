@@ -8,6 +8,9 @@ import traceback
 from pathlib import Path
 import time
 import sys
+import yaml
+import re
+import glob
 
 # Reuse your helpers
 from file_utils import save_output_to_file, del_partial_logs
@@ -28,15 +31,14 @@ from remote_utils import (
     get_hostname_remote,
 )
 from command_manager import load_commands, save_commands
-from scheme_manager import SchemeManager
-from rubric_manager import RubricManager
-from grade_manager import Grader
-
-scheme_manager = SchemeManager()
-rubric_manager = RubricManager()
-grader = Grader()
 
 app = Flask(__name__)
+
+# Grading Directories
+SCHEMES_DIR = Path("schemes")
+RUBRICS_DIR = Path("rubrics")
+SCHEMES_DIR.mkdir(exist_ok=True)
+RUBRICS_DIR.mkdir(exist_ok=True)
 
 connection_lock = threading.Lock()
 
@@ -231,86 +233,93 @@ def api_select_directory():
     )
 
 
-def _list_existing_directories(root_path=None):
-    docs_path = Path(root_path) if root_path else Path.home() / "Documents"
+def _list_existing_directories():
+    docs_path = Path.home() / "Documents"
     results = []
-    
-    # Avoid scanning Home directory as an Exam repository to prevent misinterpreting standard folders
-    # Also blacklist system roots to prevent "/" -> Users -> khant -> Documents being seen as Exam -> Session -> Student
-    ignored_roots = [
-        Path.home(),
-        Path("/"),
-        Path("/Users"),
-        Path("/System"),
-        Path("/Library"),
-        Path("/Applications"),
-        Path("/private"),
-        Path("/var")
-    ]
-    if docs_path.resolve() in [p.resolve() for p in ignored_roots if p.exists()]:
-        return []
-
     if not docs_path.exists():
         return results
 
-    try:
-        for exam_dir in docs_path.iterdir():
-            if not exam_dir.is_dir() or exam_dir.name.startswith("."):
+    for exam_dir in docs_path.iterdir():
+        if not exam_dir.is_dir() or exam_dir.name.startswith("."):
+            continue
+        for session_dir in exam_dir.iterdir():
+            if not session_dir.is_dir():
                 continue
-            for session_dir in exam_dir.iterdir():
-                if not session_dir.is_dir():
+            for student_dir in session_dir.iterdir():
+                if not student_dir.is_dir():
                     continue
-                for student_dir in session_dir.iterdir():
-                    if not student_dir.is_dir():
-                        continue
-                    results.append(
-                        {
-                            "path": str(student_dir),
-                            "exam_name": exam_dir.name,
-                            "session_id": session_dir.name,
-                            "student_id": student_dir.name,
-                            "display": f"{exam_dir.name}/{session_dir.name}/{student_dir.name}",
-                        }
-                    )
-    except Exception:
-        pass
+                results.append(
+                    {
+                        "path": str(student_dir),
+                        "exam_name": exam_dir.name,
+                        "session_id": session_dir.name,
+                        "student_id": student_dir.name,
+                        "display": f"{exam_dir.name}/{session_dir.name}/{student_dir.name}",
+                    }
+                )
     return sorted(results, key=lambda x: x["display"])
 
 
 @app.route("/api/directories", methods=["GET"])
 def api_list_directories():
-    path_arg = request.args.get("path")
-    directories = _list_existing_directories(path_arg)
-    # Ensure current_path reflects the requested path if provided, otherwise default
-    current = str(Path(path_arg).resolve()) if path_arg else str((Path.home() / "Documents").resolve())
-    return jsonify({"status": "ok", "directories": directories, "current_path": current})
+    path_val = request.args.get("path")
+    docs_path = (Path.home() / "Documents").resolve()
+    
+    # If a path is provided, use it as the "current" one, otherwise default to ~/Documents
+    if path_val:
+        try:
+            current = Path(_expand_path(path_val)).resolve()
+        except Exception:
+            current = docs_path
+    else:
+        current = docs_path
+            
+    # Only return the managed "directories" list if we are explicitly at the managed root.
+    # Otherwise, we want the frontend to fall back to 'loadSubfolders' to show the actual directory contents.
+    directories = []
+    if current == docs_path:
+        directories = _list_existing_directories()
 
+    return jsonify({
+        "status": "ok", 
+        "directories": directories,
+        "current_path": str(current)
+    })
 
 @app.route("/api/subfolders", methods=["GET"])
 def api_list_subfolders():
-    path_arg = request.args.get("path")
-    target = Path(path_arg) if path_arg else Path.home()
+    path_val = request.args.get("path")
     
+    # If path not provided, default to user home so they can see Documents, Downloads etc.
+    if not path_val:
+        target = Path.home()
+    else:
+        try:
+            target = Path(_expand_path(path_val)).resolve()
+        except:
+            return jsonify({"status": "error", "message": "Invalid path"}), 400
+        
     if not target.exists() or not target.is_dir():
-         return jsonify({"status": "error", "message": "Invalid path"}), 400
-
-    subdirs = []
+         return jsonify({"status": "error", "message": "Path not found"}), 404
+         
+    subfolders = []
     try:
-        for p in target.iterdir():
-            try:
-                # Strict filtering: Must be directory and NOT hidden (dotfile)
-                if p.is_dir() and not p.name.startswith("."):
-                    subdirs.append({"name": p.name, "path": str(p)})
-            except (PermissionError, OSError):
-                continue
+        # List directories only
+        for item in target.iterdir():
+            if item.is_dir() and not item.name.startswith("."):
+                subfolders.append({
+                    "name": item.name,
+                    "path": str(item)
+                })
+        subfolders.sort(key=lambda x: x["name"].lower())
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
         
     return jsonify({
         "status": "ok", 
-        "subfolders": sorted(subdirs, key=lambda x: x['name']), 
-        "current_path": str(target.resolve()), 
-        "parent_path": str(target.parent.resolve())
+        "subfolders": subfolders,
+        "current_path": str(target),
+        "parent_path": str(target.parent)
     })
 
 
@@ -712,135 +721,6 @@ def api_save_log():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-
-# -------------------------------------------------
-# ✅ Grading API Endpoints
-# -------------------------------------------------
-
-# --- Schemes ---
-@app.route("/api/schemes", methods=["GET"])
-def api_list_schemes():
-    schemes = scheme_manager.get_all_schemes()
-    return jsonify({"status": "ok", "schemes": schemes})
-
-@app.route("/api/schemes", methods=["POST"])
-def api_create_scheme():
-    data = request.get_json() or {}
-    if not scheme_manager.validate_scheme(data):
-        return jsonify({"status": "error", "message": "Invalid scheme data"}), 400
-    scheme_id = scheme_manager.save_scheme(data)
-    return jsonify({"status": "ok", "id": scheme_id, "message": "Scheme created"})
-
-@app.route("/api/schemes/<scheme_id>", methods=["GET"])
-def api_get_scheme(scheme_id):
-    try:
-        scheme = scheme_manager.get_scheme_by_id(scheme_id)
-        return jsonify({"status": "ok", "scheme": scheme})
-    except Exception:
-        return jsonify({"status": "error", "message": "Scheme not found"}), 404
-
-@app.route("/api/schemes/<scheme_id>", methods=["PUT"])
-def api_update_scheme(scheme_id):
-    data = request.get_json() or {}
-    if not scheme_manager.update_scheme(scheme_id, data):
-        return jsonify({"status": "error", "message": "Failed to update scheme"}), 400
-    return jsonify({"status": "ok", "message": "Scheme updated"})
-
-@app.route("/api/schemes/<scheme_id>", methods=["DELETE"])
-def api_delete_scheme(scheme_id):
-    if scheme_manager.delete_scheme(scheme_id):
-        return jsonify({"status": "ok", "message": "Scheme deleted"})
-    return jsonify({"status": "error", "message": "Failed to delete scheme"}), 400
-
-# --- Rubrics ---
-@app.route("/api/rubrics", methods=["GET"])
-def api_list_rubrics():
-    rubrics = rubric_manager.get_rubrics()
-    return jsonify({"status": "ok", "rubrics": rubrics})
-
-@app.route("/api/rubrics", methods=["POST"])
-def api_create_rubric():
-    data = request.get_json() or {}
-    if not rubric_manager.validate_rubric(data):
-        return jsonify({"status": "error", "message": "Invalid rubric data"}), 400
-    rubric_id = rubric_manager.create_rubric(data)
-    return jsonify({"status": "ok", "id": rubric_id, "message": "Rubric created"})
-
-@app.route("/api/rubrics/<rubric_id>", methods=["GET"])
-def api_get_rubric(rubric_id):
-    rubric = rubric_manager.get_rubric_detail(rubric_id)
-    if rubric:
-        return jsonify({"status": "ok", "rubric": rubric})
-    return jsonify({"status": "error", "message": "Rubric not found"}), 404
-
-@app.route("/api/rubrics/<rubric_id>", methods=["PUT"])
-def api_update_rubric(rubric_id):
-    data = request.get_json() or {}
-    if rubric_manager.update_rubric(rubric_id, data):
-        return jsonify({"status": "ok", "message": "Rubric updated"})
-    return jsonify({"status": "error", "message": "Failed to update rubric"}), 400
-
-@app.route("/api/rubrics/<rubric_id>", methods=["DELETE"])
-def api_delete_rubric(rubric_id):
-    if rubric_manager.delete_rubric(rubric_id):
-        return jsonify({"status": "ok", "message": "Rubric deleted"})
-    return jsonify({"status": "error", "message": "Failed to delete rubric"}), 400
-
-# --- Grading Execution ---
-@app.route("/api/grade", methods=["POST"])
-def api_run_grading():
-    data = request.get_json() or {}
-    scheme_id = data.get("scheme_id")
-    rubric_id = data.get("rubric_id")
-    config_path = data.get("config_path") # Absolute path to config file
-
-    if not all([scheme_id, rubric_id, config_path]):
-        return jsonify({"status": "error", "message": "Missing required fields"}), 400
-
-    if not os.path.exists(config_path):
-        return jsonify({"status": "error", "message": "Config file not found"}), 404
-
-    try:
-        # Load resources
-        scheme = scheme_manager.get_scheme_by_id(scheme_id)
-        rubric = rubric_manager.get_rubric_detail(rubric_id)
-        
-        if not scheme or not rubric:
-             return jsonify({"status": "error", "message": "Scheme or Rubric not found"}), 404
-
-        # Read config
-        with open(config_path, "r", encoding="utf-8", errors="ignore") as f:
-            config_text = f.read()
-
-        # Prepare and Grade
-        final_rubric = scheme_manager.prepare_rubric_for_grading(rubric, scheme)
-        results = grader.grade(config_text, final_rubric)
-        
-        # Calculate score
-        total_earned = 0
-        total_possible = 0
-        for r in results:
-            if "/" in str(r.get("points", "")):
-                e, p = r["points"].split("/")
-                total_earned += int(float(e))
-                total_possible += int(float(p))
-            else:
-                 # Fallback if points aren't fraction
-                 pass
-
-        return jsonify({
-            "status": "ok", 
-            "results": results,
-            "summary": {
-                "total_earned": total_earned,
-                "total_possible": total_possible,
-                "percentage": (total_earned/total_possible*100) if total_possible > 0 else 0
-            }
-        })
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
 # -------------------------------------------------
 # ✅ Execute Endpoint
 # -------------------------------------------------
@@ -877,7 +757,6 @@ def _ensure_base_path(data):
 def api_execute():
     data = request.get_json() or {}
     commands = data.get("commands") or []
-    file_extension = data.get("file_extension", ".txt")
     requested_mode = (
         data.get("mode") or data.get("connection") or current_mode or ""
     ).lower()
@@ -966,16 +845,6 @@ def api_execute():
                     }
                 )
                 return False
-
-            if not ser:
-                yield stream_json_line(
-                    {
-                        "type": "error",
-                        "msg": f"Failed to connect to serial port {port} (device not found or unresponsive).",
-                    }
-                )
-                return False
-
             try:
                 yield stream_json_line(
                     {
@@ -1037,7 +906,6 @@ def api_execute():
                         session_id,
                         hostname,
                         base_dir=base_path,
-                        extension=file_extension,
                     )
                     files_written.append(file_path)
                     completed += 1
@@ -1186,7 +1054,6 @@ def api_execute():
                         session_id,
                         hostname,
                         base_dir=base_path,
-                        extension=file_extension,
                     )
                     files_written.append(file_path)
                     completed += 1
@@ -1250,6 +1117,218 @@ def api_execute():
     return Response(generate(), mimetype="text/plain")
 
 
+
+# -------------------------------------------------
+# ✅ Grading System Endpoints
+# -------------------------------------------------
+
+def _get_yaml_file(directory, file_id):
+    path = directory / f"{file_id}.yaml"
+    if not path.exists():
+        return None
+    try:
+        with open(path, "r") as f:
+            return yaml.safe_load(f)
+    except Exception:
+        return None
+
+def _save_yaml_file(directory, file_id, data):
+    path = directory / f"{file_id}.yaml"
+    with open(path, "w") as f:
+        yaml.dump(data, f)
+    return str(path)
+
+def _delete_yaml_file(directory, file_id):
+    path = directory / f"{file_id}.yaml"
+    if path.exists():
+        path.unlink()
+        return True
+    return False
+
+def _list_yaml_files(directory):
+    items = []
+    if not directory.exists():
+        return items
+    for f in directory.glob("*.yaml"):
+        try:
+            with open(f, "r") as yf:
+                data = yaml.safe_load(yf) or {}
+                # Ensure ID is present
+                if "id" not in data:
+                    data["id"] = f.stem
+                items.append(data)
+        except Exception:
+            continue
+    return sorted(items, key=lambda x: x.get("name", ""))
+
+# --- Schemes ---
+
+@app.route("/api/schemes", methods=["GET"])
+def api_list_schemes():
+    return jsonify({"status": "ok", "schemes": _list_yaml_files(SCHEMES_DIR)})
+
+@app.route("/api/schemes", methods=["POST"])
+def api_save_scheme():
+    data = request.get_json() or {}
+    scheme_id = data.get("id")
+    if not scheme_id:
+        import uuid
+        scheme_id = str(uuid.uuid4())[:8]
+        data["id"] = scheme_id
+    
+    try:
+        _save_yaml_file(SCHEMES_DIR, scheme_id, data)
+        return jsonify({"status": "ok", "message": "Scheme saved", "id": scheme_id})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/schemes/<scheme_id>", methods=["DELETE"])
+def api_delete_scheme(scheme_id):
+    if _delete_yaml_file(SCHEMES_DIR, scheme_id):
+        return jsonify({"status": "ok", "message": "Scheme deleted"})
+    return jsonify({"status": "error", "message": "Scheme not found"}), 404
+
+# --- Rubrics ---
+
+@app.route("/api/rubrics", methods=["GET"])
+def api_list_rubrics():
+    return jsonify({"status": "ok", "rubrics": _list_yaml_files(RUBRICS_DIR)})
+
+@app.route("/api/rubrics", methods=["POST"])
+def api_save_rubric():
+    data = request.get_json() or {}
+    rubric_id = data.get("id")
+    if not rubric_id:
+        import uuid
+        rubric_id = str(uuid.uuid4())[:8]
+        data["id"] = rubric_id
+        
+    try:
+        _save_yaml_file(RUBRICS_DIR, rubric_id, data)
+        return jsonify({"status": "ok", "message": "Rubric saved", "id": rubric_id})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/rubrics/<rubric_id>", methods=["DELETE"])
+def api_delete_rubric(rubric_id):
+    if _delete_yaml_file(RUBRICS_DIR, rubric_id):
+        return jsonify({"status": "ok", "message": "Rubric deleted"})
+    return jsonify({"status": "error", "message": "Rubric not found"}), 404
+
+# --- Grading Logic ---
+
+def _substitute_variables(pattern, variables):
+    """
+    Replace {{key}} in pattern with value from variables.
+    """
+    for key, val in variables.items():
+        # strict replacement of {{key}}
+        pattern = pattern.replace(f"{{{{{key}}}}}", str(val))
+    return pattern
+
+def _check_criteria(content, criteria, variables):
+    """
+    Check if content matches the criteria pattern.
+    """
+    pattern = criteria.get("pattern", "")
+    # Substitute variables
+    final_pattern = _substitute_variables(pattern, variables)
+    
+    # Try Regex search
+    try:
+        if re.search(final_pattern, content, re.MULTILINE | re.IGNORECASE):
+            return True, final_pattern
+    except re.error:
+        pass
+        
+    # Check for simple string inclusion if regex fails or is simple
+    if final_pattern in content:
+        return True, final_pattern
+        
+    return False, final_pattern
+
+@app.route("/api/grade", methods=["POST"])
+def api_run_grading():
+    data = request.get_json() or {}
+    scheme_id = data.get("scheme_id")
+    rubric_id = data.get("rubric_id")
+    target_path = data.get("target_path")
+    
+    if not all([scheme_id, rubric_id, target_path]):
+         return jsonify({"status": "error", "message": "Missing arguments"}), 400
+         
+    scheme = _get_yaml_file(SCHEMES_DIR, scheme_id)
+    rubric = _get_yaml_file(RUBRICS_DIR, rubric_id)
+    
+    if not scheme or not rubric:
+        return jsonify({"status": "error", "message": "Scheme or Rubric not found"}), 404
+        
+    target_dir = Path(target_path)
+    if not target_dir.exists():
+        return jsonify({"status": "error", "message": "Target path not found"}), 404
+        
+    variables = scheme.get("variables", {})
+    criteria_list = rubric.get("criteria", [])
+    
+    results = []
+    total_score = 0
+    max_score = sum(c.get("points", 0) for c in criteria_list)
+    
+    # We need to find config files. Assuming 'running-config' or similar.
+    # Logic: Search for specific file names or just read all non-hidden files?
+    # CLI tool usually grades a "config file".
+    # Let's look for known config filenames or *.txt, *.cfg, *.log
+    
+    candidate_files = []
+    for ext in ["*.txt", "*.log", "*.cfg", "running-config*", "startup-config*"]:
+        candidate_files.extend(target_dir.glob(ext))
+        
+    # Filter out empty or system files
+    candidate_files = [f for f in candidate_files if f.is_file() and f.stat().st_size > 0]
+    
+    if not candidate_files:
+        return jsonify({
+            "status": "ok", 
+            "graded": False, 
+            "message": "No config files found to grade.",
+            "details": []
+        })
+        
+    # For now, grade the LARGEST file found, assuming it's the full config
+    # Or grade against combined content?
+    # Simple approach: Grade the largest file.
+    target_file = max(candidate_files, key=lambda f: f.stat().st_size)
+    
+    try:
+        with open(target_file, "r", errors="ignore") as f:
+            content = f.read()
+            
+        details = []
+        for crit in criteria_list:
+            matched, used_pattern = _check_criteria(content, crit, variables)
+            points = crit.get("points", 0)
+            score = points if matched else 0
+            total_score += score
+            
+            details.append({
+                "name": crit.get("name"),
+                "pattern": used_pattern,
+                "points": points,
+                "score": score,
+                "status": "pass" if matched else "fail"
+            })
+            
+        return jsonify({
+            "status": "ok",
+            "graded": True,
+            "file": target_file.name,
+            "total_score": total_score,
+            "max_score": max_score,
+            "details": details
+        })
+        
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Grading failed: {str(e)}"}), 500
 
 # -------------------------------------------------
 # ✅ Run Flask
