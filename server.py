@@ -224,37 +224,87 @@ def api_select_directory():
     )
 
 
-def _list_existing_directories():
-    docs_path = Path.home() / "Documents"
+def _list_existing_directories(root_path=None):
+    docs_path = Path(root_path) if root_path else Path.home() / "Documents"
     results = []
+    
+    # Avoid scanning Home directory as an Exam repository to prevent misinterpreting standard folders
+    # Also blacklist system roots to prevent "/" -> Users -> khant -> Documents being seen as Exam -> Session -> Student
+    ignored_roots = [
+        Path.home(),
+        Path("/"),
+        Path("/Users"),
+        Path("/System"),
+        Path("/Library"),
+        Path("/Applications"),
+        Path("/private"),
+        Path("/var")
+    ]
+    if docs_path.resolve() in [p.resolve() for p in ignored_roots if p.exists()]:
+        return []
+
     if not docs_path.exists():
         return results
 
-    for exam_dir in docs_path.iterdir():
-        if not exam_dir.is_dir() or exam_dir.name.startswith("."):
-            continue
-        for session_dir in exam_dir.iterdir():
-            if not session_dir.is_dir():
+    try:
+        for exam_dir in docs_path.iterdir():
+            if not exam_dir.is_dir() or exam_dir.name.startswith("."):
                 continue
-            for student_dir in session_dir.iterdir():
-                if not student_dir.is_dir():
+            for session_dir in exam_dir.iterdir():
+                if not session_dir.is_dir():
                     continue
-                results.append(
-                    {
-                        "path": str(student_dir),
-                        "exam_name": exam_dir.name,
-                        "session_id": session_dir.name,
-                        "student_id": student_dir.name,
-                        "display": f"{exam_dir.name}/{session_dir.name}/{student_dir.name}",
-                    }
-                )
+                for student_dir in session_dir.iterdir():
+                    if not student_dir.is_dir():
+                        continue
+                    results.append(
+                        {
+                            "path": str(student_dir),
+                            "exam_name": exam_dir.name,
+                            "session_id": session_dir.name,
+                            "student_id": student_dir.name,
+                            "display": f"{exam_dir.name}/{session_dir.name}/{student_dir.name}",
+                        }
+                    )
+    except Exception:
+        pass
     return sorted(results, key=lambda x: x["display"])
 
 
 @app.route("/api/directories", methods=["GET"])
 def api_list_directories():
-    directories = _list_existing_directories()
-    return jsonify({"status": "ok", "directories": directories})
+    path_arg = request.args.get("path")
+    directories = _list_existing_directories(path_arg)
+    # Ensure current_path reflects the requested path if provided, otherwise default
+    current = str(Path(path_arg).resolve()) if path_arg else str((Path.home() / "Documents").resolve())
+    return jsonify({"status": "ok", "directories": directories, "current_path": current})
+
+
+@app.route("/api/subfolders", methods=["GET"])
+def api_list_subfolders():
+    path_arg = request.args.get("path")
+    target = Path(path_arg) if path_arg else Path.home()
+    
+    if not target.exists() or not target.is_dir():
+         return jsonify({"status": "error", "message": "Invalid path"}), 400
+
+    subdirs = []
+    try:
+        for p in target.iterdir():
+            try:
+                # Strict filtering: Must be directory and NOT hidden (dotfile)
+                if p.is_dir() and not p.name.startswith("."):
+                    subdirs.append({"name": p.name, "path": str(p)})
+            except (PermissionError, OSError):
+                continue
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+        
+    return jsonify({
+        "status": "ok", 
+        "subfolders": sorted(subdirs, key=lambda x: x['name']), 
+        "current_path": str(target.resolve()), 
+        "parent_path": str(target.parent.resolve())
+    })
 
 
 @app.route("/api/directories/bulk", methods=["POST"])

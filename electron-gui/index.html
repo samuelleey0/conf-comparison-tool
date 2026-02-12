@@ -63,9 +63,20 @@
         <!-- Custom Folder Picker Modal -->
         <div id="folderPickerOverlay" class="modal-overlay hidden">
           <div class="modal-box">
-            <header class="modal-header">
-              <h3>Select a Student Directory</h3>
-              <button type="button" class="close-modal" id="closeFolderPickerBtn">&times;</button>
+            <header class="modal-header" style="flex-direction: column; align-items: stretch; gap: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>Select a Student Directory</h3>
+                <button type="button" class="close-modal" id="closeFolderPickerBtn">&times;</button>
+              </div>
+              <div
+                style="display: flex; gap: 8px; align-items: center; background: var(--color-bg-soft); padding: 6px 10px; border-radius: 4px; border: 1px solid var(--color-border);">
+                <button type="button" id="pickerBackBtn" class="icon-btn"
+                  style="background: none; border: none; cursor: pointer; font-size: 1.2rem; padding: 0 4px;"
+                  title="Go Up">⬆️</button>
+                <input type="text" id="pickerCurrentPath"
+                  style="font-family: monospace; font-size: 0.85rem; flex: 1; color: var(--color-text); background: transparent; border: none; outline: none;"
+                  placeholder="/path/to/directory" />
+              </div>
             </header>
             <div class="modal-body">
               <div id="folderTreeContainer" class="folder-tree">
