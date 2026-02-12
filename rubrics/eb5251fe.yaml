@@ -1,10 +1,10 @@
-name: testing 2 (wrong)
-description: Test for wrong configuration
 criteria:
-    - name: hostname S1
-      pattern: hostname\s+S1
-      points: 10
-    - name: IP address
-      pattern: ip\s+address\s+{{ip}}
-      points: 10
+- name: hostname S1
+  pattern: hostname\s+S1
+  points: 10
+- name: IP address
+  pattern: ip\s+address\s+{{ip}}
+  points: 10
+description: Test for wrong configuration
 id: eb5251fe
+name: testing 2 (wrong)

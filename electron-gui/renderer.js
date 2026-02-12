@@ -16,6 +16,7 @@ try {
   const electron = require("electron");
   ipcRenderer = electron.ipcRenderer;
   shell = electron.shell;
+  pathModule = require("path");
 } catch (err) {
   console.debug("Electron modules not available:", err);
 }
@@ -305,13 +306,30 @@ function openCustomDirectoryPicker() {
   if (confirmBtn) confirmBtn.disabled = true;
 
   overlay.classList.remove("hidden");
-  fetchAndRenderFolderTree();
+  loadDirectory(null);
 
   // Event handlers
   const close = () => overlay.classList.add("hidden");
 
   closeBtn.onclick = close;
   cancelBtn.onclick = close;
+
+  const backBtn = document.getElementById("pickerBackBtn");
+  backBtn.onclick = () => {
+    if (currentPickerPath && pathModule) {
+      const parent = pathModule.dirname(currentPickerPath);
+      loadDirectory(parent);
+    }
+  };
+
+  const pathInput = document.getElementById("pickerCurrentPath");
+  if (pathInput) {
+    pathInput.onkeydown = (e) => {
+      if (e.key === "Enter") {
+        loadDirectory(pathInput.value);
+      }
+    };
+  }
 
   confirmBtn.onclick = () => {
     if (pendingSelectedFolder) {
@@ -329,32 +347,102 @@ function openCustomDirectoryPicker() {
   };
 }
 
-async function fetchAndRenderFolderTree() {
+let currentPickerPath = null;
+
+async function loadDirectory(pathVal = null) {
   const container = document.getElementById("folderTreeContainer");
+  const pathLabel = document.getElementById("pickerCurrentPath");
   if (!container) return;
-  container.innerHTML = '<p class="loading-text">Loading...</p>';
+
+  container.innerHTML = `<p class="loading-text">Loading...</p>`;
+
+  // Optimistic update for better UX
+  if (pathLabel && pathVal) {
+    pathLabel.value = pathVal;
+  }
 
   try {
-    const data = await fetchJson("/api/directories");
-    const dirs = data.directories || [];
+    const url = pathVal
+      ? `${API_ROOT}/api/directories?path=${encodeURIComponent(pathVal)}`
+      : `${API_ROOT}/api/directories`;
 
-    if (dirs.length === 0) {
-      container.innerHTML = '<p class="empty-text">No directories found in Documents.</p>';
-      return;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (data.status === "ok") {
+      currentPickerPath = data.current_path;
+      if (pathLabel) {
+        pathLabel.value = currentPickerPath;
+      }
+
+      // Strategy: If we find Exam/Session/Student structure, show Tree.
+      // If not, fall back to "Subfolder List" (Browser Mode).
+      if (data.directories && data.directories.length > 0) {
+        renderTree(container, transformToHierarchy(data.directories));
+      } else {
+        // No exams found, let's load subfolders (Browsing Mode)
+        loadSubfolders(currentPickerPath, container);
+      }
+    } else {
+      container.innerHTML = `<p class="error-text">${data.message}</p>`;
     }
 
-    // Build Hierarchy: Exam -> Session -> Student
-    const hierarchy = {};
-    dirs.forEach(d => {
-      if (!hierarchy[d.exam_name]) hierarchy[d.exam_name] = {};
-      if (!hierarchy[d.exam_name][d.session_id]) hierarchy[d.exam_name][d.session_id] = [];
-      hierarchy[d.exam_name][d.session_id].push(d);
-    });
-
-    renderTree(container, hierarchy);
   } catch (err) {
-    container.innerHTML = `<p class="error-text">Failed to load directories: ${err.message}</p>`;
+    container.innerHTML = `<p class="error-text">Failed to load: ${err.message}</p>`;
   }
+}
+
+async function loadSubfolders(pathVal, container) {
+  try {
+    const res = await fetch(`${API_ROOT}/api/subfolders?path=${encodeURIComponent(pathVal)}`);
+    const data = await res.json();
+
+    if (data.status === "ok") {
+      renderSubfolders(container, data.subfolders);
+    } else {
+      container.innerHTML = `<p class="empty-text">No folders found or access denied.</p>`;
+    }
+  } catch (e) {
+    container.innerHTML = `<p class="error-text">${e.message}</p>`;
+  }
+}
+
+function transformToHierarchy(flatDirs) {
+  const hierarchy = {};
+  flatDirs.forEach(d => {
+    if (!hierarchy[d.exam_name]) hierarchy[d.exam_name] = {};
+    if (!hierarchy[d.exam_name][d.session_id]) hierarchy[d.exam_name][d.session_id] = [];
+    hierarchy[d.exam_name][d.session_id].push(d);
+  });
+  return hierarchy;
+}
+
+function renderSubfolders(container, subfolders) {
+  container.innerHTML = "";
+  if (!subfolders || subfolders.length === 0) {
+    container.innerHTML = `<p class="empty-text">Empty folder.</p>`;
+    return;
+  }
+  const ul = document.createElement("ul");
+  ul.className = "tree-root";
+
+  subfolders.forEach(f => {
+    const li = document.createElement("li");
+    const div = document.createElement("div");
+    div.className = "tree-item";
+    div.textContent = `📁 ${f.name}`;
+    div.onclick = () => {
+      loadDirectory(f.path);
+    };
+    li.appendChild(div);
+    ul.appendChild(li);
+  });
+  container.appendChild(ul);
+}
+
+// Kept for compatibility if needed
+function fetchAndRenderFolderTree() {
+  loadDirectory(null);
 }
 
 function renderTree(container, hierarchy) {
