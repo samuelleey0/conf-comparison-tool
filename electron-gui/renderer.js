@@ -292,6 +292,7 @@ function setSelectedExistingDirectory(pathValue, displayValue) {
 
 let currentFolderTreeData = [];
 let pendingSelectedFolder = null;
+let pendingSelectedStudent = null;
 
 function openCustomDirectoryPicker() {
   const overlay = document.getElementById("folderPickerOverlay");
@@ -332,16 +333,19 @@ function openCustomDirectoryPicker() {
   }
 
   confirmBtn.onclick = () => {
-    if (pendingSelectedFolder) {
-      setSelectedExistingDirectory(pendingSelectedFolder.path, pendingSelectedFolder.display);
-      const infoBox = document.getElementById("existingInfoBox");
-      if (infoBox) {
-        infoBox.classList.remove("hidden");
-        infoBox.innerHTML = `
-          <strong>Selected:</strong> ${pendingSelectedFolder.display}<br/>
-          <span class="hint">Click "Use Selected" to continue.</span>
-        `;
+    if (pendingSelectedFolder && pendingSelectedFolder.type === 'session') {
+      const { exam, session, students } = pendingSelectedFolder;
+
+      const label = document.getElementById("selectedDirectoryLabel");
+      if (label) {
+        label.textContent = `Session: ${exam} / ${session}`;
+        label.classList.add("has-value");
       }
+
+      const infoBox = document.getElementById("existingInfoBox");
+      if (infoBox) infoBox.classList.add("hidden");
+
+      renderMainStudentGrid(students);
       close();
     }
   };
@@ -469,40 +473,25 @@ function renderTree(container, hierarchy) {
       sessionLabel.textContent = `📁 ${session}`;
       sessionLi.appendChild(sessionLabel);
 
-      const studentUl = document.createElement("ul");
-      studentUl.className = "tree-children hidden";
-
-      // Iterate Students
-      hierarchy[exam][session].forEach(student => {
-        const studentLi = document.createElement("li");
-        const studentLabel = document.createElement("div");
-        studentLabel.className = "tree-item student-item";
-        studentLabel.textContent = `👤 ${student.student_id}`; // Show name? maybe later
-        studentLabel.dataset.path = student.path;
-
-        studentLabel.onclick = (e) => {
-          e.stopPropagation();
-          document.querySelectorAll(".tree-item.selected").forEach(el => el.classList.remove("selected"));
-          studentLabel.classList.add("selected");
-          pendingSelectedFolder = student;
-          document.getElementById("confirmFolderPickerBtn").disabled = false;
-        };
-        // Double click to confirm
-        studentLabel.ondblclick = () => {
-          pendingSelectedFolder = student;
-          document.getElementById("confirmFolderPickerBtn").click();
-        };
-
-        studentLi.appendChild(studentLabel);
-        studentUl.appendChild(studentLi);
-      });
-
       sessionLabel.onclick = (e) => {
         e.stopPropagation();
-        studentUl.classList.toggle("hidden");
+
+        // Highlight active session
+        document.querySelectorAll(".session-item.selected").forEach(el => el.classList.remove("selected"));
+        sessionLabel.classList.add("selected");
+
+        const students = hierarchy[exam][session] || [];
+
+        pendingSelectedFolder = { type: 'session', exam, session, students };
+        document.getElementById("confirmFolderPickerBtn").disabled = false;
       };
 
-      sessionLi.appendChild(studentUl);
+      sessionLabel.ondblclick = () => {
+        const students = hierarchy[exam][session] || [];
+        pendingSelectedFolder = { type: 'session', exam, session, students };
+        document.getElementById("confirmFolderPickerBtn").click();
+      }
+
       sessionUl.appendChild(sessionLi);
     });
 
@@ -522,6 +511,72 @@ function renderTree(container, hierarchy) {
   });
 
   container.appendChild(ul);
+}
+
+function renderMainStudentGrid(students) {
+  const gridContainer = document.getElementById("mainStudentGridContainer");
+  const useBtn = document.getElementById("use-existing-btn");
+  pendingSelectedStudent = null;
+
+  if (useBtn) useBtn.disabled = true;
+  if (!gridContainer) return;
+
+  gridContainer.innerHTML = "";
+
+  if (!students || students.length === 0) {
+    gridContainer.innerHTML = `<p class="empty-text" style="grid-column: 1 / -1; text-align: center;">No students found in this session.</p>`;
+    return;
+  }
+
+  students.forEach(student => {
+    const studentCard = document.createElement("div");
+    studentCard.className = "student-card";
+    studentCard.style.cssText = `
+        border: 1px solid var(--color-border);
+        border-radius: 6px;
+        padding: 5px 10px;
+        text-align: left;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: var(--color-bg-card);
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+    `;
+
+    studentCard.innerHTML = `
+        <div style="font-size: 1.2rem;">👤</div>
+        <div style="font-weight: bold; font-size: 0.95rem; word-break: break-all;">${student.student_id}</div>
+    `;
+
+    studentCard.onclick = () => {
+      document.querySelectorAll("#mainStudentGridContainer .student-card.selected-student").forEach(el => {
+        el.classList.remove("selected-student");
+        el.style.borderColor = "var(--color-border)";
+        el.style.backgroundColor = "var(--color-bg-card)";
+        el.style.color = "inherit";
+      });
+
+      studentCard.classList.add("selected-student");
+      studentCard.style.borderColor = "var(--color-primary)";
+      studentCard.style.backgroundColor = "var(--color-primary)";
+      studentCard.style.color = "#ffffff";
+
+      pendingSelectedStudent = student;
+      if (useBtn) useBtn.disabled = false;
+    };
+
+    studentCard.ondblclick = () => {
+      pendingSelectedStudent = student;
+      if (useBtn) {
+        useBtn.disabled = false;
+        useBtn.click();
+      }
+    }
+
+    gridContainer.appendChild(studentCard);
+  });
 }
 
 // Replaced original openExistingDirectoryDialog
@@ -631,8 +686,8 @@ async function handleCreateDirectory(event) {
 }
 
 async function handleUseExistingDirectory() {
-  if (!selectedExistingPath) {
-    alert("Please choose a directory first.");
+  if (!pendingSelectedStudent) {
+    alert("Please choose a session and select a student first.");
     return;
   }
 
@@ -640,7 +695,7 @@ async function handleUseExistingDirectory() {
     const data = await fetchJson("/api/select_directory", {
       method: "POST",
       body: JSON.stringify({
-        existingPath: selectedExistingPath,
+        existingPath: pendingSelectedStudent.path,
       }),
     });
     setDirectoryInfo({
@@ -1223,6 +1278,65 @@ function toggleSelectAllCommands() {
   updateCommandSelectionState();
 }
 
+const ROUTER_COMMANDS = [
+  "show ip route",
+  "show ip interface brief",
+  "show run",
+  "show interfaces",
+  "show version"
+];
+
+const SWITCH_COMMANDS = [
+  "show vlan",
+  "show mac address-table",
+  "show interface trunk",
+  "show spanning-tree",
+  "show ip interface brief",
+  "show run",
+  "show version"
+];
+
+function autoSelectCommands(deviceType) {
+  const checkboxes = Array.from(document.querySelectorAll('input[name="command"]'));
+  if (!checkboxes.length) return;
+
+  // Determine which list to check against
+  const targetCommands = deviceType === 'router' ? ROUTER_COMMANDS : SWITCH_COMMANDS;
+  const opposingCommands = deviceType === 'router' ? SWITCH_COMMANDS : ROUTER_COMMANDS;
+
+  // Find checkboxes that match the target commands
+  const matchingCheckboxes = checkboxes.filter((cb) => {
+    const cmdName = cb.value.toLowerCase().trim();
+    return targetCommands.some(tc => cmdName.includes(tc.toLowerCase()));
+  });
+
+  // Find checkboxes that match the opposing commands but NOT the target commands
+  const opposingCheckboxes = checkboxes.filter((cb) => {
+    const cmdName = cb.value.toLowerCase().trim();
+    const matchesOpposing = opposingCommands.some(tc => cmdName.includes(tc.toLowerCase()));
+    const matchesTarget = targetCommands.some(tc => cmdName.includes(tc.toLowerCase()));
+    return matchesOpposing && !matchesTarget;
+  });
+
+  if (matchingCheckboxes.length === 0) return;
+
+  // Determine toggle state: if ALL matching ones are checked, uncheck them. Else, check them all.
+  const allMatchingChecked = matchingCheckboxes.every(cb => cb.checked);
+
+  matchingCheckboxes.forEach((cb) => {
+    cb.checked = !allMatchingChecked;
+  });
+
+  // If we are checking the target commands, make sure to uncheck the opposing ones
+  if (!allMatchingChecked) {
+    opposingCheckboxes.forEach((cb) => {
+      cb.checked = false;
+    });
+  }
+
+  updateCommandSelectionState();
+}
+
 function renderCommandList(commands = []) {
   const container = document.getElementById("commandsList");
   if (!container) return;
@@ -1601,6 +1715,20 @@ function setupCommandsPage() {
     ?.addEventListener("click", (evt) => {
       evt.preventDefault();
       toggleSelectAllCommands();
+    });
+
+  document
+    .getElementById("autoSelectRouterBtn")
+    ?.addEventListener("click", (evt) => {
+      evt.preventDefault();
+      autoSelectCommands('router');
+    });
+
+  document
+    .getElementById("autoSelectSwitchBtn")
+    ?.addEventListener("click", (evt) => {
+      evt.preventDefault();
+      autoSelectCommands('switch');
     });
 
   document

@@ -38,7 +38,11 @@
               <h2 class="card-title">Available Commands</h2>
               <span id="commandCount" class="badge">0 selected</span>
             </div>
-            <button type="button" id="selectAllBtn" class="link-btn">Select All</button>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" id="autoSelectRouterBtn" class="secondary">Router Default</button>
+              <button type="button" id="autoSelectSwitchBtn" class="secondary">Switch Default</button>
+              <button type="button" id="selectAllBtn" class="link-btn">Select All</button>
+            </div>
           </header>
           <div id="commandsList" class="command-grid">
             <p>Loading commands...</p>
