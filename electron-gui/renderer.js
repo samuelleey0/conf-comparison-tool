@@ -3,7 +3,8 @@
 const API_ROOT = "http://127.0.0.1:5050";
 const SIDEBAR_COLLAPSE_KEY = "sidebarCollapsed";
 const SERIAL_PRESETS = {
-  linux: "/dev/ttyUSB0",
+  linux_rs232: "/dev/ttyS0",
+  linux_usb: "/dev/ttyUSB0",
   windows: "COM3",
   mac: "/dev/cu.usbserial-10",
 };
@@ -901,10 +902,9 @@ function applySerialPreset(preset) {
   const portInput = document.getElementById("serialPort");
   if (!portInput) return;
   if (preset === "custom") {
-    portInput.value = "";
     portInput.removeAttribute("readonly");
   } else {
-    portInput.value = SERIAL_PRESETS[preset] || "/dev/ttyUSB0";
+    portInput.value = SERIAL_PRESETS[preset] || "/dev/ttyS0";
     portInput.setAttribute("readonly", "readonly");
   }
 }
@@ -1191,13 +1191,14 @@ function setupConnectionPage() {
       .getElementById("reconnectRunBtn")
       ?.addEventListener("click", (evt) => {
         evt.preventDefault();
-        const commands = getStoredCommands();
-        if (!commands.length) {
-          alert("Select commands on the Commands page before running.");
-          goTo("commands.html");
-          return;
-        }
-        saveConnection({ autoRun: true, triggerButton: evt.currentTarget });
+        saveConnection({ autoRun: false, triggerButton: evt.currentTarget });
+      });
+
+    document
+      .getElementById("goToGradingBtn")
+      ?.addEventListener("click", (evt) => {
+        evt.preventDefault();
+        goTo("grading.html");
       });
   }
 
@@ -1209,11 +1210,11 @@ function setupConnectionPage() {
 
   const savedPort = localStorage.getItem("serialPort");
   if (savedPort) {
-    document.getElementById("serialPort").value = savedPort;
     document.querySelector('input[name="serialPreset"][value="custom"]').checked = true;
     applySerialPreset("custom");
+    document.getElementById("serialPort").value = savedPort;
   } else {
-    applySerialPreset("linux");
+    applySerialPreset("linux_rs232");
   }
 
   document.getElementById("sshHost").value = localStorage.getItem("sshHost") || "";
@@ -1578,9 +1579,13 @@ async function startExecution({ commands, initiatedFromConnection = false } = {}
     payload.password = sshPass;
     payload.port = sshPort;
   } else {
-    payload.serial = {
-      port: localStorage.getItem("serialPort") || SERIAL_PRESETS.linux,
-    };
+    // Attempt to get the port directly from the input field first
+    const portInput = document.getElementById("serialPort");
+    let currentPort = portInput ? portInput.value.trim() : "";
+    if (!currentPort) {
+      currentPort = localStorage.getItem("serialPort") || SERIAL_PRESETS.linux_rs232;
+    }
+    payload.serial = { port: currentPort };
   }
 
   const startBtn = document.getElementById("startExecutionBtn");
