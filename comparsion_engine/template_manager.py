@@ -1,130 +1,231 @@
 import json
 import os
 
-from parser import parse_showrun
+from parser import normalize_parsed_config
+from parser import parse_device_logs
 
-DEFAULT_DEVICES = ["R1", "R2", "S1"]
+DEFAULT_HOSTNAMES = ["R1", "R2", "S1"]
+SHOW_RUN_TOKENS = [
+    "showrun",
+    "show_run",
+    "show-run",
+    "show run",
+    "shrun",
+    "sh_run",
+    "sh run",
+    "show_running-config",
+    "show running-config",
+]
 
 
-def list_template_profiles(template_folder):
-    """List available template profile directories."""
-    profiles = []
+def normalize_text(value):
+    """Normalize text for flexible filename matching."""
+    lowered = value.lower()
+    for char in ["_", "-", ".", "(", ")", "[", "]"]:
+        lowered = lowered.replace(char, " ")
+    return " ".join(lowered.split())
+
+
+def is_show_run_filename(filename):
+    """Check whether a filename looks like a show run output."""
+    normalized = normalize_text(filename)
+    return any(token in normalized for token in SHOW_RUN_TOKENS)
+
+
+def choose_show_run_file(saved_log_paths):
+    """Choose show run file from uploaded logs, prompting user only when needed."""
+    show_run_candidates = [
+        path for path in saved_log_paths if is_show_run_filename(os.path.basename(path))
+    ]
+
+    if len(show_run_candidates) == 1:
+        return show_run_candidates[0]
+
+    if len(show_run_candidates) > 1:
+        # Prefer exact-looking names first when multiple files match.
+        def score(path):
+            name = normalize_text(os.path.basename(path))
+            if "show running config" in name:
+                return 0
+            if "show run" in name:
+                return 1
+            if "showrun" in name:
+                return 2
+            if "sh run" in name:
+                return 3
+            return 4
+
+        show_run_candidates.sort(key=score)
+        return show_run_candidates[0]
+
+    print("No show run-like filename detected among uploaded logs.")
+    print("Select which uploaded file should be parsed as show run:")
+    for idx, path in enumerate(saved_log_paths, 1):
+        print(f"{idx}. {os.path.basename(path)}")
+
+    choice = input("Enter number: ").strip()
+    try:
+        choice_index = int(choice)
+        if 1 <= choice_index <= len(saved_log_paths):
+            return saved_log_paths[choice_index - 1]
+    except ValueError:
+        pass
+
+    print("Invalid choice. Using the first uploaded file as fallback.")
+    return saved_log_paths[0]
+
+
+def list_template_names(template_folder):
+    """List available template directories."""
+    templates = []
     for entry in sorted(os.listdir(template_folder)):
         full_path = os.path.join(template_folder, entry)
         if os.path.isdir(full_path):
-            profiles.append(entry)
-    return profiles
-
-
-def list_templates_in_profile(template_folder, profile_name):
-    """List device templates in a profile directory."""
-    profile_dir = os.path.join(template_folder, profile_name)
-    templates = {}
-
-    if not os.path.isdir(profile_dir):
-        return templates
-
-    for file in os.listdir(profile_dir):
-        if file.endswith(".json"):
-            device_name = file[:-5]
-            templates[device_name] = os.path.join(profile_dir, file)
-
+            templates.append(entry)
     return templates
 
 
-def upload_device_template(template_folder, profile_name, device_name):
-    """Upload and parse a template show run for a specific device."""
-    teacher_file_path = input(
-        f"Enter path to teacher {device_name} show run file: "
-    ).strip()
+def list_hostnames_in_template(template_folder, template_name):
+    """List all hostnames (device folders) in a template."""
+    template_dir = os.path.join(template_folder, template_name)
+    hostnames = {}
 
-    if not os.path.exists(teacher_file_path):
-        print(f"Error: file '{teacher_file_path}' not found.")
+    if not os.path.isdir(template_dir):
+        return hostnames
+
+    for entry in sorted(os.listdir(template_dir)):
+        hostname_dir = os.path.join(template_dir, entry)
+        if os.path.isdir(hostname_dir):
+            config_file = os.path.join(hostname_dir, "config.json")
+            if os.path.exists(config_file):
+                hostnames[entry] = config_file
+
+    return hostnames
+
+
+def upload_hostname_template(template_folder, template_name, hostname):
+    """Upload one or more logs for a hostname and parse show run for comparison."""
+    log_paths_input = input(
+        f"Enter path(s) to {hostname} log files (comma-separated): "
+    ).strip()
+    teacher_file_paths = [
+        path.strip() for path in log_paths_input.split(",") if path.strip()
+    ]
+    if not teacher_file_paths:
+        print("Error: no files provided.")
         return None
 
-    profile_dir = os.path.join(template_folder, profile_name)
-    os.makedirs(profile_dir, exist_ok=True)
+    for teacher_file_path in teacher_file_paths:
+        if not os.path.exists(teacher_file_path):
+            print(f"Error: file '{teacher_file_path}' not found.")
+            return None
 
-    template_txt_path = os.path.join(profile_dir, f"{device_name}.txt")
-    with open(teacher_file_path, "r") as source_file:
-        template_content = source_file.read()
-    with open(template_txt_path, "w") as target_file:
-        target_file.write(template_content)
+    hostname_dir = os.path.join(template_folder, template_name, hostname, "logs")
+    os.makedirs(hostname_dir, exist_ok=True)
 
-    template_config = parse_showrun(template_txt_path)
-    template_json_path = os.path.join(profile_dir, f"{device_name}.json")
-    with open(template_json_path, "w") as target_file:
+    # Preserve original uploaded filenames for command-based matching.
+    saved_log_paths = []
+    for teacher_file_path in teacher_file_paths:
+        template_filename = os.path.basename(teacher_file_path)
+        template_txt_path = os.path.join(hostname_dir, template_filename)
+        with open(teacher_file_path, "r") as source_file:
+            template_content = source_file.read()
+        with open(template_txt_path, "w") as target_file:
+            target_file.write(template_content)
+        saved_log_paths.append(template_txt_path)
+
+    show_run_path = choose_show_run_file(saved_log_paths)
+
+    # Parse and save JSON config (show run + verification command outputs)
+    template_config = parse_device_logs(saved_log_paths)
+    config_json_path = os.path.join(
+        template_folder, template_name, hostname, "config.json"
+    )
+    with open(config_json_path, "w") as target_file:
         json.dump(template_config, target_file, indent=4)
 
-    print(f"Saved template for {device_name} in profile '{profile_name}'.")
+    # Save metadata so future comparisons can align logs by filename.
+    manifest_path = os.path.join(template_folder, template_name, hostname, "logs.json")
+    with open(manifest_path, "w") as manifest_file:
+        json.dump(
+            {
+                "hostname": hostname,
+                "show_run_file": os.path.basename(show_run_path),
+                "logs": [os.path.basename(path) for path in saved_log_paths],
+            },
+            manifest_file,
+            indent=4,
+        )
+
+    print(
+        f"Saved template for {hostname} with {len(saved_log_paths)} log(s). "
+        f"Show run source: {os.path.basename(show_run_path)}"
+    )
     return template_config
 
 
-def load_device_template(template_folder, profile_name, device_name):
-    """Load a device template JSON for a profile."""
-    template_json_path = os.path.join(
-        template_folder, profile_name, f"{device_name}.json"
+def load_hostname_template(template_folder, template_name, hostname):
+    """Load a hostname config JSON from template."""
+    config_json_path = os.path.join(
+        template_folder, template_name, hostname, "config.json"
     )
-    if not os.path.exists(template_json_path):
+    if not os.path.exists(config_json_path):
         return None
 
-    with open(template_json_path, "r") as template_file:
-        return json.load(template_file)
+    with open(config_json_path, "r") as config_file:
+        loaded = json.load(config_file)
+    return normalize_parsed_config(loaded)
 
 
 def setup_templates(template_folder):
-    """Load or upload teacher templates per device."""
+    """Load or upload teacher templates per hostname."""
     print("\n=== Template Setup ===")
 
-    profiles = list_template_profiles(template_folder)
-    if profiles:
-        print("\nAvailable template profiles:")
-        for idx, profile in enumerate(profiles, 1):
-            print(f"{idx}. {profile}")
-        print(f"{len(profiles) + 1}. Create new profile")
+    template_names = list_template_names(template_folder)
+    if template_names:
+        print("\nAvailable templates:")
+        for idx, name in enumerate(template_names, 1):
+            print(f"{idx}. {name}")
+        print(f"{len(template_names) + 1}. Create new template")
 
-        choice = input("Select profile (number): ").strip()
+        choice = input("Select template (number): ").strip()
         try:
             choice_index = int(choice)
-            if 1 <= choice_index <= len(profiles):
-                profile_name = profiles[choice_index - 1]
+            if 1 <= choice_index <= len(template_names):
+                template_name = template_names[choice_index - 1]
                 loaded = {}
-                for device_name in list_templates_in_profile(
-                    template_folder, profile_name
-                ):
-                    loaded[device_name] = load_device_template(
-                        template_folder, profile_name, device_name
+                hostnames = list_hostnames_in_template(template_folder, template_name)
+                for hostname in hostnames:
+                    loaded[hostname] = load_hostname_template(
+                        template_folder, template_name, hostname
                     )
                 print(
-                    "Loaded profile "
-                    f"'{profile_name}' with devices: {', '.join(sorted(loaded.keys()))}"
+                    f"Loaded template '{template_name}' with hostnames: {', '.join(sorted(loaded.keys()))}"
                 )
-                return profile_name, loaded
+                return template_name, loaded
         except ValueError:
             pass
 
-    profile_name = input("Enter new template profile name (e.g., quiz1): ").strip()
-    if not profile_name:
-        profile_name = "default"
+    template_name = input("Enter new template name (e.g., quiz1): ").strip()
+    if not template_name:
+        template_name = "default"
 
-    custom_devices = input(
-        f"Enter device names separated by commas (default: {', '.join(DEFAULT_DEVICES)}): "
+    custom_hostnames = input(
+        f"Enter hostnames separated by commas (default: {', '.join(DEFAULT_HOSTNAMES)}): "
     ).strip()
-    if custom_devices:
-        device_list = [
-            device.strip() for device in custom_devices.split(",") if device.strip()
-        ]
+    if custom_hostnames:
+        hostname_list = [h.strip() for h in custom_hostnames.split(",") if h.strip()]
     else:
-        device_list = DEFAULT_DEVICES
+        hostname_list = DEFAULT_HOSTNAMES
 
     templates = {}
-    for device_name in device_list:
-        print(f"\nUploading template for device {device_name}...")
-        template_config = upload_device_template(
-            template_folder, profile_name, device_name
+    for hostname in hostname_list:
+        print(f"\nUploading template for {hostname}...")
+        template_config = upload_hostname_template(
+            template_folder, template_name, hostname
         )
         if template_config is not None:
-            templates[device_name] = template_config
+            templates[hostname] = template_config
 
-    print(f"Template profile '{profile_name}' ready with {len(templates)} devices.")
-    return profile_name, templates
+    print(f"Template '{template_name}' ready with {len(templates)} hostnames.")
+    return template_name, templates

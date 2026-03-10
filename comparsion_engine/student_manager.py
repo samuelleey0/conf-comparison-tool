@@ -2,7 +2,9 @@ import json
 import os
 
 from comparator import compare_dicts
-from parser import parse_showrun
+from comparator import normalize_config_with_scheme
+from parser import normalize_parsed_config
+from parser import parse_device_logs
 
 SHOW_RUN_TOKENS = [
     "showrun",
@@ -23,11 +25,14 @@ def normalize_text(value):
     return " ".join(lowered.split())
 
 
-def find_show_run_file(device_dir):
-    """Find the most likely show run file in a device command directory."""
+def find_show_run_file(logs_dir):
+    """Find show run file in a logs directory."""
+    if not os.path.isdir(logs_dir):
+        return None
+
     candidate_files = []
-    for entry in os.listdir(device_dir):
-        full_path = os.path.join(device_dir, entry)
+    for entry in os.listdir(logs_dir):
+        full_path = os.path.join(logs_dir, entry)
         if os.path.isfile(full_path):
             normalized = normalize_text(entry)
             if any(token in normalized for token in SHOW_RUN_TOKENS):
@@ -51,38 +56,75 @@ def find_show_run_file(device_dir):
     return candidate_files[0]
 
 
-def collect_student_device_showruns(student_folder, student_id):
-    """Collect show run path for each device under students/<student_id>/<device>/..."""
+def collect_student_hostname_showruns(student_folder, student_id):
+    """Collect show run path for each hostname under students/<student_id>/<hostname>/..."""
     student_dir = os.path.join(student_folder, student_id)
     if not os.path.isdir(student_dir):
         print(f"Error: student directory '{student_dir}' not found.")
         return None
 
-    device_showruns = {}
+    hostname_showruns = {}
     for entry in sorted(os.listdir(student_dir)):
-        device_dir = os.path.join(student_dir, entry)
-        if not os.path.isdir(device_dir):
+        hostname_dir = os.path.join(student_dir, entry)
+        if not os.path.isdir(hostname_dir):
             continue
 
-        show_run_file = find_show_run_file(device_dir)
+        show_run_file = find_show_run_file(hostname_dir)
         if show_run_file is None:
-            print(f"Warning: no show run file found for {student_id}/{entry}.")
+            print(f"Warning: no show run file found for {student_id}/{entry}/.")
             continue
 
-        device_showruns[entry] = show_run_file
+        hostname_showruns[entry] = show_run_file
 
-    return device_showruns
+    return hostname_showruns
 
 
-def compare_student_devices(
-    student_id, profile_name, templates, student_folder, results_folder
+def collect_student_hostname_logs(student_folder, student_id):
+    """Collect all log files for each hostname under students/<student_id>/<hostname>/."""
+    student_dir = os.path.join(student_folder, student_id)
+    if not os.path.isdir(student_dir):
+        print(f"Error: student directory '{student_dir}' not found.")
+        return None
+
+    hostname_logs = {}
+    for entry in sorted(os.listdir(student_dir)):
+        hostname_dir = os.path.join(student_dir, entry)
+        if not os.path.isdir(hostname_dir):
+            continue
+
+        file_paths = []
+        for child in sorted(os.listdir(hostname_dir)):
+            full_path = os.path.join(hostname_dir, child)
+            if os.path.isfile(full_path):
+                file_paths.append(full_path)
+
+        if file_paths:
+            hostname_logs[entry] = file_paths
+
+    return hostname_logs
+
+
+def compare_student_hostnames(
+    student_id,
+    template_name,
+    templates,
+    student_folder,
+    results_folder,
+    scheme_mode="strict",
+    template_scheme=None,
+    student_scheme=None,
 ):
-    """Compare each student device show run with the matching teacher device template."""
-    print(f"\n--- Grading student {student_id} (profile: {profile_name}) ---")
+    """Compare each student hostname show run with the matching teacher hostname template."""
+    print(f"\n--- Grading student {student_id} (template: {template_name}) ---")
 
-    student_showruns = collect_student_device_showruns(student_folder, student_id)
+    student_showruns = collect_student_hostname_showruns(student_folder, student_id)
     if not student_showruns:
-        print(f"No device show run files found for student {student_id}.")
+        print(f"No hostname show run files found for student {student_id}.")
+        return False
+
+    student_logs = collect_student_hostname_logs(student_folder, student_id)
+    if not student_logs:
+        print(f"No log files found for student {student_id}.")
         return False
 
     student_results_dir = os.path.join(results_folder, student_id)
@@ -90,45 +132,72 @@ def compare_student_devices(
 
     summary = {
         "student_id": student_id,
-        "template_profile": profile_name,
-        "devices_compared": [],
-        "devices_missing_template": [],
-        "devices_missing_show_run": [],
+        "template_name": template_name,
+        "grading_mode": scheme_mode,
+        "hostnames_compared": [],
+        "hostnames_missing_template": [],
+        "hostnames_missing_show_run": [],
         "results": {},
     }
 
-    for device_name, template_config in templates.items():
+    for hostname, template_config in templates.items():
         if template_config is None:
-            summary["devices_missing_template"].append(device_name)
+            summary["hostnames_missing_template"].append(hostname)
             continue
 
-        if device_name not in student_showruns:
-            summary["devices_missing_show_run"].append(device_name)
+        template_config = normalize_parsed_config(template_config)
+
+        if hostname not in student_showruns:
+            summary["hostnames_missing_show_run"].append(hostname)
             continue
 
-        student_config = parse_showrun(student_showruns[device_name])
-        comparison_results = compare_dicts(template_config, student_config)
-
-        summary["devices_compared"].append(device_name)
-        summary["results"][device_name] = comparison_results
-
-        device_result_file = os.path.join(
-            student_results_dir, f"{device_name}_result.json"
+        student_config = normalize_parsed_config(
+            parse_device_logs(student_logs[hostname])
         )
-        with open(device_result_file, "w") as result_file:
+
+        # Save parsed student config for debugging/traceability.
+        parsed_debug_file = os.path.join(
+            student_results_dir, f"{hostname}_student_parsed.json"
+        )
+        with open(parsed_debug_file, "w") as parsed_handle:
+            json.dump(student_config, parsed_handle, indent=4)
+
+        compare_template = template_config
+        compare_student = student_config
+        if scheme_mode == "scheme-aware":
+            compare_template = normalize_config_with_scheme(
+                compare_template, template_scheme
+            )
+            compare_student = normalize_config_with_scheme(
+                compare_student, student_scheme
+            )
+
+        comparison_results = compare_dicts(compare_template, compare_student)
+
+        summary["hostnames_compared"].append(hostname)
+        summary["results"][hostname] = comparison_results
+
+        hostname_result_file = os.path.join(
+            student_results_dir, f"{hostname}_result.json"
+        )
+        with open(hostname_result_file, "w") as result_file:
             json.dump(
                 {
                     "student_id": student_id,
-                    "template_profile": profile_name,
-                    "device": device_name,
-                    "teacher_template_device": device_name,
-                    "student_show_run_file": student_showruns[device_name],
+                    "template_name": template_name,
+                    "grading_mode": scheme_mode,
+                    "hostname": hostname,
+                    "student_show_run_file": student_showruns[hostname],
+                    "student_parsed_file": parsed_debug_file,
                     "results": comparison_results,
                 },
                 result_file,
                 indent=4,
             )
-        print(f"Compared {device_name}: result saved to {device_result_file}")
+        print(
+            f"Compared {hostname}: result saved to {hostname_result_file} | "
+            f"parsed debug saved to {parsed_debug_file}"
+        )
 
     summary_file = os.path.join(student_results_dir, "summary.json")
     with open(summary_file, "w") as summary_handle:
