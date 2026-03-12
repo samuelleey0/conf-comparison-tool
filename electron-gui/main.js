@@ -25,6 +25,65 @@ ipcMain.handle('select-directory', async (event, defaultPath) => {
 });
 
 /**
+ * Get available COM ports on Windows
+ */
+ipcMain.handle('get-available-com-ports', async () => {
+  if (process.platform !== 'win32') {
+    return [];
+  }
+  
+  try {
+    const { execSync } = require('child_process');
+    try {
+      // Method 1: Use PowerShell to list COM ports from registry
+      const command = `Get-ItemProperty -Path "HKLM:\\HARDWARE\\DEVICEMAP\\SERIALCOMM" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty PSObject.Properties | Where-Object {$_.Name -like "\\Device\\*"} | Select-Object -ExpandProperty Value`;
+      const output = execSync(`powershell -Command "${command}"`, { 
+        encoding: 'utf8',
+        timeout: 5000
+      });
+      
+      const ports = output
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.match(/^COM\d+$/));
+      
+      if (ports.length > 0) {
+        console.log('[Windows Serial] Detected COM ports:', ports);
+        return [...new Set(ports)]; // Remove duplicates
+      }
+    } catch (err) {
+      // Fallback to simpler method
+      console.debug('[Windows Serial] PowerShell registry method failed, trying WMI');
+    }
+    
+    // Method 2: Use WMI to list COM ports
+    const wmiCommand = `Get-WmiObject Win32_SerialPort | Select-Object -ExpandProperty DeviceID`;
+    const wmiOutput = execSync(`powershell -Command "${wmiCommand}"`, { 
+      encoding: 'utf8',
+      timeout: 5000
+    });
+    
+    const ports = wmiOutput
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.match(/^COM\d+$/));
+    
+    if (ports.length > 0) {
+      console.log('[Windows Serial] Detected COM ports via WMI:', ports);
+      return [...new Set(ports)];
+    }
+    
+    // If still nothing found, return empty
+    console.log('[Windows Serial] No COM ports found');
+    return [];
+  } catch (err) {
+    console.debug('[Windows Serial] Error detecting COM ports:', err.message);
+    // Return empty array - user will need to manually enter port
+    return [];
+  }
+});
+
+/**
  * Wait until Flask port is reachable (default: 5050)
  */
 function waitForPort(host, port, timeout = 10000) {

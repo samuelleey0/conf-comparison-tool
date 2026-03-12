@@ -1158,7 +1158,16 @@ function setupConnectionPage() {
     document.querySelector('input[name="serialPreset"][value="custom"]').checked = true;
     applySerialPreset("custom");
   } else {
-    applySerialPreset("linux");
+    // Detect OS and apply appropriate preset
+    const platform = navigator.platform || navigator.userAgentData?.platform || "unknown";
+    let defaultPreset = "linux"; // default
+    if (platform.toLowerCase().includes("win")) {
+      defaultPreset = "windows";
+    } else if (platform.toLowerCase().includes("mac")) {
+      defaultPreset = "mac";
+    }
+    document.querySelector(`input[name="serialPreset"][value="${defaultPreset}"]`).checked = true;
+    applySerialPreset(defaultPreset);
   }
 
   document.getElementById("sshHost").value = localStorage.getItem("sshHost") || "";
