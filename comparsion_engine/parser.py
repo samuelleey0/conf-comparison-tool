@@ -5,7 +5,16 @@ import json
 from compare_utils import should_ignore
 
 
-PARSED_SCHEMA_VERSION = 2
+PARSED_SCHEMA_VERSION = 3
+
+COMMAND_ERROR_PATTERNS = [
+    r"^%\s*incomplete command",
+    r"^%\s*invalid input",
+    r"^%\s*invalid command",
+    r"^%\s*unrecognized command",
+    r"^%\s*ambiguous command",
+    r"^%\s*unknown command",
+]
 
 
 def _split_interface_list(value):
@@ -119,6 +128,92 @@ def normalize_parsed_config(parsed):
                     and "prefix" in route
                 ):
                     route["destination"] = route.pop("prefix")
+
+    # Normalize NAT translations into lightweight "tested" signal.
+    nat_translations = verification.get("show_ip_nat_translations", {})
+    if isinstance(nat_translations, dict):
+        if "tested" not in nat_translations:
+            translations = nat_translations.get("translations", [])
+            nat_translations = {
+                "tested": bool(isinstance(translations, list) and translations),
+            }
+            verification["show_ip_nat_translations"] = nat_translations
+
+    # Normalize DHCP bindings by keeping assigned IP evidence only.
+    dhcp_binding = verification.get("show_ip_dhcp_binding", {})
+    if isinstance(dhcp_binding, dict):
+        if "assigned_ips" not in dhcp_binding:
+            bindings = dhcp_binding.get("bindings", [])
+            assigned_ips = []
+            if isinstance(bindings, list):
+                for entry in bindings:
+                    if isinstance(entry, dict):
+                        ip_value = str(entry.get("ip", "")).strip()
+                    else:
+                        ip_value = ""
+                    if ip_value:
+                        assigned_ips.append(ip_value)
+            dhcp_binding = {
+                "has_assignments": bool(assigned_ips),
+                "assigned_ips": sorted(set(assigned_ips)),
+            }
+            verification["show_ip_dhcp_binding"] = dhcp_binding
+
+    # Normalize DHCP pool verification into lightweight test signal.
+    dhcp_pool = verification.get("show_ip_dhcp_pool", {})
+    if isinstance(dhcp_pool, dict):
+        if "tested" not in dhcp_pool:
+            pools = dhcp_pool.get("pools", {})
+            pool_names = []
+            if isinstance(pools, dict):
+                pool_names = sorted(str(name) for name in pools.keys())
+            dhcp_pool = {
+                "tested": bool(pool_names),
+                "pool_names": pool_names,
+            }
+            verification["show_ip_dhcp_pool"] = dhcp_pool
+
+    # Normalize EIGRP neighbors to stable identity fields only.
+    eigrp_neighbor = verification.get("show_ip_eigrp_neighbor", {})
+    if isinstance(eigrp_neighbor, dict):
+        neighbors = eigrp_neighbor.get("neighbors", [])
+        compact_neighbors = []
+        if isinstance(neighbors, list):
+            for item in neighbors:
+                if not isinstance(item, dict):
+                    continue
+                address = str(item.get("address", "")).strip()
+                interface = str(item.get("interface", "")).strip()
+                if address and interface:
+                    compact_neighbors.append(
+                        {"address": address, "interface": interface}
+                    )
+
+        eigrp_neighbor["neighbors"] = sorted(
+            compact_neighbors,
+            key=lambda entry: (entry.get("address", ""), entry.get("interface", "")),
+        )
+
+    # Normalize OSPF neighbors to stable identity fields only.
+    ospf_neighbor = verification.get("show_ip_ospf_neighbor", {})
+    if isinstance(ospf_neighbor, dict):
+        neighbors = ospf_neighbor.get("neighbors", [])
+        compact_neighbors = []
+        if isinstance(neighbors, list):
+            for item in neighbors:
+                if not isinstance(item, dict):
+                    continue
+                address = str(item.get("address", "")).strip()
+                interface = str(item.get("interface", "")).strip()
+                if address and interface:
+                    compact_neighbors.append(
+                        {"address": address, "interface": interface}
+                    )
+
+        ospf_neighbor["neighbors"] = sorted(
+            compact_neighbors,
+            key=lambda entry: (entry.get("address", ""), entry.get("interface", "")),
+        )
 
     normalized["schema_version"] = PARSED_SCHEMA_VERSION
     return normalized
@@ -242,16 +337,41 @@ def _clean_log_lines(file_path):
 
 def detect_command_type(file_path):
     name = _normalize_text(os.path.basename(file_path))
+    token_candidates = []
     for command, tokens in COMMAND_TOKENS.items():
-        if any(token in name for token in tokens):
+        for token in tokens:
+            token_candidates.append((command, token))
+
+    # Match more specific command tokens first to avoid prefix collisions
+    # (e.g. "show ip eigrp neighbor" should not be detected as "show ip eigrp").
+    token_candidates.sort(key=lambda item: len(item[1]), reverse=True)
+
+    for command, token in token_candidates:
+        if token in name:
             return command
 
     lines = _clean_log_lines(file_path)
     header = " ".join(line.strip().lower() for line in lines[:5] if line.strip())
-    for command, tokens in COMMAND_TOKENS.items():
-        if any(token in header for token in tokens):
+    for command, token in token_candidates:
+        if token in header:
             return command
 
+    return None
+
+
+def detect_command_error(file_path):
+    """Return first command execution error line if the log captured a CLI error."""
+    lines = _clean_log_lines(file_path)
+    for line in lines[:25]:
+        stripped = line.strip()
+        lower = stripped.lower()
+        if _is_device_prompt(stripped):
+            continue
+        if lower.startswith("show ") or lower.startswith("sh "):
+            continue
+        for pattern in COMMAND_ERROR_PATTERNS:
+            if re.search(pattern, stripped, flags=re.IGNORECASE):
+                return stripped
     return None
 
 
@@ -896,7 +1016,7 @@ def parse_show_ip_nat_statistics(file_path):
 
 
 def parse_show_ip_nat_translations(file_path):
-    result = {"translations": []}
+    result = {"tested": False}
     lines = _clean_log_lines(file_path)
 
     for line in lines:
@@ -913,29 +1033,14 @@ def parse_show_ip_nat_translations(file_path):
 
         parts = stripped.split()
         if len(parts) >= 5:
-            result["translations"].append(
-                {
-                    "protocol": parts[0],
-                    "inside_global": parts[1],
-                    "inside_local": parts[2],
-                    "outside_local": parts[3],
-                    "outside_global": parts[4],
-                }
-            )
+            result["tested"] = True
+            break
 
-    result["translations"] = sorted(
-        result["translations"],
-        key=lambda entry: (
-            entry.get("protocol", ""),
-            entry.get("inside_local", ""),
-            entry.get("outside_global", ""),
-        ),
-    )
     return result
 
 
 def parse_show_ip_dhcp_binding(file_path):
-    result = {"bindings": []}
+    result = {"has_assignments": False, "assigned_ips": []}
     lines = _clean_log_lines(file_path)
 
     for line in lines:
@@ -953,25 +1058,16 @@ def parse_show_ip_dhcp_binding(file_path):
 
         parts = stripped.split()
         if len(parts) >= 4 and "." in parts[0]:
-            result["bindings"].append(
-                {
-                    "ip": parts[0],
-                    "client_id_hwaddr": parts[1],
-                    "lease": " ".join(parts[2:-1]),
-                    "type": parts[-1],
-                }
-            )
+            result["assigned_ips"].append(parts[0])
 
-    result["bindings"] = sorted(
-        result["bindings"], key=lambda entry: entry.get("ip", "")
-    )
+    result["assigned_ips"] = sorted(set(result["assigned_ips"]))
+    result["has_assignments"] = bool(result["assigned_ips"])
     return result
 
 
 def parse_show_ip_dhcp_pool(file_path):
-    result = {"pools": {}}
+    result = {"tested": False, "pool_names": []}
     lines = _clean_log_lines(file_path)
-    current_pool = None
 
     for line in lines:
         stripped = line.strip()
@@ -984,14 +1080,18 @@ def parse_show_ip_dhcp_pool(file_path):
             continue
 
         if lower.startswith("pool") and ":" in stripped:
-            current_pool = stripped.split(":", 1)[1].strip()
-            result["pools"].setdefault(current_pool, {})
-            continue
+            # Extract pool name from "Pool PoolName :" format (part before colon)
+            pool_name = (
+                stripped.split(":", 1)[0]
+                .replace("Pool", "")
+                .replace("pool", "")
+                .strip()
+            )
+            if pool_name:
+                result["pool_names"].append(pool_name)
 
-        if current_pool and ":" in stripped:
-            key, value = stripped.split(":", 1)
-            normalized_key = _normalize_text(key).replace(" ", "_")
-            result["pools"][current_pool][normalized_key] = value.strip()
+    result["pool_names"] = sorted(set(result["pool_names"]))
+    result["tested"] = bool(result["pool_names"])
 
     return result
 
@@ -1033,23 +1133,20 @@ def parse_show_ip_eigrp_neighbor(file_path):
             continue
 
         parts = stripped.split()
-        if len(parts) >= 5:
-            result["neighbors"].append(
-                {
-                    "h": parts[0],
-                    "address": parts[1],
-                    "interface": parts[2],
-                    "hold": parts[3],
-                    "uptime": parts[4],
-                    "srtt": parts[5] if len(parts) > 5 else "",
-                    "rto": parts[6] if len(parts) > 6 else "",
-                    "q_cnt": parts[7] if len(parts) > 7 else "",
-                    "seq_num": parts[8] if len(parts) > 8 else "",
-                }
-            )
+        if len(parts) >= 3:
+            address = parts[1].strip()
+            interface = parts[2].strip()
+            if address and interface:
+                result["neighbors"].append(
+                    {
+                        "address": address,
+                        "interface": interface,
+                    }
+                )
 
     result["neighbors"] = sorted(
-        result["neighbors"], key=lambda entry: entry.get("address", "")
+        result["neighbors"],
+        key=lambda entry: (entry.get("address", ""), entry.get("interface", "")),
     )
     return result
 
@@ -1098,20 +1195,20 @@ def parse_show_ip_ospf_neighbor(file_path):
             continue
 
         parts = stripped.split()
-        if len(parts) >= 5:
-            result["neighbors"].append(
-                {
-                    "neighbor_id": parts[0],
-                    "priority": parts[1],
-                    "state": parts[2],
-                    "dead_time": parts[3],
-                    "address": parts[4],
-                    "interface": parts[5] if len(parts) > 5 else "",
-                }
-            )
+        if len(parts) >= 6:
+            address = parts[4].strip()
+            interface = parts[5].strip()
+            if address and interface:
+                result["neighbors"].append(
+                    {
+                        "address": address,
+                        "interface": interface,
+                    }
+                )
 
     result["neighbors"] = sorted(
-        result["neighbors"], key=lambda entry: entry.get("neighbor_id", "")
+        result["neighbors"],
+        key=lambda entry: (entry.get("address", ""), entry.get("interface", "")),
     )
     return result
 
@@ -1263,6 +1360,10 @@ def parse_show_spanning_tree(file_path):
 
 
 def parse_log_by_type(file_path, command_type=None):
+    command_error = detect_command_error(file_path)
+    if command_error:
+        return None, None
+
     command = command_type or detect_command_type(file_path)
     if command == "show_running_config":
         return command, parse_showrun(file_path)
@@ -1299,14 +1400,26 @@ def parse_log_by_type(file_path, command_type=None):
     return None, None
 
 
-def parse_device_logs(file_paths):
-    """Parse all known command outputs for one device. Show run is primary source."""
+def parse_device_logs_with_report(file_paths):
+    """Parse logs and return normalized parsed output plus skipped-file diagnostics."""
     parsed = {
         "show_running_config": None,
         "verification": {},
     }
+    skipped_logs = []
 
     for file_path in file_paths:
+        command_error = detect_command_error(file_path)
+        if command_error:
+            skipped_logs.append(
+                {
+                    "file": file_path,
+                    "reason": command_error,
+                    "detected_command": detect_command_type(file_path),
+                }
+            )
+            continue
+
         command, parsed_output = parse_log_by_type(file_path)
         if not command or parsed_output is None:
             continue
@@ -1316,4 +1429,10 @@ def parse_device_logs(file_paths):
         else:
             parsed["verification"][command] = parsed_output
 
-    return normalize_parsed_config(parsed)
+    return normalize_parsed_config(parsed), skipped_logs
+
+
+def parse_device_logs(file_paths):
+    """Parse all known command outputs for one device. Show run is primary source."""
+    parsed, _skipped_logs = parse_device_logs_with_report(file_paths)
+    return parsed
