@@ -1,5 +1,9 @@
 import json
 import os
+from .comparator import compare_dicts
+from .comparator import normalize_config_with_scheme
+from .parser import normalize_parsed_config
+from .parser import parse_device_logs
 import ipaddress
 
 from comparator import compare_dicts
