@@ -1201,7 +1201,10 @@ function setupSampleCollectPage() {
   const dirLabel = document.getElementById("sampleDirLabel");
 
   const setStatus = (msg) => {
-    if (statusBox) statusBox.textContent = msg;
+    if (!statusBox) return;
+    const msgEl = statusBox.querySelector('.status-banner__msg');
+    if (msgEl) msgEl.textContent = msg;
+    else statusBox.textContent = msg;
   };
 
   const appendSampleLog = (msg) => {
