@@ -1,7 +1,9 @@
 import json
 import os
-from comparsion_engine.parser import normalize_parsed_config
-from comparsion_engine.parser import parse_device_logs
+
+from parser import detect_command_type
+from parser import normalize_parsed_config
+from parser import parse_device_logs_with_report
 
 DEFAULT_HOSTNAMES = ["R1", "R2", "S1"]
 SHOW_RUN_TOKENS = [
@@ -135,8 +137,9 @@ def upload_hostname_template(template_folder, template_name, hostname):
 
     show_run_path = choose_show_run_file(saved_log_paths)
 
-    # Parse and save JSON config (show run + verification command outputs)
-    template_config = parse_device_logs(saved_log_paths)
+    # Parse and save JSON config (show run + verification command outputs).
+    # Logs containing CLI command errors are skipped and reported to teacher.
+    template_config, skipped_logs = parse_device_logs_with_report(saved_log_paths)
     config_json_path = os.path.join(
         template_folder, template_name, hostname, "config.json"
     )
@@ -144,6 +147,19 @@ def upload_hostname_template(template_folder, template_name, hostname):
         json.dump(template_config, target_file, indent=4)
 
     # Save metadata so future comparisons can align logs by filename.
+    skipped_files = {os.path.basename(item.get("file", "")) for item in skipped_logs}
+    command_map = {}
+    required_command_types = []
+    for path in saved_log_paths:
+        filename = os.path.basename(path)
+        if filename in skipped_files:
+            command_map[filename] = None
+            continue
+        command_type = detect_command_type(path)
+        command_map[filename] = command_type
+        if command_type and command_type not in required_command_types:
+            required_command_types.append(command_type)
+
     manifest_path = os.path.join(template_folder, template_name, hostname, "logs.json")
     with open(manifest_path, "w") as manifest_file:
         json.dump(
@@ -151,10 +167,21 @@ def upload_hostname_template(template_folder, template_name, hostname):
                 "hostname": hostname,
                 "show_run_file": os.path.basename(show_run_path),
                 "logs": [os.path.basename(path) for path in saved_log_paths],
+                "command_types": command_map,
+                "required_command_types": required_command_types,
+                "skipped_logs": skipped_logs,
             },
             manifest_file,
             indent=4,
         )
+
+    if skipped_logs:
+        print("Warning: some uploaded logs were skipped due to command errors:")
+        for item in skipped_logs:
+            skipped_name = os.path.basename(item.get("file", ""))
+            detected_command = item.get("detected_command") or "unknown"
+            reason = item.get("reason") or "command failed"
+            print(f"- {skipped_name} ({detected_command}): {reason}")
 
     print(
         f"Saved template for {hostname} with {len(saved_log_paths)} log(s). "

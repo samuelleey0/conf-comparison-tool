@@ -1,9 +1,12 @@
 import json
 import os
-from comparsion_engine.comparator import compare_dicts
-from comparsion_engine.comparator import normalize_config_with_scheme
-from comparsion_engine.parser import normalize_parsed_config
-from comparsion_engine.parser import parse_device_logs
+import ipaddress
+
+from comparator import compare_dicts
+from comparator import normalize_config_with_scheme
+from parser import detect_command_type
+from parser import normalize_parsed_config
+from parser import parse_device_logs
 
 SHOW_RUN_TOKENS = [
     "showrun",
@@ -103,34 +106,70 @@ def collect_student_hostname_logs(student_folder, student_id):
     return hostname_logs
 
 
-def _load_student_config(student_host_dir, log_files):
-    """
-    Load parsed student config from config.json if present, otherwise parse logs.
-    Returns (config_dict_or_none, config_path_or_none).
-    """
-    config_path = os.path.join(student_host_dir, "config.json")
-    if os.path.isfile(config_path):
-        try:
-            with open(config_path, "r") as handle:
-                data = json.load(handle) or {}
-            return normalize_parsed_config(data), config_path
-        except Exception:
-            return None, config_path
+def load_template_manifest(template_folder, template_name, hostname):
+    """Load per-hostname template manifest (teacher command requirements)."""
+    if not template_folder:
+        return {}
 
-    if not log_files:
-        return None, None
+    manifest_path = os.path.join(template_folder, template_name, hostname, "logs.json")
+    if not os.path.exists(manifest_path):
+        return {}
 
     try:
-        parsed = parse_device_logs(log_files)
-        return normalize_parsed_config(parsed), None
+        with open(manifest_path, "r") as handle:
+            return json.load(handle) or {}
     except Exception:
-        return None, None
+        return {}
+
+
+def collect_detected_command_types(file_paths):
+    """Detect parsed command types from a list of log files."""
+    detected = []
+    for path in file_paths:
+        command_type = detect_command_type(path)
+        if command_type and command_type not in detected:
+            detected.append(command_type)
+    return detected
+
+
+def find_dhcp_excluded_conflicts(parsed_config):
+    """Return assigned DHCP IPs that fall inside configured excluded ranges."""
+    show_run = parsed_config.get("show_running_config", {}) or {}
+    verification = parsed_config.get("verification", {}) or {}
+
+    excluded_ranges = show_run.get("dhcp_excluded", [])
+    binding_data = verification.get("show_ip_dhcp_binding", {}) or {}
+    assigned_ips = binding_data.get("assigned_ips", [])
+
+    excluded_networks = []
+    for item in excluded_ranges:
+        try:
+            start_ip = ipaddress.ip_address(item.get("start"))
+            end_ip = ipaddress.ip_address(item.get("end"))
+            excluded_networks.append((start_ip, end_ip))
+        except Exception:
+            continue
+
+    conflicts = []
+    for ip_text in assigned_ips:
+        try:
+            assigned_ip = ipaddress.ip_address(ip_text)
+        except Exception:
+            continue
+
+        for start_ip, end_ip in excluded_networks:
+            if start_ip <= assigned_ip <= end_ip:
+                conflicts.append(ip_text)
+                break
+
+    return sorted(set(conflicts))
 
 
 def compare_student_hostnames(
     student_id,
     template_name,
     templates,
+    template_folder,
     student_folder,
     results_folder,
     scheme_mode="strict",
@@ -158,6 +197,8 @@ def compare_student_hostnames(
         "hostnames_compared": [],
         "hostnames_missing_template": [],
         "hostnames_missing_show_run": [],
+        "hostnames_hostname_mismatch": [],
+        "hostnames_missing_required_commands": {},
         "results": {},
     }
 
@@ -171,9 +212,20 @@ def compare_student_hostnames(
         if hostname not in student_showruns:
             summary["hostnames_missing_show_run"].append(hostname)
 
-        student_host_dir = os.path.join(student_folder, student_id, hostname)
-        student_config, student_config_path = _load_student_config(
-            student_host_dir, student_logs.get(hostname, [])
+        manifest = load_template_manifest(template_folder, template_name, hostname)
+        required_command_types = manifest.get("required_command_types", [])
+        detected_command_types = collect_detected_command_types(student_logs[hostname])
+
+        missing_required = [
+            command
+            for command in required_command_types
+            if command not in detected_command_types
+        ]
+        if missing_required:
+            summary["hostnames_missing_required_commands"][hostname] = missing_required
+
+        student_config = normalize_parsed_config(
+            parse_device_logs(student_logs[hostname])
         )
         if student_config is None:
             print(f"Warning: no config found for {student_id}/{hostname}. Marking all as missing.")
@@ -220,6 +272,48 @@ def compare_student_hostnames(
                 )
             continue
 
+        # Hostname gate: compare only when detected hostname matches teacher hostname.
+        detected_hostname = (student_config.get("show_running_config", {}) or {}).get(
+            "hostname"
+        )
+        if detected_hostname and detected_hostname != hostname:
+            summary["hostnames_hostname_mismatch"].append(
+                {
+                    "expected": hostname,
+                    "actual": detected_hostname,
+                }
+            )
+            summary["results"][hostname] = [
+                {
+                    "feature": "show_running_config.hostname",
+                    "expected": hostname,
+                    "actual": detected_hostname,
+                    "status": "mismatch",
+                }
+            ]
+
+            hostname_result_file = os.path.join(
+                student_results_dir, f"{hostname}_result.json"
+            )
+            with open(hostname_result_file, "w") as result_file:
+                json.dump(
+                    {
+                        "student_id": student_id,
+                        "template_name": template_name,
+                        "grading_mode": scheme_mode,
+                        "hostname": hostname,
+                        "student_show_run_file": student_showruns[hostname],
+                        "results": summary["results"][hostname],
+                    },
+                    result_file,
+                    indent=4,
+                )
+            print(
+                f"Skipped {hostname}: hostname mismatch "
+                f"(expected {hostname}, actual {detected_hostname})"
+            )
+            continue
+
         # Save parsed student config for debugging/traceability.
         parsed_debug_file = os.path.join(
             student_results_dir, f"{hostname}_student_parsed.json"
@@ -243,6 +337,36 @@ def compare_student_hostnames(
             )
 
         comparison_results = compare_dicts(compare_template, compare_student)
+
+        # Add explicit missing-command findings based on teacher-selected command set.
+        for command in missing_required:
+            comparison_results.append(
+                {
+                    "feature": f"verification.{command}",
+                    "expected": "present",
+                    "actual": "missing",
+                    "status": "missing",
+                }
+            )
+
+        # DHCP safety check: assigned IP must not be inside excluded range.
+        dhcp_conflicts = find_dhcp_excluded_conflicts(compare_student)
+        if dhcp_conflicts:
+            comparison_results.append(
+                {
+                    "feature": "verification.show_ip_dhcp_binding.excluded_range_check",
+                    "expected": "no assigned IP in excluded range",
+                    "actual": ", ".join(dhcp_conflicts),
+                    "status": "mismatch",
+                }
+            )
+        else:
+            comparison_results.append(
+                {
+                    "feature": "verification.show_ip_dhcp_binding.excluded_range_check",
+                    "status": "correct",
+                }
+            )
 
         summary["hostnames_compared"].append(hostname)
         summary["results"][hostname] = comparison_results

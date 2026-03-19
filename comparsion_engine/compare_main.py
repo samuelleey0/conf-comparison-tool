@@ -187,6 +187,7 @@ def main():
             student_id,
             template_name,
             templates,
+            TEMPLATE_FOLDER,
             STUDENT_FOLDER,
             RESULTS_FOLDER,
             scheme_mode=active_mode,
