@@ -145,9 +145,9 @@ def remote_connect(host, username="", password="", port="22", timeout=20):
             look_for_keys=False,
         )
     except paramiko.ssh_exception.SSHException as exc:
-
+        message_lower = str(exc).lower()
         # Handle Diffie-Hellman group exchange mismatch by appending compatible algorithms
-        if "kex alg" in str(exc).lower() or "diffie-hellman" in str(exc).lower():
+        if "kex alg" in message_lower or "diffie-hellman" in message_lower:
             logger.info(
                 "Detected DH key exchange issue, adjusting algorithms and retrying."
             )
@@ -176,6 +176,26 @@ def remote_connect(host, username="", password="", port="22", timeout=20):
                 return client
             except Exception as e2:
                 logger.error(f"Failed to connect after adjusting kex algorithms: {e2}")
+                return None
+        elif "key for server" in message_lower and "does not match" in message_lower:
+            logger.warning(
+                f"Host key mismatch detected for {host}. Removing known_hosts entry and retrying."
+            )
+            remove_host_key(host)
+            try:
+                client.connect(
+                    hostname=host,
+                    port=port,
+                    username=username,
+                    password=password,
+                    timeout=timeout,
+                    allow_agent=False,
+                    look_for_keys=False,
+                )
+            except Exception as retry_exc:
+                logger.error(
+                    f"Failed to reconnect to {host} after removing host key: {retry_exc}"
+                )
                 return None
         else:
             logger.error(f"SSHException during connect: {exc}")

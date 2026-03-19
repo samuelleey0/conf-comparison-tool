@@ -179,11 +179,7 @@ def compare_student_hostnames(
     """Compare each student hostname show run with the matching teacher hostname template."""
     print(f"\n--- Grading student {student_id} (template: {template_name}) ---")
 
-    student_showruns = collect_student_hostname_showruns(student_folder, student_id)
-    if not student_showruns:
-        print(f"No hostname show run files found for student {student_id}.")
-        return False
-
+    student_showruns = collect_student_hostname_showruns(student_folder, student_id) or {}
     student_logs = collect_student_hostname_logs(student_folder, student_id)
     if not student_logs:
         print(f"No log files found for student {student_id}.")
@@ -191,6 +187,8 @@ def compare_student_hostnames(
 
     student_results_dir = os.path.join(results_folder, student_id)
     os.makedirs(student_results_dir, exist_ok=True)
+    student_results_dir_student = os.path.join(student_folder, student_id, "results")
+    os.makedirs(student_results_dir_student, exist_ok=True)
 
     summary = {
         "student_id": student_id,
@@ -213,7 +211,6 @@ def compare_student_hostnames(
 
         if hostname not in student_showruns:
             summary["hostnames_missing_show_run"].append(hostname)
-            continue
 
         manifest = load_template_manifest(template_folder, template_name, hostname)
         required_command_types = manifest.get("required_command_types", [])
@@ -230,6 +227,50 @@ def compare_student_hostnames(
         student_config = normalize_parsed_config(
             parse_device_logs(student_logs[hostname])
         )
+        if student_config is None:
+            print(f"Warning: no config found for {student_id}/{hostname}. Marking all as missing.")
+            comparison_results = compare_dicts(template_config, {})
+            summary["hostnames_compared"].append(hostname)
+            summary["results"][hostname] = comparison_results
+
+            hostname_result_file = os.path.join(
+                student_results_dir, f"{hostname}_result.json"
+            )
+            with open(hostname_result_file, "w") as result_file:
+                json.dump(
+                    {
+                        "student_id": student_id,
+                        "template_name": template_name,
+                        "grading_mode": scheme_mode,
+                        "hostname": hostname,
+                        "student_show_run_file": student_showruns.get(hostname),
+                        "student_config_file": student_config_path,
+                        "student_parsed_file": None,
+                        "results": comparison_results,
+                    },
+                    result_file,
+                    indent=4,
+                )
+
+            hostname_result_file_student = os.path.join(
+                student_results_dir_student, f"{hostname}_result.json"
+            )
+            with open(hostname_result_file_student, "w") as result_file:
+                json.dump(
+                    {
+                        "student_id": student_id,
+                        "template_name": template_name,
+                        "grading_mode": scheme_mode,
+                        "hostname": hostname,
+                        "student_show_run_file": student_showruns.get(hostname),
+                        "student_config_file": student_config_path,
+                        "student_parsed_file": None,
+                        "results": comparison_results,
+                    },
+                    result_file,
+                    indent=4,
+                )
+            continue
 
         # Hostname gate: compare only when detected hostname matches teacher hostname.
         detected_hostname = (student_config.get("show_running_config", {}) or {}).get(
@@ -278,6 +319,11 @@ def compare_student_hostnames(
             student_results_dir, f"{hostname}_student_parsed.json"
         )
         with open(parsed_debug_file, "w") as parsed_handle:
+            json.dump(student_config, parsed_handle, indent=4)
+        parsed_debug_file_student = os.path.join(
+            student_results_dir_student, f"{hostname}_student_parsed.json"
+        )
+        with open(parsed_debug_file_student, "w") as parsed_handle:
             json.dump(student_config, parsed_handle, indent=4)
 
         compare_template = template_config
@@ -335,8 +381,27 @@ def compare_student_hostnames(
                     "template_name": template_name,
                     "grading_mode": scheme_mode,
                     "hostname": hostname,
-                    "student_show_run_file": student_showruns[hostname],
+                    "student_show_run_file": student_showruns.get(hostname),
+                    "student_config_file": student_config_path,
                     "student_parsed_file": parsed_debug_file,
+                    "results": comparison_results,
+                },
+                result_file,
+                indent=4,
+            )
+        hostname_result_file_student = os.path.join(
+            student_results_dir_student, f"{hostname}_result.json"
+        )
+        with open(hostname_result_file_student, "w") as result_file:
+            json.dump(
+                {
+                    "student_id": student_id,
+                    "template_name": template_name,
+                    "grading_mode": scheme_mode,
+                    "hostname": hostname,
+                    "student_show_run_file": student_showruns.get(hostname),
+                    "student_config_file": student_config_path,
+                    "student_parsed_file": parsed_debug_file_student,
                     "results": comparison_results,
                 },
                 result_file,
@@ -349,6 +414,9 @@ def compare_student_hostnames(
 
     summary_file = os.path.join(student_results_dir, "summary.json")
     with open(summary_file, "w") as summary_handle:
+        json.dump(summary, summary_handle, indent=4)
+    summary_file_student = os.path.join(student_results_dir_student, "summary.json")
+    with open(summary_file_student, "w") as summary_handle:
         json.dump(summary, summary_handle, indent=4)
 
     print(f"Summary saved to {summary_file}")

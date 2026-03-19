@@ -2,7 +2,7 @@ import os
 import re
 import json
 
-from compare_utils import should_ignore
+from comparsion_engine.compare_utils import should_ignore
 
 
 PARSED_SCHEMA_VERSION = 3

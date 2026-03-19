@@ -1,7 +1,7 @@
 import os
 import yaml
-from student_manager import compare_student_hostnames
-from template_manager import setup_templates
+from comparsion_engine.student_manager import compare_student_hostnames
+from comparsion_engine.template_manager import setup_templates
 
 # Get the directory where compare_main.py is located
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -16,6 +16,76 @@ SCHEME_FOLDER = os.path.join(os.path.dirname(BASE_DIR), "schemes")
 os.makedirs(TEMPLATE_FOLDER, exist_ok=True)
 os.makedirs(STUDENT_FOLDER, exist_ok=True)
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
+
+
+def grading_pipeline(target_path, templates_dir):
+    """
+    Automated grading pipeline invoked by the backend API.
+    Loops through all students in target_path and grades against templates in templates_dir.
+    """
+    if not os.path.exists(target_path):
+        return [], f"Target path {target_path} not found."
+    
+    # We load the template configurations into memory
+    # Because `setup_templates` usually prompts, we will recreate its auto-loading logic for all templates
+    summary_results = []
+    
+    templates = []
+    # If the Templates folder has multiple template sub-directories, we iterate
+    if not os.path.exists(templates_dir):
+         return [], "Templates directory is missing."
+         
+    for t_name in os.listdir(templates_dir):
+         t_path = os.path.join(templates_dir, t_name)
+         if os.path.isdir(t_path):
+             # Load all hostnames mapped to this template
+             template_hostnames = {}
+             for h_name in os.listdir(t_path):
+                  h_config = os.path.join(t_path, h_name, "config.json")
+                  if os.path.exists(h_config):
+                       import json
+                       try:
+                           with open(h_config, 'r') as f:
+                               template_hostnames[h_name] = json.load(f)
+                       except Exception as e:
+                           pass
+             if template_hostnames:
+                  templates.append((t_name, template_hostnames))
+
+    if not templates:
+        return [], "No configured template hosts found to grade against."
+        
+    for student_dir in os.listdir(target_path):
+        student_id = student_dir
+        student_path = os.path.join(target_path, student_dir)
+        if not os.path.isdir(student_path): continue
+        
+        # We loop through all templates, find hostnames, run compare
+        for t_name, t_hosts in templates:
+            # Note: `compare_student_hostnames` currently writes a summary file. 
+            # We can run it directly and read results from RESULTS_FOLDER, or alter it to return dict.
+            try:
+                compare_student_hostnames(
+                    student_id=student_id,
+                    template_name=t_name,
+                    template_data=t_hosts,
+                    student_folder_base=target_path, # Path where students sit
+                    results_folder=RESULTS_FOLDER,
+                    scheme_mode="strict"
+                )
+                summary_results.append({
+                    "student_id": student_id,
+                    "status": "Graded",
+                    "template": t_name
+                })
+            except Exception as e:
+                 summary_results.append({
+                    "student_id": student_id,
+                    "status": f"Error: {str(e)}",
+                    "template": t_name
+                })
+                
+    return summary_results, "Grading initialized fully."
 
 
 def list_schemes(scheme_folder):
