@@ -64,6 +64,7 @@
         <div class="actions align-left" style="margin-top: 20px;">
           <button type="button" class="secondary" id="clearExistingSelectionBtn">Clear</button>
           <button type="button" id="use-existing-btn" class="primary" disabled>Use Selected Student</button>
+          <button type="button" id="addStudentBtn" class="secondary">Add Student</button>
         </div>
         <div id="existingInfoBox" class="info-box hidden"></div>
 
@@ -98,6 +99,26 @@
             </footer>
           </div>
         </div>
+
+        <!-- Add Student Modal -->
+        <div id="addStudentOverlay" class="modal-overlay hidden">
+          <div class="modal-box">
+            <header class="modal-header">
+              <h3>Add Student</h3>
+              <button type="button" class="close-modal" id="closeAddStudentBtn">&times;</button>
+            </header>
+            <div class="modal-body">
+              <div class="form-group">
+                <label for="newStudentIdInput">Student ID</label>
+                <input type="text" id="newStudentIdInput" placeholder="e.g. 101XXXXXX" />
+              </div>
+            </div>
+            <footer class="modal-footer">
+              <button type="button" class="secondary" id="cancelAddStudentBtn">Cancel</button>
+              <button type="button" class="primary" id="confirmAddStudentBtn">Add</button>
+            </footer>
+          </div>
+        </div>
       </section>
 
       <section id="bulkSection" class="directory-section hidden">
@@ -116,6 +137,21 @@
               <label for="bulkFile">Student File</label>
               <input type="file" id="bulkFile" accept=".csv,.txt,.xlsx,.xls" required />
             </div>
+          </div>
+          <div class="form-row" style="margin-top: 10px; gap: 16px;">
+            <div class="hint" style="width: 100%;">
+              Use `Title row?` if the first row is headers. Use `Number column?` if the first column is a row number. Turn on both if the file starts with `No, StudentID, FirstName, LastName, ...`.
+            </div>
+            <label class="toggle-chip">
+              <input type="checkbox" id="bulkHasHeader" />
+              <span class="toggle-track"></span>
+              <span class="toggle-text">Title row?</span>
+            </label>
+            <label class="toggle-chip">
+              <input type="checkbox" id="bulkHasNumber" />
+              <span class="toggle-track"></span>
+              <span class="toggle-text">Number column?</span>
+            </label>
           </div>
           <div class="actions justify-end">
             <button type="submit" id="bulk-create-btn" class="primary">Create Directories</button>

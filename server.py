@@ -11,6 +11,7 @@ import sys
 import yaml
 import re
 import glob
+import shutil
 
 # Reuse your helpers
 from file_utils import save_output_to_file, del_partial_logs
@@ -31,14 +32,25 @@ from remote_utils import (
     get_hostname_remote,
 )
 from command_manager import load_commands, save_commands
+from comparsion_engine.parser import parse_device_logs, normalize_parsed_config
+from comparsion_engine.comparator import compare_dicts
+from comparsion_engine.student_manager import find_show_run_file
 
 app = Flask(__name__)
 
+# Base directory for consistent absolute paths
+BASE_DIR = Path(__file__).resolve().parent
+
 # Grading Directories
-SCHEMES_DIR = Path("schemes")
-RUBRICS_DIR = Path("rubrics")
+SCHEMES_DIR = BASE_DIR / "schemes"
+RUBRICS_DIR = BASE_DIR / "rubrics"
+TEMPLATES_DIR = BASE_DIR / "comparsion_engine" / "templates"
+RESULTS_DIR = BASE_DIR / "comparsion_engine" / "results"
+GRADING_POLICY_PATH = BASE_DIR / "config" / "grading_policy.json"
 SCHEMES_DIR.mkdir(exist_ok=True)
 RUBRICS_DIR.mkdir(exist_ok=True)
+TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 connection_lock = threading.Lock()
 
@@ -118,6 +130,193 @@ def _update_ssh_state(client, host, username, password, hostname, port):
         ssh_client = client
         ssh_hostname = hostname
         current_mode = "ssh"
+
+
+def _default_grading_policy():
+    return {
+        "major_patterns": [],
+        "major_threshold": 1,
+        "minor_threshold": 5,
+    }
+
+
+def load_grading_policy():
+    if not GRADING_POLICY_PATH.exists():
+        GRADING_POLICY_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(GRADING_POLICY_PATH, "w") as handle:
+            json.dump(_default_grading_policy(), handle, indent=2)
+        return _default_grading_policy()
+    try:
+        with open(GRADING_POLICY_PATH, "r") as handle:
+            data = json.load(handle) or {}
+    except Exception:
+        data = {}
+    policy = _default_grading_policy()
+    policy.update({k: v for k, v in data.items() if v is not None})
+    return policy
+
+
+def save_grading_policy(data):
+    policy = _default_grading_policy()
+    policy.update(data or {})
+    GRADING_POLICY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(GRADING_POLICY_PATH, "w") as handle:
+        json.dump(policy, handle, indent=2)
+    return policy
+
+
+def _safe_resolve_child(base: Path, target: Path) -> Path:
+    base = base.resolve()
+    target = target.resolve()
+    if base == target or base in target.parents:
+        return target
+    return None
+
+
+def _iter_session_students(target_path: str):
+    if not target_path or not os.path.isdir(target_path):
+        return []
+    students = []
+    for entry in sorted(os.listdir(target_path)):
+        full = os.path.join(target_path, entry)
+        if os.path.isdir(full):
+            students.append({"student_id": entry, "path": full})
+    return students
+
+
+def _load_student_results(student_id: str):
+    student_dir = RESULTS_DIR / student_id
+    if not student_dir.is_dir():
+        return None
+
+    host_results = {}
+    all_items = []
+    for file_path in sorted(student_dir.glob("*_result.json")):
+        try:
+            with open(file_path, "r") as handle:
+                data = json.load(handle) or {}
+        except Exception:
+            continue
+
+        hostname = data.get("hostname") or file_path.stem.replace("_result", "")
+        results = data.get("results") or []
+        host_results[hostname] = {
+            "hostname": hostname,
+            "grading_mode": data.get("grading_mode"),
+            "template_name": data.get("template_name"),
+            "student_show_run_file": data.get("student_show_run_file"),
+            "student_parsed_file": data.get("student_parsed_file"),
+            "results": results,
+        }
+        for item in results:
+            item_copy = dict(item)
+            item_copy["hostname"] = hostname
+            all_items.append(item_copy)
+
+    if not host_results:
+        return None
+
+    template_name = None
+    grading_mode = None
+    for host in host_results.values():
+        if not template_name:
+            template_name = host.get("template_name")
+        if not grading_mode:
+            grading_mode = host.get("grading_mode")
+
+    return {
+        "student_id": student_id,
+        "template_name": template_name,
+        "grading_mode": grading_mode,
+        "hostnames": host_results,
+        "items": all_items,
+    }
+
+
+def _classify_items(items, policy):
+    major_patterns = policy.get("major_patterns") or []
+    compiled = []
+    for pattern in major_patterns:
+        try:
+            compiled.append(re.compile(pattern))
+        except re.error:
+            continue
+
+    summary = {
+        "correct": 0,
+        "missing": 0,
+        "extra": 0,
+        "mismatch": 0,
+        "major": 0,
+        "minor": 0,
+    }
+
+    classified = []
+    for item in items:
+        status = item.get("status")
+        if status in summary:
+            summary[status] += 1
+
+        severity = None
+        if status in {"missing", "extra", "mismatch"}:
+            is_major = any(
+                regex.search(item.get("feature", "")) for regex in compiled
+            )
+            severity = "major" if is_major else "minor"
+            summary[severity] += 1
+
+        item_copy = dict(item)
+        if severity:
+            item_copy["severity"] = severity
+        classified.append(item_copy)
+
+    return classified, summary
+
+
+def _evaluate_pass_fail(summary, policy):
+    major_threshold = int(policy.get("major_threshold") or 1)
+    minor_threshold = int(policy.get("minor_threshold") or 5)
+    failed = summary.get("major", 0) >= major_threshold
+    if not failed:
+        failed = summary.get("minor", 0) >= minor_threshold
+    return not failed
+
+
+def _build_session_reports(target_path: str):
+    policy = load_grading_policy()
+    reports = []
+    for student in _iter_session_students(target_path):
+        student_id = student.get("student_id")
+        report = _load_student_results(student_id)
+        if not report:
+            reports.append(
+                {
+                    "student_id": student_id,
+                    "status": "no_results",
+                    "pass": False,
+                    "summary": {
+                        "correct": 0,
+                        "missing": 0,
+                        "extra": 0,
+                        "mismatch": 0,
+                        "major": 0,
+                        "minor": 0,
+                    },
+                    "hostnames": {},
+                    "items": [],
+                }
+            )
+            continue
+
+        items, summary = _classify_items(report["items"], policy)
+        passed = _evaluate_pass_fail(summary, policy)
+        report["items"] = items
+        report["summary"] = summary
+        report["pass"] = passed
+        report["status"] = "graded"
+        reports.append(report)
+
+    return reports
 
 
 def _acquire_ssh_connection(host, username, password, port=None):
@@ -257,6 +456,29 @@ def _list_existing_directories():
                         "display": f"{exam_dir.name}/{session_dir.name}/{student_dir.name}",
                     }
                 )
+    return sorted(results, key=lambda x: x["display"])
+
+
+def _list_existing_sessions():
+    docs_path = Path.home() / "Documents"
+    results = []
+    if not docs_path.exists():
+        return results
+
+    for exam_dir in docs_path.iterdir():
+        if not exam_dir.is_dir() or exam_dir.name.startswith("."):
+            continue
+        for session_dir in exam_dir.iterdir():
+            if not session_dir.is_dir():
+                continue
+            results.append(
+                {
+                    "path": str(session_dir),
+                    "exam_name": exam_dir.name,
+                    "session_id": session_dir.name,
+                    "display": f"{exam_dir.name}/{session_dir.name}",
+                }
+            )
     return sorted(results, key=lambda x: x["display"])
 
 
@@ -757,12 +979,13 @@ def _ensure_base_path(data):
 def api_execute():
     data = request.get_json() or {}
     commands = data.get("commands") or []
+    target_device = data.get("deviceId") or data.get("target_device")
     requested_mode = (
-        data.get("mode") or data.get("connection") or current_mode or ""
+        data.get("mode") or data.get("connection") or current_mode or "serial"
     ).lower()
 
     print(
-        f"[DEBUG] /api/execute called with mode={requested_mode}, current_mode={current_mode}",
+        f"[DEBUG] /api/execute called with mode={requested_mode}, current_mode={current_mode}, deviceId={target_device}",
         flush=True,
     )
 
@@ -904,7 +1127,7 @@ def api_execute():
                         exam_name,
                         student_id,
                         session_id,
-                        hostname,
+                        target_device or hostname,
                         base_dir=base_path,
                     )
                     files_written.append(file_path)
@@ -926,7 +1149,47 @@ def api_execute():
                             "msg": f"Command '{cmd}' failed: {exc}",
                         }
                     )
+                    _close_serial_connection()
                     return False
+
+            # Build parsed config.json for the student device logs.
+            try:
+                host_folder = target_device or hostname or "device"
+                host_dir = os.path.join(base_path, host_folder)
+                os.makedirs(host_dir, exist_ok=True)
+                config = parse_device_logs(files_written)
+                config_path = os.path.join(host_dir, "config.json")
+                with open(config_path, "w") as handle:
+                    json.dump(config, handle, indent=4)
+                yield stream_json_line(
+                    {"type": "result", "msg": f"Saved config.json to {config_path}"}
+                )
+            except Exception as exc:
+                try:
+                    host_folder = target_device or hostname or "device"
+                    host_dir = os.path.join(base_path, host_folder)
+                    os.makedirs(host_dir, exist_ok=True)
+                    fallback = parse_device_logs([])
+                    fallback["parse_error"] = str(exc)
+                    config_path = os.path.join(host_dir, "config.json")
+                    with open(config_path, "w") as handle:
+                        json.dump(fallback, handle, indent=4)
+                    yield stream_json_line(
+                        {
+                            "type": "error",
+                            "msg": f"Failed to parse logs ({exc}). Wrote fallback config.json to {config_path}",
+                        }
+                    )
+                except Exception as exc2:
+                    yield stream_json_line(
+                        {
+                            "type": "error",
+                            "msg": f"Failed to save config.json: {exc}; fallback failed: {exc2}",
+                        }
+                    )
+            
+            # Close the port so the user can physically unplug the cable for the next queue item
+            _close_serial_connection()
             return True
 
         def run_ssh():
@@ -1052,7 +1315,7 @@ def api_execute():
                         exam_name,
                         student_id,
                         session_id,
-                        hostname,
+                        target_device or hostname,
                         base_dir=base_path,
                     )
                     files_written.append(file_path)
@@ -1075,6 +1338,42 @@ def api_execute():
                         }
                     )
                     return False
+
+            # Build parsed config.json for the student device logs.
+            try:
+                host_folder = target_device or hostname or "device"
+                host_dir = os.path.join(base_path, host_folder)
+                os.makedirs(host_dir, exist_ok=True)
+                config = parse_device_logs(files_written)
+                config_path = os.path.join(host_dir, "config.json")
+                with open(config_path, "w") as handle:
+                    json.dump(config, handle, indent=4)
+                yield stream_json_line(
+                    {"type": "result", "msg": f"Saved config.json to {config_path}"}
+                )
+            except Exception as exc:
+                try:
+                    host_folder = target_device or hostname or "device"
+                    host_dir = os.path.join(base_path, host_folder)
+                    os.makedirs(host_dir, exist_ok=True)
+                    fallback = parse_device_logs([])
+                    fallback["parse_error"] = str(exc)
+                    config_path = os.path.join(host_dir, "config.json")
+                    with open(config_path, "w") as handle:
+                        json.dump(fallback, handle, indent=4)
+                    yield stream_json_line(
+                        {
+                            "type": "error",
+                            "msg": f"Failed to parse logs ({exc}). Wrote fallback config.json to {config_path}",
+                        }
+                    )
+                except Exception as exc2:
+                    yield stream_json_line(
+                        {
+                            "type": "error",
+                            "msg": f"Failed to save config.json: {exc}; fallback failed: {exc2}",
+                        }
+                    )
             return True
 
         yield stream_json_line(
@@ -1215,6 +1514,247 @@ def api_delete_rubric(rubric_id):
         return jsonify({"status": "ok", "message": "Rubric deleted"})
     return jsonify({"status": "error", "message": "Rubric not found"}), 404
 
+# --- Grading Policy ---
+
+@app.route("/api/grading_policy", methods=["GET"])
+def api_get_grading_policy():
+    return jsonify({"status": "ok", "policy": load_grading_policy()})
+
+
+@app.route("/api/grading_policy", methods=["POST"])
+def api_save_grading_policy():
+    data = request.get_json() or {}
+    policy = load_grading_policy()
+
+    major_patterns = data.get("major_patterns", policy.get("major_patterns"))
+    major_threshold = data.get("major_threshold", policy.get("major_threshold"))
+    minor_threshold = data.get("minor_threshold", policy.get("minor_threshold"))
+
+    try:
+        major_threshold = int(major_threshold)
+        minor_threshold = int(minor_threshold)
+    except Exception:
+        return jsonify({"status": "error", "message": "Thresholds must be integers."}), 400
+
+    if major_threshold < 1 or minor_threshold < 1:
+        return jsonify(
+            {"status": "error", "message": "Thresholds must be at least 1."}
+        ), 400
+
+    if not isinstance(major_patterns, list):
+        return jsonify(
+            {"status": "error", "message": "major_patterns must be a list."}
+        ), 400
+
+    policy = save_grading_policy(
+        {
+            "major_patterns": major_patterns,
+            "major_threshold": major_threshold,
+            "minor_threshold": minor_threshold,
+        }
+    )
+    return jsonify({"status": "ok", "policy": policy})
+
+
+# --- Results View ---
+
+@app.route("/api/results", methods=["GET"])
+def api_get_results():
+    target_path = request.args.get("target_path")
+    if not target_path:
+        return jsonify({"status": "error", "message": "Missing target_path."}), 400
+    if not os.path.isdir(target_path):
+        return jsonify({"status": "error", "message": "target_path not found."}), 404
+
+    return jsonify(
+        {
+            "status": "ok",
+            "reports": _build_session_reports(target_path),
+            "policy": load_grading_policy(),
+        }
+    )
+
+
+# -------------------------------------------------
+# ✅ Admin Cleanup
+# -------------------------------------------------
+@app.route("/api/admin/templates", methods=["GET"])
+def api_admin_list_templates():
+    templates = []
+    if TEMPLATES_DIR.is_dir():
+        for entry in sorted(TEMPLATES_DIR.iterdir()):
+            if entry.is_dir():
+                templates.append(entry.name)
+    return jsonify({"status": "ok", "templates": templates})
+
+
+@app.route("/api/templates/<template_name>", methods=["GET"])
+def api_get_template_details(template_name):
+    if not template_name:
+        return jsonify({"status": "error", "message": "Missing template name."}), 400
+
+    target = _safe_resolve_child(TEMPLATES_DIR, TEMPLATES_DIR / template_name)
+    if not target or not target.exists():
+        return jsonify({"status": "error", "message": "Template not found."}), 404
+
+    devices_meta = {}
+    logs_by_command = {}
+    for hostname_dir in sorted(target.iterdir()):
+        if not hostname_dir.is_dir():
+            continue
+        logs_manifest = hostname_dir / "logs.json"
+        commands = []
+        if logs_manifest.exists():
+            try:
+                with open(logs_manifest, "r") as handle:
+                    manifest = json.load(handle) or {}
+                for name in manifest.get("logs", []):
+                    base = os.path.splitext(name)[0]
+                    cmd = base.replace("_", " ")
+                    commands.append(cmd)
+                    logs_by_command.setdefault(hostname_dir.name, {})[cmd] = name
+            except Exception:
+                commands = []
+        if commands:
+            devices_meta[hostname_dir.name] = commands
+
+    return jsonify({
+        "status": "ok",
+        "template": template_name,
+        "devices_meta": devices_meta,
+        "logs_by_command": logs_by_command,
+    })
+
+
+@app.route("/api/admin/templates", methods=["DELETE"])
+def api_admin_delete_templates():
+    data = request.get_json() or {}
+    name = data.get("name")
+    delete_all = bool(data.get("all"))
+
+    if delete_all:
+        for entry in TEMPLATES_DIR.iterdir():
+            if entry.is_dir():
+                try:
+                    shutil.rmtree(entry)
+                except Exception:
+                    pass
+        return jsonify({"status": "ok", "message": "All templates deleted"})
+
+    if not name:
+        return jsonify({"status": "error", "message": "Missing template name."}), 400
+
+    target = _safe_resolve_child(TEMPLATES_DIR, TEMPLATES_DIR / name)
+    if not target or not target.exists():
+        return jsonify({"status": "error", "message": "Template not found."}), 404
+
+    shutil.rmtree(target)
+    return jsonify({"status": "ok", "message": f"Template '{name}' deleted"})
+
+
+@app.route("/api/admin/results", methods=["GET"])
+def api_admin_list_results():
+    results = []
+    if RESULTS_DIR.is_dir():
+        for entry in sorted(RESULTS_DIR.iterdir()):
+            if entry.is_dir():
+                results.append(entry.name)
+    return jsonify({"status": "ok", "results": results})
+
+
+@app.route("/api/admin/results", methods=["DELETE"])
+def api_admin_delete_results():
+    data = request.get_json() or {}
+    student_id = data.get("student_id")
+    delete_all = bool(data.get("all"))
+
+    if delete_all:
+        for entry in RESULTS_DIR.iterdir():
+            if entry.is_dir():
+                try:
+                    shutil.rmtree(entry)
+                except Exception:
+                    pass
+        return jsonify({"status": "ok", "message": "All results deleted"})
+
+    if not student_id:
+        return jsonify({"status": "error", "message": "Missing student_id."}), 400
+
+    target = _safe_resolve_child(RESULTS_DIR, RESULTS_DIR / student_id)
+    if not target or not target.exists():
+        return jsonify({"status": "error", "message": "Result not found."}), 404
+
+    shutil.rmtree(target)
+    return jsonify({"status": "ok", "message": f"Results for '{student_id}' deleted"})
+
+
+@app.route("/api/admin/students", methods=["GET"])
+def api_admin_list_students():
+    return jsonify(
+        {
+            "status": "ok",
+            "students": _list_existing_directories(),
+            "sessions": _list_existing_sessions(),
+        }
+    )
+
+
+@app.route("/api/admin/students", methods=["DELETE"])
+def api_admin_delete_students():
+    data = request.get_json() or {}
+    path = data.get("path")
+    if not path:
+        return jsonify({"status": "error", "message": "Missing path."}), 400
+
+    docs_dir = (Path.home() / "Documents").resolve()
+    target = _safe_resolve_child(docs_dir, Path(path))
+    if not target or not target.exists():
+        return jsonify({"status": "error", "message": "Path not found."}), 404
+
+    if target == docs_dir:
+        return jsonify(
+            {"status": "error", "message": "Refusing to delete Documents root."}
+        ), 400
+
+    shutil.rmtree(target)
+    return jsonify({"status": "ok", "message": f"Deleted {target}"})
+
+
+@app.route("/api/add_student", methods=["POST"])
+def api_add_student():
+    data = request.get_json() or {}
+    session_path = _expand_path(data.get("session_path"))
+    student_id = (data.get("student_id") or "").strip()
+
+    if not session_path or not student_id:
+        return jsonify({"status": "error", "message": "Missing session_path or student_id."}), 400
+
+    session_dir = Path(session_path)
+    if not session_dir.exists() or not session_dir.is_dir():
+        return jsonify({"status": "error", "message": "Session path not found."}), 404
+
+    docs_dir = (Path.home() / "Documents").resolve()
+    target = _safe_resolve_child(docs_dir, session_dir)
+    if not target:
+        return jsonify({"status": "error", "message": "Invalid session path."}), 400
+
+    student_dir = session_dir / student_id
+    student_dir.mkdir(parents=True, exist_ok=True)
+
+    parts = student_dir.parts
+    exam_name = parts[-3] if len(parts) >= 3 else ""
+    session_id = parts[-2] if len(parts) >= 2 else ""
+    return jsonify(
+        {
+            "status": "ok",
+            "message": f"Student directory created: {student_dir}",
+            "path": str(student_dir),
+            "exam_name": exam_name,
+            "session_id": session_id,
+            "student_id": student_id,
+        }
+    )
+
 # --- Grading Logic ---
 
 def _substitute_variables(pattern, variables):
@@ -1246,89 +1786,194 @@ def _check_criteria(content, criteria, variables):
         return True, final_pattern
         
     return False, final_pattern
+from comparsion_engine.compare_main import grading_pipeline
+
+def _load_template_configs(template_name: str):
+    template_dir = _safe_resolve_child(TEMPLATES_DIR, TEMPLATES_DIR / template_name)
+    if not template_dir or not template_dir.is_dir():
+        return None
+
+    template_configs = {}
+    for host_dir in sorted(template_dir.iterdir()):
+        if not host_dir.is_dir():
+            continue
+        config_path = host_dir / "config.json"
+        if not config_path.exists():
+            continue
+        try:
+            with open(config_path, "r") as handle:
+                data = json.load(handle) or {}
+            template_configs[host_dir.name] = normalize_parsed_config(data)
+        except Exception:
+            continue
+
+    return template_configs
+
+
+def _grade_session_from_config(target_path: str, template_name: str):
+    template_configs = _load_template_configs(template_name)
+    if not template_configs:
+        return [], f"No template configs found for '{template_name}'."
+
+    results_summary = []
+    target = Path(target_path)
+    if not target.is_dir():
+        return [], f"Target path {target_path} not found."
+
+    for student_entry in sorted(target.iterdir()):
+        if not student_entry.is_dir():
+            continue
+        student_id = student_entry.name
+        student_results_dir = RESULTS_DIR / student_id
+        student_results_dir.mkdir(parents=True, exist_ok=True)
+        student_results_dir_student = student_entry / "results"
+        student_results_dir_student.mkdir(parents=True, exist_ok=True)
+
+        summary = {
+            "student_id": student_id,
+            "template_name": template_name,
+            "grading_mode": "strict",
+            "hostnames_compared": [],
+            "hostnames_missing_template": [],
+            "hostnames_missing_show_run": [],
+            "results": {},
+        }
+
+        for hostname, template_config in template_configs.items():
+            template_config = normalize_parsed_config(template_config)
+            student_host_dir = student_entry / hostname
+            student_config_path = student_host_dir / "config.json"
+            student_config = {}
+            if student_config_path.exists():
+                try:
+                    with open(student_config_path, "r") as handle:
+                        student_config = json.load(handle) or {}
+                except Exception:
+                    student_config = {}
+            student_config = normalize_parsed_config(student_config)
+
+            show_run_file = None
+            if student_host_dir.is_dir():
+                show_run_file = find_show_run_file(str(student_host_dir))
+            if not show_run_file:
+                summary["hostnames_missing_show_run"].append(hostname)
+
+            results = compare_dicts(template_config, student_config)
+            summary["hostnames_compared"].append(hostname)
+            summary["results"][hostname] = results
+
+            parsed_file = student_results_dir / f"{hostname}_student_parsed.json"
+            with open(parsed_file, "w") as handle:
+                json.dump(student_config, handle, indent=4)
+
+            result_payload = {
+                "student_id": student_id,
+                "template_name": template_name,
+                "grading_mode": "strict",
+                "hostname": hostname,
+                "student_show_run_file": show_run_file,
+                "student_config_file": str(student_config_path) if student_config_path.exists() else None,
+                "student_parsed_file": str(parsed_file),
+                "results": results,
+            }
+
+            result_file = student_results_dir / f"{hostname}_result.json"
+            with open(result_file, "w") as handle:
+                json.dump(result_payload, handle, indent=4)
+
+            student_result_file = student_results_dir_student / f"{hostname}_result.json"
+            with open(student_result_file, "w") as handle:
+                json.dump(result_payload, handle, indent=4)
+
+        summary_file = student_results_dir / "summary.json"
+        with open(summary_file, "w") as handle:
+            json.dump(summary, handle, indent=4)
+        summary_file_student = student_results_dir_student / "summary.json"
+        with open(summary_file_student, "w") as handle:
+            json.dump(summary, handle, indent=4)
+
+        results_summary.append(
+            {"student_id": student_id, "status": "Graded", "template": template_name}
+        )
+
+    return results_summary, "Grading completed."
+
 
 @app.route("/api/grade", methods=["POST"])
 def api_run_grading():
     data = request.get_json() or {}
-    scheme_id = data.get("scheme_id")
-    rubric_id = data.get("rubric_id")
+    exam_name = data.get("exam_name")
+    session_id = data.get("session_id")
     target_path = data.get("target_path")
+    template_name = data.get("template_name")
+    include_reports = bool(data.get("include_reports"))
     
-    if not all([scheme_id, rubric_id, target_path]):
+    if not all([exam_name, session_id, target_path]):
          return jsonify({"status": "error", "message": "Missing arguments"}), 400
          
-    scheme = _get_yaml_file(SCHEMES_DIR, scheme_id)
-    rubric = _get_yaml_file(RUBRICS_DIR, rubric_id)
-    
-    if not scheme or not rubric:
-        return jsonify({"status": "error", "message": "Scheme or Rubric not found"}), 404
-        
-    target_dir = Path(target_path)
-    if not target_dir.exists():
-        return jsonify({"status": "error", "message": "Target path not found"}), 404
-        
-    variables = scheme.get("variables", {})
-    criteria_list = rubric.get("criteria", [])
-    
-    results = []
-    total_score = 0
-    max_score = sum(c.get("points", 0) for c in criteria_list)
-    
-    # We need to find config files. Assuming 'running-config' or similar.
-    # Logic: Search for specific file names or just read all non-hidden files?
-    # CLI tool usually grades a "config file".
-    # Let's look for known config filenames or *.txt, *.cfg, *.log
-    
-    candidate_files = []
-    for ext in ["*.txt", "*.log", "*.cfg", "running-config*", "startup-config*"]:
-        candidate_files.extend(target_dir.glob(ext))
-        
-    # Filter out empty or system files
-    candidate_files = [f for f in candidate_files if f.is_file() and f.stat().st_size > 0]
-    
-    if not candidate_files:
-        return jsonify({
-            "status": "ok", 
-            "graded": False, 
-            "message": "No config files found to grade.",
-            "details": []
-        })
-        
-    # For now, grade the LARGEST file found, assuming it's the full config
-    # Or grade against combined content?
-    # Simple approach: Grade the largest file.
-    target_file = max(candidate_files, key=lambda f: f.stat().st_size)
-    
     try:
-        with open(target_file, "r", errors="ignore") as f:
-            content = f.read()
-            
-        details = []
-        for crit in criteria_list:
-            matched, used_pattern = _check_criteria(content, crit, variables)
-            points = crit.get("points", 0)
-            score = points if matched else 0
-            total_score += score
-            
-            details.append({
-                "name": crit.get("name"),
-                "pattern": used_pattern,
-                "points": points,
-                "score": score,
-                "status": "pass" if matched else "fail"
-            })
-            
-        return jsonify({
-            "status": "ok",
-            "graded": True,
-            "file": target_file.name,
-            "total_score": total_score,
-            "max_score": max_score,
-            "details": details
-        })
+        # Determine template to use
+        available_templates = []
+        if TEMPLATES_DIR.is_dir():
+            available_templates = [p.name for p in TEMPLATES_DIR.iterdir() if p.is_dir()]
+
+        chosen_template = template_name
+        if not chosen_template:
+            if len(available_templates) == 1:
+                chosen_template = available_templates[0]
+            else:
+                return jsonify({
+                    "status": "error",
+                    "message": "Multiple templates available. Please select a template.",
+                    "templates": available_templates,
+                }), 400
+
+        summary_results, message = _grade_session_from_config(target_path, chosen_template)
+
+        payload = {
+            "status": "success",
+            "message": message,
+            "results": summary_results,
+        }
+        if include_reports:
+            payload["reports"] = _build_session_reports(target_path)
+            payload["policy"] = load_grading_policy()
+        
+        return jsonify(payload)
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"status": "error", "message": f"Grading failed: {str(e)}"}), 500
+
+# -------------------------------------------------
+# ✅ Template Upload
+# -------------------------------------------------
+@app.route("/api/templates/upload", methods=["POST"])
+def api_upload_templates():
+    """
+    Handles form-data upload from device_setup.html.
+    Creates template config.json using parsing logic.
+    """
+    from comparison_wrapper import handle_template_upload
+    
+    form_data = request.form
+    files = request.files
+
+    print(f"\n[API][templates/upload] Uploading new template...")
+    # Base dir for templates
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    try:
+        results = handle_template_upload(files, form_data, base_dir)
+        if results.get("status") == "error":
+            return jsonify(results), 400
+        print(f"[API][templates/upload] Extraction successful: {results}")
+        return jsonify({"status": "success", "results": results})
+    except Exception as e:
+        print(f"[API][templates/upload] Error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 # -------------------------------------------------
 # ✅ Run Flask

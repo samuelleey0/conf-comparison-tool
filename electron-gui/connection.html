@@ -23,6 +23,15 @@
       <section class="connection-panel page-card">
         <h2 class="section-title">Connection Setup</h2>
         <form id="connectionForm">
+          <div class="form-group" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--color-border);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+               <label>Device Queue</label>
+               <span id="queueStatus" style="font-size: 0.85rem; color: var(--color-muted); font-weight: 600;">Idle</span>
+            </div>
+            <div id="deviceQueueContainer" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px; max-height: 200px; overflow-y: auto;">
+               <!-- Populated by JS -->
+            </div>
+          </div>
           <div class="form-group">
             <label class="choice-label"><input type="radio" name="connType" value="serial" /> Serial</label>
             <label class="choice-label"><input type="radio" name="connType" value="ssh" /> SSH</label>
@@ -75,9 +84,9 @@
         </div>
         <div class="actions justify-end">
           <button type="button" id="reconnectRunBtn" class="secondary">Test Connection</button>
-          <button type="button" id="startExecutionBtn" class="primary">Run Selected Commands</button>
-          <button type="button" id="goToGradingBtn" class="primary"
-            style="margin-left: 10px; background-color: var(--color-success, #28a745);">Go to Grading</button>
+          <button type="button" id="startSequenceBtn" class="primary">Start Auto-Execution Sequence</button>
+          <button type="button" id="doneStudentBtn" class="primary"
+            style="margin-left: 10px; background-color: var(--color-success, #28a745);" disabled>Done (Next Student)</button>
         </div>
       </section>
     </div>
