@@ -1,12 +1,12 @@
 import json
 import os
+import ipaddress
 
 from .comparator import compare_dicts
 from .comparator import normalize_config_with_scheme
 from .parser import detect_command_type
 from .parser import normalize_parsed_config
 from .parser import parse_device_logs
-import ipaddress
 
 SHOW_RUN_TOKENS = [
     "showrun",
