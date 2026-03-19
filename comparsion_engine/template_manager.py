@@ -1,7 +1,9 @@
 import json
 import os
-from comparsion_engine.parser import normalize_parsed_config
-from comparsion_engine.parser import parse_device_logs
+
+from .parser import detect_command_type
+from .parser import normalize_parsed_config
+from .parser import parse_device_logs_with_report
 
 DEFAULT_HOSTNAMES = ["R1", "R2", "S1"]
 SHOW_RUN_TOKENS = [
