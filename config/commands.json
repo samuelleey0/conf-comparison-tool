@@ -4,5 +4,6 @@
     "show spanning-tree",
     "show vlan brief",
     "show ip route",
-    "show etherchannel summary"
+    "show etherchannel summary",
+    "show ip ospf neighbor"
 ]
