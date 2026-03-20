@@ -286,7 +286,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .join("");
 
       resultList.innerHTML = (results.results || [])
-        .map((name) => `<option value="${name}">${name}</option>`)
+        .map((entry) => `<option value="${entry.path}">${entry.display}</option>`)
         .join("");
 
       sessionList.innerHTML = (students.sessions || [])
@@ -329,12 +329,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function deleteResult() {
-    const student_id = resultList.value;
-    if (!student_id) return;
-    if (!confirm(`Delete results for '${student_id}'?`)) return;
+    const path = resultList.value;
+    if (!path) return;
+    if (!confirm(`Delete results at:\n${path}?`)) return;
     await fetchJson("http://127.0.0.1:5050/api/admin/results", {
       method: "DELETE",
-      body: JSON.stringify({ student_id }),
+      body: JSON.stringify({ path }),
     });
     loadCleanupLists();
   }

@@ -45,12 +45,13 @@ BASE_DIR = Path(__file__).resolve().parent
 SCHEMES_DIR = BASE_DIR / "schemes"
 RUBRICS_DIR = BASE_DIR / "rubrics"
 TEMPLATES_DIR = BASE_DIR / "comparsion_engine" / "templates"
-RESULTS_DIR = BASE_DIR / "comparsion_engine" / "results"
+# Results are stored under Documents/<Exam>/<Session>/<Student>/results
+# Results are stored under Documents/<Exam>/<Session>/<Student>/results
+RESULTS_DIR = None
 GRADING_POLICY_PATH = BASE_DIR / "config" / "grading_policy.json"
 SCHEMES_DIR.mkdir(exist_ok=True)
 RUBRICS_DIR.mkdir(exist_ok=True)
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
-RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 connection_lock = threading.Lock()
 
@@ -184,14 +185,17 @@ def _iter_session_students(target_path: str):
     return students
 
 
-def _load_student_results(student_id: str):
-    student_dir = RESULTS_DIR / student_id
+def _load_student_results(student_dir: Path, student_id: str):
     if not student_dir.is_dir():
+        return None
+
+    results_dir = student_dir / "results"
+    if not results_dir.is_dir():
         return None
 
     host_results = {}
     all_items = []
-    for file_path in sorted(student_dir.glob("*_result.json")):
+    for file_path in sorted(results_dir.glob("*_result.json")):
         try:
             with open(file_path, "r") as handle:
                 data = json.load(handle) or {}
@@ -287,7 +291,8 @@ def _build_session_reports(target_path: str):
     reports = []
     for student in _iter_session_students(target_path):
         student_id = student.get("student_id")
-        report = _load_student_results(student_id)
+        student_dir = Path(student.get("path") or "")
+        report = _load_student_results(student_dir, student_id)
         if not report:
             reports.append(
                 {
@@ -344,6 +349,25 @@ def stream_json_line(obj):
 def _expand_path(path):
     """Expand ~ in user supplied paths."""
     return os.path.expanduser(path) if path else None
+
+
+def _save_output_to_engine_students(command, output, student_id, hostname):
+    """
+    Save command output under comparsion_engine/students/<student_id>/<hostname>/.
+    Only stores command logs (no config.json).
+    """
+    if not student_id or not hostname:
+        return None
+    safe_student = str(student_id).strip()
+    if not safe_student or safe_student.lower() in {"sample", "unknown"}:
+        return None
+    safe_command = command.replace(" ", "_").replace("/", "_")
+    target_dir = BASE_DIR / "comparsion_engine" / "students" / safe_student / hostname
+    target_dir.mkdir(parents=True, exist_ok=True)
+    file_path = target_dir / f"{safe_command}.txt"
+    with open(file_path, "w", encoding="utf-8") as handle:
+        handle.write(output)
+    return str(file_path)
 
 
 # -------------------------------------------------
@@ -1012,6 +1036,7 @@ def api_execute():
     def generate():
         hostname = None
         files_written = []
+        skip_config = bool(data.get("skip_config"))
 
         def run_serial():
             global current_mode
@@ -1130,6 +1155,12 @@ def api_execute():
                         target_device or hostname,
                         base_dir=base_path,
                     )
+                    _save_output_to_engine_students(
+                        cmd,
+                        output,
+                        student_id,
+                        target_device or hostname,
+                    )
                     files_written.append(file_path)
                     completed += 1
                     pct = round((completed / total_commands) * 100) if total_commands else 100
@@ -1152,41 +1183,42 @@ def api_execute():
                     _close_serial_connection()
                     return False
 
-            # Build parsed config.json for the student device logs.
-            try:
-                host_folder = target_device or hostname or "device"
-                host_dir = os.path.join(base_path, host_folder)
-                os.makedirs(host_dir, exist_ok=True)
-                config = parse_device_logs(files_written)
-                config_path = os.path.join(host_dir, "config.json")
-                with open(config_path, "w") as handle:
-                    json.dump(config, handle, indent=4)
-                yield stream_json_line(
-                    {"type": "result", "msg": f"Saved config.json to {config_path}"}
-                )
-            except Exception as exc:
+            if not skip_config:
+                # Build parsed config.json for the student device logs.
                 try:
                     host_folder = target_device or hostname or "device"
                     host_dir = os.path.join(base_path, host_folder)
                     os.makedirs(host_dir, exist_ok=True)
-                    fallback = parse_device_logs([])
-                    fallback["parse_error"] = str(exc)
+                    config = parse_device_logs(files_written)
                     config_path = os.path.join(host_dir, "config.json")
                     with open(config_path, "w") as handle:
-                        json.dump(fallback, handle, indent=4)
+                        json.dump(config, handle, indent=4)
                     yield stream_json_line(
-                        {
-                            "type": "error",
-                            "msg": f"Failed to parse logs ({exc}). Wrote fallback config.json to {config_path}",
-                        }
+                        {"type": "result", "msg": f"Saved config.json to {config_path}"}
                     )
-                except Exception as exc2:
-                    yield stream_json_line(
-                        {
-                            "type": "error",
-                            "msg": f"Failed to save config.json: {exc}; fallback failed: {exc2}",
-                        }
-                    )
+                except Exception as exc:
+                    try:
+                        host_folder = target_device or hostname or "device"
+                        host_dir = os.path.join(base_path, host_folder)
+                        os.makedirs(host_dir, exist_ok=True)
+                        fallback = parse_device_logs([])
+                        fallback["parse_error"] = str(exc)
+                        config_path = os.path.join(host_dir, "config.json")
+                        with open(config_path, "w") as handle:
+                            json.dump(fallback, handle, indent=4)
+                        yield stream_json_line(
+                            {
+                                "type": "error",
+                                "msg": f"Failed to parse logs ({exc}). Wrote fallback config.json to {config_path}",
+                            }
+                        )
+                    except Exception as exc2:
+                        yield stream_json_line(
+                            {
+                                "type": "error",
+                                "msg": f"Failed to save config.json: {exc}; fallback failed: {exc2}",
+                            }
+                        )
             
             # Close the port so the user can physically unplug the cable for the next queue item
             _close_serial_connection()
@@ -1318,6 +1350,12 @@ def api_execute():
                         target_device or hostname,
                         base_dir=base_path,
                     )
+                    _save_output_to_engine_students(
+                        cmd,
+                        output,
+                        student_id,
+                        target_device or hostname,
+                    )
                     files_written.append(file_path)
                     completed += 1
                     pct = round((completed / total_commands) * 100) if total_commands else 100
@@ -1339,41 +1377,42 @@ def api_execute():
                     )
                     return False
 
-            # Build parsed config.json for the student device logs.
-            try:
-                host_folder = target_device or hostname or "device"
-                host_dir = os.path.join(base_path, host_folder)
-                os.makedirs(host_dir, exist_ok=True)
-                config = parse_device_logs(files_written)
-                config_path = os.path.join(host_dir, "config.json")
-                with open(config_path, "w") as handle:
-                    json.dump(config, handle, indent=4)
-                yield stream_json_line(
-                    {"type": "result", "msg": f"Saved config.json to {config_path}"}
-                )
-            except Exception as exc:
+            if not skip_config:
+                # Build parsed config.json for the student device logs.
                 try:
                     host_folder = target_device or hostname or "device"
                     host_dir = os.path.join(base_path, host_folder)
                     os.makedirs(host_dir, exist_ok=True)
-                    fallback = parse_device_logs([])
-                    fallback["parse_error"] = str(exc)
+                    config = parse_device_logs(files_written)
                     config_path = os.path.join(host_dir, "config.json")
                     with open(config_path, "w") as handle:
-                        json.dump(fallback, handle, indent=4)
+                        json.dump(config, handle, indent=4)
                     yield stream_json_line(
-                        {
-                            "type": "error",
-                            "msg": f"Failed to parse logs ({exc}). Wrote fallback config.json to {config_path}",
-                        }
+                        {"type": "result", "msg": f"Saved config.json to {config_path}"}
                     )
-                except Exception as exc2:
-                    yield stream_json_line(
-                        {
-                            "type": "error",
-                            "msg": f"Failed to save config.json: {exc}; fallback failed: {exc2}",
-                        }
-                    )
+                except Exception as exc:
+                    try:
+                        host_folder = target_device or hostname or "device"
+                        host_dir = os.path.join(base_path, host_folder)
+                        os.makedirs(host_dir, exist_ok=True)
+                        fallback = parse_device_logs([])
+                        fallback["parse_error"] = str(exc)
+                        config_path = os.path.join(host_dir, "config.json")
+                        with open(config_path, "w") as handle:
+                            json.dump(fallback, handle, indent=4)
+                        yield stream_json_line(
+                            {
+                                "type": "error",
+                                "msg": f"Failed to parse logs ({exc}). Wrote fallback config.json to {config_path}",
+                            }
+                        )
+                    except Exception as exc2:
+                        yield stream_json_line(
+                            {
+                                "type": "error",
+                                "msg": f"Failed to save config.json: {exc}; fallback failed: {exc2}",
+                            }
+                        )
             return True
 
         yield stream_json_line(
@@ -1655,37 +1694,69 @@ def api_admin_delete_templates():
 @app.route("/api/admin/results", methods=["GET"])
 def api_admin_list_results():
     results = []
-    if RESULTS_DIR.is_dir():
-        for entry in sorted(RESULTS_DIR.iterdir()):
-            if entry.is_dir():
-                results.append(entry.name)
+    docs_path = Path.home() / "Documents"
+    if docs_path.exists():
+        for exam_dir in docs_path.iterdir():
+            if not exam_dir.is_dir() or exam_dir.name.startswith("."):
+                continue
+            for session_dir in exam_dir.iterdir():
+                if not session_dir.is_dir():
+                    continue
+                for student_dir in session_dir.iterdir():
+                    if not student_dir.is_dir():
+                        continue
+                    results_dir = student_dir / "results"
+                    if results_dir.is_dir():
+                        results.append(
+                            {
+                                "path": str(results_dir),
+                                "exam_name": exam_dir.name,
+                                "session_id": session_dir.name,
+                                "student_id": student_dir.name,
+                                "display": f"{exam_dir.name}/{session_dir.name}/{student_dir.name}",
+                            }
+                        )
     return jsonify({"status": "ok", "results": results})
 
 
 @app.route("/api/admin/results", methods=["DELETE"])
 def api_admin_delete_results():
     data = request.get_json() or {}
-    student_id = data.get("student_id")
+    path = data.get("path")
     delete_all = bool(data.get("all"))
 
     if delete_all:
-        for entry in RESULTS_DIR.iterdir():
-            if entry.is_dir():
-                try:
-                    shutil.rmtree(entry)
-                except Exception:
-                    pass
-        return jsonify({"status": "ok", "message": "All results deleted"})
+        docs_dir = (Path.home() / "Documents").resolve()
+        deleted = 0
+        if docs_dir.exists():
+            for exam_dir in docs_dir.iterdir():
+                if not exam_dir.is_dir() or exam_dir.name.startswith("."):
+                    continue
+                for session_dir in exam_dir.iterdir():
+                    if not session_dir.is_dir():
+                        continue
+                    for student_dir in session_dir.iterdir():
+                        if not student_dir.is_dir():
+                            continue
+                        results_dir = student_dir / "results"
+                        if results_dir.is_dir():
+                            try:
+                                shutil.rmtree(results_dir)
+                                deleted += 1
+                            except Exception:
+                                pass
+        return jsonify({"status": "ok", "message": f"All results deleted ({deleted})."})
 
-    if not student_id:
-        return jsonify({"status": "error", "message": "Missing student_id."}), 400
+    if not path:
+        return jsonify({"status": "error", "message": "Missing path."}), 400
 
-    target = _safe_resolve_child(RESULTS_DIR, RESULTS_DIR / student_id)
+    docs_dir = (Path.home() / "Documents").resolve()
+    target = _safe_resolve_child(docs_dir, Path(path))
     if not target or not target.exists():
         return jsonify({"status": "error", "message": "Result not found."}), 404
 
     shutil.rmtree(target)
-    return jsonify({"status": "ok", "message": f"Results for '{student_id}' deleted"})
+    return jsonify({"status": "ok", "message": f"Results deleted: {target}"})
 
 
 @app.route("/api/admin/students", methods=["GET"])
@@ -1824,8 +1895,6 @@ def _grade_session_from_config(target_path: str, template_name: str):
         if not student_entry.is_dir():
             continue
         student_id = student_entry.name
-        student_results_dir = RESULTS_DIR / student_id
-        student_results_dir.mkdir(parents=True, exist_ok=True)
         student_results_dir_student = student_entry / "results"
         student_results_dir_student.mkdir(parents=True, exist_ok=True)
 
@@ -1862,7 +1931,7 @@ def _grade_session_from_config(target_path: str, template_name: str):
             summary["hostnames_compared"].append(hostname)
             summary["results"][hostname] = results
 
-            parsed_file = student_results_dir / f"{hostname}_student_parsed.json"
+            parsed_file = student_results_dir_student / f"{hostname}_student_parsed.json"
             with open(parsed_file, "w") as handle:
                 json.dump(student_config, handle, indent=4)
 
@@ -1877,17 +1946,10 @@ def _grade_session_from_config(target_path: str, template_name: str):
                 "results": results,
             }
 
-            result_file = student_results_dir / f"{hostname}_result.json"
-            with open(result_file, "w") as handle:
-                json.dump(result_payload, handle, indent=4)
-
             student_result_file = student_results_dir_student / f"{hostname}_result.json"
             with open(student_result_file, "w") as handle:
                 json.dump(result_payload, handle, indent=4)
 
-        summary_file = student_results_dir / "summary.json"
-        with open(summary_file, "w") as handle:
-            json.dump(summary, handle, indent=4)
         summary_file_student = student_results_dir_student / "summary.json"
         with open(summary_file_student, "w") as handle:
             json.dump(summary, handle, indent=4)

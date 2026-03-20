@@ -300,5 +300,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (autoRun === "true") {
     localStorage.removeItem("autoRunResults");
     runComparison();
+  } else {
+    refreshResults();
   }
 });
