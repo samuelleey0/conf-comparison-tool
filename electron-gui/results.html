@@ -137,15 +137,26 @@
     @media (max-width: 900px) {
       .results-layout {
         grid-template-columns: 1fr;
+        gap: 12px;
       }
       .results-list {
-        max-height: 260px;
+        max-height: none;
       }
       .report-summary {
         grid-template-columns: 1fr;
       }
       .result-values {
         grid-template-columns: 1fr;
+      }
+      .report-card {
+        min-height: auto;
+        padding: 12px;
+      }
+      .result-item {
+        overflow-wrap: anywhere;
+      }
+      .result-values pre {
+        white-space: pre-wrap;
       }
     }
   </style>

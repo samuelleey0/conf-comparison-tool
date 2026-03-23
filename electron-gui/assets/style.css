@@ -519,6 +519,27 @@ button.block {
   background: transparent;
 }
 
+@media (max-width: 900px) {
+  .page-shell {
+    padding: 28px 20px 48px;
+  }
+
+  .form-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-row .form-group {
+    width: 100%;
+  }
+
+  .existing-picker {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
 .directory-card {
   padding: 16px 0 64px;
   background: transparent;
@@ -1114,6 +1135,10 @@ progress::-moz-progress-bar {
     padding: 40px 32px 56px;
   }
 
+  .connection-shell {
+    padding: 40px 32px 56px;
+  }
+
   .commands-layout,
   .connection-layout {
     grid-template-columns: 1fr;
@@ -1139,6 +1164,10 @@ progress::-moz-progress-bar {
     font-size: 1.75rem;
   }
 
+  .section-title {
+    font-size: 1.15rem;
+  }
+
   .directory-options {
     flex-direction: column;
   }
@@ -1154,6 +1183,112 @@ progress::-moz-progress-bar {
 
   .welcome-content.formal {
     padding: 40px 28px;
+  }
+
+  /* Connection / Sample Collect shell */
+  .connection-shell {
+    padding: 28px 20px 40px;
+  }
+
+  /* Status banner — compact on small screens */
+  .status-banner {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .status-banner__icon {
+    width: 30px;
+    height: 30px;
+  }
+
+  .status-banner__icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .status-banner__msg {
+    font-size: 0.88rem;
+  }
+
+  /* Prevent inline min-widths from overflowing */
+  .connection-panel .form-row {
+    flex-direction: column;
+  }
+
+  .connection-panel .form-row .form-group {
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  /* Full-width buttons */
+  .connection-panel button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-title {
+    font-size: 1.45rem;
+  }
+
+  .page-subtitle {
+    font-size: 0.88rem;
+  }
+
+  .section-title {
+    font-size: 1.05rem;
+  }
+
+  .page-card {
+    padding: 18px 16px;
+  }
+
+  .connection-shell {
+    padding: 20px 14px 32px;
+  }
+
+  /* Status banner — stacked layout for very narrow screens */
+  .status-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .status-banner__icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .status-banner__label {
+    font-size: 0.65rem;
+  }
+
+  .status-banner__msg {
+    font-size: 0.85rem;
+  }
+
+  /* Existing picker stacks */
+  .existing-picker {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .existing-picker button {
+    width: 100%;
+  }
+
+  .log {
+    height: 180px;
+    font-size: 0.8rem;
+  }
+
+  .hint {
+    font-size: 0.82rem;
+  }
+
+  .choice-label {
+    font-size: 0.88rem;
   }
 }
 
