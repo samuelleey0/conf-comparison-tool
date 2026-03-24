@@ -17,6 +17,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from upload_student_folders import (
     BASE_URL as SENDER_BASE_URL,
     STUDENT_FOLDER as SENDER_STUDENT_FOLDER,
+    resolve_source_folder,
     run_upload,
 )
 from werkzeug.utils import secure_filename
@@ -32,6 +33,7 @@ WEB_DIR.mkdir(parents=True, exist_ok=True)
 
 # Default address you can call from your webpage.
 DEFAULT_BASE_URL = "http://127.0.0.1:6060"
+
 
 def _student_folder(student_id: str) -> Path:
     student = (student_id or "unknown_student").strip() or "unknown_student"
@@ -203,7 +205,7 @@ def sender_config():
     return jsonify(
         {
             "status": "ok",
-            "source_folder": str(Path(SENDER_STUDENT_FOLDER).resolve()),
+            "source_folder": str(resolve_source_folder(SENDER_STUDENT_FOLDER)),
             "endpoint_base_url": SENDER_BASE_URL,
             "upload_url": f"{SENDER_BASE_URL}/api/upload-logs",
         }
@@ -213,7 +215,9 @@ def sender_config():
 @app.post("/api/sender-upload")
 def sender_upload():
     payload = request.get_json(silent=True) or {}
-    confirm_value = str(payload.get("confirm", request.form.get("confirm", ""))).strip().lower()
+    confirm_value = (
+        str(payload.get("confirm", request.form.get("confirm", ""))).strip().lower()
+    )
 
     if confirm_value != "yes":
         return (

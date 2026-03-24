@@ -9,6 +9,9 @@ from pathlib import Path
 
 import requests
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+
 # ===== CONFIGURE ENDPOINT HERE =====
 # When Melbourne gives you the endpoint, just change this URL.
 # Example: BASE_URL = "https://marking.unimelb.edu.au/api"
@@ -19,6 +22,18 @@ BASE_URL = "http://127.0.0.1:6060"
 # Change this to the folder containing student subfolders to upload
 STUDENT_FOLDER = "comparsion_engine/students"
 # ========================================
+
+
+def resolve_source_folder(student_folder: str | None = None) -> Path:
+    """Resolve source folder path.
+
+    Relative paths are resolved from project root (conf-comparison-tool).
+    """
+    configured = (student_folder or STUDENT_FOLDER).strip()
+    source_path = Path(configured).expanduser()
+    if source_path.is_absolute():
+        return source_path
+    return (PROJECT_ROOT / source_path).resolve()
 
 
 def upload_student_folder(student_dir: Path, base_url: str | None = None) -> dict:
@@ -82,8 +97,7 @@ def resolve_student_dirs(source_dir: Path) -> list[Path]:
 def run_upload(base_url: str | None = None, student_folder: str | None = None) -> dict:
     """Run upload and return a machine-readable summary."""
     resolved_base_url = (base_url or BASE_URL).strip()
-    resolved_student_folder = (student_folder or STUDENT_FOLDER).strip()
-    students_dir = Path(resolved_student_folder)
+    students_dir = resolve_source_folder(student_folder)
 
     if not students_dir.exists():
         return {
