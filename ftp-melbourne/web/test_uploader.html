@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Melbourne Log Upload Tester</title>
+        <style>
+            :root {
+                --bg-top: #fff8ec;
+                --bg-mid: #ffe3bf;
+                --bg-bottom: #f7c58c;
+                --card: #fffaf3;
+                --ink: #1f1b16;
+                --muted: #6b6055;
+                --accent: #126b5f;
+                --accent-2: #0d5349;
+                --warn: #8c2f0f;
+                --border: #e7cfaf;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                min-height: 100vh;
+                font-family:
+                    "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
+                color: var(--ink);
+                background:
+                    radial-gradient(
+                        circle at 10% 12%,
+                        rgba(255, 255, 255, 0.9) 0,
+                        rgba(255, 255, 255, 0) 32%
+                    ),
+                    radial-gradient(
+                        circle at 88% 82%,
+                        rgba(255, 252, 244, 0.9) 0,
+                        rgba(255, 252, 244, 0) 38%
+                    ),
+                    linear-gradient(
+                        160deg,
+                        var(--bg-top),
+                        var(--bg-mid) 44%,
+                        var(--bg-bottom)
+                    );
+                padding: 22px;
+            }
+
+            .shell {
+                max-width: 1080px;
+                margin: 0 auto;
+                display: grid;
+                grid-template-columns: 1.15fr 0.85fr;
+                gap: 18px;
+            }
+
+            .card {
+                background: var(--card);
+                border: 1px solid var(--border);
+                border-radius: 16px;
+                box-shadow: 0 10px 24px rgba(70, 50, 20, 0.1);
+                padding: 18px;
+                animation: card-in 420ms ease;
+            }
+
+            h1 {
+                margin: 0 0 6px;
+                letter-spacing: 0.2px;
+                font-size: 1.5rem;
+            }
+
+            p {
+                margin: 0 0 14px;
+                color: var(--muted);
+                line-height: 1.4;
+            }
+
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+            }
+
+            .field {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                margin-bottom: 10px;
+            }
+
+            label {
+                font-size: 0.85rem;
+                color: var(--muted);
+                font-weight: 700;
+                letter-spacing: 0.3px;
+                text-transform: uppercase;
+            }
+
+            input,
+            textarea,
+            button {
+                font: inherit;
+            }
+
+            input[type="text"],
+            textarea {
+                width: 100%;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                padding: 10px;
+                background: #fff;
+                color: var(--ink);
+            }
+
+            input[type="file"] {
+                width: 100%;
+                padding: 8px;
+                border: 1px dashed var(--border);
+                border-radius: 10px;
+                background: #fff;
+            }
+
+            .buttons {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin-top: 8px;
+            }
+
+            button {
+                border: 0;
+                border-radius: 10px;
+                padding: 10px 14px;
+                cursor: pointer;
+                font-weight: 700;
+                letter-spacing: 0.25px;
+                transition:
+                    transform 120ms ease,
+                    opacity 120ms ease;
+            }
+
+            button:hover {
+                transform: translateY(-1px);
+            }
+            button:active {
+                transform: translateY(0);
+            }
+
+            .primary {
+                background: var(--accent);
+                color: #fff;
+            }
+
+            .primary:hover {
+                background: var(--accent-2);
+            }
+
+            .ghost {
+                background: #fff;
+                color: var(--ink);
+                border: 1px solid var(--border);
+            }
+
+            .status {
+                margin-top: 10px;
+                min-height: 24px;
+                font-weight: 600;
+                color: var(--accent-2);
+            }
+
+            .status.error {
+                color: var(--warn);
+            }
+
+            .mono {
+                font-family: "Menlo", "Monaco", monospace;
+                font-size: 0.84rem;
+                white-space: pre-wrap;
+                word-break: break-word;
+                max-height: 280px;
+                overflow: auto;
+                background: #fff;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                padding: 10px;
+            }
+
+            .list {
+                margin: 0;
+                padding-left: 16px;
+                line-height: 1.4;
+            }
+
+            .tag {
+                display: inline-block;
+                border: 1px solid var(--border);
+                border-radius: 999px;
+                padding: 3px 10px;
+                font-size: 0.75rem;
+                color: var(--muted);
+                background: #fff;
+                margin-right: 6px;
+                margin-bottom: 6px;
+            }
+
+            @keyframes card-in {
+                from {
+                    opacity: 0;
+                    transform: translateY(8px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            @media (max-width: 900px) {
+                .shell {
+                    grid-template-columns: 1fr;
+                }
+                .grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="shell">
+            <section class="card">
+                <h1>Melbourne Log Upload Tester</h1>
+                <p>
+                    Use this page to send student log files to your test backend
+                    and confirm upload compatibility before real integration.
+                </p>
+
+                <div class="field">
+                    <label for="baseUrl">Receiver Base URL</label>
+                    <input
+                        id="baseUrl"
+                        type="text"
+                        value=""
+                        placeholder="http://127.0.0.1:6060"
+                    />
+                </div>
+
+                <div class="grid">
+                    <div class="field">
+                        <label for="studentId">Student ID</label>
+                        <input id="studentId" type="text" value="100000001" />
+                    </div>
+                    <div class="field">
+                        <label for="hostname">Hostname</label>
+                        <input id="hostname" type="text" value="ABBY" />
+                    </div>
+                    <div class="field">
+                        <label for="examName">Exam Name</label>
+                        <input id="examName" type="text" value="TNE20002" />
+                    </div>
+                    <div class="field">
+                        <label for="sessionId">Session ID</label>
+                        <input id="sessionId" type="text" value="Week5" />
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="files">Select Log File(s)</label>
+                    <input id="files" type="file" multiple />
+                </div>
+
+                <div class="buttons">
+                    <button class="primary" id="sendBtn">Send Logs</button>
+                    <button class="ghost" id="endpointsBtn">
+                        Load Endpoints
+                    </button>
+                    <button class="ghost" id="inboxBtn">Refresh Inbox</button>
+                    <button class="ghost" id="clearBtn">Clear Output</button>
+                </div>
+
+                <div id="status" class="status"></div>
+
+                <h3>API Response</h3>
+                <div id="responseBox" class="mono">No request sent yet.</div>
+            </section>
+
+            <section class="card">
+                <h3>Discovered Endpoints</h3>
+                <p id="endpointHint">
+                    Click Load Endpoints to fetch current URLs.
+                </p>
+                <div id="endpointTags"></div>
+
+                <h3>Received Files (Inbox)</h3>
+                <p id="inboxSummary">No inbox data loaded.</p>
+                <div id="inboxBox" class="mono">[]</div>
+
+                <h3>Current Selection</h3>
+                <ul id="selectedFiles" class="list"></ul>
+            </section>
+        </div>
+
+        <script>
+            const baseUrlInput = document.getElementById("baseUrl");
+            const studentIdInput = document.getElementById("studentId");
+            const hostnameInput = document.getElementById("hostname");
+            const examNameInput = document.getElementById("examName");
+            const sessionIdInput = document.getElementById("sessionId");
+            const filesInput = document.getElementById("files");
+
+            const sendBtn = document.getElementById("sendBtn");
+            const endpointsBtn = document.getElementById("endpointsBtn");
+            const inboxBtn = document.getElementById("inboxBtn");
+            const clearBtn = document.getElementById("clearBtn");
+
+            const statusBox = document.getElementById("status");
+            const responseBox = document.getElementById("responseBox");
+            const selectedFiles = document.getElementById("selectedFiles");
+
+            const endpointTags = document.getElementById("endpointTags");
+            const endpointHint = document.getElementById("endpointHint");
+            const inboxSummary = document.getElementById("inboxSummary");
+            const inboxBox = document.getElementById("inboxBox");
+
+            function guessBaseUrl() {
+                if (window.location.protocol.startsWith("http")) {
+                    return window.location.origin;
+                }
+                return "http://127.0.0.1:6060";
+            }
+
+            function setStatus(text, isError = false) {
+                statusBox.textContent = text;
+                statusBox.classList.toggle("error", isError);
+            }
+
+            function showJson(node, payload) {
+                node.textContent = JSON.stringify(payload, null, 2);
+            }
+
+            function renderSelectedFiles() {
+                selectedFiles.innerHTML = "";
+                const files = Array.from(filesInput.files || []);
+                if (!files.length) {
+                    const li = document.createElement("li");
+                    li.textContent = "No files selected.";
+                    selectedFiles.appendChild(li);
+                    return;
+                }
+
+                files.forEach((file) => {
+                    const li = document.createElement("li");
+                    li.textContent = `${file.name} (${file.size} bytes)`;
+                    selectedFiles.appendChild(li);
+                });
+            }
+
+            async function fetchJson(url, options = {}) {
+                const response = await fetch(url, options);
+                const data = await response
+                    .json()
+                    .catch(() => ({
+                        status: "error",
+                        message: "Invalid JSON response",
+                    }));
+                if (!response.ok) {
+                    throw new Error(
+                        data.message || `Request failed (${response.status})`,
+                    );
+                }
+                return data;
+            }
+
+            async function loadEndpoints() {
+                const base = baseUrlInput.value.trim() || guessBaseUrl();
+                const data = await fetchJson(`${base}/api/endpoints`);
+
+                endpointHint.textContent = `Base URL: ${data.base_url}`;
+                endpointTags.innerHTML = "";
+
+                [
+                    `Single: ${data.upload_single}`,
+                    `Batch: ${data.upload_batch}`,
+                    `Method: ${data.upload_method}`,
+                ].forEach((text) => {
+                    const tag = document.createElement("span");
+                    tag.className = "tag";
+                    tag.textContent = text;
+                    endpointTags.appendChild(tag);
+                });
+
+                return data;
+            }
+
+            async function loadInbox() {
+                const base = baseUrlInput.value.trim() || guessBaseUrl();
+                const data = await fetchJson(`${base}/api/inbox`);
+                inboxSummary.textContent = `Students: ${data.students.length} | Files: ${data.total_files} | Bytes: ${data.total_bytes}`;
+                showJson(inboxBox, data.students);
+                return data;
+            }
+
+            async function sendLogs() {
+                const files = Array.from(filesInput.files || []);
+                if (!files.length) {
+                    setStatus("Please select at least one log file.", true);
+                    return;
+                }
+
+                const base = baseUrlInput.value.trim() || guessBaseUrl();
+                const endpoint =
+                    files.length > 1 ? "/api/upload-logs" : "/api/upload-log";
+                const target = `${base}${endpoint}`;
+
+                const form = new FormData();
+                form.append("student_id", studentIdInput.value.trim());
+                form.append("exam_name", examNameInput.value.trim());
+                form.append("session_id", sessionIdInput.value.trim());
+                form.append("hostname", hostnameInput.value.trim());
+
+                if (files.length > 1) {
+                    files.forEach((file) => form.append("files", file));
+                } else {
+                    form.append("file", files[0]);
+                }
+
+                setStatus(`Sending ${files.length} file(s) to ${endpoint} ...`);
+                const started = performance.now();
+
+                try {
+                    const data = await fetchJson(target, {
+                        method: "POST",
+                        body: form,
+                    });
+
+                    const elapsed = (performance.now() - started).toFixed(0);
+                    setStatus(`Upload success in ${elapsed} ms.`);
+                    showJson(responseBox, data);
+                    await loadInbox();
+                } catch (error) {
+                    setStatus(error.message, true);
+                    showJson(responseBox, {
+                        status: "error",
+                        message: error.message,
+                    });
+                }
+            }
+
+            baseUrlInput.value = guessBaseUrl();
+            renderSelectedFiles();
+            filesInput.addEventListener("change", renderSelectedFiles);
+
+            sendBtn.addEventListener("click", sendLogs);
+            endpointsBtn.addEventListener("click", async () => {
+                try {
+                    await loadEndpoints();
+                    setStatus("Endpoints loaded.");
+                } catch (error) {
+                    setStatus(error.message, true);
+                }
+            });
+
+            inboxBtn.addEventListener("click", async () => {
+                try {
+                    await loadInbox();
+                    setStatus("Inbox refreshed.");
+                } catch (error) {
+                    setStatus(error.message, true);
+                }
+            });
+
+            clearBtn.addEventListener("click", () => {
+                setStatus("Output cleared.");
+                responseBox.textContent = "No request sent yet.";
+                inboxSummary.textContent = "No inbox data loaded.";
+                inboxBox.textContent = "[]";
+                endpointHint.textContent =
+                    "Click Load Endpoints to fetch current URLs.";
+                endpointTags.innerHTML = "";
+            });
+        </script>
+    </body>
+</html>
