@@ -33,6 +33,8 @@ WEB_DIR.mkdir(parents=True, exist_ok=True)
 
 # Default address you can call from your webpage.
 DEFAULT_BASE_URL = "http://127.0.0.1:6060"
+# For final button workflow, keep this False to upload with one click.
+REQUIRE_UPLOAD_CONFIRMATION = False
 
 
 def _student_folder(student_id: str) -> Path:
@@ -219,7 +221,7 @@ def sender_upload():
         str(payload.get("confirm", request.form.get("confirm", ""))).strip().lower()
     )
 
-    if confirm_value != "yes":
+    if REQUIRE_UPLOAD_CONFIRMATION and confirm_value != "yes":
         return (
             jsonify(
                 {

@@ -70,28 +70,20 @@ def upload_student_folder(student_dir: Path, base_url: str | None = None) -> dic
 
 
 def resolve_student_dirs(source_dir: Path) -> list[Path]:
-    """Resolve source into student folder(s).
+    """Resolve parent students folder into student-id subfolders only.
 
-    Supports two layouts:
-    1) Parent folder with many students: students/100000001, students/100000002, ...
-    2) Single student folder: students/100000001
+    Expected layout:
+    students/100000001, students/100000002, ...
     """
-    child_dirs = [
+    # Avoid treating a single student-id folder as source; source must be parent folder.
+    if source_dir.name.isdigit():
+        return []
+
+    return [
         d
         for d in sorted(source_dir.iterdir())
-        if d.is_dir() and not d.name.startswith(".")
+        if d.is_dir() and not d.name.startswith(".") and d.name.isdigit()
     ]
-
-    # Common case: selected folder is a specific student folder (e.g., .../100000001)
-    if source_dir.name.isdigit():
-        return [source_dir]
-
-    # If children are not student-id-like, treat selected folder as one student folder.
-    if child_dirs and all(not d.name.isdigit() for d in child_dirs):
-        return [source_dir]
-
-    # Otherwise treat selected folder as parent containing student folders.
-    return child_dirs
 
 
 def run_upload(base_url: str | None = None, student_folder: str | None = None) -> dict:
@@ -114,7 +106,10 @@ def run_upload(base_url: str | None = None, student_folder: str | None = None) -
     if not student_dirs:
         return {
             "status": "error",
-            "message": "No student folders found",
+            "message": (
+                "No student folders found. Set STUDENT_FOLDER to the parent students folder "
+                "(example: comparsion_engine/students) containing numeric student ID subfolders."
+            ),
             "base_url": resolved_base_url,
             "student_folder": str(students_dir),
             "results": [],

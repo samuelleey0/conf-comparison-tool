@@ -117,7 +117,7 @@
         <div class="card">
             <h1>Upload Logs</h1>
             <p class="subtitle">
-                Confirm source folder and endpoint, then type yes to upload.
+                Review source folder and endpoint, then click upload.
             </p>
 
             <div class="field">
@@ -140,19 +140,7 @@
                 />
             </div>
 
-            <div class="field">
-                <label for="confirmInput"
-                    >Type <code>yes</code> to confirm upload</label
-                >
-                <input
-                    id="confirmInput"
-                    type="text"
-                    placeholder="yes"
-                    autocomplete="off"
-                />
-            </div>
-
-            <button class="primary" id="uploadBtn">Confirm and Upload</button>
+            <button class="primary" id="uploadBtn">Upload Now</button>
 
             <div id="status"></div>
         </div>
@@ -160,7 +148,6 @@
         <script>
             const sourceFolderInput = document.getElementById("sourceFolder");
             const endpointUrlInput = document.getElementById("endpointUrl");
-            const confirmInput = document.getElementById("confirmInput");
             const uploadBtn = document.getElementById("uploadBtn");
             const statusBox = document.getElementById("status");
 
@@ -205,11 +192,6 @@
                         "Config not loaded yet. Please try again.",
                         "error",
                     );
-                    return;
-                }
-
-                if (confirmInput.value.trim().toLowerCase() !== "yes") {
-                    setStatus("Please type yes to confirm upload.", "error");
                     return;
                 }
 
