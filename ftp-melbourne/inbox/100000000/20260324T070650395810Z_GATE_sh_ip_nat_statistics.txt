@@ -1,0 +1,27 @@
+
+Total active translations: 36 (0 static, 36 dynamic; 36 extended)
+Outside interfaces:
+  Serial0/0/0
+Inside interfaces: 
+  Serial0/0/1
+Hits: 830  Misses: 70
+CEF Translated packets: 719, CEF Punted packets: 362
+Expired translations: 34
+Dynamic mappings:
+-- Inside Source
+[Id: 2] access-list NATACLVLAN11 pool public_pool refcount 20
+ pool public_pool: netmask 255.255.255.240
+	start 191.2.16.32 end 191.2.16.40
+	type generic, total addresses 9, allocated 1 (11%), misses 0
+[Id: 3] access-list NATACLVLAN21 pool public_pool refcount 16
+ pool public_pool: netmask 255.255.255.240
+	start 191.2.16.32 end 191.2.16.40
+	type generic, total addresses 9, allocated 1 (11%), misses 0
+[Id: 1] access-list NATACLVLAN3 pool public_pool refcount 0
+ pool public_pool: netmask 255.255.255.240
+	start 191.2.16.32 end 191.2.16.40
+	type generic, total addresses 9, allocated 1 (11%), misses 0
+Appl doors: 0
+Normal doors: 0
+Queued Packets: 0
+GATE#

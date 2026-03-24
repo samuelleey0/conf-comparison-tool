@@ -1,0 +1,128 @@
+
+Building configuration...
+
+Current configuration : 2335 bytes
+!
+version 12.4
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname GATE
+!
+boot-start-marker
+boot-end-marker
+!
+no aaa new-model
+memory-size iomem 15
+!
+ip cef
+!
+ip auth-proxy max-nodata-conns 3
+ip admission max-nodata-conns 3
+!
+voice-card 0
+ no dspfarm
+!
+username admin privilege 15 secret 5 $1$kO8B$O9d7IyT0bCYUKFAtFXRTs0
+username TELCO password 0 fse202
+! 
+!
+interface Loopback0
+ ip address 192.168.91.129 255.255.255.224
+!
+interface FastEthernet0/0
+ no ip address
+ shutdown
+ duplex auto
+ speed auto
+!
+interface FastEthernet0/1
+ no ip address
+ shutdown
+ duplex auto
+ speed auto
+!
+interface Serial0/0/0
+ ip address 182.192.101.17 255.255.255.252
+ ip nat outside
+ ip virtual-reassembly
+ encapsulation ppp
+ ppp authentication chap
+!
+interface Serial0/0/1
+ ip address 192.168.51.225 255.255.255.252
+ ip nat inside
+ ip virtual-reassembly
+!
+interface Serial0/1/0
+ no ip address
+ shutdown
+ clock rate 2000000
+!
+interface Serial0/1/1
+ no ip address
+ shutdown
+ clock rate 2000000
+!
+interface Serial0/2/0
+ no ip address
+ shutdown
+ clock rate 2000000
+!
+interface Serial0/2/1
+ no ip address
+ shutdown
+ clock rate 2000000
+!
+interface Serial0/3/0
+ no ip address
+ shutdown
+ clock rate 125000
+!
+interface Serial0/3/1
+ no ip address
+ shutdown
+ clock rate 125000
+!
+router eigrp 65
+ redistribute static
+ passive-interface Serial0/0/0
+ network 192.168.51.224 0.0.0.3
+ network 192.168.91.128 0.0.0.31
+ no auto-summary
+!
+ip forward-protocol nd
+ip route 0.0.0.0 0.0.0.0 182.192.101.18
+!
+ip http server
+ip http authentication local
+no ip http secure-server
+ip nat pool public_pool 191.2.16.32 191.2.16.40 netmask 255.255.255.240
+ip nat inside source list NATACLVLAN11 pool public_pool overload
+ip nat inside source list NATACLVLAN21 pool public_pool overload
+ip nat inside source list NATACLVLAN3 pool public_pool overload
+!
+ip access-list extended NATACLVLAN11
+ permit ip 192.168.11.0 0.0.0.255 any
+ip access-list extended NATACLVLAN21
+ permit ip 192.168.21.0 0.0.0.127 any
+ip access-list extended NATACLVLAN3
+ permit ip 192.168.3.192 0.0.0.15 any
+!
+control-plane
+!
+banner motd ^C102779687 Samuel Lee^C
+!
+line con 0
+line aux 0
+line vty 0 4
+ password cisco
+ login
+ transport input telnet
+!
+scheduler allocate 20000 1000
+!
+end
+
+GATE#

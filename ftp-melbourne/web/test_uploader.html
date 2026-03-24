@@ -295,6 +295,11 @@
                 <p id="inboxSummary">No inbox data loaded.</p>
                 <div id="inboxBox" class="mono">[]</div>
 
+                <h3>Uploaded Student Folders</h3>
+                <ul id="folderList" class="list">
+                    <li>No folder status loaded.</li>
+                </ul>
+
                 <h3>Current Selection</h3>
                 <ul id="selectedFiles" class="list"></ul>
             </section>
@@ -321,6 +326,7 @@
             const endpointHint = document.getElementById("endpointHint");
             const inboxSummary = document.getElementById("inboxSummary");
             const inboxBox = document.getElementById("inboxBox");
+            const folderList = document.getElementById("folderList");
 
             function guessBaseUrl() {
                 if (window.location.protocol.startsWith("http")) {
@@ -357,12 +363,10 @@
 
             async function fetchJson(url, options = {}) {
                 const response = await fetch(url, options);
-                const data = await response
-                    .json()
-                    .catch(() => ({
-                        status: "error",
-                        message: "Invalid JSON response",
-                    }));
+                const data = await response.json().catch(() => ({
+                    status: "error",
+                    message: "Invalid JSON response",
+                }));
                 if (!response.ok) {
                     throw new Error(
                         data.message || `Request failed (${response.status})`,
@@ -381,6 +385,7 @@
                 [
                     `Single: ${data.upload_single}`,
                     `Batch: ${data.upload_batch}`,
+                    `Folders: ${data.uploaded_folders}`,
                     `Method: ${data.upload_method}`,
                 ].forEach((text) => {
                     const tag = document.createElement("span");
@@ -397,6 +402,20 @@
                 const data = await fetchJson(`${base}/api/inbox`);
                 inboxSummary.textContent = `Students: ${data.students.length} | Files: ${data.total_files} | Bytes: ${data.total_bytes}`;
                 showJson(inboxBox, data.students);
+
+                folderList.innerHTML = "";
+                if (!data.students.length) {
+                    const li = document.createElement("li");
+                    li.textContent = "No uploaded folders yet.";
+                    folderList.appendChild(li);
+                } else {
+                    data.students.forEach((student) => {
+                        const li = document.createElement("li");
+                        li.textContent = `${student.student_id} | files=${student.file_count} | bytes=${student.total_bytes}`;
+                        folderList.appendChild(li);
+                    });
+                }
+
                 return data;
             }
 
@@ -474,6 +493,7 @@
                 responseBox.textContent = "No request sent yet.";
                 inboxSummary.textContent = "No inbox data loaded.";
                 inboxBox.textContent = "[]";
+                folderList.innerHTML = "<li>No folder status loaded.</li>";
                 endpointHint.textContent =
                     "Click Load Endpoints to fetch current URLs.";
                 endpointTags.innerHTML = "";

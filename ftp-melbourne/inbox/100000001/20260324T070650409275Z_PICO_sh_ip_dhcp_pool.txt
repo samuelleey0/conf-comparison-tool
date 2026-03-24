@@ -1,0 +1,12 @@
+
+
+Pool DHCP_SALES :
+ Utilization mark (high/low)    : 100 / 0
+ Subnet size (first/next)       : 0 / 0 
+ Total addresses                : 254
+ Leased addresses               : 1
+ Pending event                  : none
+ 1 subnet is currently in the pool :
+ Current index        IP address range                    Leased addresses
+ 192.168.11.7         192.168.11.1     - 192.168.11.254    1
+PICO#
