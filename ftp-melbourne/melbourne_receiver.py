@@ -10,7 +10,7 @@ Purpose:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +31,7 @@ DEFAULT_BASE_URL = "http://127.0.0.1:6060"
 
 
 def _utc_stamp() -> str:
-    return datetime.utcnow().strftime("%Y%m%dT%H%M%S%fZ")
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
 
 
 def _student_folder(student_id: str) -> Path:
@@ -151,6 +151,29 @@ def inbox_listing():
     return jsonify({"status": "ok", **listing})
 
 
+@app.get("/api/uploaded-folders")
+def uploaded_folders():
+    listing = _list_inbox()
+    folders = []
+    for student in listing.get("students", []):
+        folders.append(
+            {
+                "student_id": student.get("student_id"),
+                "file_count": student.get("file_count", 0),
+                "total_bytes": student.get("total_bytes", 0),
+            }
+        )
+    return jsonify(
+        {
+            "status": "ok",
+            "folder_count": len(folders),
+            "total_files": listing.get("total_files", 0),
+            "total_bytes": listing.get("total_bytes", 0),
+            "folders": folders,
+        }
+    )
+
+
 @app.get("/api/endpoints")
 def endpoints():
     base_url = request.host_url.rstrip("/")
@@ -160,6 +183,7 @@ def endpoints():
             "base_url": base_url,
             "upload_single": f"{base_url}/api/upload-log",
             "upload_batch": f"{base_url}/api/upload-logs",
+            "uploaded_folders": f"{base_url}/api/uploaded-folders",
             "upload_method": "POST multipart/form-data",
             "required_field_single": "file",
             "optional_fields": ["student_id", "exam_name", "session_id", "hostname"],

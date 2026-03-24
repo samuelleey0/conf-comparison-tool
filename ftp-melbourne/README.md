@@ -24,8 +24,32 @@ Web test page:
 - `GET /health`
 - `GET /api/endpoints`
 - `GET /api/inbox`
+- `GET /api/uploaded-folders`
 - `POST /api/upload-log` (single file)
 - `POST /api/upload-logs` (multiple files)
+
+## Bulk Upload From Student Folders
+
+This script scans student ID folders under `comparsion_engine/students` and uploads all log files for each student in a batch request.
+
+```bash
+source fyp-venv/bin/activate
+python ftp-melbourne/upload_student_folders.py \
+  --base-url http://127.0.0.1:6060 \
+  --students-dir comparsion_engine/students \
+  --exam-name TNE20002 \
+  --session-id Week5
+```
+
+Optional: upload only selected students
+
+```bash
+python ftp-melbourne/upload_student_folders.py \
+  --student-id 100000000 \
+  --student-id 100000001
+```
+
+After upload, open the test webpage and use **Refresh Inbox** to see uploaded student folders.
 
 ## Upload Contract
 

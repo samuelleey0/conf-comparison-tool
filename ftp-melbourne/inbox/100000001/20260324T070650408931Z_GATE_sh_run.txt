@@ -1,0 +1,94 @@
+
+Building configuration...
+
+Current configuration : 1675 bytes
+!
+version 12.4
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname GATE
+!
+boot-start-marker
+boot-end-marker
+!
+no aaa new-model
+!
+ip cef
+!
+ip auth-proxy max-nodata-conns 3
+ip admission max-nodata-conns 3
+!
+voice-card 0
+ no dspfarm
+!
+username PICO password 0 fse202
+! 
+!
+interface Loopback0
+ description Databese Server LAN
+ ip address 192.168.91.129 255.255.255.224
+!
+interface FastEthernet0/0
+ no ip address
+ shutdown
+ duplex auto
+ speed auto
+!
+interface FastEthernet0/1
+ no ip address
+ shutdown
+ duplex auto
+ speed auto
+!
+interface Serial0/0/0
+ description Connection to TELCO
+ ip address 182.192.101.17 255.255.255.252
+ ip nat outside
+ ip virtual-reassembly
+!
+interface Serial0/0/1
+ description Connection to PICO
+ ip address 192.168.51.225 255.255.255.252
+ ip nat inside
+ ip virtual-reassembly
+ encapsulation ppp
+ clock rate 2000000
+ ppp authentication chap
+!
+router ospf 1
+ log-adjacency-changes
+ passive-interface Serial0/0/0
+ passive-interface Loopback0
+ network 192.168.51.224 0.0.0.3 area 0
+ network 192.168.91.128 0.0.0.31 area 0
+ default-information originate
+!
+ip forward-protocol nd
+ip route 0.0.0.0 0.0.0.0 182.192.101.18
+!
+ip http server
+no ip http secure-server
+ip nat pool NATALL 191.2.16.32 191.2.16.40 netmask 255.255.255.240
+ip nat inside source list NATACL pool NATALL overload
+!
+ip access-list extended NATACL
+ permit ip 192.168.0.0 0.0.255.255 any
+!
+control-plane
+!
+banner motd ^C102788696 Joyce^C
+!
+line con 0
+line aux 0
+line vty 0 4
+ password cisco
+ login
+ transport input telnet
+!
+scheduler allocate 20000 1000
+!
+end
+
+GATE#

@@ -1,0 +1,7 @@
+
+Bindings from all pools not associated with VRF:
+IP address          Client-ID/	 	    Lease expiration        Type
+		    Hardware address/
+		    User name
+192.168.11.6        01e0.73e7.b903.c4       Jan 02 2000 12:58 AM    Automatic
+PICO#

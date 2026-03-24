@@ -1,0 +1,115 @@
+
+Building configuration...
+
+Current configuration : 2284 bytes
+!
+version 12.4
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname PICO
+!
+boot-start-marker
+boot-end-marker
+!
+no aaa new-model
+!
+ip cef
+no ip dhcp use vrf connected
+ip dhcp excluded-address 192.168.11.0 192.168.11.5
+!
+ip dhcp pool DHCP_SALES
+   network 192.168.11.0 255.255.255.0
+   default-router 192.168.11.1 
+!
+ip auth-proxy max-nodata-conns 3
+ip admission max-nodata-conns 3
+!
+voice-card 0
+ no dspfarm
+!
+username GATE password 0 fse202
+! 
+!
+interface Loopback0
+ description Wireless LAN
+ ip address 192.168.81.1 255.255.255.0
+!
+interface FastEthernet0/0
+ no ip address
+ duplex auto
+ speed auto
+!
+interface FastEthernet0/0.3
+ description Interface Management Vlan
+ encapsulation dot1Q 3
+ ip address 192.168.3.193 255.255.255.240
+!
+interface FastEthernet0/0.11
+ description Interface Sales Vlan
+ encapsulation dot1Q 11
+ ip address 192.168.11.1 255.255.255.0
+!
+interface FastEthernet0/0.21
+ description Interface Finance Vlan
+ encapsulation dot1Q 21
+ ip address 192.168.21.1 255.255.255.128
+!
+interface FastEthernet0/1
+ no ip address
+ shutdown
+ duplex auto
+ speed auto
+!
+interface Serial0/0/0
+ no ip address
+ shutdown
+ no fair-queue
+ clock rate 2000000
+!
+interface Serial0/0/1
+ description Connection to GATE
+ ip address 192.168.51.226 255.255.255.252
+ ip access-group BlockPeople out
+ encapsulation ppp
+ ppp authentication chap
+!
+router ospf 1
+ log-adjacency-changes
+ passive-interface default
+ no passive-interface Serial0/0/1
+ network 192.168.3.192 0.0.0.15 area 0
+ network 192.168.11.0 0.0.0.255 area 0
+ network 192.168.21.0 0.0.0.127 area 0
+ network 192.168.51.224 0.0.0.3 area 0
+ network 192.168.81.0 0.0.0.255 area 0
+!
+ip forward-protocol nd
+!
+ip http server
+no ip http secure-server
+!
+ip access-list extended BlockPeople
+ permit tcp 192.168.21.0 0.0.0.127 host 166.0.0.19 eq www
+ deny   icmp 192.168.21.0 0.0.0.127 host 166.0.0.19 echo
+ deny   tcp 192.168.11.0 0.0.0.255 host 166.0.0.19 eq www
+ permit icmp 192.168.11.0 0.0.0.255 host 166.0.0.19 echo
+ permit ip any any
+!
+control-plane
+!
+banner motd ^C102788696 Joyce^C
+!
+line con 0
+line aux 0
+line vty 0 4
+ password cisco
+ login
+ transport input telnet
+!
+scheduler allocate 20000 1000
+!
+end
+
+PICO#
