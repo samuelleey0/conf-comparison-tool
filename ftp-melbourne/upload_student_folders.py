@@ -6,11 +6,14 @@ Quick setup: Change BASE_URL and STUDENT_FOLDER below. Then run.
 """
 
 from pathlib import Path
+import json
+from datetime import datetime, timezone
 
 import requests
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
+LAST_UPLOAD_SUMMARY_FILE = SCRIPT_DIR / "last_upload_summary.json"
 
 # ===== CONFIGURE ENDPOINT HERE =====
 # When Melbourne gives you the endpoint, just change this URL.
@@ -42,7 +45,15 @@ def upload_student_folder(student_dir: Path, base_url: str | None = None) -> dic
         f for f in student_dir.rglob("*") if f.is_file() and not f.name.startswith(".")
     ]
     if not files:
-        return {"student_id": student_dir.name, "status": "skipped", "count": 0}
+        return {
+            "student_id": student_dir.name,
+            "status": "skipped",
+            "count": 0,
+            "attempted_count": 0,
+            "uploaded_count": 0,
+        }
+
+    attempted_count = len(files)
 
     form_data = {"student_id": student_dir.name}
     upload_files = [
@@ -57,14 +68,23 @@ def upload_student_folder(student_dir: Path, base_url: str | None = None) -> dic
             fh.close()
 
         status = "ok" if response.ok else "error"
-        return {"student_id": student_dir.name, "status": status, "count": len(files)}
+        uploaded_count = attempted_count if response.ok else 0
+        return {
+            "student_id": student_dir.name,
+            "status": status,
+            "count": uploaded_count,
+            "attempted_count": attempted_count,
+            "uploaded_count": uploaded_count,
+        }
     except Exception as e:
         for _, (_, fh) in upload_files:
             fh.close()
         return {
             "student_id": student_dir.name,
             "status": "error",
-            "count": len(files),
+            "count": 0,
+            "attempted_count": attempted_count,
+            "uploaded_count": 0,
             "error": str(e),
         }
 
@@ -92,7 +112,7 @@ def run_upload(base_url: str | None = None, student_folder: str | None = None) -
     students_dir = resolve_source_folder(student_folder)
 
     if not students_dir.exists():
-        return {
+        summary = {
             "status": "error",
             "message": f"Source folder not found: {students_dir}",
             "base_url": resolved_base_url,
@@ -100,11 +120,14 @@ def run_upload(base_url: str | None = None, student_folder: str | None = None) -
             "results": [],
             "student_count": 0,
             "uploaded_file_count": 0,
+            "attempted_file_count": 0,
         }
+        _write_last_summary(summary)
+        return summary
 
     student_dirs = resolve_student_dirs(students_dir)
     if not student_dirs:
-        return {
+        summary = {
             "status": "error",
             "message": (
                 "No student folders found. Set STUDENT_FOLDER to the parent students folder "
@@ -115,29 +138,50 @@ def run_upload(base_url: str | None = None, student_folder: str | None = None) -
             "results": [],
             "student_count": 0,
             "uploaded_file_count": 0,
+            "attempted_file_count": 0,
         }
+        _write_last_summary(summary)
+        return summary
 
     results = [
         upload_student_folder(student_dir, base_url=resolved_base_url)
         for student_dir in student_dirs
     ]
 
-    uploaded_file_count = sum(result.get("count", 0) for result in results)
+    uploaded_file_count = sum(result.get("uploaded_count", 0) for result in results)
+    attempted_file_count = sum(result.get("attempted_count", 0) for result in results)
     success_count = sum(1 for result in results if result.get("status") == "ok")
     error_count = sum(1 for result in results if result.get("status") == "error")
 
     overall_status = "ok" if error_count == 0 else "partial"
-    return {
+    summary = {
         "status": overall_status,
-        "message": f"Uploaded {uploaded_file_count} files from {len(student_dirs)} student folder(s)",
+        "message": (
+            f"Uploaded {uploaded_file_count}/{attempted_file_count} files "
+            f"from {len(student_dirs)} student folder(s)"
+        ),
         "base_url": resolved_base_url,
         "student_folder": str(students_dir),
         "results": results,
         "student_count": len(student_dirs),
         "uploaded_file_count": uploaded_file_count,
+        "attempted_file_count": attempted_file_count,
         "success_count": success_count,
         "error_count": error_count,
     }
+    _write_last_summary(summary)
+    return summary
+
+
+def _write_last_summary(summary: dict) -> None:
+    payload = {
+        **summary,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    LAST_UPLOAD_SUMMARY_FILE.write_text(
+        json.dumps(payload, indent=2),
+        encoding="utf-8",
+    )
 
 
 def main():

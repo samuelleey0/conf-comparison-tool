@@ -185,14 +185,23 @@
             async function loadUploadStatus() {
                 try {
                     const response = await fetch(
-                        `${guessBaseUrl()}/api/uploaded-folders`,
+                        `${guessBaseUrl()}/api/sender-last-upload`,
                     );
                     const data = await response.json();
 
                     if (response.ok && data.status === "ok") {
+                        const summary = data.summary || {};
                         setStatus(
-                            `Uploaded so far: ${data.total_files || 0} file(s), ${data.folder_count || 0} student folder(s).`,
+                            `Last upload: ${summary.uploaded_file_count || 0}/${summary.attempted_file_count || 0} file(s), ${summary.student_count || 0} student folder(s), status: ${summary.status || "unknown"}.`,
                             "success",
+                        );
+                    } else if (
+                        response.status === 404 &&
+                        data.status === "empty"
+                    ) {
+                        setStatus(
+                            "No upload recorded yet. Run your script/button first.",
+                            "loading",
                         );
                     } else {
                         setStatus(
