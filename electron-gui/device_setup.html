@@ -3,6 +3,7 @@
 
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Device & Rubric Setup</title>
   <link rel="stylesheet" href="assets/style.css" />
   <link rel="stylesheet" href="assets/nav.css" />
@@ -19,7 +20,9 @@
     .device-block-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 12px;
       margin-bottom: 12px;
     }
 
@@ -67,6 +70,19 @@
       position: relative;
       user-select: none;
       width: 300px;
+      min-width: 200px;
+      flex-shrink: 1;
+    }
+
+    .device-block-header label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+    }
+
+    .device-block-header .hostname-input {
+      height: 38px;
     }
 
     .dropdown-header {
@@ -78,6 +94,48 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      min-height: 38px;
+    }
+
+    @media (max-width: 900px) {
+      .device-block-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+
+      .device-block-header label {
+        width: 100%;
+      }
+
+      .device-block-header .hostname-input {
+        width: 100%;
+      }
+
+      .custom-dropdown {
+        width: 100%;
+      }
+
+      .remove-device-btn {
+        width: 100%;
+        text-align: left;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .device-block {
+        padding: 12px;
+      }
+
+      .command-item {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .command-item input[type="file"] {
+        max-width: 100%;
+        width: 100%;
+      }
     }
 
     .dropdown-list {
