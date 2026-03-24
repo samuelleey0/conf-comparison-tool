@@ -30,26 +30,36 @@ Web test page:
 
 ## Bulk Upload From Student Folders
 
-This script scans student ID folders under `comparsion_engine/students` and uploads all log files for each student in a batch request.
+Simple script to upload all student folders at once.
+
+**1. Edit the BASE_URL in the script:**
+
+```bash
+# Open the script and change BASE_URL to your endpoint
+nano ftp-melbourne/upload_student_folders.py
+```
+
+Then run:
 
 ```bash
 source fyp-venv/bin/activate
-python ftp-melbourne/upload_student_folders.py \
-  --base-url http://127.0.0.1:6060 \
-  --students-dir comparsion_engine/students \
-  --exam-name TNE20002 \
-  --session-id Week5
+python ftp-melbourne/upload_student_folders.py
 ```
 
-Optional: upload only selected students
+That's it. The script will upload all students from `comparsion_engine/students`.
 
-```bash
-python ftp-melbourne/upload_student_folders.py \
-  --student-id 100000000 \
-  --student-id 100000001
+## Test Webpage
+
+Open in browser:
+
+```
+http://127.0.0.1:6060/web/test-uploader
 ```
 
-After upload, open the test webpage and use **Refresh Inbox** to see uploaded student folders.
+- Enter endpoint URL
+- Select a student folder (folder picker)
+- Click Upload Folder
+- See ✓ or ✗ success/fail message
 
 ## Upload Contract
 
