@@ -10,12 +10,14 @@ Purpose:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
 from flask import Flask, jsonify, request, send_from_directory
 from upload_student_folders import (
     BASE_URL as SENDER_BASE_URL,
+    LAST_UPLOAD_SUMMARY_FILE,
     STUDENT_FOLDER as SENDER_STUDENT_FOLDER,
     resolve_source_folder,
     run_upload,
@@ -212,6 +214,34 @@ def sender_config():
             "upload_url": f"{SENDER_BASE_URL}/api/upload-logs",
         }
     )
+
+
+@app.get("/api/sender-last-upload")
+def sender_last_upload():
+    if not LAST_UPLOAD_SUMMARY_FILE.exists():
+        return (
+            jsonify(
+                {
+                    "status": "empty",
+                    "message": "No upload run has been recorded yet.",
+                }
+            ),
+            404,
+        )
+
+    try:
+        data = json.loads(LAST_UPLOAD_SUMMARY_FILE.read_text(encoding="utf-8"))
+        return jsonify({"status": "ok", "summary": data})
+    except Exception as e:
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": f"Failed to read upload summary: {e}",
+                }
+            ),
+            500,
+        )
 
 
 @app.post("/api/sender-upload")
