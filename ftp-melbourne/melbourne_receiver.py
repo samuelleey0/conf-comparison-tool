@@ -10,7 +10,6 @@ Purpose:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -29,9 +28,8 @@ WEB_DIR.mkdir(parents=True, exist_ok=True)
 # Default address you can call from your webpage.
 DEFAULT_BASE_URL = "http://127.0.0.1:6060"
 
-
-def _utc_stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+# Config source folder
+STUDENT_FOLDER = "comparsion_engine/students"
 
 
 def _student_folder(student_id: str) -> Path:
@@ -43,17 +41,20 @@ def _student_folder(student_id: str) -> Path:
 
 def _save_uploaded_file(student_id: str, upload_file) -> dict[str, Any]:
     original_name = upload_file.filename or "unnamed.log"
-    safe_name = secure_filename(original_name) or "unnamed.log"
+    # Preserve subdirectory structure: ABBY/sh_run.txt stays as ABBY/sh_run.txt
+    safe_name = "/".join(secure_filename(part) for part in original_name.split("/"))
+    safe_name = safe_name or "unnamed.log"
     target_dir = _student_folder(student_id)
 
-    stamped_name = f"{_utc_stamp()}_{safe_name}"
-    target_file = target_dir / stamped_name
+    # Create subdirectories if needed (e.g., ABBY/, GATE/)
+    target_file = target_dir / safe_name
+    target_file.parent.mkdir(parents=True, exist_ok=True)
     upload_file.save(target_file)
 
     return {
         "student_id": student_id or "unknown_student",
         "original_name": original_name,
-        "saved_name": stamped_name,
+        "saved_name": safe_name,
         "saved_path": str(target_file),
         "size_bytes": target_file.stat().st_size,
     }
@@ -73,13 +74,16 @@ def _list_inbox() -> dict[str, Any]:
 
         files = []
         student_total = 0
-        for file_path in sorted(student_dir.iterdir()):
+        # Recursively list all files to preserve folder structure
+        for file_path in sorted(student_dir.rglob("*")):
             if not file_path.is_file():
                 continue
             size = file_path.stat().st_size
+            # Keep relative path to show folder structure (e.g., ABBY/sh_run.txt)
+            rel_path = str(file_path.relative_to(student_dir))
             files.append(
                 {
-                    "name": file_path.name,
+                    "name": rel_path,
                     "size_bytes": size,
                     "path": str(file_path),
                 }
