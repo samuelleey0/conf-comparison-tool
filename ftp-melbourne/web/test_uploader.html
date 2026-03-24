@@ -116,30 +116,49 @@
     <body>
         <div class="card">
             <h1>Upload Logs</h1>
-            <p class="subtitle">Select a student folder to upload.</p>
+            <p class="subtitle">
+                Confirm source folder and endpoint, then type yes to upload.
+            </p>
 
             <div class="field">
-                <label for="baseUrl">Endpoint URL</label>
+                <label for="sourceFolder">Selected Source Folder</label>
                 <input
-                    id="baseUrl"
+                    id="sourceFolder"
                     type="text"
-                    placeholder="http://127.0.0.1:6060"
+                    readonly
+                    placeholder="Loading source folder..."
                 />
             </div>
 
             <div class="field">
-                <label for="folderInput">Select Student Folder</label>
-                <input id="folderInput" type="file" webkitdirectory directory />
+                <label for="endpointUrl">Upload Endpoint</label>
+                <input
+                    id="endpointUrl"
+                    type="text"
+                    readonly
+                    placeholder="Loading endpoint..."
+                />
             </div>
 
-            <button class="primary" id="uploadBtn">Upload Folder</button>
+            <div class="field">
+                <label for="confirmInput">Type yes to confirm upload</label>
+                <input
+                    id="confirmInput"
+                    type="text"
+                    placeholder="yes"
+                    autocomplete="off"
+                />
+            </div>
+
+            <button class="primary" id="uploadBtn">Confirm and Upload</button>
 
             <div id="status"></div>
         </div>
 
         <script>
-            const baseUrlInput = document.getElementById("baseUrl");
-            const folderInput = document.getElementById("folderInput");
+            const sourceFolderInput = document.getElementById("sourceFolder");
+            const endpointUrlInput = document.getElementById("endpointUrl");
+            const confirmInput = document.getElementById("confirmInput");
             const uploadBtn = document.getElementById("uploadBtn");
             const statusBox = document.getElementById("status");
 
@@ -152,47 +171,71 @@
                 return window.location.origin;
             }
 
-            baseUrlInput.value = guessBaseUrl();
+            async function loadSenderConfig() {
+                try {
+                    const baseUrl = guessBaseUrl();
+                    const response = await fetch(
+                        `${baseUrl}/api/sender-config`,
+                    );
+                    const data = await response.json();
+
+                    if (!response.ok || data.status !== "ok") {
+                        throw new Error(
+                            data.message || "Failed to load sender config.",
+                        );
+                    }
+
+                    sourceFolderInput.value = data.source_folder || "";
+                    endpointUrlInput.value = data.upload_url || "";
+                } catch (error) {
+                    setStatus(
+                        `Error loading config: ${error.message}`,
+                        "error",
+                    );
+                }
+            }
+
+            loadSenderConfig();
 
             uploadBtn.addEventListener("click", async () => {
-                const files = Array.from(folderInput.files || []);
-                if (!files.length) {
-                    setStatus("Please select a folder.", "error");
+                if (!sourceFolderInput.value || !endpointUrlInput.value) {
+                    setStatus(
+                        "Config not loaded yet. Please try again.",
+                        "error",
+                    );
                     return;
                 }
 
-                const baseUrl = baseUrlInput.value.trim();
-                if (!baseUrl) {
-                    setStatus("Please enter an endpoint URL.", "error");
+                if (confirmInput.value.trim().toLowerCase() !== "yes") {
+                    setStatus("Please type yes to confirm upload.", "error");
                     return;
                 }
 
                 setStatus("Uploading...", "loading");
-                const form = new FormData();
-
-                files.forEach((file) => {
-                    form.append("files", file);
-                });
-
-                form.append(
-                    "student_id",
-                    folderInput.files[0].webkitRelativePath.split("/")[0],
-                );
 
                 try {
-                    const response = await fetch(`${baseUrl}/api/upload-logs`, {
-                        method: "POST",
-                        body: form,
-                    });
+                    const response = await fetch(
+                        `${guessBaseUrl()}/api/sender-upload`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify({ confirm: "yes" }),
+                        },
+                    );
 
-                    if (response.ok) {
-                        const data = await response.json();
+                    const data = await response.json();
+
+                    if (
+                        response.ok &&
+                        (data.status === "ok" || data.status === "partial")
+                    ) {
                         setStatus(
-                            `Success! Uploaded ${data.files?.length || files.length} files.`,
+                            `Upload finished: ${data.uploaded_file_count || 0} file(s), ${data.student_count || 0} student folder(s).`,
                             "success",
                         );
                     } else {
-                        const data = await response.json();
                         setStatus(
                             `Failed: ${data.message || "Upload error."}`,
                             "error",

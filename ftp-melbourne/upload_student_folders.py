@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Simple bulk uploader for student folders.
+Simple uploader for student folders.
 
-Quick setup: Change BASE_URL below. Then run.
+Quick setup: Change BASE_URL and STUDENT_FOLDER below. Then run.
 """
 
 from pathlib import Path
@@ -21,7 +21,8 @@ STUDENT_FOLDER = "comparsion_engine/students"
 # ========================================
 
 
-def upload_student_folder(student_dir: Path) -> dict:
+def upload_student_folder(student_dir: Path, base_url: str | None = None) -> dict:
+    resolved_base_url = (base_url or BASE_URL).strip()
     files = [
         f for f in student_dir.rglob("*") if f.is_file() and not f.name.startswith(".")
     ]
@@ -35,7 +36,7 @@ def upload_student_folder(student_dir: Path) -> dict:
 
     try:
         response = requests.post(
-            f"{BASE_URL}/api/upload-logs", data=form_data, files=upload_files
+            f"{resolved_base_url}/api/upload-logs", data=form_data, files=upload_files
         )
         for _, (_, fh) in upload_files:
             fh.close()
@@ -53,25 +54,94 @@ def upload_student_folder(student_dir: Path) -> dict:
         }
 
 
-def main():
-    students_dir = Path(STUDENT_FOLDER)
-    if not students_dir.exists():
-        print(f"ERROR: {students_dir} not found")
-        return 1
+def resolve_student_dirs(source_dir: Path) -> list[Path]:
+    """Resolve source into student folder(s).
 
-    student_dirs = [
+    Supports two layouts:
+    1) Parent folder with many students: students/100000001, students/100000002, ...
+    2) Single student folder: students/100000001
+    """
+    child_dirs = [
         d
-        for d in sorted(students_dir.iterdir())
+        for d in sorted(source_dir.iterdir())
         if d.is_dir() and not d.name.startswith(".")
     ]
+
+    # Common case: selected folder is a specific student folder (e.g., .../100000001)
+    if source_dir.name.isdigit():
+        return [source_dir]
+
+    # If children are not student-id-like, treat selected folder as one student folder.
+    if child_dirs and all(not d.name.isdigit() for d in child_dirs):
+        return [source_dir]
+
+    # Otherwise treat selected folder as parent containing student folders.
+    return child_dirs
+
+
+def run_upload(base_url: str | None = None, student_folder: str | None = None) -> dict:
+    """Run upload and return a machine-readable summary."""
+    resolved_base_url = (base_url or BASE_URL).strip()
+    resolved_student_folder = (student_folder or STUDENT_FOLDER).strip()
+    students_dir = Path(resolved_student_folder)
+
+    if not students_dir.exists():
+        return {
+            "status": "error",
+            "message": f"Source folder not found: {students_dir}",
+            "base_url": resolved_base_url,
+            "student_folder": str(students_dir),
+            "results": [],
+            "student_count": 0,
+            "uploaded_file_count": 0,
+        }
+
+    student_dirs = resolve_student_dirs(students_dir)
     if not student_dirs:
-        print("No student folders found")
+        return {
+            "status": "error",
+            "message": "No student folders found",
+            "base_url": resolved_base_url,
+            "student_folder": str(students_dir),
+            "results": [],
+            "student_count": 0,
+            "uploaded_file_count": 0,
+        }
+
+    results = [
+        upload_student_folder(student_dir, base_url=resolved_base_url)
+        for student_dir in student_dirs
+    ]
+
+    uploaded_file_count = sum(result.get("count", 0) for result in results)
+    success_count = sum(1 for result in results if result.get("status") == "ok")
+    error_count = sum(1 for result in results if result.get("status") == "error")
+
+    overall_status = "ok" if error_count == 0 else "partial"
+    return {
+        "status": overall_status,
+        "message": f"Uploaded {uploaded_file_count} files from {len(student_dirs)} student folder(s)",
+        "base_url": resolved_base_url,
+        "student_folder": str(students_dir),
+        "results": results,
+        "student_count": len(student_dirs),
+        "uploaded_file_count": uploaded_file_count,
+        "success_count": success_count,
+        "error_count": error_count,
+    }
+
+
+def main():
+    summary = run_upload()
+    if summary["status"] == "error":
+        print(f"ERROR: {summary['message']}")
         return 1
 
-    print(f"Uploading {len(student_dirs)} student folder(s) to {BASE_URL}\n")
+    print(
+        f"Uploading {summary['student_count']} student folder(s) to {summary['base_url']}\n"
+    )
 
-    for student_dir in student_dirs:
-        result = upload_student_folder(student_dir)
+    for result in summary["results"]:
         status_symbol = (
             "✓"
             if result["status"] == "ok"
@@ -80,7 +150,7 @@ def main():
         print(f"{status_symbol} {result['student_id']}: {result['count']} files")
 
     print("\nDone.")
-    return 0
+    return 0 if summary["error_count"] == 0 else 1
 
 
 if __name__ == "__main__":
