@@ -14,6 +14,11 @@ from pathlib import Path
 from typing import Any
 
 from flask import Flask, jsonify, request, send_from_directory
+from upload_student_folders import (
+    BASE_URL as SENDER_BASE_URL,
+    STUDENT_FOLDER as SENDER_STUDENT_FOLDER,
+    run_upload,
+)
 from werkzeug.utils import secure_filename
 
 
@@ -27,10 +32,6 @@ WEB_DIR.mkdir(parents=True, exist_ok=True)
 
 # Default address you can call from your webpage.
 DEFAULT_BASE_URL = "http://127.0.0.1:6060"
-
-# Config source folder
-STUDENT_FOLDER = "comparsion_engine/students"
-
 
 def _student_folder(student_id: str) -> Path:
     student = (student_id or "unknown_student").strip() or "unknown_student"
@@ -118,6 +119,7 @@ def add_cors_headers(response):
 
 @app.route("/api/upload-log", methods=["OPTIONS"])
 @app.route("/api/upload-logs", methods=["OPTIONS"])
+@app.route("/api/sender-upload", methods=["OPTIONS"])
 def upload_options():
     return ("", 204)
 
@@ -194,6 +196,39 @@ def endpoints():
             "required_field_batch": "files",
         }
     )
+
+
+@app.get("/api/sender-config")
+def sender_config():
+    return jsonify(
+        {
+            "status": "ok",
+            "source_folder": str(Path(SENDER_STUDENT_FOLDER).resolve()),
+            "endpoint_base_url": SENDER_BASE_URL,
+            "upload_url": f"{SENDER_BASE_URL}/api/upload-logs",
+        }
+    )
+
+
+@app.post("/api/sender-upload")
+def sender_upload():
+    payload = request.get_json(silent=True) or {}
+    confirm_value = str(payload.get("confirm", request.form.get("confirm", ""))).strip().lower()
+
+    if confirm_value != "yes":
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Confirmation required. Send confirm='yes' to upload.",
+                }
+            ),
+            400,
+        )
+
+    summary = run_upload()
+    http_status = 200 if summary.get("status") != "error" else 400
+    return jsonify(summary), http_status
 
 
 @app.post("/api/upload-log")
