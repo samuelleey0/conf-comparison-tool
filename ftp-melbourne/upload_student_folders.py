@@ -9,11 +9,16 @@ from pathlib import Path
 
 import requests
 
-# ===== CHANGE THIS TO YOUR ENDPOINT =====
+# ===== CONFIGURE ENDPOINT HERE =====
+# When Melbourne gives you the endpoint, just change this URL.
+# Example: BASE_URL = "https://marking.unimelb.edu.au/api"
 BASE_URL = "http://127.0.0.1:6060"
-# ========================================
+# ===================================
 
-STUDENTS_DIR = Path("comparsion_engine/students")
+# ===== CONFIGURE SOURCE FOLDER HERE =====
+# Change this to the folder containing student subfolders to upload
+STUDENT_FOLDER = "comparsion_engine/students"
+# ========================================
 
 
 def upload_student_folder(student_dir: Path) -> dict:
@@ -49,13 +54,14 @@ def upload_student_folder(student_dir: Path) -> dict:
 
 
 def main():
-    if not STUDENTS_DIR.exists():
-        print(f"ERROR: {STUDENTS_DIR} not found")
+    students_dir = Path(STUDENT_FOLDER)
+    if not students_dir.exists():
+        print(f"ERROR: {students_dir} not found")
         return 1
 
     student_dirs = [
         d
-        for d in sorted(STUDENTS_DIR.iterdir())
+        for d in sorted(students_dir.iterdir())
         if d.is_dir() and not d.name.startswith(".")
     ]
     if not student_dirs:
