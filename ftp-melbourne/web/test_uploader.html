@@ -117,7 +117,8 @@
         <div class="card">
             <h1>Upload Logs</h1>
             <p class="subtitle">
-                Review source folder and endpoint, then click upload.
+                Verification page only. Upload is triggered by your
+                script/button.
             </p>
 
             <div class="field">
@@ -140,15 +141,12 @@
                 />
             </div>
 
-            <button class="primary" id="uploadBtn">Upload Now</button>
-
             <div id="status"></div>
         </div>
 
         <script>
             const sourceFolderInput = document.getElementById("sourceFolder");
             const endpointUrlInput = document.getElementById("endpointUrl");
-            const uploadBtn = document.getElementById("uploadBtn");
             const statusBox = document.getElementById("status");
 
             function setStatus(message, type) {
@@ -184,51 +182,39 @@
                 }
             }
 
-            loadSenderConfig();
-
-            uploadBtn.addEventListener("click", async () => {
-                if (!sourceFolderInput.value || !endpointUrlInput.value) {
-                    setStatus(
-                        "Config not loaded yet. Please try again.",
-                        "error",
-                    );
-                    return;
-                }
-
-                setStatus("Uploading...", "loading");
-
+            async function loadUploadStatus() {
                 try {
                     const response = await fetch(
-                        `${guessBaseUrl()}/api/sender-upload`,
-                        {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify({ confirm: "yes" }),
-                        },
+                        `${guessBaseUrl()}/api/uploaded-folders`,
                     );
-
                     const data = await response.json();
 
-                    if (
-                        response.ok &&
-                        (data.status === "ok" || data.status === "partial")
-                    ) {
+                    if (response.ok && data.status === "ok") {
                         setStatus(
-                            `Upload finished: ${data.uploaded_file_count || 0} file(s), ${data.student_count || 0} student folder(s).`,
+                            `Uploaded so far: ${data.total_files || 0} file(s), ${data.folder_count || 0} student folder(s).`,
                             "success",
                         );
                     } else {
                         setStatus(
-                            `Failed: ${data.message || "Upload error."}`,
+                            `Failed to load status: ${data.message || "Unknown error."}`,
                             "error",
                         );
                     }
                 } catch (error) {
-                    setStatus(`Error: ${error.message}`, "error");
+                    setStatus(
+                        `Error loading status: ${error.message}`,
+                        "error",
+                    );
                 }
-            });
+            }
+
+            async function init() {
+                await loadSenderConfig();
+                await loadUploadStatus();
+                setInterval(loadUploadStatus, 5000);
+            }
+
+            init();
         </script>
     </body>
 </html>
