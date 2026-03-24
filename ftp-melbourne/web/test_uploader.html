@@ -141,12 +141,15 @@
                 />
             </div>
 
+            <button id="uploadBtn">Upload To Melbourne</button>
+
             <div id="status"></div>
         </div>
 
         <script>
             const sourceFolderInput = document.getElementById("sourceFolder");
             const endpointUrlInput = document.getElementById("endpointUrl");
+            const uploadBtn = document.getElementById("uploadBtn");
             const statusBox = document.getElementById("status");
 
             function setStatus(message, type) {
@@ -217,12 +220,57 @@
                 }
             }
 
+            async function triggerUpload() {
+                if (!sourceFolderInput.value || !endpointUrlInput.value) {
+                    setStatus("Config not loaded yet. Please wait.", "loading");
+                    return;
+                }
+
+                uploadBtn.disabled = true;
+                setStatus("Uploading to Melbourne...", "loading");
+
+                try {
+                    const response = await fetch(
+                        `${guessBaseUrl()}/api/sender-upload`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify({}),
+                        },
+                    );
+                    const data = await response.json();
+
+                    if (
+                        response.ok &&
+                        (data.status === "ok" || data.status === "partial")
+                    ) {
+                        setStatus(
+                            `Upload done: ${data.uploaded_file_count || 0}/${data.attempted_file_count || 0} file(s), ${data.student_count || 0} student folder(s).`,
+                            "success",
+                        );
+                    } else {
+                        setStatus(
+                            `Upload failed: ${data.message || "Unknown error."}`,
+                            "error",
+                        );
+                    }
+                } catch (error) {
+                    setStatus(`Upload error: ${error.message}`, "error");
+                } finally {
+                    uploadBtn.disabled = false;
+                    await loadUploadStatus();
+                }
+            }
+
             async function init() {
                 await loadSenderConfig();
                 await loadUploadStatus();
                 setInterval(loadUploadStatus, 5000);
             }
 
+            uploadBtn.addEventListener("click", triggerUpload);
             init();
         </script>
     </body>

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from flask import Flask, jsonify, request, send_from_directory
-from upload_student_folders import (
+from upload_to_melbourne import (
     BASE_URL as SENDER_BASE_URL,
     LAST_UPLOAD_SUMMARY_FILE,
     STUDENT_FOLDER as SENDER_STUDENT_FOLDER,
