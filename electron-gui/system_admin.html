@@ -98,7 +98,7 @@
       <hr style="margin: 32px 0; border: none; border-top: 1px solid var(--color-border);" />
 
       <h2>Grading Policy</h2>
-      <p class="hint">Set pass/fail thresholds and mark which features count as major errors.</p>
+      <p class="hint">Set pass/fail thresholds. Severity is driven entirely by Rubric Rules below.</p>
       <div class="info-box" style="margin-bottom: 16px;">
         <div class="form-row">
           <div class="form-group" style="flex: 1;">
@@ -110,18 +110,27 @@
             <input type="number" id="minorThreshold" min="1" value="5" />
           </div>
         </div>
-        <div class="form-group">
-          <label for="majorPatterns">Major Error Patterns (one regex per line)</label>
-          <textarea id="majorPatterns" rows="5" placeholder="e.g. show_running_config.hostname\nverification.show_ip_route"></textarea>
-        </div>
-        <div class="major-checklist">
+        <div class="major-checklist" style="display:none;">
           <div class="major-checklist-title">Quick Major Picks</div>
           <div id="majorPatternChecklist" class="major-checklist-grid"></div>
-          <p class="hint">These add/remove regex lines automatically. You can still edit the box above.</p>
         </div>
         <div class="actions justify-end">
           <button type="button" id="savePolicyBtn" class="primary">Save Policy</button>
         </div>
+      </div>
+
+      <h2>Rubric Rules</h2>
+      <p class="hint">Enable rules, set severity, and map patterns to feature paths (regex). These replace manual major/minor patterns.</p>
+      <div class="info-box" style="margin-bottom: 16px;">
+        <div class="rubric-filter-bar">
+          <div class="rubric-filter-label">Filter by Category</div>
+          <div id="rubricFilterButtons" class="rubric-filter-buttons"></div>
+        </div>
+        <div class="rubric-actions">
+          <button type="button" id="refreshRubricBtn" class="secondary">Refresh</button>
+          <button type="button" id="saveRubricBtn" class="primary">Save Rubric Rules</button>
+        </div>
+        <div id="rubricRulesContainer" class="rubric-rules-grid"></div>
       </div>
 
       <h2>Storage Cleanup</h2>

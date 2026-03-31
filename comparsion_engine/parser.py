@@ -312,6 +312,12 @@ COMMAND_TOKENS = {
         "sh spanning-tree",
         "sh spanning tree",
     ],
+    "show_etherchannel_summary": [
+        "show etherchannel summary",
+        "show_etherchannel_summary",
+        "sh etherchannel summary",
+        "sh etherchannel sum",
+    ],
 }
 
 
@@ -382,6 +388,7 @@ def parse_showrun(file_path):
         "interfaces": {},
         "banner_motd": None,
         "vty": {},
+        "console": {},
         "users": [],
         "access_lists": {},
         "nat": {
@@ -392,13 +399,17 @@ def parse_showrun(file_path):
         },
         "dhcp_pools": {},
         "dhcp_excluded": [],
-        "routing": {"eigrp": [], "ospf": [], "static_routes": []},
+        "routing": {"eigrp": [], "ospf": [], "rip": [], "static_routes": []},
         "http_server": {},
         "switching": {
             "default_gateway": None,
             "spanning_tree": {},
             "vlan_internal_allocation_policy": None,
         },
+        "etherchannel": {
+            "load_balance": None,
+        },
+        "lacp_system_priority": None,
     }
 
     # Context variables to track which configuration block we're in
@@ -407,6 +418,8 @@ def parse_showrun(file_path):
     current_acl = None
     current_eigrp = None
     current_ospf = None
+    current_rip = None
+    current_line = None
 
     with open(file_path, "r", encoding="utf-8", errors="replace") as f:
         for raw_line in f:
@@ -421,6 +434,8 @@ def parse_showrun(file_path):
                 current_acl = None
                 current_eigrp = None
                 current_ospf = None
+                current_rip = None
+                current_line = None
                 continue
 
             # Top-level configuration parsing
@@ -532,6 +547,8 @@ def parse_showrun(file_path):
                 current_acl = None
                 current_eigrp = None
                 current_ospf = None
+                current_rip = None
+                current_line = None
                 continue
 
             # DHCP pool block start
@@ -542,6 +559,8 @@ def parse_showrun(file_path):
                 current_acl = None
                 current_eigrp = None
                 current_ospf = None
+                current_rip = None
+                current_line = None
                 continue
 
             # EIGRP routing block start
@@ -558,6 +577,8 @@ def parse_showrun(file_path):
                 current_pool = None
                 current_acl = None
                 current_ospf = None
+                current_rip = None
+                current_line = None
                 continue
 
             # OSPF routing block start
@@ -573,6 +594,25 @@ def parse_showrun(file_path):
                 current_pool = None
                 current_acl = None
                 current_eigrp = None
+                current_rip = None
+                current_line = None
+                continue
+
+            # RIP routing block start
+            if line.startswith("router rip"):
+                current_rip = {
+                    "version": None,
+                    "networks": [],
+                    "passive_interfaces": [],
+                    "auto_summary": True,
+                }
+                config["routing"]["rip"].append(current_rip)
+                current_interface = None
+                current_pool = None
+                current_acl = None
+                current_eigrp = None
+                current_ospf = None
+                current_line = None
                 continue
 
             # Named ACL block start
@@ -589,6 +629,8 @@ def parse_showrun(file_path):
                 current_pool = None
                 current_eigrp = None
                 current_ospf = None
+                current_rip = None
+                current_line = None
                 continue
 
             # Context-specific parsing
@@ -651,12 +693,27 @@ def parse_showrun(file_path):
                     if len(parts) >= 3:
                         iface_data["encapsulation"] = "dot1Q"
                         iface_data["vlan"] = parts[2]
-                elif line.startswith("encapsulation ppp"):
+                elif line.startswith("encapsulation ppp") or line == "encapsulation ppp":
                     iface_data["encapsulation"] = "ppp"
+                elif line.startswith("encapsulation hdlc") or line == "encapsulation hdlc":
+                    iface_data["encapsulation"] = "hdlc"
                 elif line.startswith("ppp authentication"):
                     parts = line.split()
                     if len(parts) >= 3:
                         iface_data["ppp_authentication"] = parts[2]
+                elif line.startswith("ppp chap hostname"):
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        iface_data["ppp_chap_hostname"] = parts[3]
+                elif line.startswith("ppp chap password"):
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        # Store type indicator only, not raw password
+                        iface_data["ppp_chap_password_type"] = parts[3]
+                elif line.startswith("ppp pap sent-username"):
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        iface_data["ppp_pap_username"] = parts[2] if len(parts) > 2 else None
                 elif line.startswith("clock rate"):
                     parts = line.split()
                     if len(parts) >= 3:
@@ -668,6 +725,48 @@ def parse_showrun(file_path):
                         iface_data.setdefault("access_groups", []).append(
                             {"acl": parts[2], "direction": direction}
                         )
+                # EtherChannel / channel-group
+                elif line.startswith("channel-group"):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        cg = {"group": parts[1]}
+                        if "mode" in parts:
+                            mode_idx = parts.index("mode")
+                            if mode_idx + 1 < len(parts):
+                                cg["mode"] = parts[mode_idx + 1]
+                        iface_data["channel_group"] = cg
+                # Spanning tree interface commands
+                elif line == "spanning-tree portfast":
+                    iface_data["stp_portfast"] = True
+                elif line == "no spanning-tree portfast":
+                    iface_data["stp_portfast"] = False
+                elif line == "spanning-tree bpduguard enable":
+                    iface_data["stp_bpduguard"] = True
+                elif line == "no spanning-tree bpduguard":
+                    iface_data["stp_bpduguard"] = False
+                elif line == "spanning-tree guard root":
+                    iface_data["stp_root_guard"] = True
+                elif line.startswith("spanning-tree cost"):
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        iface_data["stp_cost"] = parts[2]
+                elif line.startswith("spanning-tree port-priority"):
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        iface_data["stp_port_priority"] = parts[2]
+                # OSPF interface commands
+                elif line == "ip ospf network point-to-point":
+                    iface_data["ospf_network_type"] = "point-to-point"
+                # LACP port-priority
+                elif line.startswith("lacp port-priority"):
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        iface_data["lacp_port_priority"] = parts[2]
+                # Switchport trunk encapsulation
+                elif line.startswith("switchport trunk encapsulation"):
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        iface_data["trunk_encapsulation"] = parts[3]
                 continue
 
             if current_pool:
@@ -712,6 +811,42 @@ def parse_showrun(file_path):
                     )
                 continue
 
+            if current_rip:
+                if line.startswith("version"):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        current_rip["version"] = parts[1]
+                elif line.startswith("network"):
+                    current_rip["networks"].append(
+                        line.replace("network", "", 1).strip()
+                    )
+                elif line.startswith("passive-interface"):
+                    iface = line.replace("passive-interface", "", 1).strip()
+                    current_rip["passive_interfaces"].append(iface)
+                elif line == "no auto-summary":
+                    current_rip["auto_summary"] = False
+                elif line.startswith("redistribute"):
+                    current_rip.setdefault("redistribute", []).append(
+                        line.replace("redistribute", "", 1).strip()
+                    )
+                continue
+
+            if current_line:
+                if line.startswith("password"):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        current_line["password_type"] = parts[1] if len(parts) >= 3 else "0"
+                        current_line["password_set"] = True
+                elif line.startswith("login"):
+                    current_line["login"] = line
+                elif line.startswith("transport input"):
+                    current_line["transport"] = line.replace("transport input", "", 1).strip()
+                elif line.startswith("exec-timeout"):
+                    current_line["exec_timeout"] = line.replace("exec-timeout", "", 1).strip()
+                elif line.startswith("logging synchronous") or line == "logging synchronous":
+                    current_line["logging_synchronous"] = True
+                continue
+
             if current_acl:
                 # Inside named ACL block - capture permit/deny rules
                 if line.startswith(("permit", "deny")):
@@ -725,11 +860,23 @@ def parse_showrun(file_path):
                 except Exception:
                     config["banner_motd"] = "configured"
             elif line.startswith("line vty"):
-                config["vty"]["line"] = line
-            elif line.startswith("login"):
-                config["vty"]["login"] = line
-            elif line.startswith("transport input"):
-                config["vty"]["transport"] = line
+                current_line = config["vty"]
+                current_line["line"] = line
+                current_interface = None
+                current_pool = None
+                current_acl = None
+                current_eigrp = None
+                current_ospf = None
+                current_rip = None
+            elif line.startswith("line con"):
+                current_line = config["console"]
+                current_line["line"] = line
+                current_interface = None
+                current_pool = None
+                current_acl = None
+                current_eigrp = None
+                current_ospf = None
+                current_rip = None
             elif line.startswith("username"):
                 parts = line.split()
                 if len(parts) >= 2:
@@ -762,6 +909,50 @@ def parse_showrun(file_path):
                     acl_id, {"type": "numbered", "rules": []}
                 )
                 config["access_lists"][acl_id]["rules"].append(line)
+            # Spanning tree global commands
+            elif line.startswith("spanning-tree vlan") and "priority" in line:
+                parts = line.split()
+                # spanning-tree vlan <id> priority <val>
+                try:
+                    vlan_idx = parts.index("vlan") + 1
+                    pri_idx = parts.index("priority") + 1
+                    vlan_id = parts[vlan_idx]
+                    priority_val = parts[pri_idx]
+                    stp = config["switching"]["spanning_tree"]
+                    stp.setdefault("vlan_priorities", {})[vlan_id] = priority_val
+                except (ValueError, IndexError):
+                    pass
+            elif line.startswith("spanning-tree vlan") and "root" in line:
+                parts = line.split()
+                # spanning-tree vlan <id> root primary/secondary
+                try:
+                    vlan_idx = parts.index("vlan") + 1
+                    root_idx = parts.index("root") + 1
+                    vlan_id = parts[vlan_idx]
+                    root_type = parts[root_idx]
+                    stp = config["switching"]["spanning_tree"]
+                    stp.setdefault("vlan_root", {})[vlan_id] = root_type
+                except (ValueError, IndexError):
+                    pass
+            # EtherChannel / port-channel load-balance
+            elif line.startswith("port-channel load-balance"):
+                parts = line.split()
+                if len(parts) >= 3:
+                    config["etherchannel"]["load_balance"] = parts[2]
+            # LACP system priority
+            elif line.startswith("lacp system-priority"):
+                parts = line.split()
+                if len(parts) >= 3:
+                    config["lacp_system_priority"] = parts[2]
+            # Enable secret/password (store type only for comparison)
+            elif line.startswith("enable secret"):
+                parts = line.split()
+                if len(parts) >= 3:
+                    config["enable_secret_type"] = parts[2]
+            elif line.startswith("enable password"):
+                parts = line.split()
+                if len(parts) >= 3:
+                    config["enable_password_type"] = parts[2]
 
     # Clean up NAT interface lists
     config["nat"]["inside_interfaces"] = sorted(set(config["nat"]["inside_interfaces"]))
@@ -1359,6 +1550,64 @@ def parse_show_spanning_tree(file_path):
     return result
 
 
+def parse_show_etherchannel_summary(file_path):
+    """Parse 'show etherchannel summary' output.
+
+    Example output:
+    Group  Port-channel  Protocol    Ports
+    ------+-------------+-----------+-------
+    1      Po1(SU)       LACP        Fa0/1(P)    Fa0/2(P)
+    2      Po2(SD)       PAgP        Fa0/3(D)    Fa0/4(D)
+    """
+    result = {"groups": {}}
+    lines = _clean_log_lines(file_path)
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or _is_device_prompt(stripped):
+            continue
+        if stripped.lower().startswith("show etherchannel") or stripped.startswith("---"):
+            continue
+        if stripped.lower().startswith("group") and "port-channel" in stripped.lower():
+            continue
+        if stripped.startswith("Number of") or stripped.startswith("Flags:"):
+            continue
+
+        # Try to parse a group line: starts with a number
+        parts = stripped.split()
+        if not parts or not parts[0].isdigit():
+            continue
+
+        group_num = parts[0]
+        group_info = {"port_channel": None, "protocol": None, "members": []}
+
+        for i, part in enumerate(parts[1:], 1):
+            # Port-channel with status, e.g. "Po1(SU)"
+            if part.startswith("Po") and "(" in part:
+                match = re.match(r"(Po\d+)\(([^)]+)\)", part)
+                if match:
+                    group_info["port_channel"] = match.group(1)
+                    group_info["port_channel_status"] = match.group(2)
+                continue
+
+            # Protocol: LACP, PAgP, or -
+            if part.upper() in ("LACP", "PAGP", "-"):
+                group_info["protocol"] = part.upper() if part != "-" else None
+                continue
+
+            # Member interface with status, e.g. "Fa0/1(P)" or "Gi0/1(D)"
+            member_match = re.match(r"([A-Za-z]+[\d/]+)\(([^)]+)\)", part)
+            if member_match:
+                group_info["members"].append({
+                    "interface": member_match.group(1),
+                    "flags": member_match.group(2),
+                })
+
+        result["groups"][group_num] = group_info
+
+    return result
+
+
 def parse_log_by_type(file_path, command_type=None):
     command_error = detect_command_error(file_path)
     if command_error:
@@ -1397,6 +1646,8 @@ def parse_log_by_type(file_path, command_type=None):
         return command, parse_show_port_security(file_path)
     if command == "show_spanning_tree":
         return command, parse_show_spanning_tree(file_path)
+    if command == "show_etherchannel_summary":
+        return command, parse_show_etherchannel_summary(file_path)
     return None, None
 
 

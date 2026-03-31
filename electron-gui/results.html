@@ -11,6 +11,7 @@
       grid-template-columns: 280px minmax(0, 1fr);
       gap: 20px;
       margin-top: 20px;
+      align-items: start;
     }
 
     .results-list {
@@ -18,7 +19,9 @@
       border-radius: 8px;
       background: var(--color-bg-card);
       overflow: hidden;
-      max-height: 520px;
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 120px);
       display: flex;
       flex-direction: column;
     }
@@ -35,11 +38,12 @@
 
     .student-result-item {
       padding: 10px 14px;
-      border-bottom: 1px solid var(--color-border);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
       cursor: pointer;
       display: flex;
       flex-direction: column;
       gap: 4px;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
     }
 
     .student-result-item:last-child {
@@ -47,21 +51,40 @@
     }
 
     .student-result-item.selected {
-      background: var(--color-primary);
-      color: #fff;
+      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.9), 0 10px 24px rgba(0, 0, 0, 0.12);
+      transform: translateY(-1px);
     }
 
     .status-pass {
-      border-left: 4px solid var(--color-success, #28a745);
+      background: linear-gradient(135deg, #dff6e6 0%, #ccefd7 100%);
+      color: #13361f;
     }
 
     .status-fail {
-      border-left: 4px solid var(--color-danger, #c53e3e);
+      background: linear-gradient(135deg, #fde2e2 0%, #f6c9c9 100%);
+      color: #5b1f1f;
     }
 
     .status-missing {
-      border-left: 4px solid #9aa4b2;
+      background: linear-gradient(135deg, #eef1f5 0%, #e0e6ee 100%);
       color: var(--color-text-muted);
+    }
+
+    .student-result-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .student-score {
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .student-breakdown {
+      font-size: 0.82rem;
+      opacity: 0.85;
     }
 
     .report-card {
@@ -69,12 +92,17 @@
       border-radius: 8px;
       padding: 16px;
       background: var(--color-bg-card);
-      min-height: 520px;
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 120px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     .report-summary {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 12px;
       margin-bottom: 16px;
     }
@@ -86,8 +114,43 @@
       background: var(--color-bg-soft);
     }
 
+    .summary-score {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .summary-score div {
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+
+    .summary-score small {
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .summary-pass {
+      background: linear-gradient(135deg, #dff6e6 0%, #ccefd7 100%);
+      color: #13361f;
+    }
+
+    .summary-fail {
+      background: linear-gradient(135deg, #fde2e2 0%, #f6c9c9 100%);
+      color: #5b1f1f;
+    }
+
     .report-section {
       margin-top: 16px;
+    }
+
+    .report-details {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding-right: 4px;
     }
 
     .result-item {
@@ -101,6 +164,12 @@
     .result-item .meta {
       font-size: 0.85rem;
       color: var(--color-text-muted);
+    }
+
+    .result-item .result-code {
+      font-size: 0.8rem;
+      color: var(--color-muted);
+      margin-bottom: 4px;
     }
 
     .result-item .status {
@@ -140,6 +209,11 @@
         gap: 12px;
       }
       .results-list {
+        position: static;
+        max-height: none;
+      }
+      .report-card {
+        position: static;
         max-height: none;
       }
       .report-summary {
@@ -151,6 +225,10 @@
       .report-card {
         min-height: auto;
         padding: 12px;
+      }
+      .report-details {
+        overflow: visible;
+        padding-right: 0;
       }
       .result-item {
         overflow-wrap: anywhere;

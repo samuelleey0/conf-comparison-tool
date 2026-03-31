@@ -8,6 +8,19 @@ let policyCache = null;
 let currentFilter = "all";
 let currentReport = null;
 
+function calculateScore(report) {
+  if (!report || report.status !== "graded") return null;
+  const explicitScore = report.score ?? report.final_score ?? report.final_mark;
+  if (Number.isFinite(explicitScore)) {
+    return Math.max(0, Math.min(100, Math.round(Number(explicitScore))));
+  }
+  const items = Array.isArray(report.items) ? report.items : [];
+  if (!items.length) return 0;
+  const correct = items.filter((item) => item.status === "correct").length;
+  const total = items.length;
+  return Math.max(0, Math.min(100, Math.round((correct / total) * 100)));
+}
+
 function getSessionPath() {
   const storedSession = localStorage.getItem("sessionPath");
   if (storedSession) {
@@ -82,14 +95,19 @@ function renderResultsList(reports) {
     item.dataset.studentId = report.student_id;
 
     const summary = report.summary || {};
-    const errors = (summary.major || 0) + (summary.minor || 0);
+    const score = calculateScore(report);
     const badge = report.status === "graded"
       ? (report.pass ? "PASS" : "FAIL")
       : "NO RESULTS";
+    const scoreText = report.status === "graded" ? `${score}/100` : "--";
 
     item.innerHTML = `
-      <strong>${report.student_id}</strong>
-      <div class="meta">${badge} • ${errors} errors</div>
+      <div class="student-result-top">
+        <strong>${report.student_id}</strong>
+        <div class="student-score">${scoreText}</div>
+      </div>
+      <div class="meta">${badge}</div>
+      <div class="student-breakdown">${summary.major || 0} major • ${summary.minor || 0} minor</div>
     `;
 
     item.addEventListener("click", () => {
@@ -142,19 +160,31 @@ function renderReport(report) {
   const summary = report.summary || {};
   const items = report.items || [];
   const grouped = groupByHostname(items);
+  const score = calculateScore(report);
+  const passText = report.pass ? "PASS" : "FAIL";
 
   panel.innerHTML = `
     <h2>${report.student_id}</h2>
     <p class="hint">Template: ${report.template_name || "Unknown"} • Mode: ${report.grading_mode || "strict"}</p>
     <div class="report-summary">
-      <div class="summary-box" data-filter="all"><strong>Correct</strong><div>${summary.correct || 0}</div></div>
+      <div class="summary-box summary-score ${report.pass ? "summary-pass" : "summary-fail"}">
+        <strong>Score</strong>
+        <div>${score}/100</div>
+        <small>${passText}</small>
+      </div>
+      <div class="summary-box" data-filter="all"><strong>All Findings</strong><div>${(summary.major || 0) + (summary.minor || 0)}</div></div>
       <div class="summary-box" data-filter="major"><strong>Major Errors</strong><div>${summary.major || 0}</div></div>
       <div class="summary-box" data-filter="minor"><strong>Minor Errors</strong><div>${summary.minor || 0}</div></div>
     </div>
+    <div class="report-details" id="reportDetails"></div>
   `;
+
+  const details = panel.querySelector("#reportDetails");
+  if (!details) return;
 
   panel.querySelectorAll(".summary-box").forEach((box) => {
     const filter = box.dataset.filter || "all";
+    if (!box.dataset.filter) return;
     if (filter === currentFilter) {
       box.style.borderColor = "var(--color-primary)";
       box.style.boxShadow = "0 0 0 2px rgba(31, 59, 115, 0.15)";
@@ -175,7 +205,6 @@ function renderReport(report) {
     } else if (currentFilter === "minor") {
       errors = errors.filter((i) => (i.severity || "minor") === "minor");
     }
-    const corrects = hostItems.filter((i) => i.status === "correct");
 
     const section = document.createElement("div");
     section.className = "report-section";
@@ -188,9 +217,13 @@ function renderReport(report) {
       const div = document.createElement("div");
       const severity = item.severity ? item.severity : "minor";
       const severityClass = severity === "major" ? "severity-major" : "severity-minor";
+      const codeLine = item.rule_code
+        ? `<div class="result-code">Code: ${item.rule_code}</div>`
+        : "";
       div.className = "result-item";
       div.innerHTML = `
         <div class="meta">${item.feature || "(unknown)"}</div>
+        ${codeLine}
         <div class="status ${severityClass}">${item.status || "mismatch"} • ${severity.toUpperCase()}</div>
         <div class="result-values">
           <div><strong>Expected</strong><pre>${formatValue(item.expected)}</pre></div>
@@ -200,23 +233,8 @@ function renderReport(report) {
       errorDetails.appendChild(div);
     });
 
-    const correctDetails = document.createElement("details");
-    correctDetails.innerHTML = `<summary>Correct (${corrects.length})</summary>`;
-    corrects.forEach((item) => {
-      const div = document.createElement("div");
-      div.className = "result-item";
-      div.innerHTML = `
-        <div class="meta">${item.feature || "(unknown)"}</div>
-        <div class="status">correct</div>
-      `;
-      correctDetails.appendChild(div);
-    });
-
     section.appendChild(errorDetails);
-    if (currentFilter === "all") {
-      section.appendChild(correctDetails);
-    }
-    panel.appendChild(section);
+    details.appendChild(section);
   });
 }
 
