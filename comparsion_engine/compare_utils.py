@@ -3,8 +3,6 @@ IGNORE_PATTERNS = [
     "crypto pki",
     "certificate",
     "ntp clock-period",
-    "enable secret",
-    "username .* password",
     "ssh key",
     "crypto key",
     "license udi",

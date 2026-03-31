@@ -9,9 +9,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const countBadge = document.getElementById("commandCountBadge");
   const majorThresholdInput = document.getElementById("majorThreshold");
   const minorThresholdInput = document.getElementById("minorThreshold");
-  const majorPatternsInput = document.getElementById("majorPatterns");
   const savePolicyBtn = document.getElementById("savePolicyBtn");
-  const majorPatternChecklist = document.getElementById("majorPatternChecklist");
+  const refreshRubricBtn = document.getElementById("refreshRubricBtn");
+  const saveRubricBtn = document.getElementById("saveRubricBtn");
+  const rubricRulesContainer = document.getElementById("rubricRulesContainer");
+  const rubricFilterButtons = document.getElementById("rubricFilterButtons");
 
   const templateList = document.getElementById("templateList");
   const resultList = document.getElementById("resultList");
@@ -25,38 +27,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const deleteStudentBtn = document.getElementById("deleteStudentBtn");
 
   let globalCommands = [];
-  const majorPatternPresets = [
-    {
-      label: "Hostname",
-      pattern: "^show_running_config\\.hostname$",
-      note: "Device name must match",
-    },
-    {
-      label: "VTY Transport",
-      pattern: "^show_running_config\\.vty\\.transport$",
-      note: "SSH vs telnet",
-    },
-    {
-      label: "Interface IP/Mask (any)",
-      pattern: "^show_running_config\\.interfaces\\.[^.]+\\.(ip|mask)$",
-      note: "Layer3 interface IPs",
-    },
-    {
-      label: "SVI IP/Mask (Vlan)",
-      pattern: "^show_running_config\\.interfaces\\.Vlan\\d+\\.(ip|mask)$",
-      note: "Switch management SVI",
-    },
-    {
-      label: "Enable Secret",
-      pattern: "^show_running_config\\.enable_secret$",
-      note: "Privilege access password",
-    },
-    {
-      label: "Default Gateway",
-      pattern: "^show_running_config\\.switching\\.default_gateway$",
-      note: "Layer2 default gateway",
-    },
-  ];
+  let rubricRules = [];
+  let selectedRubricCategory = "all";
 
   async function fetchJson(url, options = {}) {
     const res = await fetch(url, {
@@ -125,52 +97,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function getMajorPatternLines() {
-    return majorPatternsInput.value
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-  }
-
-  function setMajorPatternLines(lines) {
-    majorPatternsInput.value = Array.from(new Set(lines)).join("\n");
-  }
-
-  function syncChecklistFromTextarea() {
-    if (!majorPatternChecklist) return;
-    const lines = new Set(getMajorPatternLines());
-    majorPatternChecklist
-      .querySelectorAll("input[type='checkbox']")
-      .forEach((input) => {
-        const pattern = input.dataset.pattern;
-        input.checked = lines.has(pattern);
-      });
-  }
-
-  function renderMajorChecklist() {
-    if (!majorPatternChecklist) return;
-    majorPatternChecklist.innerHTML = "";
-    majorPatternPresets.forEach((preset) => {
-      const label = document.createElement("label");
-      label.className = "major-check-item";
-      label.innerHTML = `
-        <input type="checkbox" data-pattern="${preset.pattern}" />
-        <span class="major-check-text">${preset.label}</span>
-        <span class="major-check-note">${preset.note}</span>
-      `;
-      const input = label.querySelector("input");
-      input.addEventListener("change", () => {
-        const lines = new Set(getMajorPatternLines());
-        if (input.checked) {
-          lines.add(preset.pattern);
-        } else {
-          lines.delete(preset.pattern);
-        }
-        setMajorPatternLines(Array.from(lines));
-      });
-      majorPatternChecklist.appendChild(label);
-    });
-  }
 
   async function addCommand() {
     const cmdVal = newCommandInput.value.trim();
@@ -235,32 +161,244 @@ document.addEventListener("DOMContentLoaded", () => {
   newCommandInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") addCommand();
   });
-  majorPatternsInput.addEventListener("input", syncChecklistFromTextarea);
-
   async function loadPolicy() {
     try {
       const data = await fetchJson("http://127.0.0.1:5050/api/grading_policy");
       const policy = data.policy || {};
       majorThresholdInput.value = policy.major_threshold || 1;
       minorThresholdInput.value = policy.minor_threshold || 5;
-      majorPatternsInput.value = (policy.major_patterns || []).join("\n");
-      syncChecklistFromTextarea();
     } catch (err) {
       console.error(err);
       alert("Failed to load grading policy.");
     }
   }
 
-  async function savePolicy() {
+  function renderRubricRules() {
+    if (!rubricRulesContainer) return;
+    let filtered = rubricRules;
+    if (selectedRubricCategory !== "all") {
+      filtered = rubricRules.filter(
+        (rule) => (rule.section || rule.category || "").toLowerCase() === selectedRubricCategory.toLowerCase()
+      );
+    }
+
+    if (!filtered.length) {
+      rubricRulesContainer.innerHTML = `<p class="hint">No rubric rules found.</p>`;
+      return;
+    }
+
+    // Group by section
+    const groups = {};
+    filtered.forEach((rule) => {
+      const section = rule.section || rule.category || "Other";
+      if (!groups[section]) groups[section] = [];
+      groups[section].push(rule);
+    });
+
+    // Sort sections by their numeric prefix (e.g. "3.2.1", "3.2.10")
+    const sortedSections = Object.keys(groups).sort((a, b) => {
+      const numA = a.match(/[\d.]+/)?.[0] || "";
+      const numB = b.match(/[\d.]+/)?.[0] || "";
+      const partsA = numA.split(".").map(Number);
+      const partsB = numB.split(".").map(Number);
+      for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+        const va = partsA[i] || 0;
+        const vb = partsB[i] || 0;
+        if (va !== vb) return va - vb;
+      }
+      return a.localeCompare(b);
+    });
+
+    rubricRulesContainer.innerHTML = "";
+
+    sortedSections.forEach((section) => {
+      const sectionRules = groups[section];
+
+      // Section header
+      const header = document.createElement("div");
+      header.className = "rubric-section-header";
+      header.innerHTML = `
+        <div class="rubric-section-title">
+          <span class="rubric-section-toggle">▼</span>
+          ${section}
+          <span class="rubric-section-count">${sectionRules.length} rules</span>
+        </div>
+      `;
+      rubricRulesContainer.appendChild(header);
+
+      // Section body (collapsible)
+      const body = document.createElement("div");
+      body.className = "rubric-section-body";
+
+      sectionRules.forEach((rule) => {
+        const index = rubricRules.indexOf(rule);
+        const card = document.createElement("div");
+        card.className = "rubric-rule-card";
+        card.dataset.index = String(index);
+
+        card.innerHTML = `
+          <div class="rubric-rule-header">
+            <div>
+              <div class="rubric-rule-title">${rule.id || ""}</div>
+              <div class="rubric-rule-sub">${rule.description || ""}</div>
+            </div>
+            <label class="choice-label">
+              <input type="checkbox" class="rubric-enabled" ${rule.enabled ? "checked" : ""} />
+              Enabled
+            </label>
+            <select class="rubric-severity">
+              <option value="minor" ${rule.severity === "minor" ? "selected" : ""}>Minor</option>
+              <option value="major" ${rule.severity === "major" ? "selected" : ""}>Major</option>
+            </select>
+          </div>
+          <div class="rubric-rule-body">
+            <textarea class="rubric-patterns" placeholder="One regex per line">${(rule.patterns || []).join("\n")}</textarea>
+            <input class="rubric-statuses" type="text" placeholder="Statuses (optional): missing, extra, mismatch" value="${Array.isArray(rule.statuses) ? rule.statuses.join(", ") : (rule.statuses || "")}">
+          </div>
+        `;
+
+        body.appendChild(card);
+      });
+
+      rubricRulesContainer.appendChild(body);
+
+      // Toggle collapse
+      header.addEventListener("click", () => {
+        const isCollapsed = body.classList.toggle("collapsed");
+        header.querySelector(".rubric-section-toggle").textContent = isCollapsed ? "▶" : "▼";
+      });
+    });
+  }
+
+  function renderRubricFilters() {
+    if (!rubricFilterButtons) return;
+
+    // Use sections for filter buttons
+    const sections = Array.from(
+      new Set(
+        rubricRules
+          .map((rule) => rule.section || rule.category || "")
+          .filter(Boolean)
+      )
+    ).sort((a, b) => {
+      const numA = a.match(/[\d.]+/)?.[0] || "";
+      const numB = b.match(/[\d.]+/)?.[0] || "";
+      const partsA = numA.split(".").map(Number);
+      const partsB = numB.split(".").map(Number);
+      for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+        const va = partsA[i] || 0;
+        const vb = partsB[i] || 0;
+        if (va !== vb) return va - vb;
+      }
+      return a.localeCompare(b);
+    });
+
+    rubricFilterButtons.innerHTML = "";
+
+    const allBtn = document.createElement("button");
+    allBtn.type = "button";
+    allBtn.className = "rubric-filter-btn";
+    allBtn.dataset.category = "all";
+    allBtn.textContent = "All";
+    rubricFilterButtons.appendChild(allBtn);
+
+    sections.forEach((sec) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "rubric-filter-btn";
+      btn.dataset.category = sec;
+      // Display just the descriptive part (after the number)
+      const label = sec.replace(/^\d+\.\d+\.\d+\s*/, "");
+      btn.textContent = label || sec;
+      btn.title = sec;
+      rubricFilterButtons.appendChild(btn);
+    });
+
+    const updateActive = () => {
+      rubricFilterButtons.querySelectorAll(".rubric-filter-btn").forEach((btn) => {
+        btn.classList.toggle(
+          "active",
+          btn.dataset.category === selectedRubricCategory
+        );
+      });
+    };
+
+    rubricFilterButtons.querySelectorAll(".rubric-filter-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        selectedRubricCategory = btn.dataset.category || "all";
+        updateActive();
+        renderRubricRules();
+      });
+    });
+
+    updateActive();
+  }
+
+  async function loadRubricRules() {
     try {
-      const major_patterns = majorPatternsInput.value
+      const data = await fetchJson("http://127.0.0.1:5050/api/rubric_rules");
+      rubricRules = data.rules || [];
+      renderRubricFilters();
+      renderRubricRules();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to load rubric rules.");
+    }
+  }
+
+  async function saveRubricRules() {
+    if (!rubricRulesContainer) return;
+    // Collect all cards from all section bodies
+    const cards = rubricRulesContainer.querySelectorAll(".rubric-rule-card");
+    const updatedByIndex = {};
+    cards.forEach((card) => {
+      const index = parseInt(card.dataset.index, 10);
+      const base = rubricRules[index] || {};
+      const enabled = card.querySelector(".rubric-enabled")?.checked || false;
+      const severity = card.querySelector(".rubric-severity")?.value || "minor";
+      const patterns = (card.querySelector(".rubric-patterns")?.value || "")
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean);
+      const statusesRaw = card.querySelector(".rubric-statuses")?.value || "";
+      const statuses = statusesRaw
+        .split(",")
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean);
+      updatedByIndex[index] = {
+        ...base,
+        enabled,
+        severity,
+        patterns,
+        statuses,
+      };
+    });
+
+    // Build full list: for items not visible (filtered out), keep original
+    const updated = rubricRules.map((rule, i) =>
+      updatedByIndex[i] !== undefined ? updatedByIndex[i] : rule
+    );
+
+    try {
+      await fetchJson("http://127.0.0.1:5050/api/rubric_rules", {
+        method: "POST",
+        body: JSON.stringify({ rules: updated }),
+      });
+      rubricRules = updated;
+      renderRubricFilters();
+      renderRubricRules();
+      alert("Rubric rules saved.");
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Failed to save rubric rules.");
+    }
+  }
+
+  async function savePolicy() {
+    try {
       const payload = {
         major_threshold: parseInt(majorThresholdInput.value, 10),
         minor_threshold: parseInt(minorThresholdInput.value, 10),
-        major_patterns,
       };
       await fetchJson("http://127.0.0.1:5050/api/grading_policy", {
         method: "POST",
@@ -371,6 +509,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   savePolicyBtn?.addEventListener("click", savePolicy);
+  refreshRubricBtn?.addEventListener("click", loadRubricRules);
+  saveRubricBtn?.addEventListener("click", saveRubricRules);
   deleteTemplateBtn?.addEventListener("click", deleteTemplate);
   deleteAllTemplatesBtn?.addEventListener("click", deleteAllTemplates);
   deleteResultBtn?.addEventListener("click", deleteResult);
@@ -379,8 +519,8 @@ document.addEventListener("DOMContentLoaded", () => {
   deleteStudentBtn?.addEventListener("click", deleteStudent);
 
   // Init
-  renderMajorChecklist();
   fetchCommands();
   loadPolicy();
+  loadRubricRules();
   loadCleanupLists();
 });
