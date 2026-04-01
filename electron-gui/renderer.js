@@ -700,7 +700,10 @@ function renderMainStudentGrid(students) {
 
     studentCard.innerHTML = `
         <div style="font-size: 1.2rem;">👤</div>
-        <div style="font-weight: bold; font-size: 0.95rem; word-break: break-all;">${student.student_id}</div>
+        <div style="min-width: 0;">
+          <div style="font-weight: bold; font-size: 0.95rem; word-break: break-all;">${student.student_id}</div>
+          ${student.student_name ? `<div style="font-size: 0.82rem; color: inherit; opacity: 0.85; word-break: break-word;">${student.student_name}</div>` : ""}
+        </div>
     `;
 
     studentCard.onclick = () => {
@@ -1078,7 +1081,7 @@ function setupDirectoryPage() {
         return;
       }
 
-      openAddStudentModal(async (studentId) => {
+      openAddStudentModal(async (studentId, studentName) => {
         const exam = localStorage.getItem("examName");
         const session = localStorage.getItem("sessionId");
         if (!exam || !session) {
@@ -1110,6 +1113,7 @@ function setupDirectoryPage() {
             body: JSON.stringify({
               session_path: sessionPath,
               student_id: studentId.trim(),
+              student_name: (studentName || "").trim(),
             }),
           });
           const res = await fetch(`${API_ROOT}/api/directories`);
@@ -1168,11 +1172,13 @@ function openAddStudentModal(onConfirm) {
   const cancelBtn = document.getElementById("cancelAddStudentBtn");
   const confirmBtn = document.getElementById("confirmAddStudentBtn");
   const input = document.getElementById("newStudentIdInput");
+  const nameInput = document.getElementById("newStudentNameInput");
   if (!overlay || !input || !confirmBtn) return;
 
   const close = () => {
     overlay.classList.add("hidden");
     input.value = "";
+    if (nameInput) nameInput.value = "";
   };
 
   if (closeBtn) closeBtn.onclick = close;
@@ -1186,7 +1192,9 @@ function openAddStudentModal(onConfirm) {
     }
     overlay.classList.add("hidden");
     input.value = "";
-    if (typeof onConfirm === "function") onConfirm(value);
+    const nameValue = nameInput ? (nameInput.value || "").trim() : "";
+    if (nameInput) nameInput.value = "";
+    if (typeof onConfirm === "function") onConfirm(value, nameValue);
   };
 
   overlay.classList.remove("hidden");

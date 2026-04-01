@@ -1429,6 +1429,31 @@ def _delete_engine_student_logs_for_docs_target(target):
         shutil.rmtree(mirror_target)
 
 
+def _session_student_names_path(session_dir: Path) -> Path:
+    return session_dir / "students.json"
+
+
+def _load_session_student_names(session_dir: Path) -> dict:
+    path = _session_student_names_path(session_dir)
+    if not path.exists():
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle) or {}
+        if isinstance(data, dict):
+            return {str(k): str(v) for k, v in data.items() if str(k).strip()}
+    except Exception:
+        return {}
+    return {}
+
+
+def _save_session_student_names(session_dir: Path, names: dict):
+    path = _session_student_names_path(session_dir)
+    cleaned = {str(k): str(v) for k, v in (names or {}).items() if str(k).strip() and str(v).strip()}
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(cleaned, handle, indent=2, ensure_ascii=False)
+
+
 def _save_output_to_engine_students(
     command, output, exam_name, session_id, student_id, hostname
 ):
@@ -1480,10 +1505,16 @@ def api_create_directory():
         return error_resp, status
 
     exam_name, session_id, student_id = validated
+    student_name = (data.get("studentName") or data.get("student_name") or "").strip()
     base_path = os.path.expanduser(
         os.path.join("~/Documents", exam_name, session_id, student_id)
     )
     os.makedirs(base_path, exist_ok=True)
+    if student_name:
+        session_dir = Path.home() / "Documents" / exam_name / session_id
+        names = _load_session_student_names(session_dir)
+        names[student_id] = student_name
+        _save_session_student_names(session_dir, names)
     return jsonify(
         {
             "status": "ok",
@@ -1492,6 +1523,7 @@ def api_create_directory():
             "exam_name": exam_name,
             "session_id": session_id,
             "student_id": student_id,
+            "student_name": student_name,
         }
     )
 
@@ -1548,6 +1580,7 @@ def _list_existing_directories():
         for session_dir in exam_dir.iterdir():
             if not session_dir.is_dir():
                 continue
+            student_names = _load_session_student_names(session_dir)
             for student_dir in session_dir.iterdir():
                 if not student_dir.is_dir():
                     continue
@@ -1557,6 +1590,7 @@ def _list_existing_directories():
                         "exam_name": exam_dir.name,
                         "session_id": session_dir.name,
                         "student_id": student_dir.name,
+                        "student_name": student_names.get(student_dir.name, ""),
                         "display": f"{exam_dir.name}/{session_dir.name}/{student_dir.name}",
                     }
                 )
@@ -1669,22 +1703,31 @@ def api_bulk_directories():
 
     created = []
     base_docs_path = Path.home() / "Documents"
+    session_dir = base_docs_path / exam_name / session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+    student_names = _load_session_student_names(session_dir)
 
     for student in students:
         student_id = (student.get("id") or "").strip()
+        student_name = (student.get("name") or "").strip()
         if not student_id:
             continue
-        student_dir = base_docs_path / exam_name / session_id / student_id
+        student_dir = session_dir / student_id
         student_dir.mkdir(parents=True, exist_ok=True)
+        if student_name:
+            student_names[student_id] = student_name
         created.append(
             {
                 "path": str(student_dir),
                 "exam_name": exam_name,
                 "session_id": session_id,
                 "student_id": student_id,
+                "student_name": student_name,
                 "display": f"{exam_name}/{session_id}/{student_id}",
             }
         )
+
+    _save_session_student_names(session_dir, student_names)
 
     return jsonify({"status": "ok", "created": created})
 
@@ -2832,6 +2875,19 @@ def api_error_context():
     )
 
 
+@app.route("/api/melbourne/send", methods=["POST"])
+def api_melbourne_send():
+    return (
+        jsonify(
+            {
+                "status": "error",
+                "message": "Send to Melbourne backend endpoint is not implemented yet.",
+            }
+        ),
+        501,
+    )
+
+
 # -------------------------------------------------
 # ✅ Admin Cleanup
 # -------------------------------------------------
@@ -3004,6 +3060,15 @@ def api_admin_delete_students():
             {"status": "error", "message": "Refusing to delete Documents root."}
         ), 400
 
+    if len(target.parts) >= len(DOCS_DIR.parts) + 3:
+        relative = target.relative_to(DOCS_DIR)
+        if len(relative.parts) == 3:
+            session_dir = DOCS_DIR / relative.parts[0] / relative.parts[1]
+            names = _load_session_student_names(session_dir)
+            if relative.parts[2] in names:
+                names.pop(relative.parts[2], None)
+                _save_session_student_names(session_dir, names)
+
     shutil.rmtree(target)
     _delete_engine_student_logs_for_docs_target(target)
     return jsonify({"status": "ok", "message": f"Deleted {target}"})
@@ -3014,6 +3079,7 @@ def api_add_student():
     data = request.get_json() or {}
     session_path = _expand_path(data.get("session_path"))
     student_id = (data.get("student_id") or "").strip()
+    student_name = (data.get("student_name") or "").strip()
 
     if not session_path or not student_id:
         return jsonify({"status": "error", "message": "Missing session_path or student_id."}), 400
@@ -3029,6 +3095,11 @@ def api_add_student():
 
     student_dir = session_dir / student_id
     student_dir.mkdir(parents=True, exist_ok=True)
+    names = _load_session_student_names(session_dir)
+    if student_name:
+        names[student_id] = student_name
+    existing_name = names.get(student_id, "")
+    _save_session_student_names(session_dir, names)
 
     parts = student_dir.parts
     exam_name = parts[-3] if len(parts) >= 3 else ""
@@ -3041,6 +3112,7 @@ def api_add_student():
             "exam_name": exam_name,
             "session_id": session_id,
             "student_id": student_id,
+            "student_name": student_name or existing_name,
         }
     )
 
