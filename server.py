@@ -865,6 +865,507 @@ def _build_session_reports(target_path: str):
     return reports
 
 
+_MISSING = object()
+
+
+def _load_json_file(path: Path):
+    try:
+        with open(path, "r") as handle:
+            return json.load(handle) or {}
+    except Exception:
+        return {}
+
+
+def _resolve_json_parts(data, parts):
+    current = data
+    for part in parts:
+        if not isinstance(current, dict) or part not in current:
+            return _MISSING
+        current = current.get(part)
+    return current
+
+
+def _preferred_context_parts(feature: str):
+    parts = [part for part in str(feature or "").split(".") if part]
+    if not parts:
+        return [], None
+
+    if len(parts) >= 4 and parts[0] == "show_running_config" and parts[1] == "interfaces":
+        return parts[:3], parts[3] if len(parts) > 3 else None
+
+    if (
+        len(parts) >= 5
+        and parts[0] == "verification"
+        and parts[1] == "show_ip_interface_brief"
+        and parts[2] == "interfaces"
+    ):
+        return parts[:4], parts[4] if len(parts) > 4 else None
+
+    if (
+        len(parts) >= 5
+        and parts[0] == "verification"
+        and parts[1] == "show_vlan_brief"
+        and parts[2] == "vlans"
+    ):
+        return parts[:4], parts[4] if len(parts) > 4 else None
+
+    if len(parts) >= 2:
+        return parts[:-1], parts[-1]
+
+    return parts, None
+
+
+def _extract_error_context(template_config, student_config, feature: str):
+    parts, highlight_key = _preferred_context_parts(feature)
+    if not parts:
+        return {
+            "context_path": "",
+            "highlight_key": None,
+            "template_context": None,
+            "student_context": None,
+        }
+
+    while parts:
+        template_context = _resolve_json_parts(template_config, parts)
+        student_context = _resolve_json_parts(student_config, parts)
+        if template_context is not _MISSING or student_context is not _MISSING:
+            return {
+                "context_path": ".".join(parts),
+                "highlight_key": highlight_key,
+                "template_context": None if template_context is _MISSING else template_context,
+                "student_context": None if student_context is _MISSING else student_context,
+            }
+        parts = parts[:-1]
+
+    return {
+        "context_path": "",
+        "highlight_key": None,
+        "template_context": None,
+        "student_context": None,
+    }
+
+
+def _normalize_text(value):
+    lowered = str(value or "").lower()
+    for char in ["_", "-", ".", "(", ")", "[", "]"]:
+        lowered = lowered.replace(char, " ")
+    return " ".join(lowered.split())
+
+
+def _command_hint_for_feature(feature: str):
+    if feature.startswith("show_running_config."):
+        return "show running-config"
+    mapping = {
+        "verification.show_ip_interface_brief.": "show ip interface brief",
+        "verification.show_ip_route.": "show ip route",
+        "verification.show_vlan_brief.": "show vlan brief",
+        "verification.show_access_lists.": "show access-lists",
+        "verification.show_interfaces_trunk.": "show interfaces trunk",
+        "verification.show_port_security.": "show port-security",
+        "verification.show_etherchannel_summary.": "show etherchannel summary",
+        "verification.show_ip_nat_statistics.": "show ip nat statistics",
+        "verification.show_ip_nat_translations.": "show ip nat translations",
+        "verification.show_ip_dhcp_binding.": "show ip dhcp binding",
+        "verification.show_ip_dhcp_pool.": "show ip dhcp pool",
+    }
+    for prefix, hint in mapping.items():
+        if feature.startswith(prefix):
+            return hint
+    return None
+
+
+def _command_aliases(command_hint: str):
+    normalized = _normalize_text(command_hint)
+    aliases = {normalized}
+
+    explicit_aliases = {
+        "show running config": {
+            "show running config",
+            "show run",
+            "sh run",
+            "show running-config",
+            "show running_config",
+            "show_run",
+            "sh_run",
+        },
+        "show ip interface brief": {
+            "show ip interface brief",
+            "show ip int brief",
+            "sh ip interface brief",
+            "sh ip int brief",
+            "show interface brief",
+            "show int brief",
+            "sh int brief",
+        },
+        "show ip route": {
+            "show ip route",
+            "sh ip route",
+        },
+        "show vlan brief": {
+            "show vlan brief",
+            "sh vlan brief",
+        },
+        "show access lists": {
+            "show access lists",
+            "show access-lists",
+            "show access_lists",
+            "sh access lists",
+            "sh access-lists",
+            "sh access_lists",
+        },
+        "show interfaces trunk": {
+            "show interfaces trunk",
+            "show interface trunk",
+            "show int trunk",
+            "sh interfaces trunk",
+            "sh interface trunk",
+            "sh int trunk",
+        },
+        "show port security": {
+            "show port security",
+            "show port-security",
+            "show port_security",
+            "sh port security",
+            "sh port-security",
+            "sh port_security",
+        },
+        "show etherchannel summary": {
+            "show etherchannel summary",
+            "sh etherchannel summary",
+        },
+        "show ip nat statistics": {
+            "show ip nat statistics",
+            "sh ip nat statistics",
+            "show ip nat stats",
+            "sh ip nat stats",
+        },
+        "show ip nat translations": {
+            "show ip nat translations",
+            "sh ip nat translations",
+        },
+        "show ip dhcp binding": {
+            "show ip dhcp binding",
+            "sh ip dhcp binding",
+        },
+        "show ip dhcp pool": {
+            "show ip dhcp pool",
+            "sh ip dhcp pool",
+        },
+    }
+
+    for alias in explicit_aliases.get(normalized, set()):
+        aliases.add(_normalize_text(alias))
+
+    return {alias for alias in aliases if alias}
+
+
+def _find_log_file(log_dir: Path, command_hint: str):
+    if not log_dir or not log_dir.is_dir() or not command_hint:
+        return None
+    desired_aliases = _command_aliases(command_hint)
+    candidates = []
+    for entry in sorted(log_dir.iterdir()):
+        if not entry.is_file():
+            continue
+        if entry.name.lower() in {"config.json", "logs.json", "summary.json"}:
+            continue
+        score = 0
+        normalized = _normalize_text(entry.name)
+        if normalized in desired_aliases:
+            score = 0
+        elif any(alias in normalized or normalized in alias for alias in desired_aliases):
+            score = 1
+        else:
+            continue
+        candidates.append((score, len(entry.name), entry))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (item[0], item[1], item[2].name))
+    return candidates[0][2]
+
+
+def _read_text_lines(path: Path):
+    if not path or not path.exists():
+        return []
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except Exception:
+        return []
+
+
+def _find_line_index(lines, matcher):
+    for index, line in enumerate(lines):
+        try:
+            if matcher(line):
+                return index
+        except Exception:
+            continue
+    return None
+
+
+def _extract_cli_block(lines, start_index):
+    if start_index is None or start_index < 0 or start_index >= len(lines):
+        return None
+    block = [lines[start_index]]
+    for idx in range(start_index + 1, len(lines)):
+        line = lines[idx]
+        stripped = line.strip()
+        if not stripped:
+            block.append(line)
+            continue
+        if stripped == "!":
+            block.append(line)
+            break
+        if not line.startswith(" "):
+            break
+        block.append(line)
+    return "\n".join(block).strip()
+
+
+def _extract_matching_lines(lines, matcher, max_matches=12):
+    matched = []
+    for line in lines:
+        try:
+            if matcher(line):
+                matched.append(line)
+                if len(matched) >= max_matches:
+                    break
+        except Exception:
+            continue
+    return "\n".join(matched).strip() if matched else None
+
+
+def _excerpt_around(lines, index, before=2, after=2):
+    if index is None or index < 0 or index >= len(lines):
+        return None
+    start = max(0, index - before)
+    end = min(len(lines), index + after + 1)
+    return "\n".join(lines[start:end]).strip()
+
+
+def _interface_aliases(interface_name: str):
+    text = str(interface_name or "").strip()
+    if not text:
+        return []
+    aliases = {text}
+    replacements = {
+        "GigabitEthernet": "Gi",
+        "FastEthernet": "Fa",
+        "Serial": "Se",
+        "Loopback": "Lo",
+        "Vlan": "Vl",
+        "Port-channel": "Po",
+        "Tunnel": "Tu",
+    }
+    for long_name, short_name in replacements.items():
+        if text.startswith(long_name):
+            aliases.add(short_name + text[len(long_name):])
+    return sorted(aliases, key=len, reverse=True)
+
+
+def _extract_running_config_excerpt(lines, feature: str):
+    parts = [part for part in str(feature or "").split(".") if part]
+    if not parts:
+        return None
+
+    if len(parts) >= 4 and parts[1] == "interfaces":
+        iface = parts[2]
+        idx = _find_line_index(lines, lambda line: line.strip().lower() == f"interface {iface}".lower())
+        block = _extract_cli_block(lines, idx)
+        if block:
+            return block
+
+    if len(parts) >= 3 and parts[1] == "vty":
+        idx = _find_line_index(lines, lambda line: line.strip().lower().startswith("line vty "))
+        block = _extract_cli_block(lines, idx)
+        if block:
+            return block
+
+    if len(parts) >= 3 and parts[1] == "routing":
+        routing_key = parts[2].lower()
+        if routing_key == "ospf":
+            idx = _find_line_index(lines, lambda line: line.strip().lower().startswith("router ospf "))
+            block = _extract_cli_block(lines, idx)
+            if block:
+                return block
+        if routing_key == "eigrp":
+            idx = _find_line_index(lines, lambda line: line.strip().lower().startswith("router eigrp "))
+            block = _extract_cli_block(lines, idx)
+            if block:
+                return block
+        if routing_key == "static_routes":
+            block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith("ip route "))
+            if block:
+                return block
+
+    if len(parts) >= 3 and parts[1] == "dhcp_pools":
+        pool_name = parts[2]
+        idx = _find_line_index(lines, lambda line: line.strip().lower() == f"ip dhcp pool {pool_name}".lower())
+        block = _extract_cli_block(lines, idx)
+        if block:
+            return block
+
+    if len(parts) >= 2 and parts[1] == "dhcp_excluded":
+        block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith("ip dhcp excluded-address"))
+        if block:
+            return block
+
+    if len(parts) >= 3 and parts[1] == "access_lists":
+        acl_name = parts[2]
+        idx = _find_line_index(
+            lines,
+            lambda line: line.strip().lower().startswith(f"ip access-list ") and line.strip().split()[-1].lower() == acl_name.lower(),
+        )
+        block = _extract_cli_block(lines, idx)
+        if block:
+            return block
+        block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith(f"access-list {acl_name.lower()} "))
+        if block:
+            return block
+
+    prefix_map = {
+        "show_running_config.hostname": "hostname ",
+        "show_running_config.banner_motd": "banner motd",
+        "show_running_config.switching.default_gateway": "ip default-gateway ",
+    }
+    for prefix, needle in prefix_map.items():
+        if feature.startswith(prefix):
+            idx = _find_line_index(lines, lambda line: line.strip().lower().startswith(needle))
+            excerpt = _excerpt_around(lines, idx, before=0, after=0)
+            if excerpt:
+                return excerpt
+
+    if feature.startswith("show_running_config.switching.spanning_tree"):
+        block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith("spanning-tree "))
+        if block:
+            return block
+
+    if feature.startswith("show_running_config.http_server"):
+        block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith("ip http "))
+        if block:
+            return block
+
+    if feature.startswith("show_running_config.users."):
+        parts = feature.split(".")
+        username = parts[2] if len(parts) > 2 else None
+        block = _extract_matching_lines(
+            lines,
+            lambda line: line.strip().lower().startswith("username ")
+            and (not username or line.strip().split()[1].lower() == username.lower()),
+        )
+        if block:
+            return block
+
+    if feature.startswith("show_running_config.nat."):
+        block = _extract_matching_lines(lines, lambda line: "ip nat" in line.strip().lower())
+        if block:
+            return block
+
+    return None
+
+
+def _extract_show_ip_interface_brief_excerpt(lines, feature: str):
+    parts = [part for part in str(feature or "").split(".") if part]
+    if len(parts) < 5 or parts[2] != "interfaces":
+        return None
+    iface = parts[3]
+    aliases = _interface_aliases(iface)
+    idx = _find_line_index(
+        lines,
+        lambda line: any(re.search(rf"^{re.escape(alias)}(\s|$)", line.strip(), re.IGNORECASE) for alias in aliases),
+    )
+    return _excerpt_around(lines, idx, before=2, after=2)
+
+
+def _extract_show_vlan_brief_excerpt(lines, feature: str):
+    parts = [part for part in str(feature or "").split(".") if part]
+    if len(parts) < 4 or parts[2] != "vlans":
+        return None
+    vlan_id = parts[3]
+    idx = _find_line_index(lines, lambda line: re.search(rf"^{re.escape(vlan_id)}\s", line.strip()))
+    return _excerpt_around(lines, idx, before=2, after=1)
+
+
+def _extract_show_ip_route_excerpt(lines, feature: str, expected=None, actual=None):
+    candidates = []
+    for value in [expected, actual]:
+        if isinstance(value, str) and value.strip():
+            candidates.append(value.strip())
+        elif isinstance(value, dict):
+            for key in ["destination", "network", "next_hop", "interface"]:
+                val = value.get(key)
+                if isinstance(val, str) and val.strip() and val.strip() != "-":
+                    candidates.append(val.strip())
+    for candidate in candidates:
+        idx = _find_line_index(lines, lambda line: candidate.lower() in line.lower())
+        excerpt = _excerpt_around(lines, idx, before=2, after=2)
+        if excerpt:
+            return excerpt
+    return "\n".join(lines[:8]).strip() if lines else None
+
+
+def _extract_show_access_lists_excerpt(lines, feature: str):
+    parts = [part for part in str(feature or "").split(".") if part]
+    acl_name = parts[3] if len(parts) >= 4 and parts[2] in {"acls", "access_lists"} else None
+    if acl_name:
+        idx = _find_line_index(lines, lambda line: re.search(rf"\b{re.escape(acl_name)}\b", line, re.IGNORECASE))
+        if idx is not None:
+            start = idx
+            while start > 0 and lines[start - 1].strip():
+                start -= 1
+            end = idx
+            while end + 1 < len(lines) and lines[end + 1].strip():
+                end += 1
+            return "\n".join(lines[start : end + 1]).strip()
+    return "\n".join(lines[:12]).strip() if lines else None
+
+
+def _extract_raw_excerpt(log_path: Path, feature: str, expected=None, actual=None):
+    lines = _read_text_lines(log_path)
+    if not lines:
+        return None
+
+    if feature.startswith("show_running_config."):
+        excerpt = _extract_running_config_excerpt(lines, feature)
+        if excerpt:
+            return excerpt
+
+    if feature.startswith("verification.show_ip_interface_brief."):
+        excerpt = _extract_show_ip_interface_brief_excerpt(lines, feature)
+        if excerpt:
+            return excerpt
+
+    if feature.startswith("verification.show_vlan_brief."):
+        excerpt = _extract_show_vlan_brief_excerpt(lines, feature)
+        if excerpt:
+            return excerpt
+
+    if feature.startswith("verification.show_ip_route."):
+        excerpt = _extract_show_ip_route_excerpt(lines, feature, expected=expected, actual=actual)
+        if excerpt:
+            return excerpt
+
+    if feature.startswith("verification.show_access_lists."):
+        excerpt = _extract_show_access_lists_excerpt(lines, feature)
+        if excerpt:
+            return excerpt
+
+    search_terms = []
+    for part in str(feature or "").split("."):
+        if "/" in part or part.lower().startswith(("vlan", "fa", "gi", "se", "lo", "po")):
+            search_terms.append(part)
+    for value in [expected, actual]:
+        if isinstance(value, str) and value.strip() and len(value.strip()) < 80:
+            search_terms.append(value.strip())
+    for term in search_terms:
+        idx = _find_line_index(lines, lambda line: str(term).lower() in line.lower())
+        excerpt = _excerpt_around(lines, idx, before=2, after=2)
+        if excerpt:
+            return excerpt
+
+    return "\n".join(lines[:12]).strip()
+
+
 def _acquire_ssh_connection(host, username, password, port=None):
     try:
         port_value = int(str(port)) if port is not None else 22
@@ -890,6 +1391,14 @@ def stream_json_line(obj):
 def _expand_path(path):
     """Expand ~ in user supplied paths."""
     return os.path.expanduser(path) if path else None
+
+
+def _hostname_matches_target(expected, actual):
+    expected_name = str(expected or "").strip().upper()
+    actual_name = str(actual or "").strip().upper()
+    if not expected_name or not actual_name:
+        return True
+    return expected_name == actual_name
 
 
 def _engine_student_logs_dir(exam_name, session_id, student_id, hostname=None):
@@ -1712,6 +2221,15 @@ def api_execute():
                     {"type": "error", "msg": f"Serial initialization failed: {exc}"}
                 )
                 return False
+            if target_device and not _hostname_matches_target(target_device, hostname):
+                logout_close_connection(ser)
+                yield stream_json_line(
+                    {
+                        "type": "error",
+                        "msg": f"Selected device is '{target_device}', but connected device is '{hostname}'. Collection stopped.",
+                    }
+                )
+                return False
             _update_serial_state(ser, port, baudrate, hostname)
 
             yield stream_json_line(
@@ -1911,9 +2429,35 @@ def api_execute():
                         }
                     )
                     return False
+                if target_device and not _hostname_matches_target(target_device, hostname):
+                    try:
+                        existing_shell = getattr(client, "_shell", None)
+                        if existing_shell:
+                            existing_shell.close()
+                    except Exception:
+                        pass
+                    try:
+                        client.close()
+                    except Exception:
+                        pass
+                    yield stream_json_line(
+                        {
+                            "type": "error",
+                            "msg": f"Selected device is '{target_device}', but connected device is '{hostname}'. Collection stopped.",
+                        }
+                    )
+                    return False
                 _update_ssh_state(client, host, username, password, hostname, resolved_port)
 
             if not reuse:
+                if target_device and not _hostname_matches_target(target_device, hostname):
+                    yield stream_json_line(
+                        {
+                            "type": "error",
+                            "msg": f"Selected device is '{target_device}', but connected device is '{hostname}'. Collection stopped.",
+                        }
+                    )
+                    return False
                 yield stream_json_line(
                     {
                         "type": "progress",
@@ -2217,6 +2761,73 @@ def api_get_results():
             "status": "ok",
             "reports": _build_session_reports(target_path),
             "policy": load_grading_policy(),
+        }
+    )
+
+
+@app.route("/api/error_context", methods=["POST"])
+def api_error_context():
+    data = request.get_json() or {}
+    target_path = data.get("target_path")
+    student_id = (data.get("student_id") or "").strip()
+    template_name = (data.get("template_name") or "").strip()
+    hostname = (data.get("hostname") or "").strip()
+    feature = (data.get("feature") or "").strip()
+    expected = data.get("expected")
+    actual = data.get("actual")
+
+    if not all([target_path, student_id, template_name, hostname, feature]):
+        return jsonify({"status": "error", "message": "Missing target_path, student_id, template_name, hostname, or feature."}), 400
+
+    session_dir = Path(target_path).resolve()
+    if not session_dir.is_dir():
+        return jsonify({"status": "error", "message": "Session path not found."}), 404
+
+    safe_session_dir = _safe_resolve_child(DOCS_DIR, session_dir)
+    if not safe_session_dir:
+        return jsonify({"status": "error", "message": "Invalid session path."}), 400
+
+    student_config_path = _safe_resolve_child(
+        safe_session_dir, safe_session_dir / student_id / hostname / "config.json"
+    )
+    template_config_path = _safe_resolve_child(
+        TEMPLATES_DIR, TEMPLATES_DIR / template_name / hostname / "config.json"
+    )
+    student_log_dir = _safe_resolve_child(
+        safe_session_dir, safe_session_dir / student_id / hostname
+    )
+    template_log_dir = _safe_resolve_child(
+        TEMPLATES_DIR, TEMPLATES_DIR / template_name / hostname / "logs"
+    )
+
+    template_config = _load_json_file(template_config_path) if template_config_path and template_config_path.exists() else {}
+    student_config = _load_json_file(student_config_path) if student_config_path and student_config_path.exists() else {}
+    command_hint = _command_hint_for_feature(feature)
+    template_raw_path = _find_log_file(template_log_dir, command_hint)
+    student_raw_path = _find_log_file(student_log_dir, command_hint)
+
+    context = _extract_error_context(template_config, student_config, feature)
+    template_raw_excerpt = _extract_raw_excerpt(template_raw_path, feature, expected=expected, actual=actual)
+    student_raw_excerpt = _extract_raw_excerpt(student_raw_path, feature, expected=expected, actual=actual)
+
+    return jsonify(
+        {
+            "status": "ok",
+            "feature": feature,
+            "hostname": hostname,
+            "student_id": student_id,
+            "template_name": template_name,
+            "context_path": context["context_path"],
+            "highlight_key": context["highlight_key"],
+            "template_context": context["template_context"],
+            "student_context": context["student_context"],
+            "template_config_path": str(template_config_path) if template_config_path and template_config_path.exists() else None,
+            "student_config_path": str(student_config_path) if student_config_path and student_config_path.exists() else None,
+            "command_hint": command_hint,
+            "template_raw_path": str(template_raw_path) if template_raw_path and template_raw_path.exists() else None,
+            "student_raw_path": str(student_raw_path) if student_raw_path and student_raw_path.exists() else None,
+            "template_raw_excerpt": template_raw_excerpt,
+            "student_raw_excerpt": student_raw_excerpt,
         }
     )
 

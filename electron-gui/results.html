@@ -77,11 +77,6 @@
       gap: 10px;
     }
 
-    .student-score {
-      font-size: 1rem;
-      font-weight: 700;
-    }
-
     .student-breakdown {
       font-size: 0.82rem;
       opacity: 0.85;
@@ -102,7 +97,7 @@
 
     .report-summary {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 12px;
       margin-bottom: 16px;
     }
@@ -114,22 +109,9 @@
       background: var(--color-bg-soft);
     }
 
-    .summary-score {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-
-    .summary-score div {
+    .summary-box div {
       font-size: 1.4rem;
       font-weight: 700;
-    }
-
-    .summary-score small {
-      font-size: 0.78rem;
-      letter-spacing: 0.04em;
-      font-weight: 700;
-      text-transform: uppercase;
     }
 
     .summary-pass {
@@ -159,6 +141,7 @@
       border-radius: 6px;
       margin-bottom: 8px;
       background: #fff;
+      cursor: pointer;
     }
 
     .result-item .meta {
@@ -203,6 +186,143 @@
       max-height: 220px;
     }
 
+    .context-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(18, 25, 38, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 2000;
+    }
+
+    .context-modal.open {
+      display: flex;
+    }
+
+    .context-modal-card {
+      width: min(1100px, 100%);
+      max-height: min(85vh, 920px);
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.18);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .context-modal-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-bg-card);
+    }
+
+    .context-modal-title {
+      margin: 0;
+      font-size: 1.05rem;
+    }
+
+    .context-modal-meta {
+      margin-top: 4px;
+      font-size: 0.85rem;
+      color: var(--color-text-muted);
+      word-break: break-word;
+    }
+
+    .context-close {
+      border: 1px solid var(--color-border);
+      background: #fff;
+      color: #000;
+      border-radius: 8px;
+      padding: 8px 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .context-close:hover {
+      background: #000;
+      color: #fff;
+      border-color: #000;
+    }
+
+    .context-modal-body {
+      display: flex;
+      flex-direction: column;
+      padding: 16px 18px 18px;
+      overflow: auto;
+    }
+
+    .context-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .context-tab {
+      border: 1px solid var(--color-border);
+      background: #fff;
+      color: #000;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .context-tab.active {
+      background: #000;
+      color: #fff;
+      border-color: #000;
+    }
+
+    .context-tab-panel {
+      display: none;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .context-tab-panel.active {
+      display: grid;
+    }
+
+    .context-pane {
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--color-bg-card);
+      min-width: 0;
+    }
+
+    .context-pane-header {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-bg-soft);
+    }
+
+    .context-pane-header strong {
+      display: block;
+    }
+
+    .context-pane-path {
+      margin-top: 4px;
+      font-size: 0.78rem;
+      color: var(--color-text-muted);
+      word-break: break-word;
+    }
+
+    .context-pane pre {
+      margin: 0;
+      padding: 14px;
+      font-size: 0.82rem;
+      overflow: auto;
+      max-height: 56vh;
+      background: #fff;
+    }
+
     @media (max-width: 900px) {
       .results-layout {
         grid-template-columns: 1fr;
@@ -229,6 +349,18 @@
       .report-details {
         overflow: visible;
         padding-right: 0;
+      }
+      .context-modal {
+        padding: 12px;
+      }
+      .context-modal-body {
+        overflow: auto;
+      }
+      .context-tab-panel {
+        grid-template-columns: 1fr;
+      }
+      .context-pane pre {
+        max-height: none;
       }
       .result-item {
         overflow-wrap: anywhere;
@@ -266,6 +398,19 @@
         </section>
       </div>
     </section>
+  </div>
+
+  <div id="errorContextModal" class="context-modal" aria-hidden="true">
+    <div class="context-modal-card">
+      <div class="context-modal-header">
+        <div>
+          <h3 id="errorContextTitle" class="context-modal-title">Config Context</h3>
+          <div id="errorContextMeta" class="context-modal-meta"></div>
+        </div>
+        <button type="button" id="closeErrorContextBtn" class="context-close">Close</button>
+      </div>
+      <div id="errorContextBody" class="context-modal-body"></div>
+    </div>
   </div>
 
   <script src="renderer.js"></script>
