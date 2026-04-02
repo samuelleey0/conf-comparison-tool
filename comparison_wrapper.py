@@ -1,7 +1,7 @@
 import os
 import json
-from comparsion_engine.parser import parse_device_logs
-from comparsion_engine.template_manager import choose_show_run_file
+from comparison_engine.parser import parse_device_logs
+from comparison_engine.template_manager import choose_show_run_file
 
 def handle_template_upload(files, form_data, base_dir):
     """
@@ -16,7 +16,7 @@ def handle_template_upload(files, form_data, base_dir):
     except json.JSONDecodeError:
         return {"status": "error", "message": "Invalid devices metadata format."}
 
-    template_dir = os.path.join(base_dir, "comparsion_engine", "templates", template_name)
+    template_dir = os.path.join(base_dir, "comparison_engine", "templates", template_name)
     
     results = {}
 

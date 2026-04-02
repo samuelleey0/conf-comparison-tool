@@ -23,7 +23,7 @@ BASE_URL = "http://127.0.0.1:6060"
 
 # ===== CONFIGURE SOURCE FOLDER HERE =====
 # Change this to the folder containing student subfolders to upload
-STUDENT_FOLDER = "comparsion_engine/students"
+STUDENT_FOLDER = "comparison_engine/students"
 # ========================================
 
 
@@ -131,7 +131,7 @@ def run_upload(base_url: str | None = None, student_folder: str | None = None) -
             "status": "error",
             "message": (
                 "No student folders found. Set STUDENT_FOLDER to the parent students folder "
-                "(example: comparsion_engine/students) containing numeric student ID subfolders."
+                "(example: comparison_engine/students) containing numeric student ID subfolders."
             ),
             "base_url": resolved_base_url,
             "student_folder": str(students_dir),
