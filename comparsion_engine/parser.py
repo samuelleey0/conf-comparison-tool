@@ -316,7 +316,16 @@ COMMAND_TOKENS = {
         "show etherchannel summary",
         "show_etherchannel_summary",
         "sh etherchannel summary",
-        "sh etherchannel sum",
+    ],
+    "show_pagp_neighbor": [
+        "show pagp neighbor",
+        "show_pagp_neighbor",
+        "sh pagp neighbor",
+    ],
+    "show_lacp_neighbor": [
+        "show lacp neighbor",
+        "show_lacp_neighbor",
+        "sh lacp neighbor",
     ],
 }
 
@@ -405,6 +414,7 @@ def parse_showrun(file_path):
             "default_gateway": None,
             "spanning_tree": {},
             "vlan_internal_allocation_policy": None,
+            "etherchannel": {"groups": {}},
         },
         "etherchannel": {
             "load_balance": None,
@@ -529,6 +539,12 @@ def parse_showrun(file_path):
                 config["switching"]["spanning_tree"]["extend_system_id"] = True
                 continue
 
+            if line.startswith("spanning-tree vlan"):
+                config["switching"]["spanning_tree"].setdefault(
+                    "vlan_settings", []
+                ).append(line)
+                continue
+
             if line.startswith("ip default-gateway"):
                 parts = line.split()
                 if len(parts) >= 3:
@@ -542,7 +558,12 @@ def parse_showrun(file_path):
             # Interface block start
             if line.startswith("interface"):
                 current_interface = line.split()[1]
-                config["interfaces"].setdefault(current_interface, {})
+                iface_data = config["interfaces"].setdefault(current_interface, {})
+                if "." in current_interface:
+                    parent, sub_id = current_interface.split(".", 1)
+                    iface_data["is_subinterface"] = True
+                    iface_data["parent_interface"] = parent
+                    iface_data["subinterface_id"] = sub_id
                 current_pool = None
                 current_acl = None
                 current_eigrp = None
@@ -666,6 +687,67 @@ def parse_showrun(file_path):
                     parts = line.split()
                     if len(parts) >= 5:
                         iface_data["trunk_allowed_vlans"] = " ".join(parts[4:])
+                elif line.startswith("channel-group"):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        channel_info = {
+                            "id": parts[1],
+                            "mode": None,
+                            "protocol": None,
+                        }
+                        if "mode" in parts:
+                            mode_idx = parts.index("mode")
+                            if mode_idx + 1 < len(parts):
+                                channel_info["mode"] = parts[mode_idx + 1]
+
+                        # Infer control protocol from negotiated mode when protocol command is absent.
+                        mode = (channel_info.get("mode") or "").lower()
+                        if mode in {"active", "passive"}:
+                            channel_info["protocol"] = "lacp"
+                        elif mode in {"desirable", "auto"}:
+                            channel_info["protocol"] = "pagp"
+                        elif mode == "on":
+                            channel_info["protocol"] = "static"
+
+                        iface_data["channel_group"] = channel_info
+                        group = config["switching"]["etherchannel"][
+                            "groups"
+                        ].setdefault(
+                            channel_info["id"],
+                            {
+                                "members": [],
+                                "mode": channel_info.get("mode"),
+                                "protocol": channel_info.get("protocol"),
+                            },
+                        )
+                        if current_interface not in group["members"]:
+                            group["members"].append(current_interface)
+                        if channel_info.get("mode"):
+                            group["mode"] = channel_info["mode"]
+                        if channel_info.get("protocol"):
+                            group["protocol"] = channel_info["protocol"]
+                elif line.startswith("channel-protocol"):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        iface_data["channel_protocol"] = parts[1]
+                        channel_group = iface_data.get("channel_group")
+                        if isinstance(channel_group, dict):
+                            channel_group["protocol"] = parts[1]
+                            group_id = channel_group.get("id")
+                            if group_id:
+                                group = config["switching"]["etherchannel"][
+                                    "groups"
+                                ].setdefault(
+                                    group_id,
+                                    {"members": []},
+                                )
+                                group["protocol"] = parts[1]
+                elif line.startswith("lacp rate"):
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        iface_data["lacp_rate"] = parts[2]
+                elif line.startswith("pagp"):
+                    iface_data.setdefault("pagp", []).append(line)
                 elif line == "switchport port-security":
                     iface_data.setdefault("port_security", {})["enabled"] = True
                 elif line.startswith("switchport port-security maximum"):
@@ -693,7 +775,18 @@ def parse_showrun(file_path):
                     if len(parts) >= 3:
                         iface_data["encapsulation"] = "dot1Q"
                         iface_data["vlan"] = parts[2]
-                elif line.startswith("encapsulation ppp") or line == "encapsulation ppp":
+                        if len(parts) > 3 and parts[3].lower() == "native":
+                            iface_data["native_vlan"] = True
+                elif line.startswith("encapsulation dot1q"):
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        iface_data["encapsulation"] = "dot1Q"
+                        iface_data["vlan"] = parts[2]
+                        if len(parts) > 3 and parts[3].lower() == "native":
+                            iface_data["native_vlan"] = True
+                elif line.startswith("spanning-tree"):
+                    iface_data.setdefault("spanning_tree", []).append(line)
+                elif line.startswith("encapsulation ppp"):
                     iface_data["encapsulation"] = "ppp"
                 elif line.startswith("encapsulation hdlc") or line == "encapsulation hdlc":
                     iface_data["encapsulation"] = "hdlc"
@@ -1564,46 +1657,87 @@ def parse_show_etherchannel_summary(file_path):
 
     for line in lines:
         stripped = line.strip()
-        if not stripped or _is_device_prompt(stripped):
-            continue
-        if stripped.lower().startswith("show etherchannel") or stripped.startswith("---"):
-            continue
-        if stripped.lower().startswith("group") and "port-channel" in stripped.lower():
-            continue
-        if stripped.startswith("Number of") or stripped.startswith("Flags:"):
+        lower = stripped.lower()
+        if (
+            not stripped
+            or _is_device_prompt(stripped)
+            or lower.startswith("show etherchannel")
+            or lower.startswith("group")
+            or lower.startswith("----")
+            or lower.startswith("flags")
+            or lower.startswith("number of channel-groups")
+        ):
             continue
 
-        # Try to parse a group line: starts with a number
+        # Typical rows look like: "1      Po1(SU)         LACP      Fa0/1(P) Fa0/2(P)"
         parts = stripped.split()
-        if not parts or not parts[0].isdigit():
+        if len(parts) >= 3 and parts[0].isdigit():
+            group = {
+                "group": parts[0],
+                "port_channel": parts[1],
+                "protocol": parts[2],
+                "members": parts[3:] if len(parts) > 3 else [],
+            }
+            result["groups"].append(group)
+
+    return result
+
+
+def parse_show_pagp_neighbor(file_path):
+    result = {"neighbors": []}
+    lines = _clean_log_lines(file_path)
+
+    for line in lines:
+        stripped = line.strip()
+        lower = stripped.lower()
+        if (
+            not stripped
+            or _is_device_prompt(stripped)
+            or lower.startswith("show pagp")
+            or lower.startswith("flags")
+            or lower.startswith("port")
+            or lower.startswith("----")
+        ):
             continue
 
-        group_num = parts[0]
-        group_info = {"port_channel": None, "protocol": None, "members": []}
+        # Preserve parsed row as tokens to avoid fragile fixed-column assumptions.
+        parts = stripped.split()
+        if len(parts) >= 2:
+            result["neighbors"].append(
+                {
+                    "interface": parts[0],
+                    "details": parts[1:],
+                }
+            )
 
-        for i, part in enumerate(parts[1:], 1):
-            # Port-channel with status, e.g. "Po1(SU)"
-            if part.startswith("Po") and "(" in part:
-                match = re.match(r"(Po\d+)\(([^)]+)\)", part)
-                if match:
-                    group_info["port_channel"] = match.group(1)
-                    group_info["port_channel_status"] = match.group(2)
-                continue
+    return result
 
-            # Protocol: LACP, PAgP, or -
-            if part.upper() in ("LACP", "PAGP", "-"):
-                group_info["protocol"] = part.upper() if part != "-" else None
-                continue
 
-            # Member interface with status, e.g. "Fa0/1(P)" or "Gi0/1(D)"
-            member_match = re.match(r"([A-Za-z]+[\d/]+)\(([^)]+)\)", part)
-            if member_match:
-                group_info["members"].append({
-                    "interface": member_match.group(1),
-                    "flags": member_match.group(2),
-                })
+def parse_show_lacp_neighbor(file_path):
+    result = {"neighbors": []}
+    lines = _clean_log_lines(file_path)
 
-        result["groups"][group_num] = group_info
+    for line in lines:
+        stripped = line.strip()
+        lower = stripped.lower()
+        if (
+            not stripped
+            or _is_device_prompt(stripped)
+            or lower.startswith("show lacp")
+            or lower.startswith("flags")
+            or lower.startswith("port")
+            or lower.startswith("----")
+        ):
+            continue
+
+        parts = stripped.split()
+        if len(parts) >= 2:
+            result["neighbors"].append(
+                {
+                    "interface": parts[0],
+                    "details": parts[1:],
+                }
+            )
 
     return result
 
@@ -1648,6 +1782,10 @@ def parse_log_by_type(file_path, command_type=None):
         return command, parse_show_spanning_tree(file_path)
     if command == "show_etherchannel_summary":
         return command, parse_show_etherchannel_summary(file_path)
+    if command == "show_pagp_neighbor":
+        return command, parse_show_pagp_neighbor(file_path)
+    if command == "show_lacp_neighbor":
+        return command, parse_show_lacp_neighbor(file_path)
     return None, None
 
 
