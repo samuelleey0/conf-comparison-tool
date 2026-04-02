@@ -46,7 +46,7 @@ source fyp-venv/bin/activate
 python ftp-melbourne/upload_student_folders.py
 ```
 
-That's it. The script will upload all students from `comparsion_engine/students`.
+That's it. The script will upload all students from `comparison_engine/students`.
 
 ## Test Webpage
 
@@ -87,7 +87,7 @@ curl -X POST http://127.0.0.1:6060/api/upload-log \
   -F "exam_name=TNE20002" \
   -F "session_id=Week5" \
   -F "hostname=ABBY" \
-  -F "file=@comparsion_engine/results/100000001/ABBY_result.json"
+  -F "file=@comparison_engine/results/100000001/ABBY_result.json"
 ```
 
 Batch upload:
@@ -95,6 +95,6 @@ Batch upload:
 ```bash
 curl -X POST http://127.0.0.1:6060/api/upload-logs \
   -F "student_id=100000001" \
-  -F "files=@comparsion_engine/results/100000001/ABBY_result.json" \
-  -F "files=@comparsion_engine/results/100000001/GATE_result.json"
+  -F "files=@comparison_engine/results/100000001/ABBY_result.json" \
+  -F "files=@comparison_engine/results/100000001/GATE_result.json"
 ```

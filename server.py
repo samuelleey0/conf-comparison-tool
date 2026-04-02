@@ -33,9 +33,9 @@ from remote_utils import (
     get_hostname_remote,
 )
 from command_manager import load_commands, save_commands
-from comparsion_engine.parser import parse_device_logs, normalize_parsed_config
-from comparsion_engine.comparator import compare_dicts
-from comparsion_engine.student_manager import find_show_run_file
+from comparison_engine.parser import parse_device_logs, normalize_parsed_config
+from comparison_engine.comparator import compare_dicts
+from comparison_engine.student_manager import find_show_run_file
 
 app = Flask(__name__)
 
@@ -45,8 +45,8 @@ BASE_DIR = Path(__file__).resolve().parent
 # Grading Directories
 SCHEMES_DIR = BASE_DIR / "schemes"
 RUBRICS_DIR = BASE_DIR / "rubrics"
-TEMPLATES_DIR = BASE_DIR / "comparsion_engine" / "templates"
-ENGINE_STUDENTS_DIR = BASE_DIR / "comparsion_engine" / "students"
+TEMPLATES_DIR = BASE_DIR / "comparison_engine" / "templates"
+ENGINE_STUDENTS_DIR = BASE_DIR / "comparison_engine" / "students"
 # Results are stored under Documents/<Exam>/<Session>/<Student>/results
 # Results are stored under Documents/<Exam>/<Session>/<Student>/results
 RESULTS_DIR = None
@@ -1459,7 +1459,7 @@ def _save_output_to_engine_students(
 ):
     """
     Save command output under
-    comparsion_engine/students/<exam_name>/<session_id>/<student_id>/<hostname>/.
+    comparison_engine/students/<exam_name>/<session_id>/<student_id>/<hostname>/.
     Only stores command logs (no config.json).
     """
     if not hostname:
@@ -3147,7 +3147,7 @@ def _check_criteria(content, criteria, variables):
         return True, final_pattern
         
     return False, final_pattern
-from comparsion_engine.compare_main import grading_pipeline
+from comparison_engine.compare_main import grading_pipeline
 
 def _load_template_configs(template_name: str):
     template_dir = _safe_resolve_child(TEMPLATES_DIR, TEMPLATES_DIR / template_name)

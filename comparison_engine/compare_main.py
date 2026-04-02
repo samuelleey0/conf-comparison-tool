@@ -1,7 +1,7 @@
 import os
 import yaml
-from comparsion_engine.student_manager import compare_student_hostnames
-from comparsion_engine.template_manager import setup_templates
+from comparison_engine.student_manager import compare_student_hostnames
+from comparison_engine.template_manager import setup_templates
 
 # Get the directory where compare_main.py is located
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

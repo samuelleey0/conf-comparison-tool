@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 
-const ENGINE_STUDENTS_ROOT = path.resolve(__dirname, "..", "comparsion_engine", "students");
+const ENGINE_STUDENTS_ROOT = path.resolve(__dirname, "..", "comparison_engine", "students");
 
 function readJsonFile(filePath) {
   try {
