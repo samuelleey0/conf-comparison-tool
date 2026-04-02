@@ -981,6 +981,148 @@ def _make_result(feature, status, expected=None, actual=None, outcome_code=None)
     return result
 
 
+def _route_codes(routes):
+    codes = set()
+    if not isinstance(routes, list):
+        return codes
+    for route in routes:
+        if not isinstance(route, dict):
+            continue
+        code = str(route.get("code", "")).strip().upper()
+        if code:
+            codes.add(code)
+    return codes
+
+
+def _route_destinations(routes):
+    destinations = set()
+    if not isinstance(routes, list):
+        return destinations
+    for route in routes:
+        if not isinstance(route, dict):
+            continue
+        destination = str(route.get("destination", "")).strip()
+        route_type = str(route.get("type", "")).strip().lower()
+        code = str(route.get("code", "")).strip().upper()
+        if not destination or destination == "-":
+            continue
+        if route_type in {"directly_connected", "other"}:
+            continue
+        if code in {"C", "L"}:
+            continue
+        destinations.add(destination)
+    return destinations
+
+
+def _verification_outcome_code_for_path(full_key, status, expected=None, actual=None):
+    feature = str(full_key or "")
+    if not feature.startswith("verification."):
+        return None
+
+    expected_text = str(expected or "").strip().lower()
+    actual_text = str(actual or "").strip().lower()
+
+    if ".show_ip_interface_brief.interfaces." in feature:
+        if feature.endswith(".ip"):
+            return "VERIFY_IFACE_IP_WRONG"
+        if feature.endswith(".status") or feature.endswith(".protocol"):
+            if "administratively down" in expected_text or expected_text == "down":
+                return "VERIFY_IFACE_ADMIN_UP"
+            return "VERIFY_IFACE_DOWN"
+
+    if feature.startswith("verification.show_ip_route"):
+        if feature.endswith(".gateway_of_last_resort"):
+            if expected_text and "not set" not in expected_text:
+                if not actual_text or "not set" in actual_text:
+                    return "VERIFY_ROUTE_MISSING_DEFAULT"
+            return "VERIFY_GATEWAY_WRONG"
+        if feature.endswith(".routes"):
+            expected_codes = _route_codes(expected)
+            actual_codes = _route_codes(actual)
+            expected_destinations = _route_destinations(expected)
+            actual_destinations = _route_destinations(actual)
+            if "S*" in expected_codes and "S*" not in actual_codes:
+                return "VERIFY_ROUTE_MISSING_DEFAULT"
+            if (expected_codes & {"D", "O", "R", "S"}) - actual_codes:
+                return "VERIFY_ROUTE_PROTOCOL_ABSENT"
+            if expected_destinations - actual_destinations:
+                return "VERIFY_ROUTE_MISSING_LEARNED"
+            return "VERIFY_ROUTE_PROTOCOL_ABSENT"
+
+    if feature.startswith("verification.show_access_lists.acls."):
+        if status == "missing":
+            return "VERIFY_ACL_MISSING"
+        if actual in (None, [], {}):
+            return "VERIFY_ACL_EMPTY"
+        return "VERIFY_ACL_RULE_WRONG"
+
+    if feature.startswith("verification.show_ip_nat_translations"):
+        return "VERIFY_NAT_NOT_WORKING"
+
+    if feature == "verification.show_ip_nat_statistics":
+        return "VERIFY_NAT_NO_STATS"
+    if feature.startswith("verification.show_ip_nat_statistics."):
+        if ".inside_interfaces" in feature or ".outside_interfaces" in feature:
+            return "VERIFY_NAT_IFACE_WRONG"
+        if ".mappings" in feature:
+            return "VERIFY_NAT_MAPPING_WRONG"
+        if ".pools" in feature:
+            return "VERIFY_NAT_POOL_WRONG"
+        return "VERIFY_NAT_NO_STATS"
+
+    if feature.startswith("verification.show_ip_dhcp_binding"):
+        return "VERIFY_DHCP_NOT_ASSIGNING"
+
+    if feature.startswith("verification.show_ip_dhcp_pool"):
+        if feature.endswith(".pool_names"):
+            expected_names = set(expected or []) if isinstance(expected, list) else set()
+            actual_names = set(actual or []) if isinstance(actual, list) else set()
+            if expected_names - actual_names:
+                return "VERIFY_DHCP_POOL_MISSING"
+            if actual_names - expected_names:
+                return "VERIFY_DHCP_POOL_EXTRA"
+            return "VERIFY_DHCP_POOL_MISSING"
+        return "VERIFY_DHCP_POOL_MISSING"
+
+    if feature.startswith("verification.show_vlan_brief"):
+        if ".vlans.vlan" in feature:
+            return "VERIFY_VLAN_SCHEME_MISMATCH"
+        if ".vlans." in feature:
+            if status == "missing":
+                return "VERIFY_VLAN_MISSING"
+            if status == "extra":
+                return "VERIFY_VLAN_EXTRA"
+            if feature.endswith(".name"):
+                return "VERIFY_VLAN_NAME_WRONG"
+            if feature.endswith(".status"):
+                return "VERIFY_VLAN_NOT_ACTIVE"
+            if feature.endswith(".ports"):
+                return "VERIFY_VLAN_PORT_WRONG"
+            return "VERIFY_VLAN_SCHEME_MISMATCH"
+
+    if feature.startswith("verification.show_interfaces_trunk.trunks."):
+        if status in {"missing", "extra"} or feature.endswith(".status"):
+            return "VERIFY_TRUNK_NOT_TRUNKING"
+        if feature.endswith(".encapsulation"):
+            return "VERIFY_TRUNK_ENCAP_WRONG"
+        if feature.endswith(".native_vlan"):
+            return "VERIFY_TRUNK_NATIVE_WRONG"
+        if feature.endswith(".mode"):
+            return "VERIFY_TRUNK_MODE_WRONG"
+
+    if feature.startswith("verification.show_port_security.interfaces."):
+        if status == "missing":
+            return "VERIFY_PORT_SECURITY_MISSING_IFACE"
+        if feature.endswith(".max_secure_addr"):
+            return "VERIFY_PORT_SECURITY_MAX_WRONG"
+        if feature.endswith(".security_action"):
+            return "VERIFY_PORT_SECURITY_ACTION_WRONG"
+        if feature.endswith(".security_violation_count"):
+            return "VERIFY_PORT_SECURITY_VIOLATION"
+
+    return None
+
+
 def compare_dicts(template: dict, student: dict, parent_key="") -> list:
     """
     Recursively compares two dictionaries and returns structured results.
@@ -1060,10 +1202,6 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
         if "sticky_macs" in path:
             return True
         if path.endswith("switching.spanning_tree.extend_system_id"):
-            return True
-        if "verification.show_interfaces_trunk.trunks" in path and path.endswith(
-            ".status"
-        ):
             return True
         if re.search(
             r"verification\.show_vlan_brief\.vlans\.(1002|1003|1004|1005)(\.|$)",
@@ -1163,6 +1301,16 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
         has_student_key = key in student
         s_val = student.get(key)
 
+        if full_key.endswith("verification.show_ip_nat_translations") and isinstance(t_val, dict):
+            if t_val.get("tested") is False:
+                continue
+        if full_key.endswith("verification.show_ip_dhcp_binding") and isinstance(t_val, dict):
+            if t_val.get("has_assignments") is False:
+                continue
+        if full_key.endswith("verification.show_ip_dhcp_pool") and isinstance(t_val, dict):
+            if t_val.get("tested") is False:
+                continue
+
         # Normalize NAT interface list representation (legacy string vs new list).
         if full_key.endswith("verification.show_ip_nat_statistics.outside_interfaces"):
             t_val = _normalize_interface_list_value(t_val)
@@ -1181,16 +1329,46 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                 if t_val is None:
                     results.append(_make_result(full_key, "correct"))
                 else:
-                    results.append(_make_result(full_key, "mismatch", t_val, None))
+                    results.append(
+                        _make_result(
+                            full_key,
+                            "mismatch",
+                            t_val,
+                            None,
+                            _verification_outcome_code_for_path(
+                                full_key, "mismatch", t_val, None
+                            ),
+                        )
+                    )
             else:
                 if t_val == s_val:
                     results.append(_make_result(full_key, "correct"))
                 else:
-                    results.append(_make_result(full_key, "mismatch", t_val, s_val))
+                    results.append(
+                        _make_result(
+                            full_key,
+                            "mismatch",
+                            t_val,
+                            s_val,
+                            _verification_outcome_code_for_path(
+                                full_key, "mismatch", t_val, s_val
+                            ),
+                        )
+                    )
             continue
 
         if not has_student_key:
-            results.append(_make_result(full_key, "missing", t_val, None))
+            results.append(
+                _make_result(
+                    full_key,
+                    "missing",
+                    t_val,
+                    None,
+                    _verification_outcome_code_for_path(
+                        full_key, "missing", t_val, None
+                    ),
+                )
+            )
         elif full_key.endswith("banner_motd"):
             # Banner content is not graded by exact string; only presence matters.
             if t_val is None and s_val is None:
@@ -1204,9 +1382,29 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
         elif t_val is None and s_val is None:
             results.append(_make_result(full_key, "correct"))
         elif t_val is None and s_val is not None:
-            results.append(_make_result(full_key, "extra", None, s_val))
+            results.append(
+                _make_result(
+                    full_key,
+                    "extra",
+                    None,
+                    s_val,
+                    _verification_outcome_code_for_path(
+                        full_key, "extra", None, s_val
+                    ),
+                )
+            )
         elif t_val is not None and s_val is None:
-            results.append(_make_result(full_key, "missing", t_val, None))
+            results.append(
+                _make_result(
+                    full_key,
+                    "missing",
+                    t_val,
+                    None,
+                    _verification_outcome_code_for_path(
+                        full_key, "missing", t_val, None
+                    ),
+                )
+            )
         elif isinstance(t_val, dict):
             # Hardware models can expose different interface sets.
             # Compare only interfaces present on both sides.
@@ -1223,7 +1421,17 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                     elif t_iface == s_iface:
                         results.append(_make_result(iface_key, "correct"))
                     else:
-                        results.append(_make_result(iface_key, "mismatch", t_iface, s_iface))
+                        results.append(
+                            _make_result(
+                                iface_key,
+                                "mismatch",
+                                t_iface,
+                                s_iface,
+                                _verification_outcome_code_for_path(
+                                    iface_key, "mismatch", t_iface, s_iface
+                                ),
+                            )
+                        )
                 # Detect configured interfaces missing on either side.
                 missing_ifaces = sorted(t_ifaces - s_ifaces)
                 extra_ifaces = sorted(s_ifaces - t_ifaces)
@@ -1306,15 +1514,33 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                 for iface, t_iface in missing_items:
                     if iface in merged_missing:
                         continue
-                    results.append(_make_result(
-                        f"{full_key}.{iface}", "missing", t_iface, None
-                    ))
+                    missing_key = f"{full_key}.{iface}"
+                    results.append(
+                        _make_result(
+                            missing_key,
+                            "missing",
+                            t_iface,
+                            None,
+                            _verification_outcome_code_for_path(
+                                missing_key, "missing", t_iface, None
+                            ),
+                        )
+                    )
                 for iface, s_iface in extra_items:
                     if iface in merged_extra:
                         continue
-                    results.append(_make_result(
-                        f"{full_key}.{iface}", "extra", None, s_iface
-                    ))
+                    extra_key = f"{full_key}.{iface}"
+                    results.append(
+                        _make_result(
+                            extra_key,
+                            "extra",
+                            None,
+                            s_iface,
+                            _verification_outcome_code_for_path(
+                                extra_key, "extra", None, s_iface
+                            ),
+                        )
+                    )
                 continue
             if full_key.endswith("show_running_config.routing") and isinstance(
                 s_val, dict
@@ -1378,7 +1604,17 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                     elif t_vlan == s_vlan:
                         results.append(_make_result(vlan_key, "correct"))
                     else:
-                        results.append(_make_result(vlan_key, "mismatch", t_vlan, s_vlan))
+                        results.append(
+                            _make_result(
+                                vlan_key,
+                                "mismatch",
+                                t_vlan,
+                                s_vlan,
+                                _verification_outcome_code_for_path(
+                                    vlan_key, "mismatch", t_vlan, s_vlan
+                                ),
+                            )
+                        )
 
                 missing_vlans = sorted(t_vlans - s_vlans)
                 extra_vlans = sorted(s_vlans - t_vlans)
@@ -1430,20 +1666,50 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                 for vlan_id, t_vlan in missing_items:
                     if vlan_id in merged_missing:
                         continue
-                    results.append(_make_result(
-                        f"{full_key}.{vlan_id}", "missing", t_vlan, None, "MISSING_VLAN"
-                    ))
+                    missing_key = f"{full_key}.{vlan_id}"
+                    results.append(
+                        _make_result(
+                            missing_key,
+                            "missing",
+                            t_vlan,
+                            None,
+                            _verification_outcome_code_for_path(
+                                missing_key, "missing", t_vlan, None
+                            )
+                            or "MISSING_VLAN",
+                        )
+                    )
                 for vlan_id, s_vlan in extra_items:
                     if vlan_id in merged_extra:
                         continue
-                    results.append(_make_result(
-                        f"{full_key}.{vlan_id}", "extra", None, s_vlan, "EXTRA_VLAN"
-                    ))
+                    extra_key = f"{full_key}.{vlan_id}"
+                    results.append(
+                        _make_result(
+                            extra_key,
+                            "extra",
+                            None,
+                            s_vlan,
+                            _verification_outcome_code_for_path(
+                                extra_key, "extra", None, s_vlan
+                            )
+                            or "EXTRA_VLAN",
+                        )
+                    )
                 continue
             results.extend(compare_dicts(t_val, s_val, full_key))
         elif isinstance(t_val, list):
             if not isinstance(s_val, list):
-                results.append(_make_result(full_key, "mismatch", t_val, s_val))
+                results.append(
+                    _make_result(
+                        full_key,
+                        "mismatch",
+                        t_val,
+                        s_val,
+                        _verification_outcome_code_for_path(
+                            full_key, "mismatch", t_val, s_val
+                        ),
+                    )
+                )
                 continue
 
             # Special handling for user lists keyed by username.
@@ -1490,12 +1756,32 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
             t_counter = Counter(json.dumps(item, sort_keys=True) for item in t_val)
             s_counter = Counter(json.dumps(item, sort_keys=True) for item in s_val)
             if t_counter != s_counter:
-                results.append(_make_result(full_key, "mismatch", t_val, s_val))
+                results.append(
+                    _make_result(
+                        full_key,
+                        "mismatch",
+                        t_val,
+                        s_val,
+                        _verification_outcome_code_for_path(
+                            full_key, "mismatch", t_val, s_val
+                        ),
+                    )
+                )
             else:
                 results.append(_make_result(full_key, "correct"))
         else:
             if t_val != s_val:
-                results.append(_make_result(full_key, "mismatch", t_val, s_val))
+                results.append(
+                    _make_result(
+                        full_key,
+                        "mismatch",
+                        t_val,
+                        s_val,
+                        _verification_outcome_code_for_path(
+                            full_key, "mismatch", t_val, s_val
+                        ),
+                    )
+                )
             else:
                 results.append(_make_result(full_key, "correct"))
 
@@ -1507,6 +1793,16 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
         if _should_skip_path(full_key):
             continue
         if key not in template:
-            results.append(_make_result(full_key, "extra", None, student[key]))
+            results.append(
+                _make_result(
+                    full_key,
+                    "extra",
+                    None,
+                    student[key],
+                    _verification_outcome_code_for_path(
+                        full_key, "extra", None, student[key]
+                    ),
+                )
+            )
 
     return results

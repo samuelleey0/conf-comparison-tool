@@ -342,6 +342,38 @@ def _default_rubric_rules():
         ("EXTRA_ETHERCHANNEL", "minor", "Extra port-channel group created."),
         ("EXTRA_ETHERCHANNEL_MEMBER", "minor", "Extra interface added to port-channel."),
         ("EXTRA_LINE_ENABLED", "major", "Line access enabled when it should not be."),
+        ("VERIFY_IFACE_DOWN", "minor", "Interface should be up but is down in show ip interface brief."),
+        ("VERIFY_IFACE_IP_WRONG", "major", "Interface IP in show ip interface brief differs from template."),
+        ("VERIFY_IFACE_ADMIN_UP", "major", "Interface should be administratively down but is up."),
+        ("VERIFY_ROUTE_MISSING_DEFAULT", "major", "Expected default route not installed in routing table."),
+        ("VERIFY_ROUTE_MISSING_LEARNED", "major", "Expected learned routes missing from routing table."),
+        ("VERIFY_GATEWAY_WRONG", "major", "Gateway of last resort differs from template."),
+        ("VERIFY_ROUTE_PROTOCOL_ABSENT", "major", "Expected route protocol code absent from routing table."),
+        ("VERIFY_ACL_MISSING", "major", "Template ACL absent in show access-lists."),
+        ("VERIFY_ACL_RULE_WRONG", "major", "ACL rule content differs in show access-lists."),
+        ("VERIFY_ACL_EMPTY", "major", "ACL exists but has no rules in show access-lists."),
+        ("VERIFY_NAT_NOT_WORKING", "major", "NAT translations not present when template shows NAT tested."),
+        ("VERIFY_NAT_IFACE_WRONG", "major", "NAT inside/outside interfaces differ in show ip nat statistics."),
+        ("VERIFY_NAT_MAPPING_WRONG", "major", "NAT ACL-to-pool mappings differ in show ip nat statistics."),
+        ("VERIFY_NAT_POOL_WRONG", "major", "NAT pool details differ in show ip nat statistics."),
+        ("VERIFY_NAT_NO_STATS", "major", "Template has NAT statistics but student has none."),
+        ("VERIFY_DHCP_NOT_ASSIGNING", "minor", "Template shows DHCP bindings but student has none."),
+        ("VERIFY_DHCP_POOL_MISSING", "major", "Required DHCP pool name absent in show ip dhcp pool."),
+        ("VERIFY_DHCP_POOL_EXTRA", "minor", "Extra DHCP pool name present in show ip dhcp pool."),
+        ("VERIFY_VLAN_SCHEME_MISMATCH", "major", "VLAN scheme differs in show vlan brief."),
+        ("VERIFY_VLAN_MISSING", "major", "Required VLAN missing from show vlan brief."),
+        ("VERIFY_VLAN_NAME_WRONG", "minor", "VLAN name differs in show vlan brief."),
+        ("VERIFY_VLAN_NOT_ACTIVE", "major", "VLAN exists but is not active."),
+        ("VERIFY_VLAN_PORT_WRONG", "major", "VLAN port assignments differ in show vlan brief."),
+        ("VERIFY_VLAN_EXTRA", "minor", "Extra VLAN present in show vlan brief."),
+        ("VERIFY_TRUNK_NOT_TRUNKING", "major", "Interface is not trunking in show interfaces trunk."),
+        ("VERIFY_TRUNK_ENCAP_WRONG", "major", "Trunk encapsulation differs in show interfaces trunk."),
+        ("VERIFY_TRUNK_NATIVE_WRONG", "major", "Trunk native VLAN differs in show interfaces trunk."),
+        ("VERIFY_TRUNK_MODE_WRONG", "minor", "Trunk mode differs in show interfaces trunk."),
+        ("VERIFY_PORT_SECURITY_MAX_WRONG", "minor", "Port security maximum differs in show port-security."),
+        ("VERIFY_PORT_SECURITY_ACTION_WRONG", "major", "Port security action differs in show port-security."),
+        ("VERIFY_PORT_SECURITY_VIOLATION", "minor", "Port security violations detected in show port-security."),
+        ("VERIFY_PORT_SECURITY_MISSING_IFACE", "major", "Expected secured interface missing from show port-security."),
     ]
 
     pattern_map = {
@@ -527,6 +559,8 @@ def _default_rubric_rules():
     }
 
     def _get_section(code):
+        if code.startswith("VERIFY_"):
+            return "4 Verification Layer"
         parts = code.split("_")
         # Try matching from the second token (skip MISMATCH/MISSING/EXTRA)
         for i in range(1, len(parts)):
@@ -549,6 +583,8 @@ def _default_rubric_rules():
             statuses = ["missing"]
         elif prefix == "EXTRA":
             statuses = ["extra"]
+        elif prefix == "VERIFY":
+            statuses = ["missing", "extra", "mismatch"]
         category = code.split("_", 2)[1].lower() if "_" in code else "rule"
         subcategory = "_".join(code.split("_")[2:]).lower() if code.count("_") >= 2 else ""
         section = _get_section(code)
