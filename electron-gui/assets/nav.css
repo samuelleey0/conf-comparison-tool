@@ -155,49 +155,108 @@ body.sidebar-collapsed .app-navbar {
   }
 
   .app-navbar {
-    position: static;
+    position: sticky;
+    top: 0;
     width: 100%;
     height: auto;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 20px;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0;
     border-right: none;
-    border-bottom: 1px solid var(--color-border, #d7dae3);
-    box-shadow: 0 6px 12px rgba(10, 18, 36, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     transform: none !important;
+    z-index: 100;
   }
 
   .app-navbar__brand {
     margin-bottom: 0;
-    padding: 0;
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .app-navbar__title {
+    font-size: 0.95rem;
   }
 
   .app-navbar__links {
     flex-direction: row;
-    gap: 8px;
+    gap: 4px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 8px 12px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .app-navbar__links::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
   }
 
   .app-navbar__links li {
     width: auto;
+    flex-shrink: 0;
   }
 
   .app-navbar__links a {
-    padding: 10px 14px;
+    padding: 8px 14px;
     margin: 0;
-    border-radius: 4px;
+    border-radius: 6px;
     justify-content: center;
+    white-space: nowrap;
+    font-size: 0.82rem;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.05);
   }
-  
+
+  .app-navbar__links a:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
   .app-navbar__links a svg {
-    margin-right: 4px;
+    width: 16px;
+    height: 16px;
+    margin-right: 0;
+    flex-shrink: 0;
   }
 
   .app-navbar__links a.active {
     background: #2563eb;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
   }
-  
+
   .app-navbar__links li.nav-bottom-item {
     margin-top: 0;
+  }
+
+  .app-navbar__links li.nav-bottom-item.first-bottom {
+    margin-top: 0;
+    margin-left: auto; /* push utility links to the right */
+  }
+}
+
+@media (max-width: 480px) {
+  .app-navbar__brand {
+    padding: 10px 16px;
+  }
+
+  .app-navbar__title {
+    font-size: 0.85rem;
+  }
+
+  .app-navbar__links {
+    padding: 6px 8px;
+    gap: 3px;
+  }
+
+  .app-navbar__links a {
+    padding: 8px 10px;
+    font-size: 0;        /* hide text, show only icons */
+    gap: 0;
+  }
+
+  .app-navbar__links a svg {
+    width: 18px;
+    height: 18px;
   }
 }

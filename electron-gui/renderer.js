@@ -686,8 +686,13 @@ function renderMainStudentGrid(students) {
       studentCard.style.backgroundColor = "rgba(255, 152, 0, 0.08)";
     }
 
-    const lastExecuted = localStorage.getItem("lastExecutedStudent");
-    if (lastExecuted && lastExecuted === student.student_id) {
+    let completedList = [];
+    try {
+      completedList = JSON.parse(localStorage.getItem("completedStudents") || "[]");
+    } catch (_) {
+      completedList = [];
+    }
+    if (completedList.includes(student.student_id)) {
       studentCard.classList.add("executed-student");
       studentCard.style.borderColor = "var(--color-primary)";
       studentCard.style.backgroundColor = "rgba(31, 59, 115, 0.1)";
@@ -695,7 +700,10 @@ function renderMainStudentGrid(students) {
 
     studentCard.innerHTML = `
         <div style="font-size: 1.2rem;">👤</div>
-        <div style="font-weight: bold; font-size: 0.95rem; word-break: break-all;">${student.student_id}</div>
+        <div style="min-width: 0;">
+          <div style="font-weight: bold; font-size: 0.95rem; word-break: break-all;">${student.student_id}</div>
+          ${student.student_name ? `<div style="font-size: 0.82rem; color: inherit; opacity: 0.85; word-break: break-word;">${student.student_name}</div>` : ""}
+        </div>
     `;
 
     studentCard.onclick = () => {
@@ -1073,7 +1081,7 @@ function setupDirectoryPage() {
         return;
       }
 
-      openAddStudentModal(async (studentId) => {
+      openAddStudentModal(async (studentId, studentName) => {
         const exam = localStorage.getItem("examName");
         const session = localStorage.getItem("sessionId");
         if (!exam || !session) {
@@ -1105,6 +1113,7 @@ function setupDirectoryPage() {
             body: JSON.stringify({
               session_path: sessionPath,
               student_id: studentId.trim(),
+              student_name: (studentName || "").trim(),
             }),
           });
           const res = await fetch(`${API_ROOT}/api/directories`);
@@ -1163,11 +1172,13 @@ function openAddStudentModal(onConfirm) {
   const cancelBtn = document.getElementById("cancelAddStudentBtn");
   const confirmBtn = document.getElementById("confirmAddStudentBtn");
   const input = document.getElementById("newStudentIdInput");
+  const nameInput = document.getElementById("newStudentNameInput");
   if (!overlay || !input || !confirmBtn) return;
 
   const close = () => {
     overlay.classList.add("hidden");
     input.value = "";
+    if (nameInput) nameInput.value = "";
   };
 
   if (closeBtn) closeBtn.onclick = close;
@@ -1181,7 +1192,9 @@ function openAddStudentModal(onConfirm) {
     }
     overlay.classList.add("hidden");
     input.value = "";
-    if (typeof onConfirm === "function") onConfirm(value);
+    const nameValue = nameInput ? (nameInput.value || "").trim() : "";
+    if (nameInput) nameInput.value = "";
+    if (typeof onConfirm === "function") onConfirm(value, nameValue);
   };
 
   overlay.classList.remove("hidden");
@@ -1302,6 +1315,7 @@ function setupSampleCollectPage() {
       mode: conn,
       log_mode: "existing",
       log_dir: dirPath,
+      skip_config: true,
     };
 
     if (conn === "ssh") {
@@ -1721,6 +1735,8 @@ async function saveConnection({ autoRun = false, triggerButton = null } = {}) {
 let executionQueue = [];
 let currentQueueIndex = 0;
 let isSequenceRunning = false;
+let manualNextHostname = null;
+let completedQueueHosts = new Set();
 let pollingDisconnect = false;
 
 function setupConnectionPage() {
@@ -1771,6 +1787,16 @@ function setupConnectionPage() {
             row.style.borderColor = "var(--color-primary)";
             row.style.backgroundColor = "rgba(31, 59, 115, 0.05)";
           }
+
+          row.addEventListener("click", () => {
+            if (isSequenceRunning) {
+              return;
+            }
+            const proceed = confirm(`Start with ${device.hostname} now?`);
+            if (!proceed) return;
+            manualNextHostname = device.hostname;
+            document.getElementById("startSequenceBtn")?.click();
+          });
           
           deviceQueueContainer.appendChild(row);
         });
@@ -1880,6 +1906,7 @@ function setupConnectionPage() {
      if (isSequenceRunning) return;
      isSequenceRunning = true;
      currentQueueIndex = 0;
+     completedQueueHosts = new Set();
      startSequenceBtn.disabled = true;
      startSequenceBtn.textContent = "Sequence Running...";
      doneStudentBtn.disabled = true;
@@ -1889,8 +1916,25 @@ function setupConnectionPage() {
   });
 }
 
+function getNextQueueIndex(preferredHostname) {
+  if (preferredHostname) {
+    const idx = executionQueue.findIndex(
+      (d) => d.hostname === preferredHostname && !completedQueueHosts.has(d.hostname)
+    );
+    if (idx !== -1) return idx;
+  }
+  for (let i = 0; i < executionQueue.length; i++) {
+    const hostname = executionQueue[i].hostname;
+    if (!completedQueueHosts.has(hostname)) return i;
+  }
+  return -1;
+}
+
 async function runNextDeviceInQueue() {
-  if (currentQueueIndex >= executionQueue.length) {
+  const preferred = manualNextHostname;
+  manualNextHostname = null;
+  const nextIndex = getNextQueueIndex(preferred);
+  if (nextIndex === -1) {
     // All done!
     isSequenceRunning = false;
     const finishedStudent = localStorage.getItem("studentId") || "";
@@ -1915,6 +1959,7 @@ async function runNextDeviceInQueue() {
     return;
   }
 
+  currentQueueIndex = nextIndex;
   const currentDevice = executionQueue[currentQueueIndex];
   const row = document.getElementById(`q-${currentDevice.hostname}`);
   const badge = row.querySelector(".q-badge");
@@ -2016,7 +2061,7 @@ async function runNextDeviceInQueue() {
             row.style.backgroundColor = "rgba(40, 167, 69, 0.05)";
             
             appendLogLine(`[SUCCESS] Finished ${currentDevice.hostname}`);
-            currentQueueIndex++;
+            completedQueueHosts.add(currentDevice.hostname);
             runNextDeviceInQueue(); // Recurse next
          } else {
             throw new Error("Execution failed during command run.");

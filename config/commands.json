@@ -5,5 +5,15 @@
     "show vlan brief",
     "show ip route",
     "show etherchannel summary",
-    "show ip ospf neighbor"
+    "show ip ospf neighbor",
+    "show interfaces trunk",
+    "show port-security",
+    "show access-lists",
+    "show ip ospf",
+    "show ip eigrp neighbor",
+    "show ip eigrp",
+    "show ip dhcp binding",
+    "show ip dhcp pool",
+    "show ip nat statistics",
+    "show ip nat translations"
 ]

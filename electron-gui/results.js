@@ -8,6 +8,15 @@ let policyCache = null;
 let currentFilter = "all";
 let currentReport = null;
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function getSessionPath() {
   const storedSession = localStorage.getItem("sessionPath");
   if (storedSession) {
@@ -82,14 +91,16 @@ function renderResultsList(reports) {
     item.dataset.studentId = report.student_id;
 
     const summary = report.summary || {};
-    const errors = (summary.major || 0) + (summary.minor || 0);
     const badge = report.status === "graded"
       ? (report.pass ? "PASS" : "FAIL")
       : "NO RESULTS";
 
     item.innerHTML = `
-      <strong>${report.student_id}</strong>
-      <div class="meta">${badge} • ${errors} errors</div>
+      <div class="student-result-top">
+        <strong>${report.student_id}</strong>
+      </div>
+      <div class="meta">${badge}</div>
+      <div class="student-breakdown">${summary.major || 0} major • ${summary.minor || 0} minor</div>
     `;
 
     item.addEventListener("click", () => {
@@ -129,6 +140,157 @@ function groupByHostname(items) {
   return grouped;
 }
 
+function formatJsonSnippet(value) {
+  if (value === null || value === undefined) {
+    return "(none)";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch (_) {
+    return String(value);
+  }
+}
+
+function renderContextPane(title, pathText, content) {
+  return `
+    <div class="context-pane">
+      <div class="context-pane-header">
+        <strong>${escapeHtml(title)}</strong>
+        <div class="context-pane-path">${escapeHtml(pathText || "(none)")}</div>
+      </div>
+      <pre>${escapeHtml(content)}</pre>
+    </div>
+  `;
+}
+
+function activateContextTab(name) {
+  const modal = document.getElementById("errorContextModal");
+  if (!modal) return;
+  modal.querySelectorAll(".context-tab").forEach((button) => {
+    button.classList.toggle("active", button.dataset.tab === name);
+  });
+  modal.querySelectorAll(".context-tab-panel").forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.tab === name);
+  });
+}
+
+function closeErrorContextModal() {
+  const modal = document.getElementById("errorContextModal");
+  if (!modal) return;
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+}
+
+async function openErrorContext(report, item) {
+  const modal = document.getElementById("errorContextModal");
+  const title = document.getElementById("errorContextTitle");
+  const meta = document.getElementById("errorContextMeta");
+  const body = document.getElementById("errorContextBody");
+  if (!modal || !title || !meta || !body) return;
+
+  title.textContent = item.feature || "Config Context";
+  meta.textContent = "Loading config context...";
+  body.innerHTML = `
+    <div class="context-tabs">
+      <button type="button" class="context-tab active" data-tab="raw">Raw CLI</button>
+      <button type="button" class="context-tab" data-tab="json">Parsed JSON</button>
+    </div>
+    <div class="context-tab-panel active" data-tab="raw">
+      <div class="context-pane"><pre>Loading template CLI excerpt...</pre></div>
+      <div class="context-pane"><pre>Loading student CLI excerpt...</pre></div>
+    </div>
+    <div class="context-tab-panel" data-tab="json">
+      <div class="context-pane"><pre>Loading template config...</pre></div>
+      <div class="context-pane"><pre>Loading student config...</pre></div>
+    </div>
+  `;
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+
+  try {
+    const payload = await fetchJson("/api/error_context", {
+      method: "POST",
+      body: JSON.stringify({
+        target_path: getSessionPath(),
+        student_id: report.student_id,
+        template_name: report.template_name,
+        hostname: item.hostname,
+        feature: item.feature,
+        expected: item.expected,
+        actual: item.actual,
+      }),
+    });
+
+    title.textContent = item.feature || "Config Context";
+    meta.textContent = [
+      payload.context_path ? `Context: ${payload.context_path}` : null,
+      payload.highlight_key ? `Field: ${payload.highlight_key}` : null,
+      item.rule_code ? `Code: ${item.rule_code}` : null,
+      payload.command_hint ? `Source: ${payload.command_hint}` : null,
+    ].filter(Boolean).join(" • ");
+
+    body.innerHTML = `
+      <div class="context-tabs">
+        <button type="button" class="context-tab active" data-tab="raw">Raw CLI</button>
+        <button type="button" class="context-tab" data-tab="json">Parsed JSON</button>
+      </div>
+      <div class="context-tab-panel active" data-tab="raw">
+        ${renderContextPane(
+          "Template",
+          payload.template_raw_path || "Template raw log not found",
+          payload.template_raw_excerpt || "(none)"
+        )}
+        ${renderContextPane(
+          "Student",
+          payload.student_raw_path || "Student raw log not found",
+          payload.student_raw_excerpt || "(none)"
+        )}
+      </div>
+      <div class="context-tab-panel" data-tab="json">
+        ${renderContextPane(
+          "Template",
+          payload.template_config_path || "Template config not found",
+          formatJsonSnippet(payload.template_context)
+        )}
+        ${renderContextPane(
+          "Student",
+          payload.student_config_path || "Student config not found",
+          formatJsonSnippet(payload.student_context)
+        )}
+      </div>
+    `;
+    body.querySelectorAll(".context-tab").forEach((button) => {
+      button.addEventListener("click", () => activateContextTab(button.dataset.tab));
+    });
+    activateContextTab("raw");
+  } catch (err) {
+    meta.textContent = "Failed to load config context.";
+    body.innerHTML = `
+      <div class="context-tab-panel active" data-tab="raw">
+        <div class="context-pane" style="grid-column: 1 / -1;">
+          <pre>${escapeHtml(err.message || "Unable to load config context.")}</pre>
+        </div>
+      </div>
+      <div class="context-tab-panel" data-tab="json">
+        <div class="context-pane" style="grid-column: 1 / -1;">
+          <pre>${escapeHtml(err.message || "Unable to load config context.")}</pre>
+        </div>
+      </div>
+    `;
+  }
+}
+
+function bindContextModalEvents() {
+  const modal = document.getElementById("errorContextModal");
+  if (!modal) return;
+  modal.querySelectorAll(".context-tab").forEach((button) => {
+    button.addEventListener("click", () => activateContextTab(button.dataset.tab));
+  });
+}
+
 function renderReport(report) {
   const panel = document.getElementById("reportPanel");
   if (!panel) return;
@@ -147,14 +309,19 @@ function renderReport(report) {
     <h2>${report.student_id}</h2>
     <p class="hint">Template: ${report.template_name || "Unknown"} • Mode: ${report.grading_mode || "strict"}</p>
     <div class="report-summary">
-      <div class="summary-box" data-filter="all"><strong>Correct</strong><div>${summary.correct || 0}</div></div>
+      <div class="summary-box" data-filter="all"><strong>All Findings</strong><div>${(summary.major || 0) + (summary.minor || 0)}</div></div>
       <div class="summary-box" data-filter="major"><strong>Major Errors</strong><div>${summary.major || 0}</div></div>
       <div class="summary-box" data-filter="minor"><strong>Minor Errors</strong><div>${summary.minor || 0}</div></div>
     </div>
+    <div class="report-details" id="reportDetails"></div>
   `;
+
+  const details = panel.querySelector("#reportDetails");
+  if (!details) return;
 
   panel.querySelectorAll(".summary-box").forEach((box) => {
     const filter = box.dataset.filter || "all";
+    if (!box.dataset.filter) return;
     if (filter === currentFilter) {
       box.style.borderColor = "var(--color-primary)";
       box.style.boxShadow = "0 0 0 2px rgba(31, 59, 115, 0.15)";
@@ -175,7 +342,6 @@ function renderReport(report) {
     } else if (currentFilter === "minor") {
       errors = errors.filter((i) => (i.severity || "minor") === "minor");
     }
-    const corrects = hostItems.filter((i) => i.status === "correct");
 
     const section = document.createElement("div");
     section.className = "report-section";
@@ -188,35 +354,25 @@ function renderReport(report) {
       const div = document.createElement("div");
       const severity = item.severity ? item.severity : "minor";
       const severityClass = severity === "major" ? "severity-major" : "severity-minor";
+      const codeLine = item.rule_code
+        ? `<div class="result-code">Code: ${item.rule_code}</div>`
+        : "";
       div.className = "result-item";
       div.innerHTML = `
         <div class="meta">${item.feature || "(unknown)"}</div>
+        ${codeLine}
         <div class="status ${severityClass}">${item.status || "mismatch"} • ${severity.toUpperCase()}</div>
         <div class="result-values">
           <div><strong>Expected</strong><pre>${formatValue(item.expected)}</pre></div>
           <div><strong>Actual</strong><pre>${formatValue(item.actual)}</pre></div>
         </div>
       `;
+      div.addEventListener("click", () => openErrorContext(report, item));
       errorDetails.appendChild(div);
     });
 
-    const correctDetails = document.createElement("details");
-    correctDetails.innerHTML = `<summary>Correct (${corrects.length})</summary>`;
-    corrects.forEach((item) => {
-      const div = document.createElement("div");
-      div.className = "result-item";
-      div.innerHTML = `
-        <div class="meta">${item.feature || "(unknown)"}</div>
-        <div class="status">correct</div>
-      `;
-      correctDetails.appendChild(div);
-    });
-
     section.appendChild(errorDetails);
-    if (currentFilter === "all") {
-      section.appendChild(correctDetails);
-    }
-    panel.appendChild(section);
+    details.appendChild(section);
   });
 }
 
@@ -295,10 +451,24 @@ document.addEventListener("DOMContentLoaded", () => {
   setSessionLabel();
   document.getElementById("runComparisonBtn")?.addEventListener("click", runComparison);
   document.getElementById("refreshResultsBtn")?.addEventListener("click", refreshResults);
+  document.getElementById("closeErrorContextBtn")?.addEventListener("click", closeErrorContextModal);
+  bindContextModalEvents();
+  document.getElementById("errorContextModal")?.addEventListener("click", (event) => {
+    if (event.target?.id === "errorContextModal") {
+      closeErrorContextModal();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeErrorContextModal();
+    }
+  });
 
   const autoRun = localStorage.getItem("autoRunResults");
   if (autoRun === "true") {
     localStorage.removeItem("autoRunResults");
     runComparison();
+  } else {
+    refreshResults();
   }
 });
