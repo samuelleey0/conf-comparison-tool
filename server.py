@@ -723,11 +723,15 @@ def _load_student_results(student_dir: Path, student_id: str):
     }
 
 
-def _classify_items(items, policy, rubric_rules=None):
+def _compile_rubric_rules(rubric_rules=None):
     rubric_compiled = []
+    rubric_by_code = {}
     for rule in rubric_rules or []:
         if not rule.get("enabled", True):
             continue
+        code = rule.get("code") or rule.get("id")
+        if code:
+            rubric_by_code[code] = rule
         patterns = rule.get("patterns") or []
         compiled_patterns = []
         for pattern in patterns:
@@ -744,8 +748,15 @@ def _classify_items(items, policy, rubric_rules=None):
             statuses = None
         if compiled_patterns:
             rubric_compiled.append((rule, compiled_patterns, statuses))
+    return rubric_compiled, rubric_by_code
 
-    summary = {
+
+def _is_verification_feature(feature: str) -> bool:
+    return str(feature or "").startswith("verification.")
+
+
+def _empty_phase1_summary():
+    return {
         "correct": 0,
         "missing": 0,
         "extra": 0,
@@ -753,47 +764,233 @@ def _classify_items(items, policy, rubric_rules=None):
         "major": 0,
         "minor": 0,
         "skipped": 0,
+        "config_correct": 0,
+        "config_mismatch": 0,
+        "config_missing": 0,
+        "config_extra": 0,
+        "config_skipped": 0,
+        "verify_correct": 0,
+        "verify_failed": 0,
+        "verify_skipped": 0,
+        "verify_deduplicated": 0,
     }
 
-    # Build a lookup from code -> rule for outcome_code matching
-    rubric_by_code = {}
-    for rule, _patterns, _statuses in rubric_compiled:
-        code = rule.get("code") or rule.get("id")
-        if code:
-            rubric_by_code[code] = rule
+
+def _expand_interface_name(name: str) -> str:
+    text = str(name or "").strip()
+    full_names = (
+        "GigabitEthernet",
+        "FastEthernet",
+        "Serial",
+        "Loopback",
+        "Vlan",
+        "Port-channel",
+        "Tunnel",
+    )
+    if text.startswith(full_names):
+        return text
+
+    replacements = (
+        ("Gi", "GigabitEthernet"),
+        ("Fa", "FastEthernet"),
+        ("Se", "Serial"),
+        ("Lo", "Loopback"),
+        ("Vl", "Vlan"),
+        ("Po", "Port-channel"),
+        ("Tu", "Tunnel"),
+    )
+    for short, long_name in replacements:
+        match = re.match(rf"^{re.escape(short)}(?=\d)", text)
+        if match:
+            return long_name + text[match.end() :]
+    return text
+
+
+def _config_block_ref(feature: str):
+    parts = [part for part in str(feature or "").split(".") if part]
+    if not parts:
+        return None
+    if parts[0] != "show_running_config":
+        return None
+
+    if len(parts) >= 3 and parts[1] == "interfaces":
+        return ".".join(parts[:3])
+    if (
+        len(parts) >= 5
+        and parts[1] == "switching"
+        and parts[2] == "etherchannel"
+        and parts[3] == "groups"
+    ):
+        return ".".join(parts[:5])
+    if len(parts) >= 3 and parts[1] in {"routing", "access_lists", "users", "dhcp_pools"}:
+        return ".".join(parts[:3])
+    if len(parts) >= 3 and parts[1] == "switching":
+        return ".".join(parts[:3])
+    if len(parts) >= 3 and parts[1] == "vty":
+        return ".".join(parts[:3])
+    if len(parts) >= 2:
+        return ".".join(parts[:2])
+    return ".".join(parts)
+
+
+def _verification_layer1_ref(feature: str):
+    parts = [part for part in str(feature or "").split(".") if part]
+    if len(parts) < 2 or parts[0] != "verification":
+        return None
+
+    if len(parts) >= 4 and parts[1] == "show_ip_interface_brief" and parts[2] == "interfaces":
+        return f"show_running_config.interfaces.{_expand_interface_name(parts[3])}"
+
+    if len(parts) >= 4 and parts[1] == "show_interfaces_trunk" and parts[2] == "trunks":
+        return f"show_running_config.interfaces.{_expand_interface_name(parts[3])}"
+
+    if len(parts) >= 4 and parts[1] == "show_port_security" and parts[2] == "interfaces":
+        return f"show_running_config.interfaces.{_expand_interface_name(parts[3])}"
+
+    if len(parts) >= 4 and parts[1] == "show_access_lists" and parts[2] == "acls":
+        return f"show_running_config.access_lists.{parts[3]}"
+
+    if len(parts) >= 4 and parts[1] == "show_etherchannel_summary" and parts[2] == "groups":
+        return f"show_running_config.switching.etherchannel.groups.{parts[3]}"
+
+    if parts[1] in {"show_ip_nat_statistics", "show_ip_nat_translations"}:
+        return "show_running_config.nat"
+
+    if parts[1] in {"show_ip_dhcp_binding", "show_ip_dhcp_pool"}:
+        return "show_running_config.dhcp_pools"
+
+    if parts[1] == "show_ip_route":
+        return "show_running_config.routing"
+
+    if parts[1] == "show_vlan_brief":
+        return "show_running_config.__vlan_scheme__"
+
+    return None
+
+
+def _verification_block_name(feature: str):
+    parts = [part for part in str(feature or "").split(".") if part]
+    if len(parts) < 2:
+        return str(feature or "")
+
+    command = parts[1]
+    if command in {"show_ip_interface_brief", "show_interfaces_trunk", "show_port_security"} and len(parts) >= 4:
+        return f"{command}.{parts[3]}"
+    if command in {"show_access_lists", "show_etherchannel_summary"} and len(parts) >= 4:
+        return f"{command}.{parts[3]}"
+    if command == "show_vlan_brief":
+        return "show_vlan_brief.vlan_scheme"
+    if command == "show_ip_route":
+        return "show_ip_route.routing_table"
+    return command
+
+
+def _verification_is_deduplicated(feature: str, failed_config_refs, failed_config_features):
+    layer1_ref = _verification_layer1_ref(feature)
+    if layer1_ref and layer1_ref != "show_running_config.__vlan_scheme__":
+        for failed_ref in failed_config_refs:
+            if (
+                failed_ref == layer1_ref
+                or failed_ref.startswith(layer1_ref)
+                or layer1_ref.startswith(failed_ref)
+            ):
+                return True, layer1_ref
+
+    if str(feature or "").startswith("verification.show_vlan_brief."):
+        for failed_feature in failed_config_features:
+            if any(
+                token in failed_feature
+                for token in [
+                    ".access_vlan",
+                    ".switchport_mode",
+                    ".trunk_native_vlan",
+                    ".trunk_allowed_vlans",
+                    ".Vlan.interface",
+                    ".subinterface",
+                ]
+            ):
+                return True, "show_running_config.__vlan_scheme__"
+
+    if str(feature or "").startswith("verification.show_ip_route."):
+        for failed_feature in failed_config_features:
+            if failed_feature.startswith("show_running_config.routing") or failed_feature.startswith(
+                "show_running_config.switching.default_gateway"
+            ):
+                return True, "show_running_config.routing"
+
+    return False, layer1_ref
+
+
+def _classify_single_item(item, rubric_compiled, rubric_by_code):
+    status = item.get("status")
+    severity = None
+    rule_id = None
+    rule_code = None
+    matched_rule = None
+    if status in {"missing", "extra", "mismatch"}:
+        item_code = item.get("outcome_code")
+        if item_code and item_code in rubric_by_code:
+            matched_rule = rubric_by_code[item_code]
+        else:
+            for rule, patterns, statuses in rubric_compiled:
+                if statuses and status not in statuses:
+                    continue
+                if any(regex.search(item.get("feature", "")) for regex in patterns):
+                    matched_rule = rule
+                    break
+        if matched_rule:
+            severity = (matched_rule.get("severity") or "minor").lower()
+            rule_id = matched_rule.get("id")
+            rule_code = matched_rule.get("code")
+        else:
+            severity = "minor"
+
+    item_copy = dict(item)
+    if severity:
+        item_copy["severity"] = severity
+    if rule_id:
+        item_copy["rule_id"] = rule_id
+    if rule_code:
+        item_copy["rule_code"] = rule_code
+    return item_copy
+
+
+def _classify_items(items, policy, rubric_rules=None):
+    rubric_compiled, rubric_by_code = _compile_rubric_rules(rubric_rules)
+
+    summary = _empty_phase1_summary()
 
     minor_rule_hits = set()
 
-    classified = []
-    for item in items:
-        status = item.get("status")
+    config_items = [item for item in items if not _is_verification_feature(item.get("feature"))]
+    verification_items = [item for item in items if _is_verification_feature(item.get("feature"))]
+
+    classified_config = []
+    failed_config_refs = set()
+    failed_config_features = set()
+
+    for item in config_items:
+        item_copy = _classify_single_item(item, rubric_compiled, rubric_by_code)
+        item_copy["layer"] = "config"
+        item_copy["block_name"] = _config_block_ref(item.get("feature")) or item.get("feature")
+        item_copy["layer1_ref"] = item_copy["block_name"]
+        item_copy["counts_toward_marking"] = item_copy.get("status") in {"missing", "extra", "mismatch"}
+        classified_config.append(item_copy)
+
+        status = item_copy.get("status")
         if status in summary:
             summary[status] += 1
+        config_key = f"config_{status}"
+        if config_key in summary:
+            summary[config_key] += 1
 
-        severity = None
-        rule_id = None
-        rule_code = None
-        matched_rule = None
         if status in {"missing", "extra", "mismatch"}:
-            # 1) Try matching by outcome_code from comparator
-            item_code = item.get("outcome_code")
-            if item_code and item_code in rubric_by_code:
-                matched_rule = rubric_by_code[item_code]
-            else:
-                # 2) Fall back to regex pattern matching
-                for rule, patterns, statuses in rubric_compiled:
-                    if statuses and status not in statuses:
-                        continue
-                    if any(regex.search(item.get("feature", "")) for regex in patterns):
-                        matched_rule = rule
-                        break
-            if matched_rule:
-                severity = (matched_rule.get("severity") or "minor").lower()
-                rule_id = matched_rule.get("id")
-                rule_code = matched_rule.get("code")
-            else:
-                severity = "minor"
-
+            failed_ref = item_copy.get("layer1_ref")
+            if failed_ref:
+                failed_config_refs.add(failed_ref)
+            failed_config_features.add(item_copy.get("feature", ""))
+            severity = item_copy.get("severity", "minor")
+            rule_id = item_copy.get("rule_id")
             if severity == "major":
                 summary["major"] += 1
             else:
@@ -804,16 +1001,49 @@ def _classify_items(items, policy, rubric_rules=None):
                 else:
                     summary["minor"] += 1
 
-        item_copy = dict(item)
-        if severity:
-            item_copy["severity"] = severity
-        if rule_id:
-            item_copy["rule_id"] = rule_id
-        if rule_code:
-            item_copy["rule_code"] = rule_code
-        classified.append(item_copy)
+    classified_verification = []
+    for item in verification_items:
+        item_copy = _classify_single_item(item, rubric_compiled, rubric_by_code)
+        item_copy["layer"] = "verification"
+        item_copy["block_name"] = _verification_block_name(item.get("feature"))
+        deduplicated, layer1_ref = _verification_is_deduplicated(
+            item.get("feature"), failed_config_refs, failed_config_features
+        )
+        item_copy["layer1_ref"] = layer1_ref
+        item_copy["deduplicated"] = deduplicated
+        item_copy["chain_stopped"] = False
+        item_copy["counts_toward_marking"] = (
+            item_copy.get("status") in {"missing", "extra", "mismatch"} and not deduplicated
+        )
+        classified_verification.append(item_copy)
 
-    return classified, summary
+        status = item_copy.get("status")
+        if status in summary:
+            summary[status] += 1
+
+        if status == "correct":
+            summary["verify_correct"] += 1
+        elif status in {"missing", "extra", "mismatch"}:
+            if deduplicated:
+                summary["verify_deduplicated"] += 1
+            else:
+                summary["verify_failed"] += 1
+                severity = item_copy.get("severity", "minor")
+                rule_id = item_copy.get("rule_id")
+                if severity == "major":
+                    summary["major"] += 1
+                else:
+                    if rule_id:
+                        if rule_id not in minor_rule_hits:
+                            summary["minor"] += 1
+                            minor_rule_hits.add(rule_id)
+                    else:
+                        summary["minor"] += 1
+        else:
+            summary["verify_skipped"] += 1
+
+    classified = classified_config + classified_verification
+    return classified, summary, classified_config, classified_verification
 
 
 def _evaluate_pass_fail(summary, policy):
@@ -839,24 +1069,22 @@ def _build_session_reports(target_path: str):
                     "student_id": student_id,
                     "status": "no_results",
                     "pass": False,
-                    "summary": {
-                        "correct": 0,
-                        "missing": 0,
-                        "extra": 0,
-                        "mismatch": 0,
-                        "major": 0,
-                        "minor": 0,
-                        "skipped": 0,
-                    },
+                    "summary": _empty_phase1_summary(),
                     "hostnames": {},
                     "items": [],
+                    "config_results": [],
+                    "verification_results": [],
                 }
             )
             continue
 
-        items, summary = _classify_items(report["items"], policy, rubric_rules)
+        items, summary, config_results, verification_results = _classify_items(
+            report["items"], policy, rubric_rules
+        )
         passed = _evaluate_pass_fail(summary, policy)
         report["items"] = items
+        report["config_results"] = config_results
+        report["verification_results"] = verification_results
         report["summary"] = summary
         report["pass"] = passed
         report["status"] = "graded"
