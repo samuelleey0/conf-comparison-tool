@@ -374,6 +374,29 @@ def _default_rubric_rules():
         ("VERIFY_PORT_SECURITY_ACTION_WRONG", "major", "Port security action differs in show port-security."),
         ("VERIFY_PORT_SECURITY_VIOLATION", "minor", "Port security violations detected in show port-security."),
         ("VERIFY_PORT_SECURITY_MISSING_IFACE", "major", "Expected secured interface missing from show port-security."),
+        ("VERIFY_EIGRP_NO_NEIGHBORS", "major", "No EIGRP neighbors formed."),
+        ("VERIFY_EIGRP_NEIGHBOR_COUNT", "major", "Fewer EIGRP neighbors than expected."),
+        ("VERIFY_EIGRP_WRONG_INTERFACE", "major", "EIGRP neighbor formed on the wrong interface."),
+        ("VERIFY_EIGRP_ROUTE_MISSING", "major", "Expected EIGRP route missing from topology."),
+        ("VERIFY_EIGRP_ROUTE_ACTIVE", "minor", "EIGRP route is Active instead of Passive."),
+        ("VERIFY_EIGRP_IFACE_MISSING", "major", "Required interface missing from EIGRP interfaces."),
+        ("VERIFY_EIGRP_PASSIVE_ACTIVE", "minor", "Passive interface appears active in EIGRP."),
+        ("VERIFY_OSPF_NO_NEIGHBORS", "major", "No OSPF neighbors formed."),
+        ("VERIFY_OSPF_NOT_FULL", "major", "OSPF neighbor not in FULL state."),
+        ("VERIFY_OSPF_NEIGHBOR_COUNT", "major", "Fewer OSPF neighbors than expected."),
+        ("VERIFY_OSPF_WRONG_INTERFACE", "major", "OSPF neighbor formed on the wrong interface."),
+        ("VERIFY_OSPF_NO_ROUTER_LSA", "major", "No Router LSAs present in OSPF database."),
+        ("VERIFY_OSPF_NO_SUMMARY_LSA", "major", "No Summary LSAs present in OSPF database."),
+        ("VERIFY_OSPF_NO_EXTERNAL_LSA", "minor", "No External LSAs present when redistribution is expected."),
+        ("VERIFY_OSPF_WRONG_AREA", "major", "OSPF interface is in the wrong area."),
+        ("VERIFY_OSPF_WRONG_NETWORK_TYPE", "minor", "OSPF network type differs from template."),
+        ("VERIFY_OSPF_IFACE_DOWN", "major", "OSPF interface is down or missing."),
+        ("VERIFY_RIP_DATABASE_EMPTY", "major", "RIP database is empty."),
+        ("VERIFY_RIP_ROUTE_MISSING", "major", "Expected RIP route missing from database."),
+        ("VERIFY_RIP_ROUTE_UNREACHABLE", "major", "RIP route metric is unreachable."),
+        ("VERIFY_RIP_ROUTE_POSSIBLY_DOWN", "minor", "RIP route flagged as possibly down."),
+        ("VERIFY_STATIC_ROUTE_MISSING", "major", "Expected static route not installed."),
+        ("VERIFY_DEFAULT_ROUTE_MISSING", "major", "Default route not installed."),
     ]
 
     pattern_map = {
@@ -874,6 +897,19 @@ def _verification_layer1_ref(feature: str):
     if len(parts) < 2 or parts[0] != "verification":
         return None
 
+    routing_command_map = {
+        "show_ip_eigrp_neighbor": "show_running_config.routing.eigrp",
+        "show_ip_eigrp_topology": "show_running_config.routing.eigrp",
+        "show_ip_eigrp_interfaces": "show_running_config.routing.eigrp",
+        "show_ip_ospf_neighbor": "show_running_config.routing.ospf",
+        "show_ip_ospf_database": "show_running_config.routing.ospf",
+        "show_ip_ospf_interface": "show_running_config.routing.ospf",
+        "show_ip_rip_database": "show_running_config.routing.rip",
+        "show_ip_route_static": "show_running_config.routing.static_routes",
+    }
+    if parts[1] in routing_command_map:
+        return routing_command_map[parts[1]]
+
     if len(parts) >= 4 and parts[1] == "show_ip_interface_brief" and parts[2] == "interfaces":
         return f"show_running_config.interfaces.{_expand_interface_name(parts[3])}"
 
@@ -896,6 +932,10 @@ def _verification_layer1_ref(feature: str):
         return "show_running_config.dhcp_pools"
 
     if parts[1] == "show_ip_route":
+        if len(parts) >= 3 and parts[2] in {"eigrp", "ospf", "rip"}:
+            return f"show_running_config.routing.{parts[2]}"
+        if len(parts) >= 3 and parts[2] == "static":
+            return "show_running_config.routing.static_routes"
         return "show_running_config.routing"
 
     if parts[1] == "show_vlan_brief":
@@ -910,6 +950,19 @@ def _verification_block_name(feature: str):
         return str(feature or "")
 
     command = parts[1]
+    if command in {
+        "show_ip_eigrp_neighbor",
+        "show_ip_eigrp_topology",
+        "show_ip_eigrp_interfaces",
+        "show_ip_ospf_neighbor",
+        "show_ip_ospf_database",
+        "show_ip_ospf_interface",
+        "show_ip_rip_database",
+        "show_ip_route_static",
+    }:
+        if len(parts) >= 3 and parts[2] in {"eigrp", "ospf", "rip", "static"}:
+            return f"{command}.{parts[2]}"
+        return command
     if command in {"show_ip_interface_brief", "show_interfaces_trunk", "show_port_security"} and len(parts) >= 4:
         return f"{command}.{parts[3]}"
     if command in {"show_access_lists", "show_etherchannel_summary"} and len(parts) >= 4:
@@ -917,12 +970,23 @@ def _verification_block_name(feature: str):
     if command == "show_vlan_brief":
         return "show_vlan_brief.vlan_scheme"
     if command == "show_ip_route":
+        if len(parts) >= 3 and parts[2] in {"eigrp", "ospf", "rip", "static", "gateway"}:
+            return f"show_ip_route.{parts[2]}"
         return "show_ip_route.routing_table"
     return command
 
 
 def _verification_is_deduplicated(feature: str, failed_config_refs, failed_config_features):
     layer1_ref = _verification_layer1_ref(feature)
+    if layer1_ref and layer1_ref.startswith("show_running_config.routing."):
+        if any(
+            failed_ref == "show_running_config.routing.protocol"
+            for failed_ref in failed_config_refs
+        ) or any(
+            str(failed_feature).startswith("show_running_config.routing.protocol")
+            for failed_feature in failed_config_features
+        ):
+            return True, layer1_ref
     if layer1_ref and layer1_ref != "show_running_config.__vlan_scheme__":
         for failed_ref in failed_config_refs:
             if (
@@ -1041,13 +1105,13 @@ def _classify_items(items, policy, rubric_rules=None):
     for item in verification_items:
         item_copy = _classify_single_item(item, rubric_compiled, rubric_by_code)
         item_copy["layer"] = "verification"
-        item_copy["block_name"] = _verification_block_name(item.get("feature"))
+        item_copy["block_name"] = item_copy.get("block_name") or _verification_block_name(item.get("feature"))
         deduplicated, layer1_ref = _verification_is_deduplicated(
             item.get("feature"), failed_config_refs, failed_config_features
         )
-        item_copy["layer1_ref"] = layer1_ref
+        item_copy["layer1_ref"] = item_copy.get("layer1_ref") or layer1_ref
         item_copy["deduplicated"] = deduplicated
-        item_copy["chain_stopped"] = False
+        item_copy["chain_stopped"] = bool(item_copy.get("chain_stopped", False))
         item_copy["counts_toward_marking"] = (
             item_copy.get("status") in {"missing", "extra", "mismatch"} and not deduplicated
         )
@@ -1222,6 +1286,14 @@ def _command_hint_for_feature(feature: str):
     mapping = {
         "verification.show_ip_interface_brief.": "show ip interface brief",
         "verification.show_ip_route.": "show ip route",
+        "verification.show_ip_eigrp_neighbor.": "show ip eigrp neighbor",
+        "verification.show_ip_eigrp_topology.": "show ip eigrp topology",
+        "verification.show_ip_eigrp_interfaces.": "show ip eigrp interfaces",
+        "verification.show_ip_ospf_neighbor.": "show ip ospf neighbor",
+        "verification.show_ip_ospf_database.": "show ip ospf database",
+        "verification.show_ip_ospf_interface.": "show ip ospf interface",
+        "verification.show_ip_rip_database.": "show ip rip database",
+        "verification.show_ip_route_static.": "show ip route static",
         "verification.show_vlan_brief.": "show vlan brief",
         "verification.show_access_lists.": "show access-lists",
         "verification.show_interfaces_trunk.": "show interfaces trunk",

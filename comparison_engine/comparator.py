@@ -1123,6 +1123,631 @@ def _verification_outcome_code_for_path(full_key, status, expected=None, actual=
     return None
 
 
+def _normalize_interface_name(name):
+    text = str(name or "").strip()
+    replacements = (
+        ("Gi", "GigabitEthernet"),
+        ("Fa", "FastEthernet"),
+        ("Se", "Serial"),
+        ("Lo", "Loopback"),
+        ("Vl", "Vlan"),
+        ("Po", "Port-channel"),
+        ("Tu", "Tunnel"),
+    )
+    for short, long_name in replacements:
+        match = re.match(rf"^{re.escape(short)}(?=\d)", text)
+        if match:
+            return long_name + text[match.end() :]
+    return text
+
+
+def _normalized_interface_set(values):
+    interfaces = set()
+    for value in values or []:
+        if isinstance(value, dict):
+            name = value.get("name") or value.get("interface")
+        else:
+            name = value
+        normalized = _normalize_interface_name(name)
+        if normalized:
+            interfaces.add(normalized)
+    return interfaces
+
+
+def _make_verification_chain_result(
+    feature,
+    outcome_code,
+    expected,
+    actual,
+    command,
+    level,
+    protocol,
+    chain_stopped=False,
+    details=None,
+):
+    result = _make_result(feature, "mismatch", expected, actual, outcome_code)
+    result["command"] = command
+    result["level"] = level
+    result["protocol"] = protocol
+    result["chain_stopped"] = bool(chain_stopped)
+    result["details"] = details or []
+    return result
+
+
+def _filter_route_table(routes, code_prefixes):
+    filtered = []
+    prefixes = tuple(code_prefixes)
+    for route in routes or []:
+        if not isinstance(route, dict):
+            continue
+        code = str(route.get("code", "")).strip().upper()
+        if code.startswith(prefixes):
+            filtered.append(route)
+    return filtered
+
+
+def _extract_route_destinations(routes):
+    destinations = set()
+    for route in routes or []:
+        if not isinstance(route, dict):
+            continue
+        destination = str(route.get("destination", "")).strip()
+        if destination and destination != "-":
+            destinations.add(destination)
+    return destinations
+
+
+def _route_table_failure(protocol, expected_routes, actual_routes, expected_codes):
+    actual_codes = _route_codes(actual_routes)
+    expected_destinations = _extract_route_destinations(expected_routes)
+    actual_destinations = _extract_route_destinations(actual_routes)
+    missing_code_prefix = [code for code in expected_codes if not any(c.startswith(code.rstrip("*")) for c in actual_codes)]
+    if missing_code_prefix:
+        return "VERIFY_ROUTE_PROTOCOL_ABSENT", {
+            "expected_codes": sorted(expected_codes),
+            "actual_codes": sorted(actual_codes),
+        }
+    missing_destinations = sorted(expected_destinations - actual_destinations)
+    if missing_destinations:
+        return "VERIFY_ROUTE_MISSING_LEARNED", {
+            "expected_destinations": sorted(expected_destinations),
+            "actual_destinations": sorted(actual_destinations),
+        }
+    return None, None
+
+
+def _find_default_static_route(routes):
+    for route in routes or []:
+        if not isinstance(route, dict):
+            continue
+        destination = str(route.get("network") or route.get("destination") or "").strip()
+        mask = str(route.get("mask", "")).strip()
+        if destination in {"0.0.0.0", "0.0.0.0/0"} and mask in {"0.0.0.0", "", "/0"}:
+            return route
+        if destination == "0.0.0.0/0":
+            return route
+    return None
+
+
+def _check_routing_verification(template, student):
+    results = []
+    template_show_run = template.get("show_running_config", {}) or {}
+    student_show_run = student.get("show_running_config", {}) or {}
+    template_routing = template_show_run.get("routing", {}) or {}
+    student_routing = student_show_run.get("routing", {}) or {}
+    template_verification = template.get("verification", {}) or {}
+    student_verification = student.get("verification", {}) or {}
+
+    def _eigrp_result():
+        t_neighbors = (
+            (template_verification.get("show_ip_eigrp_neighbor") or {}).get("neighbors")
+            or []
+        )
+        s_neighbors = (
+            (student_verification.get("show_ip_eigrp_neighbor") or {}).get("neighbors")
+            or []
+        )
+        if t_neighbors:
+            if not s_neighbors:
+                return _make_verification_chain_result(
+                    "verification.show_ip_eigrp_neighbor.level1",
+                    "VERIFY_EIGRP_NO_NEIGHBORS",
+                    f"at least {len(t_neighbors)} EIGRP neighbors",
+                    "0 neighbors",
+                    "show_ip_eigrp_neighbor",
+                    1,
+                    "eigrp",
+                    chain_stopped=True,
+                )
+            if len(s_neighbors) < len(t_neighbors):
+                return _make_verification_chain_result(
+                    "verification.show_ip_eigrp_neighbor.level1",
+                    "VERIFY_EIGRP_NEIGHBOR_COUNT",
+                    f"{len(t_neighbors)} EIGRP neighbors",
+                    f"{len(s_neighbors)} neighbors",
+                    "show_ip_eigrp_neighbor",
+                    1,
+                    "eigrp",
+                    chain_stopped=True,
+                )
+            t_ifaces = _normalized_interface_set(t_neighbors)
+            s_ifaces = _normalized_interface_set(s_neighbors)
+            if not t_ifaces.issubset(s_ifaces):
+                return _make_verification_chain_result(
+                    "verification.show_ip_eigrp_neighbor.level1",
+                    "VERIFY_EIGRP_WRONG_INTERFACE",
+                    sorted(t_ifaces),
+                    sorted(s_ifaces),
+                    "show_ip_eigrp_neighbor",
+                    1,
+                    "eigrp",
+                    chain_stopped=True,
+                )
+
+        t_topology = (template_verification.get("show_ip_eigrp_topology") or {}).get("routes") or []
+        s_topology = (student_verification.get("show_ip_eigrp_topology") or {}).get("routes") or []
+        if t_topology:
+            t_destinations = _extract_route_destinations(t_topology)
+            s_destinations = _extract_route_destinations(s_topology)
+            missing = sorted(t_destinations - s_destinations)
+            if missing:
+                return _make_verification_chain_result(
+                    "verification.show_ip_eigrp_topology.level2",
+                    "VERIFY_EIGRP_ROUTE_MISSING",
+                    sorted(t_destinations),
+                    sorted(s_destinations),
+                    "show_ip_eigrp_topology",
+                    2,
+                    "eigrp",
+                    chain_stopped=True,
+                    details=missing,
+                )
+            s_topology_by_dest = {
+                str(route.get("destination", "")).strip(): str(route.get("state", "")).strip().lower()
+                for route in s_topology
+                if isinstance(route, dict)
+            }
+            for route in t_topology:
+                destination = str(route.get("destination", "")).strip()
+                if not destination:
+                    continue
+                if s_topology_by_dest.get(destination) == "active":
+                    return _make_verification_chain_result(
+                        "verification.show_ip_eigrp_topology.level2",
+                        "VERIFY_EIGRP_ROUTE_ACTIVE",
+                        "Passive EIGRP topology state",
+                        f"{destination} is Active",
+                        "show_ip_eigrp_topology",
+                        2,
+                        "eigrp",
+                        chain_stopped=True,
+                    )
+
+        t_eigrp_interfaces = (
+            (template_verification.get("show_ip_eigrp_interfaces") or {}).get("interfaces")
+            or []
+        )
+        s_eigrp_interfaces = (
+            (student_verification.get("show_ip_eigrp_interfaces") or {}).get("interfaces")
+            or []
+        )
+        if t_eigrp_interfaces:
+            t_ifaces = _normalized_interface_set(t_eigrp_interfaces)
+            s_ifaces = _normalized_interface_set(s_eigrp_interfaces)
+            missing = sorted(t_ifaces - s_ifaces)
+            if missing:
+                return _make_verification_chain_result(
+                    "verification.show_ip_eigrp_interfaces.level2",
+                    "VERIFY_EIGRP_IFACE_MISSING",
+                    sorted(t_ifaces),
+                    sorted(s_ifaces),
+                    "show_ip_eigrp_interfaces",
+                    2,
+                    "eigrp",
+                    chain_stopped=True,
+                    details=missing,
+                )
+
+        passive = set()
+        for process in template_routing.get("eigrp", []) or []:
+            passive.update(_normalized_interface_set(process.get("passive_interfaces") or []))
+        if passive and s_eigrp_interfaces:
+            s_ifaces = _normalized_interface_set(s_eigrp_interfaces)
+            active_passive = sorted(passive & s_ifaces)
+            if active_passive:
+                return _make_verification_chain_result(
+                    "verification.show_ip_eigrp_interfaces.level2",
+                    "VERIFY_EIGRP_PASSIVE_ACTIVE",
+                    f"passive interfaces absent from EIGRP: {sorted(passive)}",
+                    f"present in EIGRP: {active_passive}",
+                    "show_ip_eigrp_interfaces",
+                    2,
+                    "eigrp",
+                    chain_stopped=True,
+                )
+
+        t_route = template_verification.get("show_ip_route") or {}
+        s_route = student_verification.get("show_ip_route") or {}
+        t_routes = _filter_route_table(t_route.get("routes") or [], {"D"})
+        s_routes = _filter_route_table(s_route.get("routes") or [], {"D"})
+        if t_routes:
+            code, details = _route_table_failure("eigrp", t_routes, s_routes, {"D"})
+            if code:
+                return _make_verification_chain_result(
+                    "verification.show_ip_route.eigrp.level3",
+                    code,
+                    details.get("expected_destinations") or details.get("expected_codes"),
+                    details.get("actual_destinations") or details.get("actual_codes"),
+                    "show_ip_route",
+                    3,
+                    "eigrp",
+                )
+        return None
+
+    def _ospf_result():
+        t_neighbors = (
+            (template_verification.get("show_ip_ospf_neighbor") or {}).get("neighbors")
+            or []
+        )
+        s_neighbors = (
+            (student_verification.get("show_ip_ospf_neighbor") or {}).get("neighbors")
+            or []
+        )
+        if t_neighbors:
+            if not s_neighbors:
+                return _make_verification_chain_result(
+                    "verification.show_ip_ospf_neighbor.level1",
+                    "VERIFY_OSPF_NO_NEIGHBORS",
+                    f"at least {len(t_neighbors)} OSPF neighbors",
+                    "0 neighbors",
+                    "show_ip_ospf_neighbor",
+                    1,
+                    "ospf",
+                    chain_stopped=True,
+                )
+            if len(s_neighbors) < len(t_neighbors):
+                return _make_verification_chain_result(
+                    "verification.show_ip_ospf_neighbor.level1",
+                    "VERIFY_OSPF_NEIGHBOR_COUNT",
+                    f"{len(t_neighbors)} OSPF neighbors",
+                    f"{len(s_neighbors)} neighbors",
+                    "show_ip_ospf_neighbor",
+                    1,
+                    "ospf",
+                    chain_stopped=True,
+                )
+            for neighbor in s_neighbors:
+                state = str(neighbor.get("state", "")).upper()
+                if state and not state.startswith("FULL"):
+                    return _make_verification_chain_result(
+                        "verification.show_ip_ospf_neighbor.level1",
+                        "VERIFY_OSPF_NOT_FULL",
+                        "FULL OSPF adjacency",
+                        state,
+                        "show_ip_ospf_neighbor",
+                        1,
+                        "ospf",
+                        chain_stopped=True,
+                    )
+            t_ifaces = _normalized_interface_set(t_neighbors)
+            s_ifaces = _normalized_interface_set(s_neighbors)
+            if not t_ifaces.issubset(s_ifaces):
+                return _make_verification_chain_result(
+                    "verification.show_ip_ospf_neighbor.level1",
+                    "VERIFY_OSPF_WRONG_INTERFACE",
+                    sorted(t_ifaces),
+                    sorted(s_ifaces),
+                    "show_ip_ospf_neighbor",
+                    1,
+                    "ospf",
+                    chain_stopped=True,
+                )
+
+        t_db = (template_verification.get("show_ip_ospf_database") or {}).get("lsa_types") or {}
+        s_db = (student_verification.get("show_ip_ospf_database") or {}).get("lsa_types") or {}
+        if t_db.get("router", 0) > 0 and s_db.get("router", 0) == 0:
+            return _make_verification_chain_result(
+                "verification.show_ip_ospf_database.level2",
+                "VERIFY_OSPF_NO_ROUTER_LSA",
+                "router LSAs present",
+                "0 router LSAs",
+                "show_ip_ospf_database",
+                2,
+                "ospf",
+                chain_stopped=True,
+            )
+        if t_db.get("summary_net", 0) > 0 and s_db.get("summary_net", 0) == 0:
+            return _make_verification_chain_result(
+                "verification.show_ip_ospf_database.level2",
+                "VERIFY_OSPF_NO_SUMMARY_LSA",
+                "summary LSAs present",
+                "0 summary LSAs",
+                "show_ip_ospf_database",
+                2,
+                "ospf",
+                chain_stopped=True,
+            )
+        if t_db.get("as_external", 0) > 0 and s_db.get("as_external", 0) == 0:
+            return _make_verification_chain_result(
+                "verification.show_ip_ospf_database.level2",
+                "VERIFY_OSPF_NO_EXTERNAL_LSA",
+                "external LSAs present",
+                "0 external LSAs",
+                "show_ip_ospf_database",
+                2,
+                "ospf",
+                chain_stopped=True,
+            )
+
+        t_interfaces = (
+            (template_verification.get("show_ip_ospf_interface") or {}).get("interfaces")
+            or []
+        )
+        s_interfaces = (
+            (student_verification.get("show_ip_ospf_interface") or {}).get("interfaces")
+            or []
+        )
+        if t_interfaces:
+            s_by_name = {
+                _normalize_interface_name(interface.get("name")): interface
+                for interface in s_interfaces
+                if isinstance(interface, dict)
+            }
+            for interface in t_interfaces:
+                name = _normalize_interface_name(interface.get("name"))
+                if not name:
+                    continue
+                student_interface = s_by_name.get(name)
+                if not student_interface:
+                    return _make_verification_chain_result(
+                        "verification.show_ip_ospf_interface.level2",
+                        "VERIFY_OSPF_IFACE_DOWN",
+                        f"{name} present in OSPF interface table",
+                        "missing",
+                        "show_ip_ospf_interface",
+                        2,
+                        "ospf",
+                        chain_stopped=True,
+                    )
+                if str(interface.get("area", "")).strip() != str(student_interface.get("area", "")).strip():
+                    return _make_verification_chain_result(
+                        f"verification.show_ip_ospf_interface.level2.{name}.area",
+                        "VERIFY_OSPF_WRONG_AREA",
+                        interface.get("area"),
+                        student_interface.get("area"),
+                        "show_ip_ospf_interface",
+                        2,
+                        "ospf",
+                        chain_stopped=True,
+                    )
+                t_network_type = str(interface.get("network_type", "")).strip().upper()
+                s_network_type = str(student_interface.get("network_type", "")).strip().upper()
+                if t_network_type == "POINT_TO_POINT" and s_network_type != "POINT_TO_POINT":
+                    return _make_verification_chain_result(
+                        f"verification.show_ip_ospf_interface.level2.{name}.network_type",
+                        "VERIFY_OSPF_WRONG_NETWORK_TYPE",
+                        t_network_type,
+                        s_network_type,
+                        "show_ip_ospf_interface",
+                        2,
+                        "ospf",
+                        chain_stopped=True,
+                    )
+                if str(student_interface.get("state", "")).strip().upper() == "DOWN":
+                    return _make_verification_chain_result(
+                        f"verification.show_ip_ospf_interface.level2.{name}.state",
+                        "VERIFY_OSPF_IFACE_DOWN",
+                        "not DOWN",
+                        "DOWN",
+                        "show_ip_ospf_interface",
+                        2,
+                        "ospf",
+                        chain_stopped=True,
+                    )
+
+        t_route = template_verification.get("show_ip_route") or {}
+        s_route = student_verification.get("show_ip_route") or {}
+        t_routes = _filter_route_table(t_route.get("routes") or [], {"O"})
+        s_routes = _filter_route_table(s_route.get("routes") or [], {"O"})
+        if t_routes:
+            code, details = _route_table_failure("ospf", t_routes, s_routes, {"O"})
+            if code:
+                return _make_verification_chain_result(
+                    "verification.show_ip_route.ospf.level3",
+                    code,
+                    details.get("expected_destinations") or details.get("expected_codes"),
+                    details.get("actual_destinations") or details.get("actual_codes"),
+                    "show_ip_route",
+                    3,
+                    "ospf",
+                )
+        return None
+
+    def _rip_result():
+        t_db = (template_verification.get("show_ip_rip_database") or {}).get("routes") or []
+        s_db = (student_verification.get("show_ip_rip_database") or {}).get("routes") or []
+        if t_db:
+            if not s_db:
+                return _make_verification_chain_result(
+                    "verification.show_ip_rip_database.level2",
+                    "VERIFY_RIP_DATABASE_EMPTY",
+                    "RIP database entries",
+                    "0 routes",
+                    "show_ip_rip_database",
+                    2,
+                    "rip",
+                    chain_stopped=True,
+                )
+            t_dest = _extract_route_destinations(t_db)
+            s_dest = _extract_route_destinations(s_db)
+            missing = sorted(t_dest - s_dest)
+            if missing:
+                return _make_verification_chain_result(
+                    "verification.show_ip_rip_database.level2",
+                    "VERIFY_RIP_ROUTE_MISSING",
+                    sorted(t_dest),
+                    sorted(s_dest),
+                    "show_ip_rip_database",
+                    2,
+                    "rip",
+                    chain_stopped=True,
+                    details=missing,
+                )
+            for route in s_db:
+                if int(route.get("metric", 0) or 0) >= 16:
+                    return _make_verification_chain_result(
+                        "verification.show_ip_rip_database.level2",
+                        "VERIFY_RIP_ROUTE_UNREACHABLE",
+                        "metric < 16",
+                        route,
+                        "show_ip_rip_database",
+                        2,
+                        "rip",
+                        chain_stopped=True,
+                    )
+                if route.get("possibly_down"):
+                    return _make_verification_chain_result(
+                        "verification.show_ip_rip_database.level2",
+                        "VERIFY_RIP_ROUTE_POSSIBLY_DOWN",
+                        "possibly_down = false",
+                        route,
+                        "show_ip_rip_database",
+                        2,
+                        "rip",
+                        chain_stopped=True,
+                    )
+
+        t_route = template_verification.get("show_ip_route") or {}
+        s_route = student_verification.get("show_ip_route") or {}
+        t_routes = _filter_route_table(t_route.get("routes") or [], {"R"})
+        s_routes = _filter_route_table(s_route.get("routes") or [], {"R"})
+        if t_routes:
+            code, details = _route_table_failure("rip", t_routes, s_routes, {"R"})
+            if code:
+                return _make_verification_chain_result(
+                    "verification.show_ip_route.rip.level3",
+                    code,
+                    details.get("expected_destinations") or details.get("expected_codes"),
+                    details.get("actual_destinations") or details.get("actual_codes"),
+                    "show_ip_route",
+                    3,
+                    "rip",
+                )
+        return None
+
+    def _static_result():
+        t_static = template_routing.get("static_routes") or []
+        if not t_static:
+            return None
+        s_route_static = (student_verification.get("show_ip_route_static") or {}).get("routes") or []
+        if not s_route_static:
+            show_ip_route = student_verification.get("show_ip_route") or {}
+            s_route_static = _filter_route_table(show_ip_route.get("routes") or [], {"S"})
+
+        t_default = _find_default_static_route(t_static)
+        if t_default:
+            default_present = any(
+                str(route.get("destination", "")).strip() == "0.0.0.0/0"
+                or (
+                    str(route.get("destination", "")).strip() == "0.0.0.0"
+                    and str(route.get("mask", "")).strip() == "0.0.0.0"
+                )
+                for route in s_route_static
+            )
+            if not default_present:
+                return _make_verification_chain_result(
+                    "verification.show_ip_route.static.level3.default",
+                    "VERIFY_DEFAULT_ROUTE_MISSING",
+                    "default route installed",
+                    "default route absent",
+                    "show_ip_route_static",
+                    3,
+                    "static",
+                )
+
+        expected_static = set()
+        for route in t_static:
+            if not isinstance(route, dict):
+                continue
+            network = str(route.get("network", "")).strip()
+            mask = str(route.get("mask", "")).strip()
+            if network and mask and not (network == "0.0.0.0" and mask == "0.0.0.0"):
+                try:
+                    expected_static.add(str(ipaddress.IPv4Network(f"{network}/{mask}", strict=False)))
+                except Exception:
+                    expected_static.add(f"{network}/{mask}")
+
+        actual_static = set()
+        for route in s_route_static:
+            if not isinstance(route, dict):
+                continue
+            destination = str(route.get("destination", "")).strip()
+            mask = str(route.get("mask", "")).strip()
+            if destination:
+                if "/" in destination:
+                    actual_static.add(destination)
+                elif mask:
+                    try:
+                        actual_static.add(str(ipaddress.IPv4Network(f"{destination}/{mask}", strict=False)))
+                    except Exception:
+                        actual_static.add(f"{destination}/{mask}")
+
+        missing_static = sorted(expected_static - actual_static)
+        if missing_static:
+            return _make_verification_chain_result(
+                "verification.show_ip_route.static.level3.routes",
+                "VERIFY_STATIC_ROUTE_MISSING",
+                sorted(expected_static),
+                sorted(actual_static),
+                "show_ip_route_static",
+                3,
+                "static",
+                details=missing_static,
+            )
+        return None
+
+    t_protocols = {
+        proto
+        for proto in ("eigrp", "ospf", "rip")
+        if template_routing.get(proto)
+    }
+
+    if "eigrp" in t_protocols:
+        result = _eigrp_result()
+        if result:
+            results.append(result)
+    if "ospf" in t_protocols:
+        result = _ospf_result()
+        if result:
+            results.append(result)
+    if "rip" in t_protocols:
+        result = _rip_result()
+        if result:
+            results.append(result)
+    static_result = _static_result()
+    if static_result:
+        results.append(static_result)
+
+    t_gateway = (template_verification.get("show_ip_route") or {}).get("gateway", {}) or {}
+    s_gateway = (student_verification.get("show_ip_route") or {}).get("gateway", {}) or {}
+    t_next_hop = str(t_gateway.get("next_hop", "")).strip()
+    s_next_hop = str(s_gateway.get("next_hop", "")).strip()
+    if t_next_hop and s_next_hop and t_next_hop != s_next_hop:
+        results.append(
+            _make_verification_chain_result(
+                "verification.show_ip_route.gateway.level3",
+                "VERIFY_GATEWAY_WRONG",
+                t_next_hop,
+                s_next_hop,
+                "show_ip_route",
+                3,
+                None,
+            )
+        )
+
+    return results
+
+
 def compare_dicts(template: dict, student: dict, parent_key="") -> list:
     """
     Recursively compares two dictionaries and returns structured results.
@@ -1202,6 +1827,11 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
         if "sticky_macs" in path:
             return True
         if path.endswith("switching.spanning_tree.extend_system_id"):
+            return True
+        if re.search(
+            r"^verification\.(show_ip_eigrp|show_ip_ospf|show_ip_rip_database|show_ip_route_static|show_ip_route)(\.|$)",
+            path,
+        ):
             return True
         if re.search(
             r"verification\.show_vlan_brief\.vlans\.(1002|1003|1004|1005)(\.|$)",
@@ -1288,6 +1918,9 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
         s_ec_summary = student_verification.get("show_etherchannel_summary", {})
         if t_ec_summary and s_ec_summary:
             results.extend(_check_etherchannel_members(t_ec_summary, s_ec_summary))
+
+        # Routing verification chain (neighbors -> protocol DB/interfaces -> route table)
+        results.extend(_check_routing_verification(template, student))
 
     for key, t_val in template.items():
         full_key = f"{parent_key}.{key}" if parent_key else key

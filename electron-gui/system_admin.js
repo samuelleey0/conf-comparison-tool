@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const saveRubricBtn = document.getElementById("saveRubricBtn");
   const rubricRulesContainer = document.getElementById("rubricRulesContainer");
   const rubricFilterButtons = document.getElementById("rubricFilterButtons");
+  const DEFAULT_RUBRIC_SECTION = "3.2.1 Hostname & Banner";
 
   const templateList = document.getElementById("templateList");
   const resultList = document.getElementById("resultList");
@@ -28,7 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let globalCommands = [];
   let rubricRules = [];
-  let selectedRubricCategory = "all";
+  let selectedRubricCategory = DEFAULT_RUBRIC_SECTION;
 
   async function fetchJson(url, options = {}) {
     const res = await fetch(url, {
@@ -338,6 +339,14 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const data = await fetchJson("http://127.0.0.1:5050/api/rubric_rules");
       rubricRules = data.rules || [];
+      const availableSections = new Set(
+        rubricRules.map((rule) => rule.section || rule.category || "").filter(Boolean)
+      );
+      if (!availableSections.has(selectedRubricCategory)) {
+        selectedRubricCategory = availableSections.has(DEFAULT_RUBRIC_SECTION)
+          ? DEFAULT_RUBRIC_SECTION
+          : "all";
+      }
       renderRubricFilters();
       renderRubricRules();
     } catch (err) {

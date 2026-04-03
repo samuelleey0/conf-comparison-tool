@@ -15,5 +15,11 @@
     "show ip dhcp binding",
     "show ip dhcp pool",
     "show ip nat statistics",
-    "show ip nat translations"
+    "show ip nat translations",
+    "show ip eigrp topology",
+    "show ip eigrp interfaces",
+    "show ip ospf database",
+    "show ip ospf interface",
+    "show ip rip database",
+    "show ip route static"
 ]

@@ -508,6 +508,13 @@ button.block {
   border-radius: 999px;
   font-size: 0.8rem;
   cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.rubric-filter-btn:hover {
+  background: #eef3ff;
+  border-color: rgba(31, 59, 115, 0.35);
+  color: var(--color-primary);
 }
 
 .rubric-filter-btn.active {
@@ -515,6 +522,11 @@ button.block {
   border-color: var(--color-primary);
   color: var(--color-primary);
   font-weight: 600;
+}
+
+.rubric-filter-btn.active:hover {
+  background: rgba(31, 59, 115, 0.16);
+  color: var(--color-primary);
 }
 
 .rubric-rules-grid {

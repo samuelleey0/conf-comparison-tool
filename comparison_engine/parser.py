@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import ipaddress
 
 from comparison_engine.compare_utils import should_ignore
 
@@ -194,6 +195,65 @@ def normalize_parsed_config(parsed):
             key=lambda entry: (entry.get("address", ""), entry.get("interface", "")),
         )
 
+    eigrp_topology = verification.get("show_ip_eigrp_topology", {})
+    if isinstance(eigrp_topology, dict):
+        routes = eigrp_topology.get("routes", [])
+        compact_routes = []
+        if isinstance(routes, list):
+            for item in routes:
+                if not isinstance(item, dict):
+                    continue
+                destination = str(item.get("destination", "")).strip()
+                state = str(item.get("state", "")).strip()
+                successors = item.get("successors")
+                via_entries = []
+                for via in item.get("via", []) or []:
+                    if not isinstance(via, dict):
+                        continue
+                    interface = str(via.get("interface", "")).strip()
+                    address = str(via.get("address", "")).strip()
+                    if interface or address:
+                        via_entries.append({"address": address, "interface": interface})
+                if destination:
+                    compact_routes.append(
+                        {
+                            "destination": destination,
+                            "state": state,
+                            "successors": successors,
+                            "via": sorted(
+                                via_entries,
+                                key=lambda entry: (
+                                    entry.get("interface", ""),
+                                    entry.get("address", ""),
+                                ),
+                            ),
+                        }
+                    )
+        eigrp_topology["routes"] = sorted(
+            compact_routes,
+            key=lambda entry: entry.get("destination", ""),
+        )
+
+    eigrp_interfaces = verification.get("show_ip_eigrp_interfaces", {})
+    if isinstance(eigrp_interfaces, dict):
+        interfaces = eigrp_interfaces.get("interfaces", [])
+        compact_interfaces = []
+        if isinstance(interfaces, list):
+            for item in interfaces:
+                if not isinstance(item, dict):
+                    continue
+                name = str(item.get("name", "")).strip()
+                if name:
+                    compact_interfaces.append(
+                        {
+                            "name": name,
+                            "peers": item.get("peers"),
+                        }
+                    )
+        eigrp_interfaces["interfaces"] = sorted(
+            compact_interfaces, key=lambda entry: entry.get("name", "")
+        )
+
     # Normalize OSPF neighbors to stable identity fields only.
     ospf_neighbor = verification.get("show_ip_ospf_neighbor", {})
     if isinstance(ospf_neighbor, dict):
@@ -207,12 +267,99 @@ def normalize_parsed_config(parsed):
                 interface = str(item.get("interface", "")).strip()
                 if address and interface:
                     compact_neighbors.append(
-                        {"address": address, "interface": interface}
+                        {
+                            "address": address,
+                            "interface": interface,
+                            "state": str(item.get("state", "")).strip(),
+                        }
                     )
 
         ospf_neighbor["neighbors"] = sorted(
             compact_neighbors,
-            key=lambda entry: (entry.get("address", ""), entry.get("interface", "")),
+            key=lambda entry: (
+                entry.get("address", ""),
+                entry.get("interface", ""),
+                entry.get("state", ""),
+            ),
+        )
+
+    ospf_database = verification.get("show_ip_ospf_database", {})
+    if isinstance(ospf_database, dict):
+        lsa_types = ospf_database.get("lsa_types", {})
+        if not isinstance(lsa_types, dict):
+            lsa_types = {}
+        ospf_database["lsa_types"] = {
+            "router": int(lsa_types.get("router", 0) or 0),
+            "network": int(lsa_types.get("network", 0) or 0),
+            "summary_net": int(lsa_types.get("summary_net", 0) or 0),
+            "summary_asbr": int(lsa_types.get("summary_asbr", 0) or 0),
+            "as_external": int(lsa_types.get("as_external", 0) or 0),
+        }
+
+    ospf_interface = verification.get("show_ip_ospf_interface", {})
+    if isinstance(ospf_interface, dict):
+        interfaces = ospf_interface.get("interfaces", [])
+        compact_interfaces = []
+        if isinstance(interfaces, list):
+            for item in interfaces:
+                if not isinstance(item, dict):
+                    continue
+                name = str(item.get("name", "")).strip()
+                if name:
+                    compact_interfaces.append(
+                        {
+                            "name": name,
+                            "area": str(item.get("area", "")).strip(),
+                            "network_type": str(item.get("network_type", "")).strip(),
+                            "state": str(item.get("state", "")).strip(),
+                        }
+                    )
+        ospf_interface["interfaces"] = sorted(
+            compact_interfaces, key=lambda entry: entry.get("name", "")
+        )
+
+    rip_database = verification.get("show_ip_rip_database", {})
+    if isinstance(rip_database, dict):
+        routes = rip_database.get("routes", [])
+        compact_routes = []
+        if isinstance(routes, list):
+            for item in routes:
+                if not isinstance(item, dict):
+                    continue
+                destination = str(item.get("destination", "")).strip()
+                if destination:
+                    compact_routes.append(
+                        {
+                            "destination": destination,
+                            "metric": int(item.get("metric", 0) or 0),
+                            "possibly_down": bool(item.get("possibly_down", False)),
+                        }
+                    )
+        rip_database["routes"] = sorted(
+            compact_routes, key=lambda entry: entry.get("destination", "")
+        )
+
+    route_static = verification.get("show_ip_route_static", {})
+    if isinstance(route_static, dict):
+        routes = route_static.get("routes", [])
+        compact_routes = []
+        if isinstance(routes, list):
+            for item in routes:
+                if not isinstance(item, dict):
+                    continue
+                destination = str(item.get("destination", "")).strip()
+                if destination:
+                    compact_routes.append(
+                        {
+                            "destination": destination,
+                            "mask": str(item.get("mask", "")).strip(),
+                            "next_hop": str(item.get("next_hop", "")).strip(),
+                            "interface": str(item.get("interface", "")).strip(),
+                        }
+                    )
+        route_static["routes"] = sorted(
+            compact_routes,
+            key=lambda entry: (entry.get("destination", ""), entry.get("mask", "")),
         )
 
     normalized["schema_version"] = PARSED_SCHEMA_VERSION
@@ -275,6 +422,16 @@ COMMAND_TOKENS = {
         "sh ip eigrp neighbor",
         "sh ip eigrp neigh",
     ],
+    "show_ip_eigrp_topology": [
+        "show ip eigrp topology",
+        "show_ip_eigrp_topology",
+        "sh ip eigrp topology",
+    ],
+    "show_ip_eigrp_interfaces": [
+        "show ip eigrp interfaces",
+        "show_ip_eigrp_interfaces",
+        "sh ip eigrp interfaces",
+    ],
     "show_ip_ospf": [
         "show ip ospf",
         "show_ip_ospf",
@@ -285,6 +442,26 @@ COMMAND_TOKENS = {
         "show_ip_ospf_neighbor",
         "sh ip ospf neighbor",
         "sh ip ospf neigh",
+    ],
+    "show_ip_ospf_database": [
+        "show ip ospf database",
+        "show_ip_ospf_database",
+        "sh ip ospf database",
+    ],
+    "show_ip_ospf_interface": [
+        "show ip ospf interface",
+        "show_ip_ospf_interface",
+        "sh ip ospf interface",
+    ],
+    "show_ip_rip_database": [
+        "show ip rip database",
+        "show_ip_rip_database",
+        "sh ip rip database",
+    ],
+    "show_ip_route_static": [
+        "show ip route static",
+        "show_ip_route_static",
+        "sh ip route static",
     ],
     "show_interfaces_trunk": [
         "show interfaces trunk",
@@ -1435,6 +1612,85 @@ def parse_show_ip_eigrp_neighbor(file_path):
     return result
 
 
+def parse_show_ip_eigrp_topology(file_path):
+    result = {"routes": []}
+    lines = _clean_log_lines(file_path)
+    current_route = None
+
+    for line in lines:
+        stripped = line.strip()
+        lower = stripped.lower()
+        if (
+            not stripped
+            or _is_device_prompt(stripped)
+            or lower.startswith("show ip eigrp topology")
+            or lower.startswith("ip-eigrp topology")
+            or lower.startswith("codes:")
+        ):
+            continue
+
+        route_match = re.match(
+            r"^(?P<state>[PA])\s+(?P<destination>\S+),\s+(?P<successors>\d+)\s+successors?",
+            stripped,
+            flags=re.IGNORECASE,
+        )
+        if route_match:
+            current_route = {
+                "destination": route_match.group("destination"),
+                "state": "Passive" if route_match.group("state").upper() == "P" else "Active",
+                "successors": int(route_match.group("successors")),
+                "via": [],
+            }
+            result["routes"].append(current_route)
+            continue
+
+        if current_route and lower.startswith("via "):
+            via_match = re.match(
+                r"^via\s+(?P<address>[^,\s]+).*?,\s*(?P<interface>\S+)\s*$",
+                stripped,
+                flags=re.IGNORECASE,
+            )
+            if via_match:
+                current_route["via"].append(
+                    {
+                        "address": via_match.group("address"),
+                        "interface": via_match.group("interface"),
+                    }
+                )
+
+    return result
+
+
+def parse_show_ip_eigrp_interfaces(file_path):
+    result = {"interfaces": []}
+    lines = _clean_log_lines(file_path)
+
+    for line in lines:
+        stripped = line.strip()
+        lower = stripped.lower()
+        if (
+            not stripped
+            or _is_device_prompt(stripped)
+            or lower.startswith("show ip eigrp interfaces")
+            or lower.startswith("ip-eigrp interfaces")
+            or lower.startswith("interface")
+            or lower.startswith("xmit")
+        ):
+            continue
+
+        parts = stripped.split()
+        if len(parts) >= 2 and re.match(r"^[A-Za-z]+\S+", parts[0]):
+            peers = parts[1] if parts[1].isdigit() else None
+            result["interfaces"].append(
+                {
+                    "name": parts[0],
+                    "peers": int(peers) if peers is not None else None,
+                }
+            )
+
+    return result
+
+
 def parse_show_ip_ospf(file_path):
     result = {"process_info": [], "areas": []}
     lines = _clean_log_lines(file_path)
@@ -1480,11 +1736,14 @@ def parse_show_ip_ospf_neighbor(file_path):
 
         parts = stripped.split()
         if len(parts) >= 6:
-            address = parts[4].strip()
-            interface = parts[5].strip()
+            address = parts[-2].strip()
+            interface = parts[-1].strip()
             if address and interface:
                 result["neighbors"].append(
                     {
+                        "neighbor_id": parts[0].strip(),
+                        "priority": parts[1].strip(),
+                        "state": parts[2].strip(),
                         "address": address,
                         "interface": interface,
                     }
@@ -1492,8 +1751,159 @@ def parse_show_ip_ospf_neighbor(file_path):
 
     result["neighbors"] = sorted(
         result["neighbors"],
-        key=lambda entry: (entry.get("address", ""), entry.get("interface", "")),
+        key=lambda entry: (
+            entry.get("address", ""),
+            entry.get("interface", ""),
+            entry.get("state", ""),
+        ),
     )
+    return result
+
+
+def parse_show_ip_ospf_database(file_path):
+    result = {
+        "lsa_types": {
+            "router": 0,
+            "network": 0,
+            "summary_net": 0,
+            "summary_asbr": 0,
+            "as_external": 0,
+        }
+    }
+    lines = _clean_log_lines(file_path)
+    section = None
+
+    for line in lines:
+        stripped = line.strip()
+        lower = stripped.lower()
+        if not stripped or _is_device_prompt(stripped) or lower.startswith("show ip ospf database"):
+            continue
+
+        if "router link states" in lower:
+            section = "router"
+            continue
+        if "net link states" in lower:
+            section = "network"
+            continue
+        if "summary net link states" in lower:
+            section = "summary_net"
+            continue
+        if "summary asbr link states" in lower:
+            section = "summary_asbr"
+            continue
+        if "type-5 as external link states" in lower or "as external link states" in lower:
+            section = "as_external"
+            continue
+
+        if section and re.match(r"^\d+", stripped):
+            result["lsa_types"][section] += 1
+
+    return result
+
+
+def parse_show_ip_ospf_interface(file_path):
+    result = {"interfaces": []}
+    lines = _clean_log_lines(file_path)
+    current = None
+
+    for line in lines:
+        stripped = line.strip()
+        lower = stripped.lower()
+        if not stripped or _is_device_prompt(stripped) or lower.startswith("show ip ospf interface"):
+            continue
+
+        iface_match = re.match(
+            r"^(?P<name>\S+)\s+is\s+\w+,\s+line protocol is\s+\w+",
+            stripped,
+            flags=re.IGNORECASE,
+        )
+        if iface_match:
+            current = {
+                "name": iface_match.group("name"),
+                "area": "",
+                "network_type": "",
+                "state": "",
+            }
+            result["interfaces"].append(current)
+            continue
+
+        if not current:
+            continue
+
+        area_match = re.search(r"\bArea\s+(\S+)", stripped, flags=re.IGNORECASE)
+        if area_match:
+            current["area"] = area_match.group(1).rstrip(",")
+
+        network_match = re.search(
+            r"Network Type\s+([A-Z_]+)",
+            stripped,
+            flags=re.IGNORECASE,
+        )
+        if network_match:
+            current["network_type"] = network_match.group(1).upper()
+
+        state_match = re.search(r"\bState\s+([A-Z_\/-]+)", stripped, flags=re.IGNORECASE)
+        if state_match:
+            current["state"] = state_match.group(1).upper().rstrip(",")
+
+    return result
+
+
+def parse_show_ip_rip_database(file_path):
+    result = {"routes": []}
+    lines = _clean_log_lines(file_path)
+
+    for line in lines:
+        stripped = line.strip()
+        lower = stripped.lower()
+        if (
+            not stripped
+            or _is_device_prompt(stripped)
+            or lower.startswith("show ip rip database")
+            or lower.startswith("rip")
+        ):
+            continue
+
+        dest_match = re.search(r"(\d+\.\d+\.\d+\.\d+/\d+)", stripped)
+        if not dest_match:
+            continue
+        metric_match = re.search(r"metric\s+(\d+)", lower)
+        result["routes"].append(
+            {
+                "destination": dest_match.group(1),
+                "metric": int(metric_match.group(1)) if metric_match else 0,
+                "possibly_down": "possibly down" in lower,
+            }
+        )
+
+    return result
+
+
+def parse_show_ip_route_static(file_path):
+    result = {"routes": []}
+    base = parse_show_ip_route(file_path)
+    for route in base.get("routes", []):
+        if not isinstance(route, dict):
+            continue
+        code = str(route.get("code", "")).upper()
+        if not code.startswith("S"):
+            continue
+        destination = str(route.get("destination", "")).strip()
+        mask = ""
+        if "/" in destination:
+            try:
+                prefix = int(destination.rsplit("/", 1)[1])
+                mask = str(ipaddress.IPv4Network(f"0.0.0.0/{prefix}").netmask)
+            except Exception:
+                mask = ""
+        result["routes"].append(
+            {
+                "destination": destination,
+                "mask": mask,
+                "next_hop": str(route.get("next_hop", "")).strip(),
+                "interface": str(route.get("interface", "")).strip(),
+            }
+        )
     return result
 
 
@@ -1768,10 +2178,22 @@ def parse_log_by_type(file_path, command_type=None):
         return command, parse_show_ip_eigrp(file_path)
     if command == "show_ip_eigrp_neighbor":
         return command, parse_show_ip_eigrp_neighbor(file_path)
+    if command == "show_ip_eigrp_topology":
+        return command, parse_show_ip_eigrp_topology(file_path)
+    if command == "show_ip_eigrp_interfaces":
+        return command, parse_show_ip_eigrp_interfaces(file_path)
     if command == "show_ip_ospf":
         return command, parse_show_ip_ospf(file_path)
     if command == "show_ip_ospf_neighbor":
         return command, parse_show_ip_ospf_neighbor(file_path)
+    if command == "show_ip_ospf_database":
+        return command, parse_show_ip_ospf_database(file_path)
+    if command == "show_ip_ospf_interface":
+        return command, parse_show_ip_ospf_interface(file_path)
+    if command == "show_ip_rip_database":
+        return command, parse_show_ip_rip_database(file_path)
+    if command == "show_ip_route_static":
+        return command, parse_show_ip_route_static(file_path)
     if command == "show_interfaces_trunk":
         return command, parse_show_interfaces_trunk(file_path)
     if command == "show_vlan_brief":
