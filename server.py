@@ -36,6 +36,7 @@ from command_manager import load_commands, save_commands
 from comparison_engine.parser import parse_device_logs, normalize_parsed_config
 from comparison_engine.comparator import compare_dicts
 from comparison_engine.student_manager import find_show_run_file
+from cisco_reset import reload_cisco_device
 
 app = Flask(__name__)
 
@@ -2350,6 +2351,68 @@ def api_connect():
 
     generator = serial_generator() if mode == "serial" else ssh_generator()
     return Response(stream_with_context(generator), mimetype="text/plain")
+
+
+@app.route("/api/reset_device", methods=["POST"])
+def api_reset_device():
+    data = request.get_json() or {}
+    mode = (data.get("mode") or data.get("connection") or "serial").lower()
+    if mode != "serial":
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Device reset is only supported over serial.",
+                }
+            ),
+            400,
+        )
+
+    serial_payload = data.get("serial") or {}
+    with connection_lock:
+        stored_port = last_used_serial_settings.get("port")
+        stored_baud = last_used_serial_settings.get("baudrate", 9600)
+    port = serial_payload.get("port") or data.get("port") or stored_port or "/dev/ttyUSB0"
+    raw_baud = serial_payload.get("baudrate") or serial_payload.get("baud") or data.get("baudrate") or stored_baud or 9600
+    try:
+        baudrate = int(raw_baud)
+    except (TypeError, ValueError):
+        baudrate = 9600
+
+    if not port:
+        return (
+            jsonify({"status": "error", "message": "No serial port configured."}),
+            400,
+        )
+
+    _close_serial_connection()
+    _close_ssh_connection()
+
+    result = reload_cisco_device(port=port, baudrate=baudrate)
+    logs = result.get("logs") or []
+    message = result.get("message") or "Reset completed."
+    if result.get("success"):
+        return jsonify(
+            {
+                "status": "ok",
+                "message": message,
+                "logs": logs,
+                "port": port,
+                "baudrate": baudrate,
+            }
+        )
+    return (
+        jsonify(
+            {
+                "status": "error",
+                "message": message,
+                "logs": logs,
+                "port": port,
+                "baudrate": baudrate,
+            }
+        ),
+        500,
+    )
 
 
 

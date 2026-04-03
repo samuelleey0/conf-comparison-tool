@@ -514,7 +514,7 @@ button.block {
 .rubric-filter-btn:hover {
   background: #eef3ff;
   border-color: rgba(31, 59, 115, 0.35);
-  color: var(--color-primary);
+  color: #ffffff;
 }
 
 .rubric-filter-btn.active {

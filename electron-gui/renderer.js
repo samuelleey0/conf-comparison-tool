@@ -1512,13 +1512,16 @@ function toggleConnectionFields() {
   const conn = document.querySelector('input[name="connType"]:checked')?.value || "serial";
   const sshFields = document.getElementById("sshFields");
   const serialFields = document.getElementById("serialFields");
+  const resetBtn = document.getElementById("resetDeviceBtn");
   if (!sshFields || !serialFields) return;
   if (conn === "ssh") {
     sshFields.classList.remove("hidden");
     serialFields.classList.add("hidden");
+    if (resetBtn) resetBtn.disabled = true;
   } else {
     sshFields.classList.add("hidden");
     serialFields.classList.remove("hidden");
+    if (resetBtn) resetBtn.disabled = false;
   }
 }
 
@@ -1731,6 +1734,86 @@ async function saveConnection({ autoRun = false, triggerButton = null } = {}) {
   return connectionSucceeded;
 }
 
+async function resetCiscoDevice({ triggerButton = null } = {}) {
+  const type = document.querySelector('input[name="connType"]:checked');
+  const conn = type?.value || "serial";
+  if (conn !== "serial") {
+    alert("Cisco reset is only supported in serial mode.");
+    return false;
+  }
+
+  const confirmed = confirm(
+    "This will delete vlan.dat and reload the connected Cisco device without saving the running configuration. Continue?"
+  );
+  if (!confirmed) return false;
+
+  const portInput = document.getElementById("serialPort");
+  const port =
+    portInput?.value.trim() ||
+    localStorage.getItem("serialPort") ||
+    SERIAL_PRESETS.linux_rs232;
+
+  if (!port) {
+    alert("Please configure the serial port first.");
+    return false;
+  }
+
+  const resetBtn = triggerButton || null;
+  const originalBtnText = resetBtn ? resetBtn.textContent : null;
+
+  try {
+    if (resetBtn) {
+      resetBtn.disabled = true;
+      resetBtn.textContent = "Resetting...";
+    }
+
+    appendLogLine(`[${nowTimestamp()}] Starting Cisco reset on ${port}...`);
+    const modal = showStatusModal("Resetting device... Please wait.", "pending");
+    const response = await fetch(`${API_ROOT}/api/reset_device`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        connection: "serial",
+        mode: "serial",
+        serial: { port },
+      }),
+    });
+
+    let data = {};
+    try {
+      data = await response.json();
+    } catch (_) {
+      data = {};
+    }
+
+    const logs = Array.isArray(data.logs) ? data.logs : [];
+    logs.forEach((line) => appendLogLine(line));
+
+    if (!response.ok || data.status === "error") {
+      const message = data.message || "Cisco reset failed.";
+      appendLogLine(`[ERROR] ${message}`);
+      updateStatusModal(modal, message, "error");
+      return false;
+    }
+
+    const message = data.message || "Reset command sent successfully.";
+    appendLogLine(`[SUCCESS] ${message}`);
+    updateStatusModal(modal, message, "success", true);
+    return true;
+  } catch (err) {
+    console.error(err);
+    const message = err.message || "Cisco reset failed.";
+    appendLogLine(`[ERROR] ${message}`);
+    showStatusModal(message, "error");
+    return false;
+  } finally {
+    if (resetBtn) {
+      resetBtn.disabled = false;
+      resetBtn.textContent = originalBtnText || "Reset Cisco Device";
+    }
+  }
+}
+
 // Queue State
 let executionQueue = [];
 let currentQueueIndex = 0;
@@ -1738,6 +1821,55 @@ let isSequenceRunning = false;
 let manualNextHostname = null;
 let completedQueueHosts = new Set();
 let pollingDisconnect = false;
+
+function getStudentProgressState() {
+  let total = parseInt(localStorage.getItem("sessionStudentsCount") || "0", 10);
+  let completed = [];
+
+  try {
+    completed = JSON.parse(localStorage.getItem("completedStudents") || "[]");
+  } catch (_) {
+    completed = [];
+  }
+
+  let sessionPath = localStorage.getItem("sessionPath") || "";
+  const basePath = localStorage.getItem("basePath");
+  if (!sessionPath && basePath && pathModule) {
+    sessionPath = pathModule.dirname(basePath);
+    localStorage.setItem("sessionPath", sessionPath);
+  }
+
+  if ((!total || Number.isNaN(total)) && sessionPath) {
+    try {
+      if (require("fs").existsSync(sessionPath)) {
+        const dirs = require("fs")
+          .readdirSync(sessionPath, { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .map((d) => d.name);
+        total = dirs.length;
+        localStorage.setItem("sessionStudentsCount", String(total));
+        completed = completed.filter((id) => dirs.includes(id));
+        localStorage.setItem("completedStudents", JSON.stringify(completed));
+      }
+    } catch (_) {
+      total = 0;
+    }
+  }
+
+  return {
+    total,
+    completed,
+    completedCount: completed.length,
+    allDone: total > 0 && completed.length >= total,
+  };
+}
+
+function updateDoneStudentButtonLabel() {
+  const doneStudentBtn = document.getElementById("doneStudentBtn");
+  if (!doneStudentBtn) return;
+  const { allDone } = getStudentProgressState();
+  doneStudentBtn.textContent = allDone ? "Start Grading" : "Next Student";
+}
 
 function setupConnectionPage() {
   loadNavbar();
@@ -1748,6 +1880,7 @@ function setupConnectionPage() {
   const queueStatus = document.getElementById("queueStatus");
   const startSequenceBtn = document.getElementById("startSequenceBtn");
   const doneStudentBtn = document.getElementById("doneStudentBtn");
+  updateDoneStudentButtonLabel();
 
   if (deviceQueueContainer) {
     deviceQueueContainer.innerHTML = "";
@@ -1827,39 +1960,18 @@ function setupConnectionPage() {
       });
 
     document
+      .getElementById("resetDeviceBtn")
+      ?.addEventListener("click", (evt) => {
+        evt.preventDefault();
+        resetCiscoDevice({ triggerButton: evt.currentTarget });
+      });
+
+    document
       .getElementById("doneStudentBtn")
       ?.addEventListener("click", (evt) => {
         evt.preventDefault();
-        let total = parseInt(localStorage.getItem("sessionStudentsCount") || "0", 10);
-        let completed = [];
-        try {
-          completed = JSON.parse(localStorage.getItem("completedStudents") || "[]");
-        } catch (_) {
-          completed = [];
-        }
-        let sessionPath = localStorage.getItem("sessionPath") || "";
-        const basePath = localStorage.getItem("basePath");
-        if (!sessionPath && basePath && pathModule) {
-          sessionPath = pathModule.dirname(basePath);
-          localStorage.setItem("sessionPath", sessionPath);
-        }
-        if (!total || Number.isNaN(total)) {
-          try {
-            if (sessionPath && require("fs").existsSync(sessionPath)) {
-              const dirs = require("fs")
-                .readdirSync(sessionPath, { withFileTypes: true })
-                .filter((d) => d.isDirectory())
-                .map((d) => d.name);
-              total = dirs.length;
-              localStorage.setItem("sessionStudentsCount", String(total));
-              const filtered = completed.filter((id) => dirs.includes(id));
-              completed = filtered;
-              localStorage.setItem("completedStudents", JSON.stringify(filtered));
-            }
-          } catch (_) {}
-        }
-
-        if (total > 0 && completed.length >= total) {
+        const { allDone } = getStudentProgressState();
+        if (allDone) {
           localStorage.setItem("autoRunResults", "true");
           goTo("results.html");
         } else {
@@ -1955,6 +2067,7 @@ async function runNextDeviceInQueue() {
     document.getElementById("queueStatus").textContent = "Completed";
     document.getElementById("queueStatus").style.color = "var(--color-success, #28a745)";
     document.getElementById("doneStudentBtn").disabled = false;
+    updateDoneStudentButtonLabel();
     alert("All devices completed. Please hit Done to proceed to the next student.");
     return;
   }
