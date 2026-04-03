@@ -1801,18 +1801,33 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
             return "Vlan", vlan_id
         return None
 
-    def _is_hw_absent_serial(iface_name, iface_cfg):
+    def _is_hw_absent_interface(iface_name, iface_cfg):
         if not isinstance(iface_name, str):
             return False
-        if not re.match(r"^Serial0/[123]/\d+$", iface_name):
+        # Do not filter out NVI0 or Loopbacks
+        upper_name = iface_name.upper()
+        if upper_name.startswith("NVI") or upper_name.startswith("LOOPBACK"):
             return False
+            
         if not isinstance(iface_cfg, dict):
             return False
-        if iface_cfg.get("shutdown") is not True:
-            return False
-        if iface_cfg.get("ip") is not None or iface_cfg.get("mask") is not None:
-            return False
-        return True
+            
+        # Check if it's from show_running_config (has 'shutdown' key)
+        if "shutdown" in iface_cfg:
+            if iface_cfg.get("shutdown") is not True:
+                return False
+            if iface_cfg.get("ip") is not None or iface_cfg.get("mask") is not None:
+                return False
+            return True
+            
+        # Check if it's from show_ip_interface_brief (has 'status' key)
+        if "status" in iface_cfg:
+            status = str(iface_cfg.get("status", "")).strip().lower()
+            ip = str(iface_cfg.get("ip", "")).strip().lower()
+            if status == "administratively down" and ip in {"unassigned", "none", ""}:
+                return True
+                
+        return False
 
     def _is_ip_field(path):
         if not path.endswith(".ip"):
@@ -2074,12 +2089,14 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                 for iface in missing_ifaces:
                     t_iface = t_val.get(iface)
                     if _iface_has_config(t_iface):
-                        if _is_hw_absent_serial(iface, t_iface):
+                        if _is_hw_absent_interface(iface, t_iface):
                             continue
                         missing_items.append((iface, t_iface))
                 for iface in extra_ifaces:
                     s_iface = s_val.get(iface)
                     if _iface_has_config(s_iface):
+                        if _is_hw_absent_interface(iface, s_iface):
+                            continue
                         extra_items.append((iface, s_iface))
 
                 # Merge dot-subinterface missing+extra into a single mismatch.

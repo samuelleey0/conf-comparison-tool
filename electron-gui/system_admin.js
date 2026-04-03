@@ -236,6 +236,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const card = document.createElement("div");
         card.className = "rubric-rule-card";
         card.dataset.index = String(index);
+        // Determine status filter: single-element array → that status; multi or null → "any"
+        const statusArr = Array.isArray(rule.statuses) ? rule.statuses : [];
+        const selectedStatus = statusArr.length === 1 ? statusArr[0] : "";
 
         card.innerHTML = `
           <div class="rubric-rule-header">
@@ -254,7 +257,12 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
           <div class="rubric-rule-body">
             <textarea class="rubric-patterns" placeholder="One regex per line">${(rule.patterns || []).join("\n")}</textarea>
-            <input class="rubric-statuses" type="text" placeholder="Statuses (optional): missing, extra, mismatch" value="${Array.isArray(rule.statuses) ? rule.statuses.join(", ") : (rule.statuses || "")}">
+            <select class="rubric-statuses">
+              <option value="" ${selectedStatus === "" ? "selected" : ""}>Any Status</option>
+              <option value="mismatch" ${selectedStatus === "mismatch" ? "selected" : ""}>Mismatch</option>
+              <option value="missing" ${selectedStatus === "missing" ? "selected" : ""}>Missing</option>
+              <option value="extra" ${selectedStatus === "extra" ? "selected" : ""}>Extra</option>
+            </select>
           </div>
         `;
 
@@ -369,11 +377,8 @@ document.addEventListener("DOMContentLoaded", () => {
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean);
-      const statusesRaw = card.querySelector(".rubric-statuses")?.value || "";
-      const statuses = statusesRaw
-        .split(",")
-        .map((item) => item.trim().toLowerCase())
-        .filter(Boolean);
+      const selectedStatus = (card.querySelector(".rubric-statuses")?.value || "").trim().toLowerCase();
+      const statuses = selectedStatus ? [selectedStatus] : [];
       updatedByIndex[index] = {
         ...base,
         enabled,

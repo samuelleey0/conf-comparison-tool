@@ -631,7 +631,8 @@ def _default_rubric_rules():
 
 def load_rubric_rules():
     defaults = _default_rubric_rules()
-    default_ids = {rule.get("id") for rule in defaults if isinstance(rule, dict)}
+    default_by_id = {rule.get("id"): rule for rule in defaults if isinstance(rule, dict)}
+    default_ids = set(default_by_id.keys())
     if not RUBRIC_RULES_PATH.exists():
         RUBRIC_RULES_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(RUBRIC_RULES_PATH, "w") as handle:
@@ -649,6 +650,17 @@ def load_rubric_rules():
                 for rule in data
                 if isinstance(rule, dict) and rule.get("id") in default_ids
             ]
+            # Backfill missing fields (section, code, statuses) from defaults.
+            # This repairs rules saved by the old save function that stripped them.
+            for rule in filtered:
+                rid = rule.get("id")
+                dflt = default_by_id.get(rid, {})
+                if not rule.get("section"):
+                    rule["section"] = dflt.get("section", "")
+                if not rule.get("code"):
+                    rule["code"] = dflt.get("code", rid)
+                if not rule.get("statuses"):
+                    rule["statuses"] = dflt.get("statuses")
             existing = {rule.get("id"): rule for rule in filtered}
             merged = list(filtered)
             for rule in defaults:
@@ -670,17 +682,19 @@ def save_rubric_rules(rules):
         if not isinstance(rule, dict):
             continue
         rid = rule.get("id") or f"rule_{idx+1}"
-        cleaned.append(
-            {
-                "id": rid,
-                "category": rule.get("category") or "",
-                "subcategory": rule.get("subcategory") or "",
-                "description": rule.get("description") or "",
-                "severity": (rule.get("severity") or "minor").lower(),
-                "enabled": bool(rule.get("enabled", True)),
-                "patterns": rule.get("patterns") or [],
-            }
-        )
+        entry = {
+            "id": rid,
+            "code": rule.get("code") or rid,
+            "category": rule.get("category") or "",
+            "subcategory": rule.get("subcategory") or "",
+            "section": rule.get("section") or "",
+            "description": rule.get("description") or "",
+            "severity": (rule.get("severity") or "minor").lower(),
+            "enabled": bool(rule.get("enabled", True)),
+            "statuses": rule.get("statuses"),
+            "patterns": rule.get("patterns") or [],
+        }
+        cleaned.append(entry)
     RUBRIC_RULES_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(RUBRIC_RULES_PATH, "w") as handle:
         json.dump(cleaned, handle, indent=2)
