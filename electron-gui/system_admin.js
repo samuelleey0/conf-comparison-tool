@@ -12,6 +12,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const savePolicyBtn = document.getElementById("savePolicyBtn");
   const refreshRubricBtn = document.getElementById("refreshRubricBtn");
   const saveRubricBtn = document.getElementById("saveRubricBtn");
+  const addRubricRuleBtn = document.getElementById("addRubricRuleBtn");
+  const resetRubricBtn = document.getElementById("resetRubricBtn");
   const rubricRulesContainer = document.getElementById("rubricRulesContainer");
   const rubricFilterButtons = document.getElementById("rubricFilterButtons");
   const DEFAULT_RUBRIC_SECTION = "3.2.1 Hostname & Banner";
@@ -30,6 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let globalCommands = [];
   let rubricRules = [];
   let selectedRubricCategory = DEFAULT_RUBRIC_SECTION;
+  let deletedIndices = new Set();
 
   async function fetchJson(url, options = {}) {
     const res = await fetch(url, {
@@ -233,18 +236,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
       sectionRules.forEach((rule) => {
         const index = rubricRules.indexOf(rule);
+        if (deletedIndices.has(index)) return;
         const card = document.createElement("div");
         card.className = "rubric-rule-card";
         card.dataset.index = String(index);
+        const isDefault = rule.is_default !== false;
         // Determine status filter: single-element array → that status; multi or null → "any"
         const statusArr = Array.isArray(rule.statuses) ? rule.statuses : [];
         const selectedStatus = statusArr.length === 1 ? statusArr[0] : "";
 
         card.innerHTML = `
           <div class="rubric-rule-header">
-            <div>
-              <div class="rubric-rule-title">${rule.id || ""}</div>
-              <div class="rubric-rule-sub">${rule.description || ""}</div>
+            <div class="rubric-rule-info">
+              <input type="text" class="rubric-rule-id" value="${rule.id || ""}" ${isDefault ? "readonly title=\"Default rule — ID cannot be changed\"" : "title=\"Edit rule ID\""} />
+              <input type="text" class="rubric-rule-description" value="${(rule.description || "").replace(/"/g, "&quot;")}" placeholder="Rule description" />
             </div>
             <label class="choice-label">
               <input type="checkbox" class="rubric-enabled" ${rule.enabled ? "checked" : ""} />
@@ -254,6 +259,7 @@ document.addEventListener("DOMContentLoaded", () => {
               <option value="minor" ${rule.severity === "minor" ? "selected" : ""}>Minor</option>
               <option value="major" ${rule.severity === "major" ? "selected" : ""}>Major</option>
             </select>
+            <button type="button" class="rubric-delete-btn" title="${isDefault ? "Disable this rule" : "Delete this rule"}">✕</button>
           </div>
           <div class="rubric-rule-body">
             <textarea class="rubric-patterns" placeholder="One regex per line">${(rule.patterns || []).join("\n")}</textarea>
@@ -265,6 +271,26 @@ document.addEventListener("DOMContentLoaded", () => {
             </select>
           </div>
         `;
+
+        // Wire up delete button
+        card.querySelector(".rubric-delete-btn").addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (isDefault) {
+            // Default rules: just disable (uncheck enabled)
+            card.querySelector(".rubric-enabled").checked = false;
+            card.style.opacity = "0.45";
+          } else {
+            // Custom rules: mark for deletion and hide
+            if (!confirm(`Delete custom rule "${rule.id}"?`)) return;
+            deletedIndices.add(index);
+            card.remove();
+          }
+        });
+
+        if (!rule.enabled) card.style.opacity = "0.45";
+        card.querySelector(".rubric-enabled").addEventListener("change", (e) => {
+          card.style.opacity = e.target.checked ? "1" : "0.45";
+        });
 
         body.appendChild(card);
       });
@@ -347,6 +373,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const data = await fetchJson("http://127.0.0.1:5050/api/rubric_rules");
       rubricRules = data.rules || [];
+      deletedIndices = new Set();
       const availableSections = new Set(
         rubricRules.map((rule) => rule.section || rule.category || "").filter(Boolean)
       );
@@ -365,12 +392,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function saveRubricRules() {
     if (!rubricRulesContainer) return;
-    // Collect all cards from all section bodies
+    // Collect all visible cards
     const cards = rubricRulesContainer.querySelectorAll(".rubric-rule-card");
     const updatedByIndex = {};
     cards.forEach((card) => {
       const index = parseInt(card.dataset.index, 10);
       const base = rubricRules[index] || {};
+      const ruleId = card.querySelector(".rubric-rule-id")?.value?.trim() || base.id;
+      const description = card.querySelector(".rubric-rule-description")?.value?.trim() || base.description;
       const enabled = card.querySelector(".rubric-enabled")?.checked || false;
       const severity = card.querySelector(".rubric-severity")?.value || "minor";
       const patterns = (card.querySelector(".rubric-patterns")?.value || "")
@@ -381,6 +410,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const statuses = selectedStatus ? [selectedStatus] : [];
       updatedByIndex[index] = {
         ...base,
+        id: ruleId,
+        code: base.is_default !== false ? base.code : ruleId,
+        description,
         enabled,
         severity,
         patterns,
@@ -388,10 +420,13 @@ document.addEventListener("DOMContentLoaded", () => {
       };
     });
 
-    // Build full list: for items not visible (filtered out), keep original
-    const updated = rubricRules.map((rule, i) =>
-      updatedByIndex[i] !== undefined ? updatedByIndex[i] : rule
-    );
+    // Build full list: skip deleted, for items not visible (filtered out) keep original
+    const updated = rubricRules
+      .map((rule, i) => {
+        if (deletedIndices.has(i)) return null;
+        return updatedByIndex[i] !== undefined ? updatedByIndex[i] : rule;
+      })
+      .filter(Boolean);
 
     try {
       await fetchJson("http://127.0.0.1:5050/api/rubric_rules", {
@@ -399,12 +434,116 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify({ rules: updated }),
       });
       rubricRules = updated;
+      deletedIndices = new Set();
       renderRubricFilters();
       renderRubricRules();
       alert("Rubric rules saved.");
     } catch (err) {
       console.error(err);
       alert(err.message || "Failed to save rubric rules.");
+    }
+  }
+
+  function addRubricRule() {
+    // Gather existing sections for the dropdown
+    const sections = Array.from(
+      new Set(
+        rubricRules
+          .map((r) => r.section || r.category || "")
+          .filter(Boolean)
+      )
+    ).sort();
+
+    // Build a modal overlay
+    const overlay = document.createElement("div");
+    overlay.className = "rubric-modal-overlay";
+    overlay.innerHTML = `
+      <div class="rubric-modal">
+        <h3>Add New Rubric Rule</h3>
+        <label for="newRuleSection">Select or type a section:</label>
+        <select id="newRuleSectionSelect">
+          ${sections.map((s) => `<option value="${s}">${s}</option>`).join("")}
+          <option value="__custom__">— Custom section —</option>
+        </select>
+        <input type="text" id="newRuleSectionInput" placeholder="Enter custom section name" style="display:none;" />
+        <div class="rubric-modal-actions">
+          <button type="button" id="newRuleCancelBtn" class="secondary">Cancel</button>
+          <button type="button" id="newRuleConfirmBtn" class="primary">Create Rule</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const selectEl = overlay.querySelector("#newRuleSectionSelect");
+    const inputEl = overlay.querySelector("#newRuleSectionInput");
+    selectEl.addEventListener("change", () => {
+      inputEl.style.display = selectEl.value === "__custom__" ? "block" : "none";
+    });
+
+    overlay.querySelector("#newRuleCancelBtn").addEventListener("click", () => {
+      overlay.remove();
+    });
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+
+    overlay.querySelector("#newRuleConfirmBtn").addEventListener("click", () => {
+      let resolvedSection = selectEl.value === "__custom__"
+        ? inputEl.value.trim()
+        : selectEl.value;
+      if (!resolvedSection) {
+        resolvedSection = "Custom";
+      }
+
+      // Generate unique ID
+      let counter = 1;
+      while (rubricRules.some((r) => r.id === `CUSTOM_RULE_${counter}`)) counter++;
+      const newId = `CUSTOM_RULE_${counter}`;
+
+      const newRule = {
+        id: newId,
+        code: newId,
+        category: "",
+        subcategory: "",
+        section: resolvedSection,
+        description: "New custom rule",
+        severity: "minor",
+        enabled: true,
+        statuses: [],
+        patterns: [],
+        is_default: false,
+      };
+
+      rubricRules.push(newRule);
+      selectedRubricCategory = resolvedSection;
+      renderRubricFilters();
+      renderRubricRules();
+      overlay.remove();
+    });
+  }
+
+  async function resetRubricRules() {
+    if (!confirm("Reset ALL rubric rules to defaults?\nThis will remove all customizations and custom rules.")) return;
+    try {
+      const data = await fetchJson("http://127.0.0.1:5050/api/rubric_rules/reset", {
+        method: "POST",
+      });
+      rubricRules = data.rules || [];
+      deletedIndices = new Set();
+      const availableSections = new Set(
+        rubricRules.map((r) => r.section || r.category || "").filter(Boolean)
+      );
+      if (!availableSections.has(selectedRubricCategory)) {
+        selectedRubricCategory = availableSections.has(DEFAULT_RUBRIC_SECTION)
+          ? DEFAULT_RUBRIC_SECTION
+          : "all";
+      }
+      renderRubricFilters();
+      renderRubricRules();
+      alert("Rubric rules reset to defaults.");
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Failed to reset rubric rules.");
     }
   }
 
@@ -525,6 +664,8 @@ document.addEventListener("DOMContentLoaded", () => {
   savePolicyBtn?.addEventListener("click", savePolicy);
   refreshRubricBtn?.addEventListener("click", loadRubricRules);
   saveRubricBtn?.addEventListener("click", saveRubricRules);
+  addRubricRuleBtn?.addEventListener("click", addRubricRule);
+  resetRubricBtn?.addEventListener("click", resetRubricRules);
   deleteTemplateBtn?.addEventListener("click", deleteTemplate);
   deleteAllTemplatesBtn?.addEventListener("click", deleteAllTemplates);
   deleteResultBtn?.addEventListener("click", deleteResult);

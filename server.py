@@ -633,6 +633,9 @@ def load_rubric_rules():
     defaults = _default_rubric_rules()
     default_by_id = {rule.get("id"): rule for rule in defaults if isinstance(rule, dict)}
     default_ids = set(default_by_id.keys())
+    # Tag defaults
+    for rule in defaults:
+        rule["is_default"] = True
     if not RUBRIC_RULES_PATH.exists():
         RUBRIC_RULES_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(RUBRIC_RULES_PATH, "w") as handle:
@@ -645,14 +648,18 @@ def load_rubric_rules():
                 data = data.get("rules", [])
             if not isinstance(data, list):
                 data = []
-            filtered = [
-                rule
-                for rule in data
-                if isinstance(rule, dict) and rule.get("id") in default_ids
-            ]
-            # Backfill missing fields (section, code, statuses) from defaults.
-            # This repairs rules saved by the old save function that stripped them.
-            for rule in filtered:
+            # Separate default rules from custom rules
+            saved_defaults = []
+            custom_rules = []
+            for rule in data:
+                if not isinstance(rule, dict):
+                    continue
+                if rule.get("id") in default_ids:
+                    saved_defaults.append(rule)
+                else:
+                    custom_rules.append(rule)
+            # Backfill missing fields for default rules
+            for rule in saved_defaults:
                 rid = rule.get("id")
                 dflt = default_by_id.get(rid, {})
                 if not rule.get("section"):
@@ -661,11 +668,17 @@ def load_rubric_rules():
                     rule["code"] = dflt.get("code", rid)
                 if not rule.get("statuses"):
                     rule["statuses"] = dflt.get("statuses")
-            existing = {rule.get("id"): rule for rule in filtered}
-            merged = list(filtered)
+                rule["is_default"] = True
+            # Merge: saved defaults + new defaults not yet saved + custom rules
+            existing = {rule.get("id"): rule for rule in saved_defaults}
+            merged = list(saved_defaults)
             for rule in defaults:
                 if rule.get("id") not in existing:
                     merged.append(rule)
+            # Tag and append custom rules
+            for rule in custom_rules:
+                rule["is_default"] = False
+                merged.append(rule)
             # Persist merged rules so new defaults appear in UI.
             with open(RUBRIC_RULES_PATH, "w") as out:
                 json.dump(merged, out, indent=2)
@@ -693,12 +706,20 @@ def save_rubric_rules(rules):
             "enabled": bool(rule.get("enabled", True)),
             "statuses": rule.get("statuses"),
             "patterns": rule.get("patterns") or [],
+            "is_default": bool(rule.get("is_default", False)),
         }
         cleaned.append(entry)
     RUBRIC_RULES_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(RUBRIC_RULES_PATH, "w") as handle:
         json.dump(cleaned, handle, indent=2)
     return cleaned
+
+
+def reset_rubric_rules():
+    """Delete saved rules and return fresh defaults."""
+    if RUBRIC_RULES_PATH.exists():
+        RUBRIC_RULES_PATH.unlink()
+    return load_rubric_rules()
 
 
 def load_grading_policy():
@@ -3198,6 +3219,15 @@ def api_save_rubric_rules():
     try:
         saved = save_rubric_rules(rules)
         return jsonify({"status": "ok", "rules": saved})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+
+
+@app.route("/api/rubric_rules/reset", methods=["POST"])
+def api_reset_rubric_rules():
+    try:
+        rules = reset_rubric_rules()
+        return jsonify({"status": "ok", "rules": rules})
     except Exception as exc:
         return jsonify({"status": "error", "message": str(exc)}), 400
 

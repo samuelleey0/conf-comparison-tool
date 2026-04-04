@@ -599,11 +599,144 @@ button.block {
   border-radius: 6px;
   display: grid;
   gap: 8px;
+  transition: opacity 0.2s ease;
+}
+
+.rubric-rule-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rubric-rule-id {
+  font-weight: 700;
+  color: var(--color-heading);
+  font-size: 0.95rem;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.rubric-rule-id:not([readonly]):hover,
+.rubric-rule-id:not([readonly]):focus {
+  border-color: var(--color-primary);
+  background: #f5f7ff;
+  outline: none;
+}
+
+.rubric-rule-id[readonly] {
+  cursor: default;
+  color: var(--color-heading);
+  opacity: 0.85;
+}
+
+.rubric-rule-description {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.rubric-rule-description:hover,
+.rubric-rule-description:focus {
+  border-color: rgba(31, 59, 115, 0.3);
+  background: #f9fafe;
+  outline: none;
+  color: var(--color-heading);
+}
+
+.rubric-delete-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 50%;
+  border: 1px solid #e0e0e0;
+  background: #fff;
+  color: #999;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.rubric-delete-btn:hover {
+  background: #fff5f5;
+  border-color: #f3b1b1;
+  color: var(--color-danger, #c0392b);
+  box-shadow: 0 2px 6px rgba(192, 57, 43, 0.15);
+}
+
+.rubric-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.rubric-modal {
+  background: var(--color-surface, #fff);
+  border-radius: 12px;
+  padding: 28px 32px;
+  min-width: 380px;
+  max-width: 500px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rubric-modal h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--color-primary);
+}
+
+.rubric-modal label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-heading);
+}
+
+.rubric-modal select,
+.rubric-modal input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.rubric-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .rubric-rule-header {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   gap: 10px;
   align-items: center;
 }
