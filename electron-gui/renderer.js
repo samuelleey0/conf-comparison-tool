@@ -2099,7 +2099,7 @@ async function runNextDeviceInQueue() {
   }
 
   // Run commands directly (do not pre-connect; /api/execute manages serial)
-  const runExecute = async () => {
+  const runExecute = async (forceSkipHostname = false) => {
     badge.textContent = "EXECUTING...";
     badge.style.color = "var(--color-primary)";
 
@@ -2114,6 +2114,9 @@ async function runNextDeviceInQueue() {
            session_id: localStorage.getItem("sessionId") || "unknown",
            log_mode: directoryMode,
          };
+         if (forceSkipHostname) {
+           payload.skip_hostname_check = true;
+         }
          if (directoryMode === "existing" && basePath) {
            payload.log_dir = basePath;
          }
@@ -2140,6 +2143,7 @@ async function runNextDeviceInQueue() {
          const dec = new TextDecoder();
          let buffer = "";
          let hadError = false;
+         let hostnameMismatchMsg = null;
 
          while (true) {
            const { done, value } = await reader.read();
@@ -2154,6 +2158,9 @@ async function runNextDeviceInQueue() {
                if (obj.type === "error") {
                  hadError = true;
                  appendLogLine(`[ERROR] ${obj.msg || "Execution error"}`);
+                 if (obj.error_code === "HOSTNAME_MISMATCH") {
+                   hostnameMismatchMsg = obj.msg;
+                 }
                } else if (obj.type === "progress") {
                  appendLogLine(`[${nowTimestamp()}] ${obj.msg}`);
                } else if (obj.type === "result") {
@@ -2176,6 +2183,26 @@ async function runNextDeviceInQueue() {
             appendLogLine(`[SUCCESS] Finished ${currentDevice.hostname}`);
             completedQueueHosts.add(currentDevice.hostname);
             runNextDeviceInQueue(); // Recurse next
+         } else if (hostnameMismatchMsg) {
+            // Special handling: offer to continue despite mismatch
+            badge.textContent = "MISMATCH";
+            badge.style.color = "#ff9800";
+            row.style.borderColor = "#ff9800";
+            row.style.backgroundColor = "rgba(255, 152, 0, 0.05)";
+
+            const continueAnyway = confirm(
+              `${hostnameMismatchMsg}\n\nDo you want to continue anyway?\nLogs will be saved under the selected device name "${currentDevice.hostname}".`
+            );
+            if (continueAnyway) {
+              appendLogLine(`[INFO] User chose to continue despite hostname mismatch.`);
+              runExecute(true); // Retry with skip flag
+            } else {
+              appendLogLine(`[INFO] User chose to stop due to hostname mismatch.`);
+              badge.textContent = "SKIPPED";
+              badge.style.color = "var(--color-muted)";
+              document.getElementById("startSequenceBtn").disabled = false;
+              isSequenceRunning = false;
+            }
          } else {
             throw new Error("Execution failed during command run.");
          }

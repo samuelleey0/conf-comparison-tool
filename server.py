@@ -2594,6 +2594,7 @@ def api_execute():
         hostname = None
         files_written = []
         skip_config = bool(data.get("skip_config"))
+        skip_hostname_check = bool(data.get("skip_hostname_check"))
 
         def run_serial():
             global current_mode
@@ -2699,14 +2700,23 @@ def api_execute():
                 )
                 return False
             if target_device and not _hostname_matches_target(target_device, hostname):
-                logout_close_connection(ser)
-                yield stream_json_line(
-                    {
-                        "type": "error",
-                        "msg": f"Selected device is '{target_device}', but connected device is '{hostname}'. Collection stopped.",
-                    }
-                )
-                return False
+                if skip_hostname_check:
+                    yield stream_json_line(
+                        {
+                            "type": "progress",
+                            "msg": f"⚠ Warning: Selected device is '{target_device}', but connected device is '{hostname}'. Continuing anyway (logs saved under '{target_device}').",
+                        }
+                    )
+                else:
+                    logout_close_connection(ser)
+                    yield stream_json_line(
+                        {
+                            "type": "error",
+                            "error_code": "HOSTNAME_MISMATCH",
+                            "msg": f"Selected device is '{target_device}', but connected device is '{hostname}'. Collection stopped.",
+                        }
+                    )
+                    return False
             _update_serial_state(ser, port, baudrate, hostname)
 
             yield stream_json_line(
@@ -2907,34 +2917,52 @@ def api_execute():
                     )
                     return False
                 if target_device and not _hostname_matches_target(target_device, hostname):
-                    try:
-                        existing_shell = getattr(client, "_shell", None)
-                        if existing_shell:
-                            existing_shell.close()
-                    except Exception:
-                        pass
-                    try:
-                        client.close()
-                    except Exception:
-                        pass
-                    yield stream_json_line(
-                        {
-                            "type": "error",
-                            "msg": f"Selected device is '{target_device}', but connected device is '{hostname}'. Collection stopped.",
-                        }
-                    )
-                    return False
-                _update_ssh_state(client, host, username, password, hostname, resolved_port)
+                    if skip_hostname_check:
+                        yield stream_json_line(
+                            {
+                                "type": "progress",
+                                "msg": f"⚠ Warning: Selected device is '{target_device}', but connected device is '{hostname}'. Continuing anyway (logs saved under '{target_device}').",
+                            }
+                        )
+                    else:
+                        try:
+                            existing_shell = getattr(client, "_shell", None)
+                            if existing_shell:
+                                existing_shell.close()
+                        except Exception:
+                            pass
+                        try:
+                            client.close()
+                        except Exception:
+                            pass
+                        yield stream_json_line(
+                            {
+                                "type": "error",
+                                "error_code": "HOSTNAME_MISMATCH",
+                                "msg": f"Selected device is '{target_device}', but connected device is '{hostname}'. Collection stopped.",
+                            }
+                        )
+                        return False
+                    _update_ssh_state(client, host, username, password, hostname, resolved_port)
 
             if not reuse:
                 if target_device and not _hostname_matches_target(target_device, hostname):
-                    yield stream_json_line(
-                        {
-                            "type": "error",
-                            "msg": f"Selected device is '{target_device}', but connected device is '{hostname}'. Collection stopped.",
-                        }
-                    )
-                    return False
+                    if skip_hostname_check:
+                        yield stream_json_line(
+                            {
+                                "type": "progress",
+                                "msg": f"⚠ Warning: Selected device is '{target_device}', but connected device is '{hostname}'. Continuing anyway (logs saved under '{target_device}').",
+                            }
+                        )
+                    else:
+                        yield stream_json_line(
+                            {
+                                "type": "error",
+                                "error_code": "HOSTNAME_MISMATCH",
+                                "msg": f"Selected device is '{target_device}', but connected device is '{hostname}'. Collection stopped.",
+                            }
+                        )
+                        return False
                 yield stream_json_line(
                     {
                         "type": "progress",
