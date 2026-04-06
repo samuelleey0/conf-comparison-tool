@@ -2651,24 +2651,11 @@ def api_execute():
                     }
                 )
                 return False
-            try:
-                yield stream_json_line(
-                    {
-                        "type": "progress",
-                        "msg": "Waking device and syncing prompt...",
-                        "progress_pct": 0,
-                    }
-                )
-                try:
-                    wait_for_prompt(ser, [">", "#"], timeout=READ_TIMEOUT, wake=True)
-                except Exception:
-                    wait_for_prompt(ser, [">", "#"], timeout=READ_TIMEOUT + 5, wake=True)
-            except Exception as exc:
-                logout_close_connection(ser)
+            if not ser:
                 yield stream_json_line(
                     {
                         "type": "error",
-                        "msg": f"Serial initialization failed: prompt not detected ({exc})",
+                        "msg": f"Failed to open serial port {port}: device not responding.",
                     }
                 )
                 return False
