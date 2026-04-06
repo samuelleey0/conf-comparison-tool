@@ -28,6 +28,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const deleteAllResultsBtn = document.getElementById("deleteAllResultsBtn");
   const deleteSessionBtn = document.getElementById("deleteSessionBtn");
   const deleteStudentBtn = document.getElementById("deleteStudentBtn");
+  const examList = document.getElementById("examList");
+  const deleteExamBtn = document.getElementById("deleteExamBtn");
+  const syncMirrorBtn = document.getElementById("syncMirrorBtn");
 
   let globalCommands = [];
   let rubricRules = [];
@@ -580,6 +583,13 @@ document.addEventListener("DOMContentLoaded", () => {
         .map((entry) => `<option value="${entry.path}">${entry.display}</option>`)
         .join("");
 
+      examList.innerHTML = (students.exams || [])
+        .map(
+          (e) =>
+            `<option value="${e.path}">${e.exam_name}</option>`
+        )
+        .join("");
+
       sessionList.innerHTML = (students.sessions || [])
         .map(
           (s) =>
@@ -650,6 +660,17 @@ document.addEventListener("DOMContentLoaded", () => {
     loadCleanupLists();
   }
 
+  async function deleteExam() {
+    const path = examList.value;
+    if (!path) return;
+    if (!confirm(`Delete ENTIRE exam folder:\n${path}\nThis will remove ALL sessions and students inside. This cannot be undone.`)) return;
+    await fetchJson("http://127.0.0.1:5050/api/admin/students", {
+      method: "DELETE",
+      body: JSON.stringify({ path }),
+    });
+    loadCleanupLists();
+  }
+
   async function deleteSession() {
     const path = sessionList.value;
     if (!path) return;
@@ -661,6 +682,17 @@ document.addEventListener("DOMContentLoaded", () => {
     loadCleanupLists();
   }
 
+  async function syncMirror() {
+    if (!confirm("This will remove any comparison_engine/students folders that no longer exist in Documents. Continue?")) return;
+    try {
+      const data = await fetchJson("http://127.0.0.1:5050/api/admin/sync_mirror", { method: "POST" });
+      alert(data.message || "Mirror sync complete.");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to sync mirror: " + (err.message || err));
+    }
+  }
+
   savePolicyBtn?.addEventListener("click", savePolicy);
   refreshRubricBtn?.addEventListener("click", loadRubricRules);
   saveRubricBtn?.addEventListener("click", saveRubricRules);
@@ -670,8 +702,10 @@ document.addEventListener("DOMContentLoaded", () => {
   deleteAllTemplatesBtn?.addEventListener("click", deleteAllTemplates);
   deleteResultBtn?.addEventListener("click", deleteResult);
   deleteAllResultsBtn?.addEventListener("click", deleteAllResults);
+  deleteExamBtn?.addEventListener("click", deleteExam);
   deleteSessionBtn?.addEventListener("click", deleteSession);
   deleteStudentBtn?.addEventListener("click", deleteStudent);
+  syncMirrorBtn?.addEventListener("click", syncMirror);
 
   // Init
   fetchCommands();

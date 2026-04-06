@@ -1793,7 +1793,7 @@ def _delete_engine_student_logs_for_docs_target(target):
     except Exception:
         return
 
-    if len(relative.parts) < 2:
+    if len(relative.parts) < 1:
         return
 
     mirror_target = ENGINE_STUDENTS_DIR.joinpath(*relative.parts)
@@ -1987,6 +1987,31 @@ def _list_existing_sessions():
                     "exam_name": exam_dir.name,
                     "session_id": session_dir.name,
                     "display": f"{exam_dir.name}/{session_dir.name}",
+                }
+            )
+    return sorted(results, key=lambda x: x["display"])
+
+
+def _list_existing_exams():
+    docs_path = Path.home() / "Documents"
+    results = []
+    if not docs_path.exists():
+        return results
+
+    for exam_dir in docs_path.iterdir():
+        if not exam_dir.is_dir() or exam_dir.name.startswith("."):
+            continue
+        # Only include dirs that contain at least one session subdirectory
+        has_session = any(
+            d.is_dir() for d in exam_dir.iterdir()
+            if not d.name.startswith(".")
+        )
+        if has_session:
+            results.append(
+                {
+                    "path": str(exam_dir),
+                    "exam_name": exam_dir.name,
+                    "display": exam_dir.name,
                 }
             )
     return sorted(results, key=lambda x: x["display"])
@@ -3496,6 +3521,7 @@ def api_admin_list_students():
     return jsonify(
         {
             "status": "ok",
+            "exams": _list_existing_exams(),
             "students": _list_existing_directories(),
             "sessions": _list_existing_sessions(),
         }
@@ -3530,6 +3556,44 @@ def api_admin_delete_students():
     _delete_engine_student_logs_for_docs_target(target)
     shutil.rmtree(target)
     return jsonify({"status": "ok", "message": f"Deleted {target}"})
+
+
+@app.route("/api/admin/sync_mirror", methods=["POST"])
+def api_admin_sync_mirror():
+    """Remove engine/students dirs whose corresponding Documents folders no longer exist."""
+    removed = []
+    if not ENGINE_STUDENTS_DIR.exists():
+        return jsonify({"status": "ok", "message": "Nothing to sync.", "removed": []})
+
+    for exam_dir in list(ENGINE_STUDENTS_DIR.iterdir()):
+        if not exam_dir.is_dir():
+            continue
+        docs_exam = DOCS_DIR / exam_dir.name
+        if not docs_exam.exists():
+            shutil.rmtree(exam_dir)
+            removed.append(exam_dir.name)
+            continue
+        for session_dir in list(exam_dir.iterdir()):
+            if not session_dir.is_dir():
+                continue
+            docs_session = docs_exam / session_dir.name
+            if not docs_session.exists():
+                shutil.rmtree(session_dir)
+                removed.append(f"{exam_dir.name}/{session_dir.name}")
+                continue
+            for student_dir in list(session_dir.iterdir()):
+                if not student_dir.is_dir():
+                    continue
+                docs_student = docs_session / student_dir.name
+                if not docs_student.exists():
+                    shutil.rmtree(student_dir)
+                    removed.append(f"{exam_dir.name}/{session_dir.name}/{student_dir.name}")
+
+    if removed:
+        msg = f"Removed {len(removed)} orphaned mirror folder(s):\n" + "\n".join(removed)
+    else:
+        msg = "All mirror folders are in sync. Nothing to remove."
+    return jsonify({"status": "ok", "message": msg, "removed": removed})
 
 
 @app.route("/api/add_student", methods=["POST"])
