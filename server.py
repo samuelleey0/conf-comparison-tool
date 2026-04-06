@@ -3527,8 +3527,8 @@ def api_admin_delete_students():
                 names.pop(relative.parts[2], None)
                 _save_session_student_names(session_dir, names)
 
-    shutil.rmtree(target)
     _delete_engine_student_logs_for_docs_target(target)
+    shutil.rmtree(target)
     return jsonify({"status": "ok", "message": f"Deleted {target}"})
 
 
