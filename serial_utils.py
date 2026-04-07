@@ -306,10 +306,59 @@ def disable_paging(ser, prompt="#", timeout=5):
     send_command(ser, "terminal length 0", expected_prompt=prompt, timeout=timeout)
 
 
+def ensure_exec_mode(ser, timeout=5):
+    """
+    Escape from any config mode (config, config-if, config-router, etc.)
+    back to privileged EXEC mode (#).
+    Sends Ctrl-Z (end) and drains the buffer.
+    """
+    try:
+        # Ctrl-Z exits any config sub-mode to privileged EXEC
+        ser.write(b"\x1a")  # Ctrl-Z
+        ser.flush()
+        time.sleep(0.3)
+
+        # Also send 'end' as a fallback in case Ctrl-Z didn't work
+        ser.write(b"end\n")
+        ser.flush()
+        time.sleep(0.5)
+
+        # Drain buffer
+        if ser.in_waiting:
+            ser.read(ser.in_waiting)
+
+        # Send a blank line and check we get a clean # prompt (not config)
+        ser.write(b"\n")
+        ser.flush()
+        time.sleep(0.3)
+        data = b""
+        if ser.in_waiting:
+            data = ser.read(ser.in_waiting)
+        decoded = data.decode(errors="ignore")
+
+        if "(config" in decoded:
+            # Still in config mode, try one more time
+            dbg("Still in config mode, retrying exit...")
+            ser.write(b"\x1a")
+            ser.flush()
+            time.sleep(0.3)
+            ser.write(b"end\n")
+            ser.flush()
+            time.sleep(0.5)
+            if ser.in_waiting:
+                ser.read(ser.in_waiting)
+
+        dbg("ensure_exec_mode completed")
+    except Exception as e:
+        dbg(f"Error in ensure_exec_mode: {e}")
+
+
 def enter_enable_mode(ser, timeout=5):
     """
     Enter privileged EXEC mode (> to # or (config)# to #).
+    First ensures we exit any config sub-mode.
     """
+    ensure_exec_mode(ser)
     output = send_command(ser, "enable", expected_prompt="#", timeout=timeout)
 
     if "#" not in output:
