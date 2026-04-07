@@ -2,6 +2,28 @@ import time
 from serial_utils import connect_to_serial
 
 
+def _read_until(ser, triggers, timeout=15, log_cb=None):
+    """
+    Read serial output until one of the trigger phrases is found (case-insensitive)
+    or until timeout.  Returns (accumulated_text, matched_trigger_or_None).
+    """
+    response = ""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        n = ser.in_waiting
+        if n:
+            chunk = ser.read(n).decode(errors="ignore")
+            response += chunk
+            if log_cb:
+                log_cb(f"[SERIAL] {chunk.strip()}")
+            lower = response.lower()
+            for trigger in triggers:
+                if trigger.lower() in lower:
+                    return response, trigger
+        time.sleep(0.1)
+    return response, None
+
+
 def reload_cisco_device(port: str, baudrate: int = 9600, status_cb=None):
     logs = []
 
@@ -24,78 +46,106 @@ def reload_cisco_device(port: str, baudrate: int = 9600, status_cb=None):
     try:
         # --- STEP 1: ENSURE EXEC MODE ---
         emit("[INFO] Ensuring EXEC mode...")
+        ser.write(b"\x03")  # Ctrl-C to interrupt anything
+        ser.flush()
+        time.sleep(0.3)
         ser.write(b"end\n")
         ser.flush()
         time.sleep(1)
-        ser.read(ser.in_waiting or 1024)
+        ser.read(ser.in_waiting or 1024)  # drain buffer
 
         # --- STEP 2: ENABLE ---
         emit("[INFO] Entering enable mode...")
         ser.write(b"enable\n")
         ser.flush()
         time.sleep(1)
-        ser.read(ser.in_waiting or 1024)
+        ser.read(ser.in_waiting or 1024)  # drain buffer
 
-        # --- STEP 3: DELETE VLAN.DAT ---
+        # --- STEP 3: WRITE ERASE (erase startup-config) ---
+        emit("[INFO] Erasing startup configuration...")
+        ser.write(b"write erase\n")
+        ser.flush()
+
+        resp, trigger = _read_until(ser, ["confirm", "[ok]"], timeout=10)
+        if trigger:
+            emit("[INFO] Confirming write erase...")
+            ser.write(b"\n")
+            ser.flush()
+            time.sleep(3)
+            ser.read(ser.in_waiting or 1024)  # drain
+        else:
+            emit("[WARNING] No confirmation prompt for write erase. Continuing anyway.")
+
+        # --- STEP 4: DELETE VLAN.DAT ---
         emit("[INFO] Deleting vlan.dat...")
         ser.write(b"delete flash:vlan.dat\n")
         ser.flush()
 
-        response = ""
-        timeout = time.time() + 10
-
-        while time.time() < timeout:
-            if ser.in_waiting:
-                response += ser.read(ser.in_waiting).decode(errors="ignore")
-
-                if "delete filename" in response.lower():
-                    emit("[INFO] Confirming filename...")
-                    ser.write(b"\n")
-                    ser.flush()
-
-                elif "confirm" in response.lower():
+        # First prompt: "Delete filename [vlan.dat]?"
+        resp, trigger = _read_until(ser, ["delete filename", "confirm", "[ok]", "no such file", "not found"], timeout=10)
+        if trigger and ("no such file" in trigger.lower() or "not found" in trigger.lower()):
+            emit("[INFO] vlan.dat does not exist. Skipping.")
+        elif trigger:
+            if "delete filename" in trigger.lower():
+                emit("[INFO] Confirming filename...")
+                ser.write(b"\n")
+                ser.flush()
+                # Wait for second prompt: "Delete flash:/vlan.dat? [confirm]"
+                resp2, trigger2 = _read_until(ser, ["confirm", "[ok]"], timeout=10)
+                if trigger2:
                     emit("[INFO] Confirming deletion...")
                     ser.write(b"\n")
                     ser.flush()
-                    break
+                    time.sleep(2)
+            elif "confirm" in trigger.lower():
+                emit("[INFO] Confirming deletion...")
+                ser.write(b"\n")
+                ser.flush()
+                time.sleep(2)
+        else:
+            emit("[WARNING] No prompt detected for vlan.dat deletion. Continuing.")
 
-            time.sleep(0.1)
+        ser.read(ser.in_waiting or 1024)  # drain buffer
+        time.sleep(1)
 
-        emit("[DEBUG] VLAN deleted")
-        time.sleep(3)
-
-        # --- STEP 4: RELOAD ONLY ---
+        # --- STEP 5: RELOAD ---
         emit("[INFO] Sending reload command...")
         ser.write(b"reload\n")
         ser.flush()
 
-        response = ""
-        timeout = time.time() + 15
+        # The device may ask to save config, or go straight to confirm
+        # Possible prompts:
+        #   "System configuration has been modified. Save? [yes/no]:"
+        #   "Proceed with reload? [confirm]"
+        #   just "[confirm]"
+        resp, trigger = _read_until(ser, ["save?", "yes/no", "modified", "confirm", "proceed"], timeout=15)
 
-        while time.time() < timeout:
-            if ser.in_waiting:
-                response += ser.read(ser.in_waiting).decode(errors="ignore")
+        if trigger and trigger.lower() in ("save?", "yes/no", "modified"):
+            emit("[INFO] Responding 'no' to save prompt...")
+            ser.write(b"no\n")
+            ser.flush()
+            # Now wait for the actual confirm/proceed prompt
+            resp2, trigger2 = _read_until(ser, ["confirm", "proceed"], timeout=10)
+            if trigger2:
+                emit("[INFO] Confirming reload...")
+                ser.write(b"\n")
+                ser.flush()
+            else:
+                # Some IOS versions just reload after "no"
+                emit("[INFO] No confirm prompt after 'no'. Device may be reloading.")
+        elif trigger and trigger.lower() in ("confirm", "proceed"):
+            emit("[INFO] Confirming reload...")
+            ser.write(b"\n")
+            ser.flush()
+        else:
+            emit("[WARNING] No reload prompt detected. Sending Enter just in case...")
+            ser.write(b"\n")
+            ser.flush()
 
-                # DO NOT SAVE CONFIG
-                if "save" in response.lower():
-                    emit("[INFO] Responding 'no' (do not save)...")
-                    ser.write(b"no\n")
-                    ser.flush()
-                    response = ""
+        emit("[INFO] Device is rebooting. Waiting for reload to begin...")
+        time.sleep(10)  # Give the device time to start the reload
 
-                # CONFIRM RELOAD
-                elif "confirm" in response.lower():
-                    emit("[INFO] Confirming reload...")
-                    ser.write(b"\n")
-                    ser.flush()
-                    break
-
-            time.sleep(0.1)
-
-        emit("[INFO] Device is rebooting...")
-
-        time.sleep(5)
-        return {"success": True, "logs": logs, "message": "Reset command sent successfully."}
+        return {"success": True, "logs": logs, "message": "Device reset and reload initiated successfully."}
 
     except Exception as e:
         emit(f"[ERROR] Failed: {e}")
@@ -104,6 +154,6 @@ def reload_cisco_device(port: str, baudrate: int = 9600, status_cb=None):
     finally:
         try:
             ser.close()
-        except:
+        except Exception:
             pass
         emit("[INFO] Serial port closed safely.")
