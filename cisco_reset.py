@@ -24,7 +24,9 @@ def _read_until(ser, triggers, timeout=15, log_cb=None):
     return response, None
 
 
-def reload_cisco_device(port: str, baudrate: int = 9600, status_cb=None):
+def reload_cisco_device(
+    port: str, baudrate: int = 9600, status_cb=None, erase_startup_config: bool = False
+):
     logs = []
 
     def emit(message):
@@ -41,7 +43,11 @@ def reload_cisco_device(port: str, baudrate: int = 9600, status_cb=None):
 
     if not ser:
         emit(f"[ERROR] Could not connect to device on {port}.")
-        return {"success": False, "logs": logs, "message": f"Could not connect to device on {port}."}
+        return {
+            "success": False,
+            "logs": logs,
+            "message": f"Could not connect to device on {port}.",
+        }
 
     try:
         # --- STEP 1: ENSURE EXEC MODE ---
@@ -61,29 +67,40 @@ def reload_cisco_device(port: str, baudrate: int = 9600, status_cb=None):
         time.sleep(1)
         ser.read(ser.in_waiting or 1024)  # drain buffer
 
-        # --- STEP 3: WRITE ERASE (erase startup-config) ---
-        emit("[INFO] Erasing startup configuration...")
-        ser.write(b"write erase\n")
-        ser.flush()
-
-        resp, trigger = _read_until(ser, ["confirm", "[ok]"], timeout=10)
-        if trigger:
-            emit("[INFO] Confirming write erase...")
-            ser.write(b"\n")
+        # --- STEP 3: WRITE ERASE (erase startup-config) --- [OPTIONAL]
+        if erase_startup_config:
+            emit("[INFO] Erasing startup configuration...")
+            ser.write(b"write erase\n")
             ser.flush()
-            time.sleep(3)
-            ser.read(ser.in_waiting or 1024)  # drain
-        else:
-            emit("[WARNING] No confirmation prompt for write erase. Continuing anyway.")
 
-        # --- STEP 4: DELETE VLAN.DAT ---
+            resp, trigger = _read_until(ser, ["confirm", "[ok]"], timeout=10)
+            if trigger:
+                emit("[INFO] Confirming write erase...")
+                ser.write(b"\n")
+                ser.flush()
+                time.sleep(3)
+                ser.read(ser.in_waiting or 1024)  # drain
+            else:
+                emit(
+                    "[WARNING] No confirmation prompt for write erase. Continuing anyway."
+                )
+        else:
+            emit("[INFO] Skipping startup config erasure (preserving startup-config).")
+
+        # --- STEP 4: DELETE VLAN.DAT --- [ALWAYS]
         emit("[INFO] Deleting vlan.dat...")
         ser.write(b"delete flash:vlan.dat\n")
         ser.flush()
 
         # First prompt: "Delete filename [vlan.dat]?"
-        resp, trigger = _read_until(ser, ["delete filename", "confirm", "[ok]", "no such file", "not found"], timeout=10)
-        if trigger and ("no such file" in trigger.lower() or "not found" in trigger.lower()):
+        resp, trigger = _read_until(
+            ser,
+            ["delete filename", "confirm", "[ok]", "no such file", "not found"],
+            timeout=10,
+        )
+        if trigger and (
+            "no such file" in trigger.lower() or "not found" in trigger.lower()
+        ):
             emit("[INFO] vlan.dat does not exist. Skipping.")
         elif trigger:
             if "delete filename" in trigger.lower():
@@ -118,7 +135,9 @@ def reload_cisco_device(port: str, baudrate: int = 9600, status_cb=None):
         #   "System configuration has been modified. Save? [yes/no]:"
         #   "Proceed with reload? [confirm]"
         #   just "[confirm]"
-        resp, trigger = _read_until(ser, ["save?", "yes/no", "modified", "confirm", "proceed"], timeout=15)
+        resp, trigger = _read_until(
+            ser, ["save?", "yes/no", "modified", "confirm", "proceed"], timeout=15
+        )
 
         if trigger and trigger.lower() in ("save?", "yes/no", "modified"):
             emit("[INFO] Responding 'no' to save prompt...")
@@ -145,7 +164,11 @@ def reload_cisco_device(port: str, baudrate: int = 9600, status_cb=None):
         emit("[INFO] Device is rebooting. Waiting for reload to begin...")
         time.sleep(10)  # Give the device time to start the reload
 
-        return {"success": True, "logs": logs, "message": "Device reset and reload initiated successfully."}
+        return {
+            "success": True,
+            "logs": logs,
+            "message": "Device reset and reload initiated successfully.",
+        }
 
     except Exception as e:
         emit(f"[ERROR] Failed: {e}")
