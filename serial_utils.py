@@ -180,6 +180,8 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
     - expected_prompts: list of strings to detect (e.g., [">", "#", "(config)#"])
     - timeout: total seconds to wait
     - wake: whether to attempt a short wake sequence (CRs) while reading
+    Also handles exiting config modes: if device is in (config)# or similar nested modes,
+    automatically sends 'end' commands to return to user/enable prompt.
     Raises TimeoutError on failure.
     """
     start = time.time()
@@ -216,7 +218,30 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
             # check each expected prompt at line end
             for prompt in expected_prompts:
                 if re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE):
-                    return decoded
+                    # Check if we're in a config mode (e.g., "(config)#", "(config-if)#")
+                    # If so, send 'end' to exit
+                    last_line = (
+                        decoded.strip().splitlines()[-1]
+                        if decoded.strip().splitlines()
+                        else ""
+                    )
+                    if "(" in last_line and ")" in last_line:
+                        dbg(
+                            f"Detected config mode: {last_line}, sending 'end' to exit..."
+                        )
+                        try:
+                            ser.write(b"end\n")
+                            ser.flush()
+                            time.sleep(0.5)
+                            # Reset buffer and continue waiting for clean prompt
+                            _reset_buffers(ser)
+                            buffer = b""
+                            break  # Break inner loop to continue while loop
+                        except Exception as e:
+                            dbg(f"Error sending 'end': {e}")
+                    else:
+                        # Clean prompt detected (> or #), return it
+                        return decoded
                 # handle possible activation text
                 if b"Press RETURN to get started" in buffer:
                     try:
