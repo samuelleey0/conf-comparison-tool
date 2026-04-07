@@ -40,10 +40,10 @@
           <div id="serialFields">
             <p class="hint">Choose the preset that matches your system or select custom.</p>
             <div class="inline-options">
-              <label class="choice-label"><input type="radio" name="serialPreset" value="linux_rs232" checked /> Linux
-                RS232 (/dev/ttyS0)</label>
-              <label class="choice-label"><input type="radio" name="serialPreset" value="linux_usb" /> Linux USB-Serial
+              <label class="choice-label"><input type="radio" name="serialPreset" value="linux_usb" checked /> Linux USB-Serial
                 (/dev/ttyUSB0)</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="linux_rs232" /> Linux
+                RS232 (/dev/ttyS0)</label>
               <label class="choice-label"><input type="radio" name="serialPreset" value="windows" /> Windows
                 (COM3)</label>
               <label class="choice-label"><input type="radio" name="serialPreset" value="mac" /> macOS
@@ -83,6 +83,7 @@
           <pre id="log" class="log"></pre>
         </div>
         <div class="actions justify-end">
+          <button type="button" id="abortExecutionBtn" class="danger" style="display: none;">⏹ Stop Execution</button>
           <button type="button" id="resetDeviceBtn" class="danger">Reset Cisco Device</button>
           <button type="button" id="reconnectRunBtn" class="secondary">Test Connection</button>
           <button type="button" id="startSequenceBtn" class="primary">Start Auto-Execution Sequence</button>

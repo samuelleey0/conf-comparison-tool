@@ -41,12 +41,14 @@ def connect_to_serial(
     retry_interval: int = 3,
     max_retries: int = 5,
     status_cb=None,
+    abort_event=None,
 ):
     """
     Establish a serial connection to a Cisco device.
     Handles cases where the serial cable is unplugged or the device is unresponsive.
     - retry_interval: Time (in seconds) to wait between retries.
     - max_retries: Maximum number of retries for the entire connection process.
+    - abort_event: threading.Event; if set, stop retrying immediately.
     Returns an open Serial object or None.
     """
 
@@ -58,23 +60,37 @@ def connect_to_serial(
             except Exception:
                 pass
 
+    def _aborted():
+        return abort_event and abort_event.is_set()
+
     emit(f"[INFO] Attempting to open serial port: {port} at {baudrate} baud")
     retries = 0
     last_exc = None
 
     while retries < max_retries:
+        if _aborted():
+            emit("[INFO] Connection aborted by user.")
+            return None
+
         try:
             # Check if the serial device exists (Linux/macOS: /dev/ttyUSB0, Windows: COMx)
             if not os.path.exists(port) and not port.startswith("COM"):
                 emit(f"[WARNING] Serial device {port} not found. Check connection.")
                 retries += 1
-                time.sleep(retry_interval)
+                for _ in range(retry_interval * 10):
+                    if _aborted():
+                        emit("[INFO] Connection aborted by user.")
+                        return None
+                    time.sleep(0.1)
                 continue
 
             # Attempt to open the serial port
             ser = None
             open_exec = None
             for open_try in range(6):
+                if _aborted():
+                    emit("[INFO] Connection aborted by user.")
+                    return None
                 try:
                     ser = serial.Serial(
                         port=port,
@@ -102,7 +118,11 @@ def connect_to_serial(
                 emit(f"[ERROR] Failed to open serial port: {open_exec}")
                 last_exc = open_exec
                 retries += 1
-                time.sleep(retry_interval)
+                for _ in range(retry_interval * 10):
+                    if _aborted():
+                        emit("[INFO] Connection aborted by user.")
+                        return None
+                    time.sleep(0.1)
                 continue
             try:
                 ser.dtr = True  # Ensure DTR is set to True to avoid connection issues
@@ -127,14 +147,22 @@ def connect_to_serial(
                 logout_close_connection(ser)
                 time.sleep(0.5)
                 retries += 1
-                time.sleep(retry_interval)
+                for _ in range(retry_interval * 10):
+                    if _aborted():
+                        emit("[INFO] Connection aborted by user.")
+                        return None
+                    time.sleep(0.1)
                 continue
 
         except serial.SerialException as e:
             emit(f"[ERROR] Error opening serial port on attempt {retries + 1}: {e}")
             last_exc = e
             retries += 1
-            time.sleep(retry_interval)
+            for _ in range(retry_interval * 10):
+                if _aborted():
+                    emit("[INFO] Connection aborted by user.")
+                    return None
+                time.sleep(0.1)
             continue
 
     emit(

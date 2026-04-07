@@ -3,11 +3,13 @@
 const API_ROOT = "http://127.0.0.1:5050";
 const SIDEBAR_COLLAPSE_KEY = "sidebarCollapsed";
 const SERIAL_PRESETS = {
-  linux_rs232: "/dev/ttyS0",
   linux_usb: "/dev/ttyUSB0",
+  linux_rs232: "/dev/ttyS0",
   windows: "COM3",
   mac: "/dev/cu.usbserial-10",
 };
+
+let currentAbortController = null;
 
 let ipcRenderer = null;
 let shell = null;
@@ -1413,7 +1415,7 @@ function setupSampleCollectPage() {
     const portInput = document.getElementById("sampleSerialPort");
     if (portInput) portInput.value = savedPort;
   } else {
-    applySampleSerialPreset("linux_rs232");
+    applySampleSerialPreset("linux_usb");
   }
 
   document.getElementById("sampleSshHost").value = localStorage.getItem("sshHost") || "";
@@ -1503,7 +1505,7 @@ function applySerialPreset(preset) {
   if (preset === "custom") {
     portInput.removeAttribute("readonly");
   } else {
-    portInput.value = SERIAL_PRESETS[preset] || "/dev/ttyS0";
+    portInput.value = SERIAL_PRESETS[preset] || "/dev/ttyUSB0";
     portInput.setAttribute("readonly", "readonly");
   }
 }
@@ -1751,7 +1753,7 @@ async function resetCiscoDevice({ triggerButton = null } = {}) {
   const port =
     portInput?.value.trim() ||
     localStorage.getItem("serialPort") ||
-    SERIAL_PRESETS.linux_rs232;
+    SERIAL_PRESETS.linux_usb;
 
   if (!port) {
     alert("Please configure the serial port first.");
@@ -1992,7 +1994,7 @@ function setupConnectionPage() {
     applySerialPreset("custom");
     document.getElementById("serialPort").value = savedPort;
   } else {
-    applySerialPreset("linux_rs232");
+    applySerialPreset("linux_usb");
   }
 
   document.getElementById("sshHost").value = localStorage.getItem("sshHost") || "";
@@ -2099,9 +2101,15 @@ async function runNextDeviceInQueue() {
   }
 
   // Run commands directly (do not pre-connect; /api/execute manages serial)
+  const abortBtn = document.getElementById("abortExecutionBtn");
+
   const runExecute = async (forceSkipHostname = false) => {
     badge.textContent = "EXECUTING...";
     badge.style.color = "var(--color-primary)";
+
+    // Create abort controller for this execution
+    currentAbortController = new AbortController();
+    if (abortBtn) abortBtn.style.display = "inline-block";
 
     try {
          const directoryMode = localStorage.getItem("directoryMode") || "create";
@@ -2123,13 +2131,14 @@ async function runNextDeviceInQueue() {
          const portInput = document.getElementById("serialPort");
          let currentPort = portInput ? portInput.value.trim() : "";
          if (!currentPort) {
-           currentPort = localStorage.getItem("serialPort") || SERIAL_PRESETS.linux_rs232;
+           currentPort = localStorage.getItem("serialPort") || SERIAL_PRESETS.linux_usb;
          }
          payload.serial = { port: currentPort };
          const res = await fetch(`${API_ROOT}/api/execute`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
+            signal: currentAbortController.signal,
          });
          if (!res.ok) {
             const txt = await res.text();
@@ -2174,6 +2183,9 @@ async function runNextDeviceInQueue() {
            }
          }
 
+         if (abortBtn) abortBtn.style.display = "none";
+         currentAbortController = null;
+
          if (!hadError) {
             badge.textContent = "DONE";
             badge.style.color = "var(--color-success, #28a745)";
@@ -2207,6 +2219,21 @@ async function runNextDeviceInQueue() {
             throw new Error("Execution failed during command run.");
          }
       } catch (e) {
+         if (abortBtn) abortBtn.style.display = "none";
+         currentAbortController = null;
+
+         if (e.name === "AbortError") {
+           // User clicked Stop Execution
+           badge.textContent = "STOPPED";
+           badge.style.color = "var(--color-danger)";
+           appendLogLine(`[STOPPED] Execution aborted by user.`);
+           document.getElementById("startSequenceBtn").disabled = false;
+           isSequenceRunning = false;
+           // Tell backend to abort too
+           try { fetch(`${API_ROOT}/api/abort`, { method: "POST" }); } catch (_) {}
+           return;
+         }
+
          badge.textContent = "ERROR";
          badge.style.color = "var(--color-danger)";
          console.error(e);
@@ -2215,6 +2242,15 @@ async function runNextDeviceInQueue() {
          isSequenceRunning = false;
       }
   };
+
+  // Wire abort button
+  if (abortBtn) {
+    abortBtn.onclick = () => {
+      if (currentAbortController) {
+        currentAbortController.abort();
+      }
+    };
+  }
 
   runExecute();
 }

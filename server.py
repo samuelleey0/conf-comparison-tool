@@ -70,6 +70,8 @@ ssh_client = None
 ssh_hostname = None
 last_used_ssh_credentials = {"host": None, "username": None, "password": None, "port": 22}
 
+execution_abort = threading.Event()
+
 
 def _close_serial_connection():
     global serial_conn, serial_hostname
@@ -2581,8 +2583,19 @@ def _ensure_base_path(data):
 
 
 
+@app.route("/api/abort", methods=["POST"])
+def api_abort():
+    """Signal the running execution to stop immediately."""
+    execution_abort.set()
+    # Close connections to force any blocking read to fail
+    _close_serial_connection()
+    _close_ssh_connection()
+    return jsonify({"status": "ok", "message": "Abort signal sent."})
+
+
 @app.route("/api/execute", methods=["POST"])
 def api_execute():
+    execution_abort.clear()
     data = request.get_json() or {}
     commands = data.get("commands") or []
     target_device = data.get("deviceId") or data.get("target_device")
@@ -2667,6 +2680,7 @@ def api_execute():
                     timeout=READ_TIMEOUT,
                     retry_interval=3,
                     max_retries=5,
+                    abort_event=execution_abort,
                 )
             except Exception as exc:
                 yield stream_json_line(
