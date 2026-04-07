@@ -55,10 +55,31 @@ def reload_cisco_device(
         ser.write(b"\x03")  # Ctrl-C to interrupt anything
         ser.flush()
         time.sleep(0.3)
-        ser.write(b"end\n")
-        ser.flush()
-        time.sleep(1)
+
+        # Detect current prompt and exit config modes if needed
+        max_end_attempts = 5
+        for attempt in range(max_end_attempts):
+            ser.write(b"end\n")
+            ser.flush()
+            time.sleep(0.5)
+
+            # Read any response to check prompt
+            resp, trigger = _read_until(ser, [">", "#"], timeout=3)
+            emit(f"[DEBUG] Prompt check attempt {attempt + 1}: {repr(resp)}")
+
+            # Simple check: if response contains > or #, we're good
+            if ">" in resp or "#" in resp:
+                emit("[INFO] Reached user/enable prompt.")
+                break
+            elif attempt < max_end_attempts - 1:
+                emit(f"[INFO] Still in config mode, sending end again...")
+        else:
+            emit(
+                f"[WARNING] Could not exit config mode after {max_end_attempts} attempts, proceeding anyway."
+            )
+
         ser.read(ser.in_waiting or 1024)  # drain buffer
+        time.sleep(0.5)
 
         # --- STEP 2: ENABLE ---
         emit("[INFO] Entering enable mode...")
