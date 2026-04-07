@@ -98,6 +98,9 @@ def reload_cisco_device(
             ["delete filename", "confirm", "[ok]", "no such file", "not found"],
             timeout=10,
         )
+        emit(f"[DEBUG] Device response: {repr(resp)}")
+        emit(f"[DEBUG] Matched trigger: {trigger}")
+
         if trigger and (
             "no such file" in trigger.lower() or "not found" in trigger.lower()
         ):
@@ -109,6 +112,9 @@ def reload_cisco_device(
                 ser.flush()
                 # Wait for second prompt: "Delete flash:/vlan.dat? [confirm]"
                 resp2, trigger2 = _read_until(ser, ["confirm", "[ok]"], timeout=10)
+                emit(f"[DEBUG] Second response: {repr(resp2)}")
+                emit(f"[DEBUG] Second trigger: {trigger2}")
+
                 if trigger2:
                     emit("[INFO] Confirming deletion...")
                     ser.write(b"\n")
@@ -120,7 +126,10 @@ def reload_cisco_device(
                 ser.flush()
                 time.sleep(2)
         else:
-            emit("[WARNING] No prompt detected for vlan.dat deletion. Continuing.")
+            emit(
+                f"[WARNING] No prompt detected for vlan.dat deletion. Device response was: {repr(resp)}"
+            )
+            emit("[WARNING] Continuing anyway...")
 
         ser.read(ser.in_waiting or 1024)  # drain buffer
         time.sleep(1)
