@@ -126,10 +126,60 @@ def reload_cisco_device(
                 ser.flush()
                 time.sleep(2)
         else:
-            emit(
-                f"[WARNING] No prompt detected for vlan.dat deletion. Device response was: {repr(resp)}"
-            )
-            emit("[WARNING] Continuing anyway...")
+            if not resp.strip():
+                emit(
+                    "[INFO] No immediate response for vlan.dat delete; probing device prompt..."
+                )
+                ser.write(b"\n")
+                ser.flush()
+                resp_probe, trigger_probe = _read_until(
+                    ser,
+                    [
+                        "delete filename",
+                        "confirm",
+                        "[ok]",
+                        "no such file",
+                        "not found",
+                        "#",
+                        ">",
+                    ],
+                    timeout=3,
+                )
+                emit(f"[DEBUG] Probe response: {repr(resp_probe)}")
+                emit(f"[DEBUG] Probe trigger: {trigger_probe}")
+
+                if trigger_probe and trigger_probe.lower() in (
+                    "delete filename",
+                    "confirm",
+                ):
+                    if trigger_probe.lower() == "delete filename":
+                        emit("[INFO] Confirming filename...")
+                        ser.write(b"\n")
+                        ser.flush()
+                        resp2, trigger2 = _read_until(
+                            ser, ["confirm", "[ok]"], timeout=10
+                        )
+                        emit(f"[DEBUG] Second response: {repr(resp2)}")
+                        emit(f"[DEBUG] Second trigger: {trigger2}")
+                        if trigger2:
+                            emit("[INFO] Confirming deletion...")
+                            ser.write(b"\n")
+                            ser.flush()
+                            time.sleep(2)
+                    else:
+                        emit("[INFO] Confirming deletion...")
+                        ser.write(b"\n")
+                        ser.flush()
+                        time.sleep(2)
+                else:
+                    emit(
+                        "[INFO] No interactive delete prompt detected; continuing to reload."
+                    )
+            else:
+                emit(
+                    f"[WARNING] No prompt detected for vlan.dat deletion. Device response was: {repr(resp)}"
+                )
+                emit("[WARNING] Continuing anyway...")
 
         ser.read(ser.in_waiting or 1024)  # drain buffer
         time.sleep(1)
