@@ -87,6 +87,10 @@ def reload_cisco_device(
         else:
             emit("[INFO] Skipping startup config erasure (preserving startup-config).")
 
+        # Ensure buffer is clean before vlan operation
+        ser.read(ser.in_waiting or 1024)  # drain any residual data
+        time.sleep(0.5)
+
         # --- STEP 4: DELETE VLAN.DAT --- [ALWAYS]
         emit("[INFO] Deleting vlan.dat...")
         ser.write(b"delete flash:vlan.dat\n")
