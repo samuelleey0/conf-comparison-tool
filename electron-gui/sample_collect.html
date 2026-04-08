@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Collect Sample Logs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="stylesheet" href="assets/nav.css" />
+</head>
+<body class="connection-body">
+  <div id="navbarContainer"></div>
+
+  <div class="page-shell connection-shell">
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">Collect Sample Logs</h1>
+        <p class="page-subtitle">Save lecturer logs to a chosen folder for rubric creation. (v2)</p>
+      </div>
+    </header>
+
+    <div class="connection-layout" id="sampleCollectPage">
+      <section class="connection-panel page-card">
+        <h2 class="section-title">Save Location & Commands</h2>
+        <div id="sampleStatus" class="status-banner" style="margin-bottom: 12px;">
+          <div class="status-banner__icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M10 9v5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <circle cx="10" cy="6.5" r="1" fill="currentColor"/>
+            </svg>
+          </div>
+          <div class="status-banner__body">
+            <span class="status-banner__label">Status</span>
+            <span class="status-banner__msg">Initializing...</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Save Directory</label>
+          <div class="existing-picker">
+            <button type="button" class="secondary" id="chooseSampleDirBtn">Choose Folder</button>
+            <span id="sampleDirLabel" class="selected-path">No folder selected</span>
+          </div>
+          <div class="form-row" style="margin-top: 10px; align-items: flex-end;">
+            <div class="form-group" style="flex: 1; min-width: 220px;">
+              <label for="sampleNewFolderName">Create New Folder</label>
+              <input type="text" id="sampleNewFolderName" placeholder="e.g. SampleLogs_Mar19" />
+            </div>
+            <div class="form-group" style="min-width: 160px;">
+              <button type="button" class="secondary" id="sampleCreateFolderBtn">Create Folder</button>
+            </div>
+          </div>
+          <p class="hint">If no folder is selected, new folders are created under Documents. If a folder is selected, the new folder is created inside it.</p>
+        </div>
+
+        <div class="form-group" style="margin-top: 16px;">
+          <label>Commands to Collect</label>
+          <div id="sampleCommandsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card);"></div>
+          <div class="actions align-left" style="margin-top: 10px;">
+            <button type="button" id="selectAllSampleCmds" class="secondary">Select All</button>
+            <button type="button" id="clearSampleCmds" class="secondary">Clear</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="connection-panel page-card">
+        <h2 class="section-title">Connection</h2>
+        <div class="form-group">
+          <label class="choice-label"><input type="radio" name="sampleConnType" value="serial" checked /> Serial</label>
+          <label class="choice-label"><input type="radio" name="sampleConnType" value="ssh" /> SSH</label>
+        </div>
+
+        <div id="sampleSerialFields">
+          <p class="hint">Choose the preset that matches your system or select custom.</p>
+          <div class="inline-options">
+            <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="linux_usb" checked /> Linux USB-Serial (/dev/ttyUSB0)</label>
+            <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="linux_rs232" /> Linux RS232 (/dev/ttyS0)</label>
+            <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="windows" /> Windows (COM3)</label>
+            <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="mac" /> macOS (/dev/cu.usbserial-10)</label>
+            <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="custom" /> Custom</label>
+          </div>
+          <label for="sampleSerialPort">Serial Port</label>
+          <input type="text" id="sampleSerialPort" placeholder="/dev/ttyUSB0" />
+        </div>
+
+        <div id="sampleSshFields" class="hidden">
+          <label for="sampleSshHost">SSH Host</label><br>
+          <input type="text" id="sampleSshHost" placeholder="192.168.1.1" /><br>
+          <label for="sampleSshUser">SSH Username</label><br>
+          <input type="text" id="sampleSshUser" placeholder="admin" /><br>
+          <label for="sampleSshPass">SSH Password</label><br>
+          <input type="password" id="sampleSshPass" placeholder="Password" />
+          <br>
+          <label for="sampleSshPort">SSH Port</label><br>
+          <input type="text" id="sampleSshPort" placeholder="22" />
+        </div>
+
+        <div class="actions justify-end" style="margin-top: 16px;">
+          <button type="button" id="runSampleCollectBtn" class="primary">Collect Logs</button>
+        </div>
+        <pre id="sampleLog" class="log" style="margin-top: 12px; height: 200px;"></pre>
+      </section>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

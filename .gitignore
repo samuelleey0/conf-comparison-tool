@@ -44,3 +44,10 @@ config/
 # -------------------------
 Thumbs.db
 .DS_Store
+
+# -------------------------
+# Comparison Engine Output
+# -------------------------
+comparison_engine/templates/
+comparison_engine/students/
+comparison_engine/results/

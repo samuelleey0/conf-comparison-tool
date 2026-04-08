@@ -185,17 +185,167 @@ function editRubric(rubric) {
     (rubric ? (rubric.criteria || []) : []).forEach(c => addCriteriaRow(c));
 }
 
+const CRITERIA_TEMPLATES = {
+    "hostname": {
+        label: "Hostname",
+        generate: (data) => `hostname\\s+${data.host}`,
+        extract: (pattern) => {
+            const m = pattern.match(/^hostname\\s\+([^ ]+)$/);
+            return m ? { host: m[1] } : null;
+        },
+        render: (data = {}) => `
+            <input type="text" placeholder="Expected Hostname (e.g., S1 or {{hostname}})" class="tpl-hostname" value="${(data.host || '').replace(/"/g, '&quot;')}" style="flex: 1; padding: 4px;">
+        `,
+        getValues: (row) => ({ host: row.querySelector('.tpl-hostname').value })
+    },
+    "interface_ip": {
+        label: "Interface IP Address",
+        generate: (data) => {
+            const ip = data.ip.startsWith("{{") ? data.ip : data.ip.replace(/\./g, "\\.");
+            return `interface\\s+${data.intf}[\\s\\S]*?ip\\s+address\\s+${ip}`;
+        },
+        extract: (pattern) => {
+            const m = pattern.match(/^interface\\s\+(.+?)\[\\s\\S\]\*\?ip\\s\+address\\s\+(.+)$/);
+            if (m) {
+                const ip = m[2].startsWith("{{") ? m[2] : m[2].replace(/\\\./g, ".");
+                return { intf: m[1], ip: ip };
+            }
+            return null;
+        },
+        render: (data = {}) => `
+            <input type="text" placeholder="Interface (e.g., GigabitEthernet0/0)" class="tpl-intf" value="${(data.intf || '').replace(/"/g, '&quot;')}" style="flex: 1; padding: 4px;">
+            <input type="text" placeholder="IP (e.g., 192.168.1.1 or {{ip}})" class="tpl-ip" value="${(data.ip || '').replace(/"/g, '&quot;')}" style="flex: 1; padding: 4px;">
+        `,
+        getValues: (row) => ({
+            intf: row.querySelector('.tpl-intf').value,
+            ip: row.querySelector('.tpl-ip').value
+        })
+    },
+    "interface_config": {
+        label: "Interface Configuration",
+        generate: (data) => `interface\\s+${data.intf}[\\s\\S]*?${data.config}`,
+        extract: (pattern) => {
+            // Avoid matching the IP check which also uses this structure
+            if (pattern.includes("ip\\s+address")) return null;
+            const m = pattern.match(/^interface\\s\+(.+?)\[\\s\\S\]\*\?(.+)$/);
+            return m ? { intf: m[1], config: m[2] } : null;
+        },
+        render: (data = {}) => `
+            <input type="text" placeholder="Interface (e.g., FastEthernet0/1)" class="tpl-intf-cfg" value="${(data.intf || '').replace(/"/g, '&quot;')}" style="flex: 1; padding: 4px;">
+            <input type="text" placeholder="Config (e.g., description WAN)" class="tpl-cfg" value="${(data.config || '').replace(/"/g, '&quot;')}" style="flex: 2; padding: 4px;">
+        `,
+        getValues: (row) => ({
+            intf: row.querySelector('.tpl-intf-cfg').value,
+            config: row.querySelector('.tpl-cfg').value
+        })
+    },
+    "vlan_dynamic": {
+        label: "Dynamic VLAN List",
+        generate: (data) => `VLAN_LOOP:{{${data.varname}}}`,
+        extract: (pattern) => {
+            const m = pattern.match(/^VLAN_LOOP:\{\{(.+?)\}\}$/);
+            return m ? { varname: m[1] } : null;
+        },
+        render: (data = {}) => `
+            <input type="text" placeholder="Scheme Variable Name (e.g., vlans)" class="tpl-vlan-var" value="${(data.varname || '').replace(/"/g, '&quot;')}" style="flex: 1; padding: 4px;">
+            <span style="font-size: 0.8em; align-self: center; color: var(--color-text-muted);">Points divide evenly amongst VLANs</span>
+        `,
+        getValues: (row) => ({
+            varname: row.querySelector('.tpl-vlan-var').value
+        })
+    },
+    "banner_motd": {
+        label: "Banner MOTD",
+        generate: (data) => data.text ? `banner\\s+motd.*${data.text}` : `banner\\s+motd`,
+        extract: (pattern) => {
+            if (pattern === "banner\\s+motd") return { text: "" };
+            const m = pattern.match(/^banner\\s\+motd\.\*(.+)$/);
+            return m ? { text: m[1] } : null;
+        },
+        render: (data = {}) => `
+            <input type="text" placeholder="Banner text to check (leave empty for any banner)" class="tpl-banner" value="${(data.text || '').replace(/"/g, '&quot;')}" style="flex: 1; padding: 4px;">
+        `,
+        getValues: (row) => ({
+            text: row.querySelector('.tpl-banner').value
+        })
+    },
+    "text_contains": {
+        label: "Text Contains",
+        generate: (data) => data.text,
+        extract: (pattern) => {
+            // If pattern has no regex special chars, it's just plain text
+            const isRegex = /[\^\\$\[\]\{\}\(\)\*\+\?\\|]/.test(pattern);
+            if (!isRegex && !pattern.startsWith("VLAN_LOOP")) return { text: pattern };
+            return null;
+        },
+        render: (data = {}) => `
+            <input type="text" placeholder="Text to find (e.g., OSPF enabled)" class="tpl-contains" value="${(data.text || '').replace(/"/g, '&quot;')}" style="flex: 1; padding: 4px;">
+        `,
+        getValues: (row) => ({
+            text: row.querySelector('.tpl-contains').value
+        })
+    },
+    "custom": {
+        label: "Custom (Regex)",
+        generate: (data) => data.pattern,
+        extract: (pattern) => ({ pattern }),
+        render: (data = {}) => `
+            <input type="text" placeholder="Pattern (Regex)" class="tpl-pattern" value="${(data.pattern || '').replace(/"/g, '&quot;')}" style="flex: 1; font-family: monospace; padding: 4px;">
+        `,
+        getValues: (row) => ({ pattern: row.querySelector('.tpl-pattern').value })
+    }
+};
+
 function addCriteriaRow(data = {}) {
     const container = document.getElementById("rubricCriteriaList");
     const div = document.createElement("div");
     div.className = "criteria-item";
+    div.style.flexDirection = "column";
+    div.style.alignItems = "stretch";
+
+    let type = "custom";
+    let typeData = { pattern: data.pattern || "" };
+
+    if (data.pattern) {
+        for (const [key, tpl] of Object.entries(CRITERIA_TEMPLATES)) {
+            if (key === "custom") continue;
+            const extracted = tpl.extract(data.pattern);
+            if (extracted) {
+                type = key;
+                typeData = extracted;
+                break;
+            }
+        }
+    }
+
+    let optionsHtml = Object.entries(CRITERIA_TEMPLATES).map(([k, v]) =>
+        `<option value="${k}" ${k === type ? 'selected' : ''}>${v.label}</option>`
+    ).join('');
+
     div.innerHTML = `
-        <input type="text" placeholder="Name" class="crit-name" value="${data.name || ''}" style="flex: 1;">
-        <input type="text" placeholder="Pattern (Regex)" class="crit-pattern" value="${(data.pattern || '').replace(/"/g, '&quot;')}" style="flex: 2; font-family: monospace;">
-        <input type="number" placeholder="Pts" class="crit-points" value="${data.points || 0}" style="width: 60px;">
-        <button class="delete-btn">x</button>
+        <div style="display: flex; gap: 10px; width: 100%; align-items: center; margin-bottom: 5px;">
+            <input type="text" placeholder="Criteria Name" class="crit-name" value="${data.name || ''}" style="flex: 1; padding: 4px;">
+            <select class="crit-type" style="width: 140px; padding: 4px;">
+                ${optionsHtml}
+            </select>
+            <input type="number" placeholder="Pts" class="crit-points" value="${data.points || 0}" style="width: 60px; padding: 4px;">
+            <button class="delete-btn" style="padding: 4px 8px;">x</button>
+        </div>
+        <div class="crit-dynamic-inputs" style="display: flex; gap: 10px; width: 100%;">
+            ${CRITERIA_TEMPLATES[type].render(typeData)}
+        </div>
     `;
+
     div.querySelector(".delete-btn").onclick = () => div.remove();
+
+    const select = div.querySelector(".crit-type");
+    const dynamicContainer = div.querySelector(".crit-dynamic-inputs");
+
+    select.addEventListener("change", (e) => {
+        const selectedType = e.target.value;
+        dynamicContainer.innerHTML = CRITERIA_TEMPLATES[selectedType].render({});
+    });
+
     container.appendChild(div);
 }
 
@@ -206,10 +356,22 @@ async function saveRubric() {
 
     const criteria = [];
     document.querySelectorAll(".criteria-item").forEach(row => {
+        const type = row.querySelector(".crit-type").value;
+        const pts = parseInt(row.querySelector(".crit-points").value) || 0;
+        const critName = row.querySelector(".crit-name").value;
+
+        let pattern = "";
+        try {
+            const values = CRITERIA_TEMPLATES[type].getValues(row);
+            pattern = CRITERIA_TEMPLATES[type].generate(values);
+        } catch (e) {
+            console.error("Failed to generate pattern", e);
+        }
+
         criteria.push({
-            name: row.querySelector(".crit-name").value,
-            pattern: row.querySelector(".crit-pattern").value,
-            points: parseInt(row.querySelector(".crit-points").value) || 0
+            name: critName,
+            pattern: pattern,
+            points: pts
         });
     });
 

@@ -54,12 +54,12 @@ body.sidebar-collapsed .sidebar-toggle {
   left: 0;
   width: 240px;
   height: 100vh;
-  background: var(--color-sidebar, #f4f5f8);
+  background: #0f172a;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--color-border, #d7dae3);
-  box-shadow: 6px 0 18px rgba(10, 18, 36, 0.08);
-  padding: 32px 0 40px;
+  border-right: 1px solid #1e293b;
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.25);
+  padding: 32px 0 24px;
   z-index: 18;
   transition: transform 0.25s ease;
 }
@@ -73,7 +73,7 @@ body.sidebar-collapsed .sidebar-toggle {
   display: block;
   font-size: 1.15rem;
   font-weight: 700;
-  color: var(--color-primary, #1f3b73);
+  color: #f8fafc;
   line-height: 1.4;
 }
 
@@ -83,39 +83,58 @@ body.sidebar-collapsed .sidebar-toggle {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
+  flex-grow: 1; /* allow spreading list items vertically */
 }
 
 .app-navbar__links li {
   width: 100%;
 }
 
+.app-navbar__links li.nav-bottom-item {
+  margin-top: 0;
+}
+
+.app-navbar__links li.nav-bottom-item.first-bottom {
+  margin-top: auto; /* Push the bottom group to the end */
+}
+
 .app-navbar__links a {
   display: flex;
   align-items: center;
-  padding: 12px 32px;
-  color: #4a5264;
+  gap: 12px;
+  padding: 12px 24px;
+  margin: 0 12px;
+  color: #94a3b8;
   text-decoration: none;
-  font-weight: 600;
-  border-left: 3px solid transparent;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.app-navbar__links a svg {
+  opacity: 0.8;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .app-navbar__links a:hover {
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--color-primary, #1f3b73);
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+.app-navbar__links a:hover svg {
+  opacity: 1;
+  transform: scale(1.05);
 }
 
 .app-navbar__links a.active {
-  border-left-color: var(--color-primary, #1f3b73);
-  background: var(--color-primary, #1f3b73);
+  background: #2563eb;
   color: #ffffff;
-  box-shadow: inset 3px 0 0 rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
 }
 
-.app-navbar__links a.active:hover {
-  color: #ffffff;
-  background: var(--color-primary, #1f3b73);
+.app-navbar__links a.active svg {
+  opacity: 1;
 }
 
 body.sidebar-collapsed .app-navbar {
@@ -136,42 +155,108 @@ body.sidebar-collapsed .app-navbar {
   }
 
   .app-navbar {
-    position: static;
+    position: sticky;
+    top: 0;
     width: 100%;
     height: auto;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 20px;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0;
     border-right: none;
-    border-bottom: 1px solid var(--color-border, #d7dae3);
-    box-shadow: 0 6px 12px rgba(10, 18, 36, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     transform: none !important;
+    z-index: 100;
   }
 
   .app-navbar__brand {
     margin-bottom: 0;
-    padding: 0;
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .app-navbar__title {
+    font-size: 0.95rem;
   }
 
   .app-navbar__links {
     flex-direction: row;
-    gap: 8px;
+    gap: 4px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 8px 12px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .app-navbar__links::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
   }
 
   .app-navbar__links li {
     width: auto;
+    flex-shrink: 0;
   }
 
   .app-navbar__links a {
-    padding: 10px 12px;
-    border-left: none;
-    border-bottom: 3px solid transparent;
-    border-radius: 4px 4px 0 0;
+    padding: 8px 14px;
+    margin: 0;
+    border-radius: 6px;
+    justify-content: center;
+    white-space: nowrap;
+    font-size: 0.82rem;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .app-navbar__links a:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .app-navbar__links a svg {
+    width: 16px;
+    height: 16px;
+    margin-right: 0;
+    flex-shrink: 0;
   }
 
   .app-navbar__links a.active {
-    background: var(--color-primary, #1f3b73);
-    border-bottom-color: var(--color-primary, #1f3b73);
+    background: #2563eb;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+  }
+
+  .app-navbar__links li.nav-bottom-item {
+    margin-top: 0;
+  }
+
+  .app-navbar__links li.nav-bottom-item.first-bottom {
+    margin-top: 0;
+    margin-left: auto; /* push utility links to the right */
+  }
+}
+
+@media (max-width: 480px) {
+  .app-navbar__brand {
+    padding: 10px 16px;
+  }
+
+  .app-navbar__title {
+    font-size: 0.85rem;
+  }
+
+  .app-navbar__links {
+    padding: 6px 8px;
+    gap: 3px;
+  }
+
+  .app-navbar__links a {
+    padding: 8px 10px;
+    font-size: 0;        /* hide text, show only icons */
+    gap: 0;
+  }
+
+  .app-navbar__links a svg {
+    width: 18px;
+    height: 18px;
   }
 }

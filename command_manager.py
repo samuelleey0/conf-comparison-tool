@@ -14,6 +14,14 @@ DEFAULT_COMMANDS = [
     "show vlan brief",
     "show ip route",
     "show etherchannel summary",
+    "show ip eigrp neighbor",
+    "show ip eigrp topology",
+    "show ip eigrp interfaces",
+    "show ip ospf neighbor",
+    "show ip ospf database",
+    "show ip ospf interface",
+    "show ip rip database",
+    "show ip route static",
 ]
 
 
@@ -26,7 +34,15 @@ def load_commands():
             data = json.load(f)
             if not isinstance(data, list):
                 raise ValueError
-            return data
+            merged = list(data)
+            changed = False
+            for cmd in DEFAULT_COMMANDS:
+                if cmd not in merged:
+                    merged.append(cmd)
+                    changed = True
+            if changed:
+                save_commands(merged)
+            return merged
     except Exception:
         print("[!] commands.json broken, recreating default.")
         save_commands(DEFAULT_COMMANDS)

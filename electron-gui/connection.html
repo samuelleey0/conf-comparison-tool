@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <title>Connection Setup</title>
   <link rel="stylesheet" href="assets/style.css" />
   <link rel="stylesheet" href="assets/nav.css" />
 </head>
+
 <body class="connection-body">
   <div id="navbarContainer"></div>
 
@@ -21,6 +23,15 @@
       <section class="connection-panel page-card">
         <h2 class="section-title">Connection Setup</h2>
         <form id="connectionForm">
+          <div class="form-group" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--color-border);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+               <label>Device Queue</label>
+               <span id="queueStatus" style="font-size: 0.85rem; color: var(--color-muted); font-weight: 600;">Idle</span>
+            </div>
+            <div id="deviceQueueContainer" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px; max-height: 200px; overflow-y: auto;">
+               <!-- Populated by JS -->
+            </div>
+          </div>
           <div class="form-group">
             <label class="choice-label"><input type="radio" name="connType" value="serial" /> Serial</label>
             <label class="choice-label"><input type="radio" name="connType" value="ssh" /> SSH</label>
@@ -29,9 +40,14 @@
           <div id="serialFields">
             <p class="hint">Choose the preset that matches your system or select custom.</p>
             <div class="inline-options">
-              <label class="choice-label"><input type="radio" name="serialPreset" value="linux" checked /> Linux (/dev/ttyUSB0)</label>
-              <label class="choice-label"><input type="radio" name="serialPreset" value="windows" /> Windows (COM3)</label>
-              <label class="choice-label"><input type="radio" name="serialPreset" value="mac" /> macOS (/dev/cu.usbserial-10)</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="linux_usb" checked /> Linux USB-Serial
+                (/dev/ttyUSB0)</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="linux_rs232" /> Linux
+                RS232 (/dev/ttyS0)</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="windows" /> Windows
+                (COM3)</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="mac" /> macOS
+                (/dev/cu.usbserial-10)</label>
               <label class="choice-label"><input type="radio" name="serialPreset" value="custom" /> Custom</label>
             </div>
             <label for="serialPort">Serial Port</label>
@@ -67,8 +83,12 @@
           <pre id="log" class="log"></pre>
         </div>
         <div class="actions justify-end">
-          <button type="button" id="reconnectRunBtn" class="secondary">Connect &amp; Run</button>
-          <button type="button" id="startExecutionBtn" class="primary">Run Selected Commands</button>
+          <button type="button" id="abortExecutionBtn" class="danger" style="display: none;">⏹ Stop Execution</button>
+          <button type="button" id="resetDeviceBtn" class="danger">Reset Cisco Device</button>
+          <button type="button" id="reconnectRunBtn" class="secondary">Test Connection</button>
+          <button type="button" id="startSequenceBtn" class="primary">Start Auto-Execution Sequence</button>
+          <button type="button" id="doneStudentBtn" class="primary"
+            style="margin-left: 10px; background-color: var(--color-success, #28a745);" disabled>Done (Next Student)</button>
         </div>
       </section>
     </div>
@@ -77,4 +97,5 @@
   <script src="windows-serial.js"></script>
   <script src="renderer.js"></script>
 </body>
+
 </html>

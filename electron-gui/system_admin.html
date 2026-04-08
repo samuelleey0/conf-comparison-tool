@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>System Administration | Cisco Marking</title>
+  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="stylesheet" href="assets/nav.css" />
+  <style>
+    .command-list-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .command-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      background: var(--color-bg-card);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--color-border);
+    }
+    
+    .command-table th, .command-table td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--color-border);
+    }
+    
+    .command-table th {
+      background-color: var(--color-bg-soft);
+      font-weight: 600;
+    }
+    
+    .command-table tr:last-child td {
+      border-bottom: none;
+    }
+    
+    .command-actions {
+      text-align: right;
+    }
+    
+    .add-command-bar {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      background: var(--color-bg-soft);
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid var(--color-border);
+    }
+    
+    .add-command-bar input {
+      flex: 1;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+
+<body class="system-admin-body">
+  <div id="navbarContainer"></div>
+
+  <div class="page-shell">
+    <section class="page-card" id="systemAdminPage">
+      <header class="page-header">
+        <h1 class="page-title">System Administration</h1>
+        <p class="page-subtitle">Manage global commands available for rubric template creation.</p>
+      </header>
+
+      <div class="command-list-header">
+        <h2>Global Commands Repository</h2>
+        <span id="commandCountBadge" class="badge">0 commands</span>
+      </div>
+
+      <div id="loadingIndicator">
+        <p class="loading-text">Loading repository...</p>
+      </div>
+
+      <table class="command-table" id="commentsTable" style="display: none;">
+        <thead>
+          <tr>
+            <th>Command Syntax</th>
+            <th style="width: 100px; text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="commandsTableBody">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+
+      <div class="add-command-bar">
+        <input type="text" id="newCommandInput" placeholder="e.g. show ip ospf neighbor" />
+        <button type="button" id="addCommandBtn" class="primary">+ Add Command</button>
+      </div>
+
+      <hr style="margin: 32px 0; border: none; border-top: 1px solid var(--color-border);" />
+
+      <h2>Grading Policy</h2>
+      <p class="hint">Set pass/fail thresholds. Severity is driven entirely by Rubric Rules below.</p>
+      <div class="info-box" style="margin-bottom: 16px;">
+        <div class="form-row">
+          <div class="form-group" style="flex: 1;">
+            <label for="majorThreshold">Major Error Threshold</label>
+            <input type="number" id="majorThreshold" min="1" value="1" />
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label for="minorThreshold">Minor Error Threshold</label>
+            <input type="number" id="minorThreshold" min="1" value="5" />
+          </div>
+        </div>
+        <div class="major-checklist" style="display:none;">
+          <div class="major-checklist-title">Quick Major Picks</div>
+          <div id="majorPatternChecklist" class="major-checklist-grid"></div>
+        </div>
+        <div class="actions justify-end">
+          <button type="button" id="savePolicyBtn" class="primary">Save Policy</button>
+        </div>
+      </div>
+
+      <h2>Rubric Rules</h2>
+      <p class="hint">Enable rules, set severity, and map patterns to feature paths (regex). These replace manual major/minor patterns.</p>
+      <div class="info-box" style="margin-bottom: 16px;">
+        <div class="rubric-filter-bar">
+          <div class="rubric-filter-label">Filter by Category</div>
+          <div id="rubricFilterButtons" class="rubric-filter-buttons"></div>
+        </div>
+        <div class="rubric-actions">
+          <button type="button" id="addRubricRuleBtn" class="primary">+ New Rule</button>
+          <button type="button" id="resetRubricBtn" class="secondary">Reset to Defaults</button>
+          <button type="button" id="refreshRubricBtn" class="secondary">Refresh</button>
+          <button type="button" id="saveRubricBtn" class="primary">Save Rubric Rules</button>
+        </div>
+        <div id="rubricRulesContainer" class="rubric-rules-grid"></div>
+      </div>
+
+      <h2>Storage Cleanup</h2>
+      <p class="hint">Delete templates, comparison results, or collected student logs.</p>
+      <div class="info-box" style="margin-bottom: 16px;">
+        <div class="form-row">
+          <div class="form-group" style="flex: 1;">
+            <label for="templateList">Templates</label>
+            <select id="templateList"></select>
+            <div class="actions align-left" style="margin-top: 8px;">
+              <button type="button" id="deleteTemplateBtn" class="secondary">Delete Template</button>
+              <button type="button" id="deleteAllTemplatesBtn" class="danger">Delete All Templates</button>
+            </div>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label for="resultList">Results</label>
+            <select id="resultList"></select>
+            <div class="actions align-left" style="margin-top: 8px;">
+              <button type="button" id="deleteResultBtn" class="secondary">Delete Result</button>
+              <button type="button" id="deleteAllResultsBtn" class="danger">Delete All Results</button>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="examList">Exams (Documents)</label>
+          <select id="examList"></select>
+          <div class="actions align-left" style="margin-top: 8px;">
+            <button type="button" id="deleteExamBtn" class="danger">Delete Selected Exam Folder</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="sessionList">Sessions (Documents)</label>
+          <select id="sessionList"></select>
+          <div class="actions align-left" style="margin-top: 8px;">
+            <button type="button" id="deleteSessionBtn" class="danger">Delete Selected Session Folder</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="studentList">Students (Documents)</label>
+          <select id="studentList"></select>
+          <div class="actions align-left" style="margin-top: 8px;">
+            <button type="button" id="deleteStudentBtn" class="danger">Delete Selected Student Folder</button>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border);">
+          <label>Mirror Sync</label>
+          <p class="hint" style="margin: 4px 0 8px;">Remove orphaned folders in comparison_engine/students that no longer exist in Documents.</p>
+          <button type="button" id="syncMirrorBtn" class="secondary">Sync Mirror Folders</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="renderer.js"></script>
+  <script src="system_admin.js"></script>
+</body>
+</html>

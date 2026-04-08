@@ -1,8 +1,25 @@
 [
     "show ip interface brief",
     "show running-config",
-    "show etherchannel summary",
+    "show spanning-tree",
     "show vlan brief",
     "show ip route",
-    "show spanning-tree"
+    "show etherchannel summary",
+    "show ip ospf neighbor",
+    "show interfaces trunk",
+    "show port-security",
+    "show access-lists",
+    "show ip ospf",
+    "show ip eigrp neighbor",
+    "show ip eigrp",
+    "show ip dhcp binding",
+    "show ip dhcp pool",
+    "show ip nat statistics",
+    "show ip nat translations",
+    "show ip eigrp topology",
+    "show ip eigrp interfaces",
+    "show ip ospf database",
+    "show ip ospf interface",
+    "show ip rip database",
+    "show ip route static"
 ]

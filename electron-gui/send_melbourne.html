@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Send To Melbourne</title>
+  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="stylesheet" href="assets/nav.css" />
+  <style>
+    .page-card.send-card {
+      position: relative;
+      overflow: hidden;
+      border-radius: 18px;
+      border: 1px solid rgba(19, 43, 79, 0.12);
+      background:
+        radial-gradient(circle at top right, rgba(186, 214, 255, 0.35), transparent 28%),
+        linear-gradient(180deg, #fcfdff 0%, #f5f8fc 100%);
+      box-shadow: 0 18px 38px rgba(16, 34, 64, 0.08);
+    }
+
+    .page-card.send-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(11, 79, 145, 0.04) 1px, transparent 1px),
+        linear-gradient(rgba(11, 79, 145, 0.04) 1px, transparent 1px);
+      background-size: 24px 24px;
+      opacity: 0.35;
+      pointer-events: none;
+    }
+
+    .send-stage {
+      position: relative;
+      z-index: 1;
+    }
+
+    .melb-hero {
+      display: flex;
+      align-items: stretch;
+      justify-content: space-between;
+      gap: 22px;
+      margin-bottom: 8px;
+      padding: 18px 20px;
+      border-radius: 16px;
+      background:
+        linear-gradient(135deg, rgba(15, 48, 92, 0.96) 0%, rgba(12, 89, 167, 0.94) 100%);
+      color: #f7fbff;
+      box-shadow: 0 14px 34px rgba(17, 53, 103, 0.22);
+    }
+
+    .melb-hero-main {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .melb-hero-icon {
+      width: 54px;
+      height: 54px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      flex-shrink: 0;
+      backdrop-filter: blur(6px);
+    }
+
+    .melb-hero-text h1 {
+      font-size: 1.55rem;
+      margin: 0 0 4px;
+      color: #fff;
+    }
+
+    .melb-hero-text p {
+      max-width: 680px;
+      font-size: 0.9rem;
+      line-height: 1.55;
+      color: rgba(236, 244, 255, 0.88);
+    }
+
+    .melb-grid {
+      display: grid;
+      grid-template-columns: 340px minmax(0, 1fr);
+      gap: 22px;
+      margin-top: 24px;
+      align-items: start;
+    }
+
+    @media (max-width: 920px) {
+      .melb-hero {
+        flex-direction: column;
+      }
+
+      .melb-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .melb-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: sticky;
+      top: 16px;
+    }
+
+    .melb-card {
+      border: 1px solid rgba(17, 54, 105, 0.12);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(10px);
+      overflow: hidden;
+      box-shadow: 0 10px 26px rgba(17, 54, 105, 0.07);
+    }
+
+    .melb-card-header {
+      padding: 15px 18px 13px;
+      border-bottom: 1px solid rgba(17, 54, 105, 0.1);
+      font-weight: 700;
+      font-size: 0.88rem;
+      color: var(--color-heading);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(180deg, rgba(240, 246, 255, 0.95) 0%, rgba(252, 253, 255, 0.94) 100%);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .melb-card-header .icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(11, 79, 145, 0.12);
+      color: #0b4f91;
+      font-size: 0.78rem;
+      font-style: normal;
+    }
+
+    .melb-card-body {
+      padding: 18px;
+    }
+
+    .melb-card-body.spacious {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .melb-form-group {
+      margin-bottom: 16px;
+    }
+
+    .melb-form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .melb-form-group label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.78rem;
+      margin-bottom: 6px;
+      color: var(--color-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .melb-form-group select {
+      width: 100%;
+      padding: 12px 13px;
+      border-radius: 10px;
+      border: 1px solid rgba(20, 62, 121, 0.15);
+      background: #fff;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+
+    .melb-toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 0;
+    }
+
+    .melb-toolbar button {
+      flex: 1;
+      min-width: 0;
+      padding: 10px 10px;
+      font-size: 0.82rem;
+      border-radius: 10px !important;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+
+    .melb-send-btn {
+      width: 100%;
+      padding: 14px 20px !important;
+      font-size: 0.95rem !important;
+      border-radius: 14px !important;
+      background: linear-gradient(135deg, #0e4f97 0%, #16335c 100%) !important;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: opacity 0.2s ease, transform 0.15s ease !important;
+      box-shadow: 0 12px 24px rgba(17, 54, 105, 0.22);
+      margin-top: 2px;
+    }
+
+    .melb-send-btn:hover:not(:disabled) {
+      opacity: 0.92;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(10, 92, 187, 0.3);
+    }
+
+    .melb-send-btn:disabled {
+      background: linear-gradient(135deg, #9aa9c5 0%, #8795ad 100%) !important;
+      box-shadow: none;
+    }
+
+    .melb-student-panel {
+      border: 1px solid rgba(17, 54, 105, 0.12);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(10px);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 480px;
+      box-shadow: 0 12px 28px rgba(17, 54, 105, 0.08);
+    }
+
+    .melb-student-header {
+      padding: 16px 18px;
+      border-bottom: 1px solid rgba(17, 54, 105, 0.08);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      background: linear-gradient(180deg, rgba(241, 246, 253, 0.95) 0%, rgba(255, 255, 255, 0.96) 100%);
+    }
+
+    .melb-student-header strong {
+      font-size: 0.96rem;
+      color: var(--color-heading);
+    }
+
+    .melb-student-count {
+      font-size: 0.82rem;
+      color: var(--color-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .melb-selected-badge {
+      padding: 5px 10px;
+      border-radius: 99px;
+      background: linear-gradient(135deg, #16335c, #0e4f97);
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.78rem;
+      letter-spacing: 0.3px;
+    }
+
+    .melb-student-list {
+      padding: 10px;
+      overflow-y: auto;
+      max-height: 65vh;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+      background:
+        linear-gradient(180deg, rgba(252, 253, 255, 0.82) 0%, rgba(247, 250, 255, 0.92) 100%);
+    }
+
+    .melb-student-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 14px;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+      border: 1px solid rgba(17, 54, 105, 0.08);
+      user-select: none;
+      background: rgba(255, 255, 255, 0.95);
+    }
+
+    .melb-student-row:hover {
+      background: #fff;
+      border-color: rgba(17, 54, 105, 0.14);
+      box-shadow: 0 8px 20px rgba(17, 54, 105, 0.08);
+      transform: translateY(-1px);
+    }
+
+    .melb-student-row.checked {
+      background: linear-gradient(135deg, rgba(232, 240, 255, 0.92) 0%, rgba(246, 249, 255, 0.96) 100%);
+      border-color: rgba(17, 54, 105, 0.22);
+      box-shadow: 0 10px 22px rgba(17, 54, 105, 0.09);
+    }
+
+    .melb-student-row input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      accent-color: var(--color-primary);
+      cursor: pointer;
+    }
+
+    .melb-student-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .melb-student-name {
+      font-weight: 600;
+      font-size: 0.94rem;
+      color: var(--color-heading);
+      word-break: break-word;
+    }
+
+    .melb-student-path {
+      margin-top: 4px;
+      font-size: 0.78rem;
+      color: var(--color-muted);
+      word-break: break-all;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .melb-student-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #edf3ff, #d7e2f7);
+      border: 1px solid rgba(17, 54, 105, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.82rem;
+      color: var(--color-primary);
+      flex-shrink: 0;
+      text-transform: uppercase;
+    }
+
+    .melb-log-section {
+      margin-top: 20px;
+    }
+
+    .melb-log-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--color-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .melb-log {
+      border: 1px solid rgba(17, 54, 105, 0.18);
+      border-radius: 16px;
+      background:
+        linear-gradient(180deg, #14213d 0%, #10203c 100%);
+      color: #c2d4f1;
+      padding: 15px 16px;
+      min-height: 72px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+    }
+
+    .melb-info {
+      padding: 14px 15px;
+      border-radius: 14px;
+      font-size: 0.84rem;
+      background: linear-gradient(135deg, #fff8e7, #fff0c8);
+      border: 1px solid #e9ce7e;
+      color: #664d08;
+      line-height: 1.5;
+      margin-top: 2px;
+    }
+
+    @media (max-width: 920px) {
+      .melb-controls {
+        position: static;
+      }
+    }
+  </style>
+</head>
+<body class="directory-body">
+  <div id="navbarContainer"></div>
+
+  <div class="page-shell">
+    <section class="page-card send-card" id="sendMelbournePage">
+      <div class="send-stage">
+      <header class="page-header">
+        <div class="melb-hero">
+          <div class="melb-hero-main">
+            <div class="melb-hero-icon" aria-hidden="true">
+              <svg width="26" height="26" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.9">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M22 2L11 13"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M22 2L15 22L11 13L2 9L22 2Z"></path>
+              </svg>
+            </div>
+            <div class="melb-hero-text">
+              <h1 class="page-title">Send To Melbourne</h1>
+              <p>Prepare mirrored student log folders from `comparison_engine/students`, choose the exact session, and stage only the students you want to transfer.</p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="melb-grid">
+        <!-- Left Column: Controls -->
+        <div class="melb-controls">
+          <!-- Session Selector Card -->
+          <div class="melb-card">
+            <div class="melb-card-header">
+              <span class="icon">01</span>
+              Session Selector
+            </div>
+            <div class="melb-card-body">
+              <div class="melb-form-group">
+                <label for="melbourneExamSelect">Exam Name</label>
+                <select id="melbourneExamSelect"></select>
+              </div>
+              <div class="melb-form-group">
+                <label for="melbourneSessionSelect">Session ID</label>
+                <select id="melbourneSessionSelect"></select>
+              </div>
+            </div>
+          </div>
+
+          <div class="melb-card">
+            <div class="melb-card-header">
+              <span class="icon">02</span>
+              Transfer Actions
+            </div>
+            <div class="melb-card-body spacious">
+              <div class="melb-toolbar">
+                <button type="button" id="refreshMelbourneBtn" class="secondary">Refresh</button>
+                <button type="button" id="selectAllMelbourneBtn" class="secondary">Select All</button>
+                <button type="button" id="clearAllMelbourneBtn" class="secondary">Clear</button>
+              </div>
+
+              <button type="button" id="sendMelbourneBtn" class="melb-send-btn" disabled>
+                Send Selected Students
+              </button>
+
+              <div id="melbourneInfoBox" class="melb-info">
+                Backend transfer is not connected yet. This page prepares the exact exam, session, and selected student payload for the future endpoint.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="melb-student-panel">
+          <div class="melb-student-header">
+            <strong>Students In Session</strong>
+            <div class="melb-student-count">
+              <span class="melb-selected-badge" id="melbourneSelectedLabel">0 selected</span>
+            </div>
+          </div>
+          <div id="melbourneStudentList" class="melb-student-list">
+            <p class="hint">Loading session data...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="melb-log-section">
+        <div class="melb-log-label">Activity Log</div>
+        <div id="melbourneLog" class="melb-log">Waiting for selection...</div>
+      </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="renderer.js"></script>
+  <script src="send_melbourne.js"></script>
+</body>
+</html>

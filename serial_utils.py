@@ -41,12 +41,14 @@ def connect_to_serial(
     retry_interval: int = 3,
     max_retries: int = 5,
     status_cb=None,
+    abort_event=None,
 ):
     """
     Establish a serial connection to a Cisco device.
     Handles cases where the serial cable is unplugged or the device is unresponsive.
     - retry_interval: Time (in seconds) to wait between retries.
     - max_retries: Maximum number of retries for the entire connection process.
+    - abort_event: threading.Event; if set, stop retrying immediately.
     Returns an open Serial object or None.
     """
 
@@ -58,23 +60,37 @@ def connect_to_serial(
             except Exception:
                 pass
 
+    def _aborted():
+        return abort_event and abort_event.is_set()
+
     emit(f"[INFO] Attempting to open serial port: {port} at {baudrate} baud")
     retries = 0
     last_exc = None
 
     while retries < max_retries:
+        if _aborted():
+            emit("[INFO] Connection aborted by user.")
+            return None
+
         try:
             # Check if the serial device exists (Linux/macOS: /dev/ttyUSB0, Windows: COMx)
             if not os.path.exists(port) and not port.startswith("COM"):
                 emit(f"[WARNING] Serial device {port} not found. Check connection.")
                 retries += 1
-                time.sleep(retry_interval)
+                for _ in range(retry_interval * 10):
+                    if _aborted():
+                        emit("[INFO] Connection aborted by user.")
+                        return None
+                    time.sleep(0.1)
                 continue
 
             # Attempt to open the serial port
             ser = None
             open_exec = None
             for open_try in range(6):
+                if _aborted():
+                    emit("[INFO] Connection aborted by user.")
+                    return None
                 try:
                     ser = serial.Serial(
                         port=port,
@@ -102,7 +118,11 @@ def connect_to_serial(
                 emit(f"[ERROR] Failed to open serial port: {open_exec}")
                 last_exc = open_exec
                 retries += 1
-                time.sleep(retry_interval)
+                for _ in range(retry_interval * 10):
+                    if _aborted():
+                        emit("[INFO] Connection aborted by user.")
+                        return None
+                    time.sleep(0.1)
                 continue
             try:
                 ser.dtr = True  # Ensure DTR is set to True to avoid connection issues
@@ -127,14 +147,22 @@ def connect_to_serial(
                 logout_close_connection(ser)
                 time.sleep(0.5)
                 retries += 1
-                time.sleep(retry_interval)
+                for _ in range(retry_interval * 10):
+                    if _aborted():
+                        emit("[INFO] Connection aborted by user.")
+                        return None
+                    time.sleep(0.1)
                 continue
 
         except serial.SerialException as e:
             emit(f"[ERROR] Error opening serial port on attempt {retries + 1}: {e}")
             last_exc = e
             retries += 1
-            time.sleep(retry_interval)
+            for _ in range(retry_interval * 10):
+                if _aborted():
+                    emit("[INFO] Connection aborted by user.")
+                    return None
+                time.sleep(0.1)
             continue
 
     emit(
@@ -152,6 +180,8 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
     - expected_prompts: list of strings to detect (e.g., [">", "#", "(config)#"])
     - timeout: total seconds to wait
     - wake: whether to attempt a short wake sequence (CRs) while reading
+    Also handles exiting config modes: if device is in (config)# or similar nested modes,
+    automatically sends 'end' commands to return to user/enable prompt.
     Raises TimeoutError on failure.
     """
     start = time.time()
@@ -188,7 +218,30 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
             # check each expected prompt at line end
             for prompt in expected_prompts:
                 if re.search(rf"{re.escape(prompt)}\s*$", decoded, re.MULTILINE):
-                    return decoded
+                    # Check if we're in a config mode (e.g., "(config)#", "(config-if)#")
+                    # If so, send 'end' to exit
+                    last_line = (
+                        decoded.strip().splitlines()[-1]
+                        if decoded.strip().splitlines()
+                        else ""
+                    )
+                    if "(" in last_line and ")" in last_line:
+                        dbg(
+                            f"Detected config mode: {last_line}, sending 'end' to exit..."
+                        )
+                        try:
+                            ser.write(b"end\n")
+                            ser.flush()
+                            time.sleep(0.5)
+                            # Reset buffer and continue waiting for clean prompt
+                            _reset_buffers(ser)
+                            buffer = b""
+                            break  # Break inner loop to continue while loop
+                        except Exception as e:
+                            dbg(f"Error sending 'end': {e}")
+                    else:
+                        # Clean prompt detected (> or #), return it
+                        return decoded
                 # handle possible activation text
                 if b"Press RETURN to get started" in buffer:
                     try:
@@ -278,10 +331,59 @@ def disable_paging(ser, prompt="#", timeout=5):
     send_command(ser, "terminal length 0", expected_prompt=prompt, timeout=timeout)
 
 
+def ensure_exec_mode(ser, timeout=5):
+    """
+    Escape from any config mode (config, config-if, config-router, etc.)
+    back to privileged EXEC mode (#).
+    Sends Ctrl-Z (end) and drains the buffer.
+    """
+    try:
+        # Ctrl-Z exits any config sub-mode to privileged EXEC
+        ser.write(b"\x1a")  # Ctrl-Z
+        ser.flush()
+        time.sleep(0.3)
+
+        # Also send 'end' as a fallback in case Ctrl-Z didn't work
+        ser.write(b"end\n")
+        ser.flush()
+        time.sleep(0.5)
+
+        # Drain buffer
+        if ser.in_waiting:
+            ser.read(ser.in_waiting)
+
+        # Send a blank line and check we get a clean # prompt (not config)
+        ser.write(b"\n")
+        ser.flush()
+        time.sleep(0.3)
+        data = b""
+        if ser.in_waiting:
+            data = ser.read(ser.in_waiting)
+        decoded = data.decode(errors="ignore")
+
+        if "(config" in decoded:
+            # Still in config mode, try one more time
+            dbg("Still in config mode, retrying exit...")
+            ser.write(b"\x1a")
+            ser.flush()
+            time.sleep(0.3)
+            ser.write(b"end\n")
+            ser.flush()
+            time.sleep(0.5)
+            if ser.in_waiting:
+                ser.read(ser.in_waiting)
+
+        dbg("ensure_exec_mode completed")
+    except Exception as e:
+        dbg(f"Error in ensure_exec_mode: {e}")
+
+
 def enter_enable_mode(ser, timeout=5):
     """
     Enter privileged EXEC mode (> to # or (config)# to #).
+    First ensures we exit any config sub-mode.
     """
+    ensure_exec_mode(ser)
     output = send_command(ser, "enable", expected_prompt="#", timeout=timeout)
 
     if "#" not in output:

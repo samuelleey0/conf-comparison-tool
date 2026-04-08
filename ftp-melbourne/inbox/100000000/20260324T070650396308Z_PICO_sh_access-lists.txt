@@ -1,0 +1,8 @@
+
+Extended IP access list ACLVLAN
+    10 permit tcp 192.168.21.0 0.0.0.127 host 166.0.0.19 eq www (99 matches)
+    20 permit icmp 192.168.11.0 0.0.0.255 host 166.0.0.19 echo (4 matches)
+    30 deny icmp 192.168.21.0 0.0.0.127 host 166.0.0.19 echo (8 matches)
+    40 deny tcp 192.168.11.0 0.0.0.255 host 166.0.0.19 eq www (16 matches)
+    50 permit ip any any (141 matches)
+PICO#

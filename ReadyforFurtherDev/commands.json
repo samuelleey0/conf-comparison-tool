@@ -1,7 +1,0 @@
-[
-    "show ip interface brief",
-    "show running-config",
-    "show version",
-    "show vlan brief",
-    "show ip route"
-]
