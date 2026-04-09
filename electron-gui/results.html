@@ -97,7 +97,7 @@
 
     .report-summary {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
       gap: 12px;
       margin-bottom: 16px;
     }
@@ -168,6 +168,29 @@
 
     .severity-minor {
       color: #ff9800;
+    }
+
+    .severity-verified {
+      color: #6b7280;
+      font-style: italic;
+    }
+
+    .result-item.result-item--dedup {
+      opacity: 0.7;
+      border-left: 3px solid #9ca3af;
+    }
+
+    .dedup-badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: #f3f4f6;
+      color: #6b7280;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      margin-left: 6px;
+      vertical-align: middle;
     }
 
     .result-values {
@@ -337,7 +360,7 @@
         max-height: none;
       }
       .report-summary {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
       }
       .result-values {
         grid-template-columns: 1fr;
