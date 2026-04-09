@@ -335,55 +335,66 @@ def ensure_exec_mode(ser, timeout=5):
     """
     Escape from any config mode (config, config-if, config-router, etc.)
     back to privileged EXEC mode (#).
-    Sends Ctrl-Z (end) and drains the buffer.
+    Uses Ctrl-Z, waits for device, and fully drains the buffer.
     """
     try:
-        # Ctrl-Z exits any config sub-mode to privileged EXEC
-        ser.write(b"\x1a")  # Ctrl-Z
+        _reset_buffers(ser)
+
+        # Send Ctrl-Z — this exits any sub-config mode immediately
+        ser.write(b"\x1a")
         ser.flush()
-        time.sleep(0.3)
+        time.sleep(1)
 
-        # Also send 'end' as a fallback in case Ctrl-Z didn't work
-        ser.write(b"end\n")
-        ser.flush()
-        time.sleep(0.5)
+        # Drain everything the device sent in response
+        _reset_buffers(ser)
 
-        # Drain buffer
-        if ser.in_waiting:
-            ser.read(ser.in_waiting)
-
-        # Send a blank line and check we get a clean # prompt (not config)
+        # Send a blank line and read back to see where we are
         ser.write(b"\n")
         ser.flush()
-        time.sleep(0.3)
-        data = b""
+        time.sleep(0.5)
+        raw = b""
         if ser.in_waiting:
-            data = ser.read(ser.in_waiting)
-        decoded = data.decode(errors="ignore")
+            raw = ser.read(ser.in_waiting)
+        prompt_text = raw.decode(errors="ignore")
 
-        if "(config" in decoded:
-            # Still in config mode, try one more time
-            dbg("Still in config mode, retrying exit...")
-            ser.write(b"\x1a")
-            ser.flush()
-            time.sleep(0.3)
+        if "(config" in prompt_text:
+            # Still stuck in config — send "end" explicitly
+            dbg("Still in config after Ctrl-Z, sending 'end'...")
             ser.write(b"end\n")
             ser.flush()
-            time.sleep(0.5)
-            if ser.in_waiting:
-                ser.read(ser.in_waiting)
+            time.sleep(1)
+            _reset_buffers(ser)
 
+        # Final drain: make sure no stale data is in the buffer
+        time.sleep(0.2)
+        _reset_buffers(ser)
         dbg("ensure_exec_mode completed")
     except Exception as e:
         dbg(f"Error in ensure_exec_mode: {e}")
 
 
-def enter_enable_mode(ser, timeout=5):
+def enter_enable_mode(ser, timeout=8):
     """
     Enter privileged EXEC mode (> to # or (config)# to #).
     First ensures we exit any config sub-mode.
     """
     ensure_exec_mode(ser)
+
+    # Check if we're already at # prompt
+    ser.write(b"\n")
+    ser.flush()
+    time.sleep(0.5)
+    raw = b""
+    if ser.in_waiting:
+        raw = ser.read(ser.in_waiting)
+    prompt_text = raw.decode(errors="ignore").strip()
+
+    # If already at #, we're in enable mode
+    if prompt_text.endswith("#") and "(config" not in prompt_text:
+        dbg(f"Already in enable mode: {prompt_text}")
+        return prompt_text
+
+    # Otherwise send enable
     output = send_command(ser, "enable", expected_prompt="#", timeout=timeout)
 
     if "#" not in output:

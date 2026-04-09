@@ -116,13 +116,12 @@ function highlightActiveNavLink() {
   const links = document.querySelectorAll(".app-navbar__links a");
   if (!links.length) return;
   let current = window.location.pathname.split("/").pop() || "index.html";
-  current = current.split("?")[0].toLowerCase();
+  current = current.toLowerCase();
   links.forEach((link) => {
     const target =
       (link.getAttribute("href") || "")
         .split("/")
         .pop()
-        .split("?")[0]
         .toLowerCase() || "index.html";
     const isActive = target === current;
     link.classList.toggle("active", isActive);
@@ -303,7 +302,10 @@ function setupWelcomePage() {
   keysToClear.forEach(k => localStorage.removeItem(k));
 
   loadNavbar();
-  window.setTimeout(() => goTo("homepage.html"), 2200);
+  const startBtn = document.getElementById("startSetupBtn");
+  if (startBtn) {
+    startBtn.addEventListener("click", () => goTo("device_setup.html"));
+  }
 }
 
 function deriveDirectoryDisplay(dirPath) {
@@ -835,6 +837,7 @@ async function handleCreateDirectory(event) {
   const exam = document.getElementById("createExamName").value.trim();
   const session = document.getElementById("createSessionId").value.trim();
   const student = document.getElementById("createStudentId").value.trim();
+  const studentName = (document.getElementById("createStudentName")?.value || "").trim();
   if (!exam || !session || !student) {
     alert("Please complete all fields for the new directory.");
     return;
@@ -847,6 +850,7 @@ async function handleCreateDirectory(event) {
         examName: exam,
         sessionId: session,
         studentId: student,
+        studentName: studentName,
       }),
     });
     setDirectoryInfo({
