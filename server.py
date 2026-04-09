@@ -1113,7 +1113,6 @@ def _classify_items(items, policy, rubric_rules=None):
         item_copy["block_name"] = _config_block_ref(item.get("feature")) or item.get("feature")
         item_copy["layer1_ref"] = item_copy["block_name"]
         item_copy["counts_toward_marking"] = item_copy.get("status") in {"missing", "extra", "mismatch"}
-        classified_config.append(item_copy)
 
         status = item_copy.get("status")
         if status in summary:
@@ -1131,13 +1130,22 @@ def _classify_items(items, policy, rubric_rules=None):
             rule_id = item_copy.get("rule_id")
             if severity == "major":
                 summary["major"] += 1
+                item_copy["rule_deduplicated"] = False
             else:
                 if rule_id:
                     if rule_id not in minor_rule_hits:
                         summary["minor"] += 1
                         minor_rule_hits.add(rule_id)
+                        item_copy["rule_deduplicated"] = False
+                    else:
+                        # Same rule already counted — still show but mark as not scored
+                        item_copy["rule_deduplicated"] = True
+                        item_copy["counts_toward_marking"] = False
                 else:
                     summary["minor"] += 1
+                    item_copy["rule_deduplicated"] = False
+
+        classified_config.append(item_copy)
 
     classified_verification = []
     for item in verification_items:
