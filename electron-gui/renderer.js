@@ -837,6 +837,7 @@ async function handleCreateDirectory(event) {
   const exam = document.getElementById("createExamName").value.trim();
   const session = document.getElementById("createSessionId").value.trim();
   const student = document.getElementById("createStudentId").value.trim();
+  const studentName = (document.getElementById("createStudentName")?.value || "").trim();
   if (!exam || !session || !student) {
     alert("Please complete all fields for the new directory.");
     return;
@@ -849,6 +850,7 @@ async function handleCreateDirectory(event) {
         examName: exam,
         sessionId: session,
         studentId: student,
+        studentName: studentName,
       }),
     });
     setDirectoryInfo({

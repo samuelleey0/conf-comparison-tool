@@ -1243,12 +1243,29 @@ def _load_json_file(path: Path):
 
 
 def _resolve_json_parts(data, parts):
-    current = data
-    for part in parts:
-        if not isinstance(current, dict) or part not in current:
+    """Walk into a nested dict using parts as keys.
+    Handles keys that contain dots (e.g., 'GigabitEthernet0/0/1.20') by trying
+    greedy multi-part matching before single-part matching.
+    """
+    def _walk(current, idx):
+        if idx >= len(parts):
+            return current
+        if not isinstance(current, dict):
             return _MISSING
-        current = current.get(part)
-    return current
+        # Try greedy: join parts[idx..j] and see if it's a key (longest first)
+        for j in range(len(parts) - 1, idx, -1):
+            candidate = ".".join(parts[idx:j + 1])
+            if candidate in current:
+                result = _walk(current[candidate], j + 1)
+                if result is not _MISSING:
+                    return result
+        # Try single part
+        key = parts[idx]
+        if key in current:
+            return _walk(current[key], idx + 1)
+        return _MISSING
+
+    return _walk(data, 0)
 
 
 def _preferred_context_parts(feature: str):
@@ -1257,6 +1274,20 @@ def _preferred_context_parts(feature: str):
         return [], None
 
     if len(parts) >= 4 and parts[0] == "show_running_config" and parts[1] == "interfaces":
+        # For subinterfaces like GigabitEthernet0/0/1.20.vlan,
+        # parts = ["show_running_config", "interfaces", "GigabitEthernet0/0/1", "20", "vlan"]
+        # The actual JSON key is "GigabitEthernet0/0/1.20", so we need to include
+        # enough parts for _resolve_json_parts to reconstruct the dotted key.
+        # Include up to the parent interface + subinterface number, leaving only
+        # the terminal field name (e.g. "vlan") as the highlight_key.
+        #
+        # Heuristic: if parts[3] is numeric (subinterface id), include it in context.
+        if len(parts) >= 5 and parts[3].isdigit():
+            # e.g., parts[:4] = ["show_running_config", "interfaces", "GigabitEthernet0/0/1", "20"]
+            return parts[:4], parts[4] if len(parts) > 4 else None
+        # Check for "subinterface" as the field key (entire subinterface object mismatch)
+        if parts[3] == "subinterface":
+            return parts[:4], None
         return parts[:3], parts[3] if len(parts) > 3 else None
 
     if (
@@ -1290,6 +1321,33 @@ def _extract_error_context(template_config, student_config, feature: str):
             "template_context": None,
             "student_context": None,
         }
+
+    # Special handling for subinterface mismatches:
+    # For features like .GigabitEthernet0/0/1.subinterface, show all subinterfaces
+    # of that parent instead of just the parent's {ip, mask}
+    feature_parts = [p for p in str(feature or "").split(".") if p]
+    if (
+        len(feature_parts) >= 4
+        and feature_parts[0] == "show_running_config"
+        and feature_parts[1] == "interfaces"
+        and feature_parts[3] == "subinterface"
+    ):
+        parent_iface = feature_parts[2]
+        t_ifaces = _resolve_json_parts(template_config, ["show_running_config", "interfaces"])
+        s_ifaces = _resolve_json_parts(student_config, ["show_running_config", "interfaces"])
+        if t_ifaces is not _MISSING or s_ifaces is not _MISSING:
+            t_subs = {}
+            s_subs = {}
+            if isinstance(t_ifaces, dict):
+                t_subs = {k: v for k, v in t_ifaces.items() if k.startswith(f"{parent_iface}.")}
+            if isinstance(s_ifaces, dict):
+                s_subs = {k: v for k, v in s_ifaces.items() if k.startswith(f"{parent_iface}.")}
+            return {
+                "context_path": f"show_running_config.interfaces.{parent_iface}.*",
+                "highlight_key": "subinterface",
+                "template_context": t_subs if t_subs else None,
+                "student_context": s_subs if s_subs else None,
+            }
 
     while parts:
         template_context = _resolve_json_parts(template_config, parts)
@@ -1544,6 +1602,28 @@ def _extract_running_config_excerpt(lines, feature: str):
 
     if len(parts) >= 4 and parts[1] == "interfaces":
         iface = parts[2]
+        # For subinterface features, try finding the subinterface block first
+        # e.g., feature = show_running_config.interfaces.GigabitEthernet0/0/1.20.vlan
+        # parts = ["show_running_config", "interfaces", "GigabitEthernet0/0/1", "20", "vlan"]
+        if len(parts) >= 5 and parts[3].isdigit():
+            sub_iface = f"{iface}.{parts[3]}"  # e.g., GigabitEthernet0/0/1.20
+            idx = _find_line_index(lines, lambda line, si=sub_iface: line.strip().lower() == f"interface {si}".lower())
+            block = _extract_cli_block(lines, idx)
+            if block:
+                return block
+        # For "subinterface" field, try to find any subinterface of this parent
+        if len(parts) >= 4 and parts[3] == "subinterface":
+            # Show all subinterface blocks for this parent
+            sub_blocks = []
+            for i, line in enumerate(lines):
+                stripped = line.strip().lower()
+                if stripped.startswith(f"interface {iface.lower()}."):
+                    block = _extract_cli_block(lines, i)
+                    if block:
+                        sub_blocks.append(block)
+            if sub_blocks:
+                return "\n\n".join(sub_blocks)
+        # Fallback: parent interface
         idx = _find_line_index(lines, lambda line: line.strip().lower() == f"interface {iface}".lower())
         block = _extract_cli_block(lines, idx)
         if block:
