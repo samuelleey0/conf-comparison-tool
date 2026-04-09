@@ -170,7 +170,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     `).join("");
 
     if (systemCommands.length === 0) {
-      dropdownListHtml = `<div class="dropdown-item" style="color: grey;">No commands in System Admin.</div>`;
+      dropdownListHtml = `<div class="dropdown-empty">No commands in System Admin.</div>`;
     }
 
     block.innerHTML = `
@@ -186,6 +186,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             <small>▼</small>
           </div>
           <div class="dropdown-list hidden">
+            <div class="dropdown-search">
+              <input type="text" class="dropdown-search-input" placeholder="Search commands..." />
+            </div>
             ${dropdownListHtml}
           </div>
         </div>
@@ -200,10 +203,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     const cmdList = block.querySelector(`#cmds-${deviceId}`);
     const dropdownHeader = block.querySelector('.dropdown-header');
     const dropdownList = block.querySelector('.dropdown-list');
+    const dropdownSearch = block.querySelector('.dropdown-search-input');
     
     // Toggle dropdown
     dropdownHeader.addEventListener("click", () => {
       dropdownList.classList.toggle("hidden");
+      if (!dropdownList.classList.contains("hidden")) {
+        dropdownSearch?.focus();
+      }
     });
 
     // Close dropdown on click outside
@@ -211,6 +218,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!block.querySelector(`#dropdown-${deviceId}`).contains(e.target)) {
          dropdownList.classList.add("hidden");
       }
+    });
+
+    dropdownSearch?.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+
+    dropdownSearch?.addEventListener("input", () => {
+      const term = dropdownSearch.value.trim().toLowerCase();
+      const items = block.querySelectorAll('.dropdown-item');
+      items.forEach((item) => {
+        const text = item.textContent.toLowerCase();
+        item.classList.toggle("hidden", term && !text.includes(term));
+      });
     });
 
     // Handle Checkbox changes

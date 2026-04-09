@@ -12,6 +12,7 @@ import yaml
 import re
 import glob
 import shutil
+import logging
 
 # Reuse your helpers
 from file_utils import save_output_to_file, del_partial_logs
@@ -823,12 +824,15 @@ def _load_student_results(student_dir: Path, student_id: str):
 def _compile_rubric_rules(rubric_rules=None):
     rubric_compiled = []
     rubric_by_code = {}
+    disabled_compiled = []
+    disabled_by_code = {}
     for rule in rubric_rules or []:
-        if not rule.get("enabled", True):
-            continue
         code = rule.get("code") or rule.get("id")
-        if code:
+        enabled = rule.get("enabled", True)
+        if code and enabled:
             rubric_by_code[code] = rule
+        elif code and not enabled:
+            disabled_by_code[code] = rule
         patterns = rule.get("patterns") or []
         compiled_patterns = []
         for pattern in patterns:
@@ -843,9 +847,11 @@ def _compile_rubric_rules(rubric_rules=None):
             statuses = [str(s).strip().lower() for s in statuses if str(s).strip()]
         else:
             statuses = None
-        if compiled_patterns:
+        if compiled_patterns and enabled:
             rubric_compiled.append((rule, compiled_patterns, statuses))
-    return rubric_compiled, rubric_by_code
+        elif compiled_patterns and not enabled:
+            disabled_compiled.append((rule, compiled_patterns, statuses))
+    return rubric_compiled, rubric_by_code, disabled_compiled, disabled_by_code
 
 
 def _is_verification_feature(feature: str) -> bool:
@@ -1059,16 +1065,19 @@ def _verification_is_deduplicated(feature: str, failed_config_refs, failed_confi
     return False, layer1_ref
 
 
-def _classify_single_item(item, rubric_compiled, rubric_by_code):
+def _classify_single_item(item, rubric_compiled, rubric_by_code, disabled_compiled, disabled_by_code):
     status = item.get("status")
     severity = None
     rule_id = None
     rule_code = None
     matched_rule = None
+    skipped_rule = None
     if status in {"missing", "extra", "mismatch"}:
         item_code = item.get("outcome_code")
         if item_code and item_code in rubric_by_code:
             matched_rule = rubric_by_code[item_code]
+        elif item_code and item_code in disabled_by_code:
+            skipped_rule = disabled_by_code[item_code]
         else:
             for rule, patterns, statuses in rubric_compiled:
                 if statuses and status not in statuses:
@@ -1076,14 +1085,26 @@ def _classify_single_item(item, rubric_compiled, rubric_by_code):
                 if any(regex.search(item.get("feature", "")) for regex in patterns):
                     matched_rule = rule
                     break
+            if not matched_rule:
+                for rule, patterns, statuses in disabled_compiled:
+                    if statuses and status not in statuses:
+                        continue
+                    if any(regex.search(item.get("feature", "")) for regex in patterns):
+                        skipped_rule = rule
+                        break
         if matched_rule:
             severity = (matched_rule.get("severity") or "minor").lower()
             rule_id = matched_rule.get("id")
             rule_code = matched_rule.get("code")
+        elif skipped_rule:
+            rule_id = skipped_rule.get("id")
+            rule_code = skipped_rule.get("code")
         else:
             severity = "minor"
 
     item_copy = dict(item)
+    if skipped_rule:
+        item_copy["status"] = "skipped"
     if severity:
         item_copy["severity"] = severity
     if rule_id:
@@ -1094,7 +1115,7 @@ def _classify_single_item(item, rubric_compiled, rubric_by_code):
 
 
 def _classify_items(items, policy, rubric_rules=None):
-    rubric_compiled, rubric_by_code = _compile_rubric_rules(rubric_rules)
+    rubric_compiled, rubric_by_code, disabled_compiled, disabled_by_code = _compile_rubric_rules(rubric_rules)
 
     summary = _empty_phase1_summary()
 
@@ -1108,7 +1129,7 @@ def _classify_items(items, policy, rubric_rules=None):
     failed_config_features = set()
 
     for item in config_items:
-        item_copy = _classify_single_item(item, rubric_compiled, rubric_by_code)
+        item_copy = _classify_single_item(item, rubric_compiled, rubric_by_code, disabled_compiled, disabled_by_code)
         item_copy["layer"] = "config"
         item_copy["block_name"] = _config_block_ref(item.get("feature")) or item.get("feature")
         item_copy["layer1_ref"] = item_copy["block_name"]
@@ -1149,7 +1170,7 @@ def _classify_items(items, policy, rubric_rules=None):
 
     classified_verification = []
     for item in verification_items:
-        item_copy = _classify_single_item(item, rubric_compiled, rubric_by_code)
+        item_copy = _classify_single_item(item, rubric_compiled, rubric_by_code, disabled_compiled, disabled_by_code)
         item_copy["layer"] = "verification"
         item_copy["block_name"] = item_copy.get("block_name") or _verification_block_name(item.get("feature"))
         deduplicated, layer1_ref = _verification_is_deduplicated(
@@ -1281,6 +1302,21 @@ def _preferred_context_parts(feature: str):
     if not parts:
         return [], None
 
+    if (
+        len(parts) == 2
+        and parts[0] == "show_running_config"
+        and parts[1] in {"hostname", "banner_motd"}
+    ):
+        return parts, parts[1]
+
+    if (
+        len(parts) == 3
+        and parts[0] == "show_running_config"
+        and parts[1] == "switching"
+        and parts[2] == "default_gateway"
+    ):
+        return parts, parts[2]
+
     if len(parts) >= 4 and parts[0] == "show_running_config" and parts[1] == "interfaces":
         # For subinterfaces like GigabitEthernet0/0/1.20.vlan,
         # parts = ["show_running_config", "interfaces", "GigabitEthernet0/0/1", "20", "vlan"]
@@ -1320,7 +1356,7 @@ def _preferred_context_parts(feature: str):
     return parts, None
 
 
-def _extract_error_context(template_config, student_config, feature: str):
+def _extract_error_context(template_config, student_config, feature: str, expected=None, actual=None):
     parts, highlight_key = _preferred_context_parts(feature)
     if not parts:
         return {
@@ -1331,8 +1367,9 @@ def _extract_error_context(template_config, student_config, feature: str):
         }
 
     # Special handling for subinterface mismatches:
-    # For features like .GigabitEthernet0/0/1.subinterface, show all subinterfaces
-    # of that parent instead of just the parent's {ip, mask}
+    # For features like .GigabitEthernet0/0/1.subinterface, show only the paired
+    # expected/actual subinterfaces from the comparison result rather than every
+    # sibling subinterface under the same parent.
     feature_parts = [p for p in str(feature or "").split(".") if p]
     if (
         len(feature_parts) >= 4
@@ -1344,12 +1381,20 @@ def _extract_error_context(template_config, student_config, feature: str):
         t_ifaces = _resolve_json_parts(template_config, ["show_running_config", "interfaces"])
         s_ifaces = _resolve_json_parts(student_config, ["show_running_config", "interfaces"])
         if t_ifaces is not _MISSING or s_ifaces is not _MISSING:
-            t_subs = {}
-            s_subs = {}
+            expected_name = expected.get("name") if isinstance(expected, dict) else None
+            actual_name = actual.get("name") if isinstance(actual, dict) else None
+            t_subs = None
+            s_subs = None
             if isinstance(t_ifaces, dict):
-                t_subs = {k: v for k, v in t_ifaces.items() if k.startswith(f"{parent_iface}.")}
+                if expected_name and expected_name in t_ifaces:
+                    t_subs = {expected_name: t_ifaces.get(expected_name)}
+                else:
+                    t_subs = {k: v for k, v in t_ifaces.items() if k.startswith(f"{parent_iface}.")}
             if isinstance(s_ifaces, dict):
-                s_subs = {k: v for k, v in s_ifaces.items() if k.startswith(f"{parent_iface}.")}
+                if actual_name and actual_name in s_ifaces:
+                    s_subs = {actual_name: s_ifaces.get(actual_name)}
+                else:
+                    s_subs = {k: v for k, v in s_ifaces.items() if k.startswith(f"{parent_iface}.")}
             return {
                 "context_path": f"show_running_config.interfaces.{parent_iface}.*",
                 "highlight_key": "subinterface",
@@ -1603,7 +1648,7 @@ def _interface_aliases(interface_name: str):
     return sorted(aliases, key=len, reverse=True)
 
 
-def _extract_running_config_excerpt(lines, feature: str):
+def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=None):
     parts = [part for part in str(feature or "").split(".") if part]
     if not parts:
         return None
@@ -1621,14 +1666,27 @@ def _extract_running_config_excerpt(lines, feature: str):
                 return block
         # For "subinterface" field, try to find any subinterface of this parent
         if len(parts) >= 4 and parts[3] == "subinterface":
-            # Show all subinterface blocks for this parent
+            expected_name = expected.get("name") if isinstance(expected, dict) else None
+            actual_name = actual.get("name") if isinstance(actual, dict) else None
+            pair_names = [name for name in [expected_name, actual_name] if name]
             sub_blocks = []
-            for i, line in enumerate(lines):
-                stripped = line.strip().lower()
-                if stripped.startswith(f"interface {iface.lower()}."):
-                    block = _extract_cli_block(lines, i)
+            if pair_names:
+                for sub_name in pair_names:
+                    idx = _find_line_index(
+                        lines,
+                        lambda line, si=sub_name: line.strip().lower() == f"interface {si}".lower(),
+                    )
+                    block = _extract_cli_block(lines, idx)
                     if block:
                         sub_blocks.append(block)
+            else:
+                # Fallback: show all subinterface blocks for this parent
+                for i, line in enumerate(lines):
+                    stripped = line.strip().lower()
+                    if stripped.startswith(f"interface {iface.lower()}."):
+                        block = _extract_cli_block(lines, i)
+                        if block:
+                            sub_blocks.append(block)
             if sub_blocks:
                 return "\n\n".join(sub_blocks)
         # Fallback: parent interface
@@ -1788,9 +1846,13 @@ def _extract_raw_excerpt(log_path: Path, feature: str, expected=None, actual=Non
         return None
 
     if feature.startswith("show_running_config."):
-        excerpt = _extract_running_config_excerpt(lines, feature)
+        excerpt = _extract_running_config_excerpt(lines, feature, expected=expected, actual=actual)
         if excerpt:
             return excerpt
+        if feature == "show_running_config.banner_motd":
+            return "No 'banner motd' command found in running-config."
+        if feature == "show_running_config.hostname":
+            return "No 'hostname' command found in running-config."
 
     if feature.startswith("verification.show_ip_interface_brief."):
         excerpt = _extract_show_ip_interface_brief_excerpt(lines, feature)
@@ -3434,7 +3496,7 @@ def api_error_context():
     template_raw_path = _find_log_file(template_log_dir, command_hint)
     student_raw_path = _find_log_file(student_log_dir, command_hint)
 
-    context = _extract_error_context(template_config, student_config, feature)
+    context = _extract_error_context(template_config, student_config, feature, expected=expected, actual=actual)
     template_raw_excerpt = _extract_raw_excerpt(template_raw_path, feature, expected=expected, actual=actual)
     student_raw_excerpt = _extract_raw_excerpt(student_raw_path, feature, expected=expected, actual=actual)
 
@@ -3955,5 +4017,11 @@ def api_upload_templates():
 # ✅ Run Flask
 # -------------------------------------------------
 if __name__ == "__main__":
+    class _SuppressDevServerWarning(logging.Filter):
+        def filter(self, record):
+            message = record.getMessage()
+            return "This is a development server. Do not use it in a production deployment." not in message
+
+    logging.getLogger("werkzeug").addFilter(_SuppressDevServerWarning())
     print("[*] Running Flask server on http://127.0.0.1:5050")
     app.run(host="127.0.0.1", port=5050, threaded=True)
