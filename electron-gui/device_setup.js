@@ -14,6 +14,67 @@ document.addEventListener("DOMContentLoaded", async () => {
   let systemCommands = [];
   let availableTemplates = [];
   let loadedFromServer = false;
+  let selectedTemplateName = "";
+
+  function closeOpenSelects(except = null) {
+    document.querySelectorAll(".app-select.open").forEach((node) => {
+      if (node !== except) node.classList.remove("open");
+    });
+  }
+
+  function renderSingleSelect(root, { options = [], value = "", placeholder = "Select" } = {}) {
+    if (!root) return;
+    const normalizedOptions = options.map((option) =>
+      typeof option === "string" ? { value: option, label: option } : option
+    );
+    const selected = normalizedOptions.find((option) => option.value === value) || null;
+    root.dataset.value = selected ? selected.value : "";
+    root.innerHTML = `
+      <button type="button" class="app-select-trigger">
+        <span class="app-select-label">${selected ? selected.label : placeholder}</span>
+        <span class="app-select-caret">▼</span>
+      </button>
+      <div class="app-select-menu hidden">
+        ${normalizedOptions.map((option) => `
+          <div class="app-select-option ${option.value === root.dataset.value ? "selected" : ""}" data-value="${option.value}">
+            ${option.label}
+          </div>
+        `).join("")}
+      </div>
+    `;
+
+    const trigger = root.querySelector(".app-select-trigger");
+    const menu = root.querySelector(".app-select-menu");
+    trigger?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const isOpen = root.classList.contains("open");
+      closeOpenSelects(root);
+      root.classList.toggle("open", !isOpen);
+      menu?.classList.toggle("hidden", isOpen);
+    });
+
+    menu?.querySelectorAll(".app-select-option").forEach((optionNode) => {
+      optionNode.addEventListener("click", () => {
+        const nextValue = optionNode.dataset.value || "";
+        root.dataset.value = nextValue;
+        const labelNode = root.querySelector(".app-select-label");
+        if (labelNode) labelNode.textContent = optionNode.textContent || placeholder;
+        menu.querySelectorAll(".app-select-option").forEach((item) => {
+          item.classList.toggle("selected", item === optionNode);
+        });
+        root.classList.remove("open");
+        menu.classList.add("hidden");
+        selectedTemplateName = nextValue;
+      });
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".app-select")) {
+      closeOpenSelects();
+      document.querySelectorAll(".app-select-menu").forEach((menu) => menu.classList.add("hidden"));
+    }
+  });
 
   // Fetch all commands from backend
   try {
@@ -37,11 +98,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (err) {
       console.warn("Could not fetch templates:", err);
     }
-
-    templateSelect.innerHTML = `
-      <option value="">Select a template</option>
-      ${availableTemplates.map(name => `<option value="${name}">${name}</option>`).join("")}
-    `;
+    if (!availableTemplates.includes(selectedTemplateName)) {
+      selectedTemplateName = "";
+    }
+    renderSingleSelect(templateSelect, {
+      options: availableTemplates,
+      value: selectedTemplateName,
+      placeholder: "Select a template",
+    });
   }
 
   function createCommandRow(commandText = "", existingFileName = null) {
@@ -310,7 +374,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   loadTemplateBtn?.addEventListener("click", () => {
-    const selected = templateSelect?.value;
+    const selected = templateSelect?.dataset.value || selectedTemplateName;
     if (!selected) {
       alert("Please select a template to load.");
       return;

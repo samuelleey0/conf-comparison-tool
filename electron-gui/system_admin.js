@@ -37,6 +37,68 @@ document.addEventListener("DOMContentLoaded", () => {
   let selectedRubricCategory = DEFAULT_RUBRIC_SECTION;
   let deletedIndices = new Set();
 
+  function closeOpenSelects(except = null) {
+    document.querySelectorAll(".app-select.open").forEach((node) => {
+      if (node !== except) {
+        node.classList.remove("open");
+        node.querySelector(".app-select-menu")?.classList.add("hidden");
+      }
+    });
+  }
+
+  function initSingleSelect(root, { options = [], value = "", placeholder = "Select" } = {}) {
+    if (!root) return;
+    const normalizedOptions = options.map((option) =>
+      typeof option === "string" ? { value: option, label: option } : option
+    );
+    const selected = normalizedOptions.find((option) => option.value === value) || null;
+    root.classList.add("app-select");
+    root.dataset.value = selected ? selected.value : "";
+    root.innerHTML = `
+      <button type="button" class="app-select-trigger">
+        <span class="app-select-label">${selected ? selected.label : placeholder}</span>
+        <span class="app-select-caret">▼</span>
+      </button>
+      <div class="app-select-menu hidden">
+        ${normalizedOptions.map((option) => `
+          <div class="app-select-option ${option.value === root.dataset.value ? "selected" : ""}" data-value="${option.value}">
+            ${option.label}
+          </div>
+        `).join("")}
+      </div>
+    `;
+
+    const trigger = root.querySelector(".app-select-trigger");
+    const menu = root.querySelector(".app-select-menu");
+    trigger?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const isOpen = root.classList.contains("open");
+      closeOpenSelects(root);
+      root.classList.toggle("open", !isOpen);
+      menu?.classList.toggle("hidden", isOpen);
+    });
+
+    menu?.querySelectorAll(".app-select-option").forEach((optionNode) => {
+      optionNode.addEventListener("click", () => {
+        const nextValue = optionNode.dataset.value || "";
+        root.dataset.value = nextValue;
+        const labelNode = root.querySelector(".app-select-label");
+        if (labelNode) labelNode.textContent = optionNode.textContent || placeholder;
+        menu.querySelectorAll(".app-select-option").forEach((item) => {
+          item.classList.toggle("selected", item === optionNode);
+        });
+        root.classList.remove("open");
+        menu.classList.add("hidden");
+      });
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".app-select")) {
+      closeOpenSelects();
+    }
+  });
+
   async function fetchJson(url, options = {}) {
     const res = await fetch(url, {
       headers: { "Content-Type": "application/json", ...(options.headers || {}) },
@@ -266,12 +328,7 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
           <div class="rubric-rule-body">
             <textarea class="rubric-patterns" placeholder="One regex per line">${(rule.patterns || []).join("\n")}</textarea>
-            <select class="rubric-statuses">
-              <option value="" ${selectedStatus === "" ? "selected" : ""}>Any Status</option>
-              <option value="mismatch" ${selectedStatus === "mismatch" ? "selected" : ""}>Mismatch</option>
-              <option value="missing" ${selectedStatus === "missing" ? "selected" : ""}>Missing</option>
-              <option value="extra" ${selectedStatus === "extra" ? "selected" : ""}>Extra</option>
-            </select>
+            <div class="rubric-statuses"></div>
           </div>
         `;
 
@@ -293,6 +350,16 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!rule.enabled) card.style.opacity = "0.45";
         card.querySelector(".rubric-enabled").addEventListener("change", (e) => {
           card.style.opacity = e.target.checked ? "1" : "0.45";
+        });
+        initSingleSelect(card.querySelector(".rubric-statuses"), {
+          value: selectedStatus,
+          placeholder: "Any Status",
+          options: [
+            { value: "", label: "Any Status" },
+            { value: "mismatch", label: "Mismatch" },
+            { value: "missing", label: "Missing" },
+            { value: "extra", label: "Extra" },
+          ],
         });
 
         body.appendChild(card);
@@ -409,7 +476,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean);
-      const selectedStatus = (card.querySelector(".rubric-statuses")?.value || "").trim().toLowerCase();
+      const selectedStatus = (card.querySelector(".rubric-statuses")?.dataset.value || "").trim().toLowerCase();
       const statuses = selectedStatus ? [selectedStatus] : [];
       updatedByIndex[index] = {
         ...base,

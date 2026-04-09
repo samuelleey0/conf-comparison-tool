@@ -395,6 +395,7 @@ function _renderErrorItem(report, item, isVerification) {
   const div = document.createElement("div");
   const severity = item.severity ? item.severity : "minor";
   const isDeduplicated = item.deduplicated === true;
+  const isRuleDedup = item.rule_deduplicated === true;
   const codeLine = item.rule_code
     ? `<div class="result-code">Code: ${item.rule_code}</div>`
     : "";
@@ -404,20 +405,32 @@ function _renderErrorItem(report, item, isVerification) {
     severityClass = "severity-verified";
     statusLabel = `${item.status || "mismatch"} • ALREADY COUNTED`;
     div.className = "result-item result-item--dedup";
+  } else if (!isVerification && isRuleDedup) {
+    severityClass = "severity-verified";
+    statusLabel = `${item.status || "mismatch"} • ${severity.toUpperCase()} (NOT SCORED — same rule already counted)`;
+    div.className = "result-item result-item--dedup";
   } else {
     severityClass = severity === "major" ? "severity-major" : "severity-minor";
     statusLabel = `${item.status || "mismatch"} • ${severity.toUpperCase()}`;
     div.className = "result-item";
   }
 
-  const dedupBadge = isVerification && isDeduplicated
-    ? `<span class="dedup-badge">Dup of config error</span>`
-    : "";
+  // Build the dedup info line
+  let dedupInfo = "";
+  if (isVerification && isDeduplicated) {
+    const ref = item.layer1_ref || item.block_name || "";
+    const shortRef = ref.replace(/^show_running_config\./, "");
+    dedupInfo = `<div class="dedup-ref">↳ Counted under: <strong>${escapeHtml(shortRef || "config error")}</strong></div>`;
+  } else if (!isVerification && isRuleDedup) {
+    const ruleCode = item.rule_code || item.rule_id || "";
+    dedupInfo = `<div class="dedup-ref">↳ Same rule <strong>${escapeHtml(ruleCode)}</strong> already scored on another device</div>`;
+  }
 
   div.innerHTML = `
-    <div class="meta">${item.feature || "(unknown)"}${dedupBadge}</div>
+    <div class="meta">${item.feature || "(unknown)"}</div>
     ${codeLine}
     <div class="status ${severityClass}">${statusLabel}</div>
+    ${dedupInfo}
     <div class="result-values">
       <div><strong>Expected</strong><pre>${formatValue(item.expected)}</pre></div>
       <div><strong>Actual</strong><pre>${formatValue(item.actual)}</pre></div>
