@@ -52,7 +52,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     row.innerHTML = `
       <input type="text" class="cmd-input" value="${commandText}" readonly />
       <input type="file" class="cmd-file" />
-      <button type="button" class="remove-cmd-btn danger-text">X</button>
+      <button type="button" class="command-remove-btn" title="Remove">✕</button>
     `;
 
     const fileInput = row.querySelector(".cmd-file");
@@ -66,7 +66,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // Removing from row should also uncheck the dropdown box
-    row.querySelector(".remove-cmd-btn").addEventListener("click", () => {
+    row.querySelector(".command-remove-btn").addEventListener("click", () => {
       row.remove();
       const deviceBlock = row.closest(".device-block");
       if (deviceBlock) {
@@ -111,23 +111,31 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     block.innerHTML = `
       <div class="device-block-header">
-        <label>
-          <strong>Hostname:</strong> 
-          <input type="text" class="hostname-input" placeholder="e.g. R1 or S1" required />
-        </label>
+        <div class="device-block-title">Device ${deviceCount}</div>
         
-        <div class="custom-dropdown" id="dropdown-${deviceId}">
-          <div class="dropdown-header">
-            <span>Select Commands</span>
-            <small>▼</small>
+        <div style="display: flex; gap: 16px; flex: 1; align-items: flex-end;">
+          <div style="flex: 1;">
+            <label style="display: block; font-weight: 600; color: var(--color-heading); margin-bottom: 6px; font-size: 0.9rem;">Hostname</label>
+            <input type="text" class="hostname-input" placeholder="e.g. R1 or S1" required />
           </div>
-          <div class="dropdown-list hidden">
-            ${dropdownListHtml}
+          
+          <div style="flex: 1;">
+            <label style="display: block; font-weight: 600; color: var(--color-heading); margin-bottom: 6px; font-size: 0.9rem;">Commands</label>
+            <div class="custom-dropdown" id="dropdown-${deviceId}">
+              <div class="dropdown-header">
+                <span>Select Commands</span>
+                <small>▼</small>
+              </div>
+              <div class="dropdown-list hidden">
+                ${dropdownListHtml}
+              </div>
+            </div>
           </div>
         </div>
 
         <button type="button" class="remove-device-btn">Remove Device</button>
       </div>
+      
       <div class="command-list" id="cmds-${deviceId}">
         <!-- Selected Commands Spawn Here -->
       </div>

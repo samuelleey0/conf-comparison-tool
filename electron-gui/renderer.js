@@ -116,12 +116,13 @@ function highlightActiveNavLink() {
   const links = document.querySelectorAll(".app-navbar__links a");
   if (!links.length) return;
   let current = window.location.pathname.split("/").pop() || "index.html";
-  current = current.toLowerCase();
+  current = current.split("?")[0].toLowerCase();
   links.forEach((link) => {
     const target =
       (link.getAttribute("href") || "")
         .split("/")
         .pop()
+        .split("?")[0]
         .toLowerCase() || "index.html";
     const isActive = target === current;
     link.classList.toggle("active", isActive);
@@ -302,10 +303,7 @@ function setupWelcomePage() {
   keysToClear.forEach(k => localStorage.removeItem(k));
 
   loadNavbar();
-  const startBtn = document.getElementById("startSetupBtn");
-  if (startBtn) {
-    startBtn.addEventListener("click", () => goTo("device_setup.html"));
-  }
+  window.setTimeout(() => goTo("homepage.html"), 2200);
 }
 
 function deriveDirectoryDisplay(dirPath) {
@@ -1994,20 +1992,7 @@ function setupConnectionPage() {
     applySerialPreset("custom");
     document.getElementById("serialPort").value = savedPort;
   } else {
-<<<<<<< HEAD
-    // Detect OS and apply appropriate preset
-    const platform = navigator.platform || navigator.userAgentData?.platform || "unknown";
-    let defaultPreset = "linux"; // default
-    if (platform.toLowerCase().includes("win")) {
-      defaultPreset = "windows";
-    } else if (platform.toLowerCase().includes("mac")) {
-      defaultPreset = "mac";
-    }
-    document.querySelector(`input[name="serialPreset"][value="${defaultPreset}"]`).checked = true;
-    applySerialPreset(defaultPreset);
-=======
     applySerialPreset("linux_usb");
->>>>>>> 2b82cd01ab15968d5dfd655524e04cadd0685b87
   }
 
   document.getElementById("sshHost").value = localStorage.getItem("sshHost") || "";
