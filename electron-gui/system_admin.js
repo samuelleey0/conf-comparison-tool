@@ -16,6 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const resetRubricBtn = document.getElementById("resetRubricBtn");
   const rubricRulesContainer = document.getElementById("rubricRulesContainer");
   const rubricFilterButtons = document.getElementById("rubricFilterButtons");
+  const rubricSearchInput = document.getElementById("rubricSearchInput");
   const DEFAULT_RUBRIC_SECTION = "3.2.1 Hostname & Banner";
 
   const templateList = document.getElementById("templateList");
@@ -35,6 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let globalCommands = [];
   let rubricRules = [];
   let selectedRubricCategory = DEFAULT_RUBRIC_SECTION;
+  let rubricSearchTerm = "";
   let deletedIndices = new Set();
 
   function closeOpenSelects(except = null) {
@@ -130,7 +132,7 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("Error fetching commands. Is the backend running?");
     } finally {
       loadingIndicator.style.display = "none";
-      commentsTable.style.display = "table";
+      commentsTable.style.display = "grid";
     }
   }
 
@@ -140,29 +142,26 @@ document.addEventListener("DOMContentLoaded", () => {
     
     if (globalCommands.length === 0) {
       commandsTableBody.innerHTML = `
-        <tr>
-          <td colspan="2" style="text-align: center; color: var(--color-text-muted);">
-            No commands configured. Add one below.
-          </td>
-        </tr>
+        <div class="command-row-empty">No commands configured. Add one above.</div>
       `;
       return;
     }
 
     globalCommands.forEach((cmd) => {
-      const tr = document.createElement("tr");
-      
-      tr.innerHTML = `
-        <td><code style="font-size: 1rem; background: var(--color-bg); padding: 4px 8px; border-radius: 4px;">${cmd}</code></td>
-        <td class="command-actions">
+      const row = document.createElement("div");
+      row.className = "command-row";
+
+      row.innerHTML = `
+        <code>${cmd}</code>
+        <div class="command-actions">
           <button type="button" class="remove-btn" title="Delete Command">Remove</button>
-        </td>
+        </div>
       `;
       
-      const deleteBtn = tr.querySelector("button");
+      const deleteBtn = row.querySelector("button");
       deleteBtn.addEventListener("click", () => deleteCommand(cmd));
       
-      commandsTableBody.appendChild(tr);
+      commandsTableBody.appendChild(row);
     });
   }
 
@@ -230,6 +229,10 @@ document.addEventListener("DOMContentLoaded", () => {
   newCommandInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") addCommand();
   });
+  rubricSearchInput?.addEventListener("input", (e) => {
+    rubricSearchTerm = (e.target.value || "").trim();
+    renderRubricRules();
+  });
   async function loadPolicy() {
     try {
       const data = await fetchJson("http://127.0.0.1:5050/api/grading_policy");
@@ -250,9 +253,26 @@ document.addEventListener("DOMContentLoaded", () => {
         (rule) => (rule.section || rule.category || "").toLowerCase() === selectedRubricCategory.toLowerCase()
       );
     }
+    if (rubricSearchTerm) {
+      const needle = rubricSearchTerm.toLowerCase();
+      filtered = filtered.filter((rule) => {
+        const haystack = [
+          rule.id,
+          rule.code,
+          rule.description,
+          rule.section,
+          rule.category,
+          rule.subcategory,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(needle);
+      });
+    }
 
     if (!filtered.length) {
-      rubricRulesContainer.innerHTML = `<p class="hint">No rubric rules found.</p>`;
+      rubricRulesContainer.innerHTML = `<p class="hint">No rubric rules found${rubricSearchTerm ? ` for "${rubricSearchTerm}"` : ""}.</p>`;
       return;
     }
 

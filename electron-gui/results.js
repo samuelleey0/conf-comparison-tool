@@ -140,11 +140,28 @@ function groupByHostname(items) {
   return grouped;
 }
 
-function formatJsonSnippet(value) {
+function formatScalarJsonLine(key, value) {
+  const renderedValue = value === undefined ? null : value;
+  return `"${key}": ${JSON.stringify(renderedValue)},`;
+}
+
+function formatJsonSnippet(value, contextPath = "", highlightKey = null) {
   if (value === null || value === undefined) {
+    if (highlightKey) {
+      return formatScalarJsonLine(highlightKey, null);
+    }
     return "(none)";
   }
+  if (
+    highlightKey &&
+    (typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value === null)
+  ) {
+    return formatScalarJsonLine(highlightKey, value);
+  }
   if (typeof value === "string") {
+    if (highlightKey) {
+      return formatScalarJsonLine(highlightKey, value);
+    }
     return value;
   }
   try {
@@ -253,12 +270,12 @@ async function openErrorContext(report, item) {
         ${renderContextPane(
           "Template",
           payload.template_config_path || "Template config not found",
-          formatJsonSnippet(payload.template_context)
+          formatJsonSnippet(payload.template_context, payload.context_path, payload.highlight_key)
         )}
         ${renderContextPane(
           "Student",
           payload.student_config_path || "Student config not found",
-          formatJsonSnippet(payload.student_context)
+          formatJsonSnippet(payload.student_context, payload.context_path, payload.highlight_key)
         )}
       </div>
     `;
@@ -396,12 +413,17 @@ function _renderErrorItem(report, item, isVerification) {
   const severity = item.severity ? item.severity : "minor";
   const isDeduplicated = item.deduplicated === true;
   const isRuleDedup = item.rule_deduplicated === true;
+  const isSkipped = item.status === "skipped";
   const codeLine = item.rule_code
     ? `<div class="result-code">Code: ${item.rule_code}</div>`
     : "";
 
   let severityClass, statusLabel;
-  if (isVerification && isDeduplicated) {
+  if (isSkipped) {
+    severityClass = "severity-skipped";
+    statusLabel = "SKIPPED • RULE DISABLED";
+    div.className = "result-item result-item--skipped";
+  } else if (isVerification && isDeduplicated) {
     severityClass = "severity-verified";
     statusLabel = `${item.status || "mismatch"} • ALREADY COUNTED`;
     div.className = "result-item result-item--dedup";
@@ -424,6 +446,9 @@ function _renderErrorItem(report, item, isVerification) {
   } else if (!isVerification && isRuleDedup) {
     const ruleCode = item.rule_code || item.rule_id || "";
     dedupInfo = `<div class="dedup-ref">↳ Same rule <strong>${escapeHtml(ruleCode)}</strong> already scored on another device</div>`;
+  } else if (isSkipped) {
+    const ruleCode = item.rule_code || item.rule_id || "matched rule";
+    dedupInfo = `<div class="dedup-ref">↳ Hidden from scoring because <strong>${escapeHtml(ruleCode)}</strong> is disabled in Rubric Rules</div>`;
   }
 
   div.innerHTML = `
