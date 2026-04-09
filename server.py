@@ -1402,6 +1402,106 @@ def _extract_error_context(template_config, student_config, feature: str, expect
                 "student_context": s_subs if s_subs else None,
             }
 
+    if (
+        len(feature_parts) >= 3
+        and feature_parts[0] == "show_running_config"
+        and feature_parts[1] == "users"
+    ):
+        username = feature_parts[2]
+        t_users = _resolve_json_parts(template_config, ["show_running_config", "users"])
+        s_users = _resolve_json_parts(student_config, ["show_running_config", "users"])
+
+        def _find_user(users_list, wanted):
+            if not isinstance(users_list, list):
+                return _MISSING
+            for entry in users_list:
+                if isinstance(entry, dict) and str(entry.get("username") or "").lower() == wanted.lower():
+                    return entry
+            return _MISSING
+
+        template_user = _find_user(t_users, username)
+        student_user = _find_user(s_users, username)
+        if template_user is not _MISSING or student_user is not _MISSING:
+            return {
+                "context_path": f"show_running_config.users.{username}",
+                "highlight_key": username,
+                "template_context": None if template_user is _MISSING else template_user,
+                "student_context": None if student_user is _MISSING else student_user,
+            }
+
+    if (
+        len(feature_parts) >= 3
+        and feature_parts[0] == "show_running_config"
+        and feature_parts[1] == "access_lists"
+    ):
+        acl_name = feature_parts[2]
+        t_acls = _resolve_json_parts(template_config, ["show_running_config", "access_lists"])
+        s_acls = _resolve_json_parts(student_config, ["show_running_config", "access_lists"])
+
+        template_acl = t_acls.get(acl_name, _MISSING) if isinstance(t_acls, dict) else _MISSING
+        student_acl = s_acls.get(acl_name, _MISSING) if isinstance(s_acls, dict) else _MISSING
+
+        if template_acl is not _MISSING or student_acl is not _MISSING:
+            return {
+                "context_path": f"show_running_config.access_lists.{acl_name}",
+                "highlight_key": acl_name,
+                "template_context": None if template_acl is _MISSING else template_acl,
+                "student_context": None if student_acl is _MISSING else student_acl,
+            }
+
+    if (
+        len(feature_parts) >= 3
+        and feature_parts[0] == "show_running_config"
+        and feature_parts[1] == "nat"
+    ):
+        nat_field = feature_parts[2]
+        t_nat = _resolve_json_parts(template_config, ["show_running_config", "nat"])
+        s_nat = _resolve_json_parts(student_config, ["show_running_config", "nat"])
+
+        template_nat = t_nat.get(nat_field, _MISSING) if isinstance(t_nat, dict) else _MISSING
+        student_nat = s_nat.get(nat_field, _MISSING) if isinstance(s_nat, dict) else _MISSING
+
+        if template_nat is not _MISSING or student_nat is not _MISSING:
+            return {
+                "context_path": f"show_running_config.nat.{nat_field}",
+                "highlight_key": nat_field,
+                "template_context": None if template_nat is _MISSING else template_nat,
+                "student_context": None if student_nat is _MISSING else student_nat,
+            }
+
+    if (
+        len(feature_parts) >= 3
+        and feature_parts[0] == "show_running_config"
+        and feature_parts[1] == "routing"
+        and feature_parts[2] == "protocol"
+    ):
+        t_routing = _resolve_json_parts(template_config, ["show_running_config", "routing"])
+        s_routing = _resolve_json_parts(student_config, ["show_running_config", "routing"])
+
+        expected_protocols = expected if isinstance(expected, list) else []
+        actual_protocols = actual if isinstance(actual, list) else []
+
+        def _protocol_subset(routing_obj, protocols):
+            if not isinstance(routing_obj, dict):
+                return _MISSING
+            subset = {}
+            for proto in protocols:
+                value = routing_obj.get(proto, _MISSING)
+                if value is not _MISSING:
+                    subset[proto] = value
+            return subset if subset else _MISSING
+
+        template_subset = _protocol_subset(t_routing, expected_protocols)
+        student_subset = _protocol_subset(s_routing, actual_protocols)
+
+        if template_subset is not _MISSING or student_subset is not _MISSING:
+            return {
+                "context_path": "show_running_config.routing.protocol",
+                "highlight_key": "protocol",
+                "template_context": None if template_subset is _MISSING else template_subset,
+                "student_context": None if student_subset is _MISSING else student_subset,
+            }
+
     while parts:
         template_context = _resolve_json_parts(template_config, parts)
         student_context = _resolve_json_parts(student_config, parts)
@@ -1653,6 +1753,19 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
     if not parts:
         return None
 
+    def _extract_router_protocol_block(proto_name):
+        proto = str(proto_name or "").lower()
+        if proto == "eigrp":
+            idx = _find_line_index(lines, lambda line: line.strip().lower().startswith("router eigrp "))
+            return _extract_cli_block(lines, idx)
+        if proto == "ospf":
+            idx = _find_line_index(lines, lambda line: line.strip().lower().startswith("router ospf "))
+            return _extract_cli_block(lines, idx)
+        if proto == "rip":
+            idx = _find_line_index(lines, lambda line: line.strip().lower() == "router rip")
+            return _extract_cli_block(lines, idx)
+        return None
+
     if len(parts) >= 4 and parts[1] == "interfaces":
         iface = parts[2]
         # For subinterface features, try finding the subinterface block first
@@ -1703,6 +1816,16 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
 
     if len(parts) >= 3 and parts[1] == "routing":
         routing_key = parts[2].lower()
+        if routing_key == "protocol":
+            protocols = expected if isinstance(expected, list) and expected else actual if isinstance(actual, list) else []
+            blocks = []
+            for proto in protocols:
+                block = _extract_router_protocol_block(proto)
+                if block:
+                    blocks.append(block)
+            if blocks:
+                return "\n\n".join(blocks)
+            return "No matching routing protocol block found in running-config."
         if routing_key == "ospf":
             idx = _find_line_index(lines, lambda line: line.strip().lower().startswith("router ospf "))
             block = _extract_cli_block(lines, idx)
@@ -1742,6 +1865,7 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
         block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith(f"access-list {acl_name.lower()} "))
         if block:
             return block
+        return f"No ACL named '{acl_name}' found in running-config."
 
     prefix_map = {
         "show_running_config.hostname": "hostname ",
@@ -1775,8 +1899,31 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
         )
         if block:
             return block
+        if username:
+            return f"No 'username {username}' command found in running-config."
 
     if feature.startswith("show_running_config.nat."):
+        nat_field = parts[2] if len(parts) > 2 else ""
+        if nat_field == "inside_interfaces":
+            block = _extract_matching_lines(lines, lambda line: line.strip().lower() == "ip nat inside")
+            if block:
+                return block
+            return "No 'ip nat inside' configuration found in running-config."
+        if nat_field == "outside_interfaces":
+            block = _extract_matching_lines(lines, lambda line: line.strip().lower() == "ip nat outside")
+            if block:
+                return block
+            return "No 'ip nat outside' configuration found in running-config."
+        if nat_field == "pools":
+            block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith("ip nat pool "))
+            if block:
+                return block
+            return "No 'ip nat pool' configuration found in running-config."
+        if nat_field == "inside_source":
+            block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith("ip nat inside source "))
+            if block:
+                return block
+            return "No 'ip nat inside source' configuration found in running-config."
         block = _extract_matching_lines(lines, lambda line: "ip nat" in line.strip().lower())
         if block:
             return block
