@@ -121,7 +121,8 @@ function renderResultsList(reports) {
 }
 
 function formatValue(value) {
-  if (value === null || value === undefined) return "(none)";
+  if (value === null) return "configured as null";
+  if (value === undefined) return "not present";
   if (typeof value === "string") return value;
   try {
     return JSON.stringify(value, null, 2);
