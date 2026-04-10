@@ -4014,10 +4014,30 @@ def _grade_session_from_config(target_path: str, template_name: str):
     if not target.is_dir():
         return [], f"Target path {target_path} not found."
 
+    def _student_has_collected_data(student_dir: Path) -> bool:
+        if not student_dir.is_dir():
+            return False
+        for child in student_dir.iterdir():
+            if not child.is_dir() or child.name == "results":
+                continue
+            if (child / "config.json").exists():
+                return True
+            try:
+                if find_show_run_file(str(child)):
+                    return True
+            except Exception:
+                continue
+        return False
+
+    skipped_students = []
+
     for student_entry in sorted(target.iterdir()):
         if not student_entry.is_dir():
             continue
         student_id = student_entry.name
+        if not _student_has_collected_data(student_entry):
+            skipped_students.append(student_id)
+            continue
         student_results_dir_student = student_entry / "results"
         student_results_dir_student.mkdir(parents=True, exist_ok=True)
 
@@ -4081,6 +4101,16 @@ def _grade_session_from_config(target_path: str, template_name: str):
             {"student_id": student_id, "status": "Graded", "template": template_name}
         )
 
+    if not results_summary:
+        return [], "No collected student logs found in this session. Select a student and collect logs before grading."
+
+    if skipped_students:
+        return (
+            results_summary,
+            f"Grading completed for {len(results_summary)} student(s). "
+            f"Skipped {len(skipped_students)} student(s) with no collected logs.",
+        )
+
     return results_summary, "Grading completed."
 
 
@@ -4114,6 +4144,9 @@ def api_run_grading():
                 }), 400
 
         summary_results, message = _grade_session_from_config(target_path, chosen_template)
+
+        if not summary_results:
+            return jsonify({"status": "error", "message": message}), 400
 
         payload = {
             "status": "success",
