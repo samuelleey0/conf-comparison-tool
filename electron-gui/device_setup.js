@@ -153,6 +153,24 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
+  function normalizeCommandSearch(text) {
+    return String(text || "")
+      .toLowerCase()
+      .replace(/[_./-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function closeCommandDropdowns(exceptDropdown = null) {
+    document.querySelectorAll(".custom-dropdown").forEach((dropdown) => {
+      if (dropdown !== exceptDropdown) {
+        dropdown.classList.remove("dropdown-open");
+        dropdown.querySelector(".dropdown-list")?.classList.add("hidden");
+        dropdown.closest(".device-block")?.classList.remove("dropdown-open");
+      }
+    });
+  }
+
   function addDeviceBlock() {
     deviceCount++;
     const deviceId = `device-${deviceCount}`;
@@ -201,22 +219,30 @@ document.addEventListener("DOMContentLoaded", async () => {
     `;
 
     const cmdList = block.querySelector(`#cmds-${deviceId}`);
+    const dropdownRoot = block.querySelector(`#dropdown-${deviceId}`);
     const dropdownHeader = block.querySelector('.dropdown-header');
     const dropdownList = block.querySelector('.dropdown-list');
     const dropdownSearch = block.querySelector('.dropdown-search-input');
     
     // Toggle dropdown
-    dropdownHeader.addEventListener("click", () => {
-      dropdownList.classList.toggle("hidden");
-      if (!dropdownList.classList.contains("hidden")) {
+    dropdownHeader.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const willOpen = dropdownList.classList.contains("hidden");
+      closeCommandDropdowns(willOpen ? dropdownRoot : null);
+      dropdownList.classList.toggle("hidden", !willOpen);
+      dropdownRoot?.classList.toggle("dropdown-open", willOpen);
+      block.classList.toggle("dropdown-open", willOpen);
+      if (willOpen) {
         dropdownSearch?.focus();
       }
     });
 
     // Close dropdown on click outside
     document.addEventListener("click", (e) => {
-      if (!block.querySelector(`#dropdown-${deviceId}`).contains(e.target)) {
+      if (!dropdownRoot.contains(e.target)) {
          dropdownList.classList.add("hidden");
+         dropdownRoot.classList.remove("dropdown-open");
+         block.classList.remove("dropdown-open");
       }
     });
 
@@ -225,10 +251,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     dropdownSearch?.addEventListener("input", () => {
-      const term = dropdownSearch.value.trim().toLowerCase();
+      const term = normalizeCommandSearch(dropdownSearch.value);
       const items = block.querySelectorAll('.dropdown-item');
       items.forEach((item) => {
-        const text = item.textContent.toLowerCase();
+        const text = normalizeCommandSearch(item.textContent);
         item.classList.toggle("hidden", term && !text.includes(term));
       });
     });
