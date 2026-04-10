@@ -1216,6 +1216,7 @@ function setupSampleCollectPage() {
   const list = document.getElementById("sampleCommandsList");
   const log = document.getElementById("sampleLog");
   const dirLabel = document.getElementById("sampleDirLabel");
+  const sampleCommandSearch = document.getElementById("sampleCommandSearch");
 
   const setStatus = (msg) => {
     if (!statusBox) return;
@@ -1228,6 +1229,22 @@ function setupSampleCollectPage() {
     if (!log) return;
     log.textContent += `${msg}\n`;
     log.scrollTop = log.scrollHeight;
+  };
+
+  const normalizeCommandSearch = (text) =>
+    String(text || "")
+      .toLowerCase()
+      .replace(/[_./-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const filterSampleCommands = () => {
+    if (!list) return;
+    const term = normalizeCommandSearch(sampleCommandSearch?.value || "");
+    list.querySelectorAll(".sample-cmd-row").forEach((row) => {
+      const text = normalizeCommandSearch(row.textContent);
+      row.classList.toggle("hidden", !!term && !text.includes(term));
+    });
   };
 
   const toggleSampleConnectionFields = () => {
@@ -1273,6 +1290,7 @@ function setupSampleCollectPage() {
         row.innerHTML = `<input type="checkbox" value="${cmd}"> ${cmd}`;
         list.appendChild(row);
       });
+      filterSampleCommands();
     } catch (err) {
       console.error(err);
       list.innerHTML = `<p class="hint">Failed to load commands: ${err.message || "unknown error"}</p>`;
@@ -1427,6 +1445,8 @@ function setupSampleCollectPage() {
   if (sshPortInput) {
     sshPortInput.value = localStorage.getItem("sshPort") || "22";
   }
+
+  sampleCommandSearch?.addEventListener("input", filterSampleCommands);
 
   document.getElementById("selectAllSampleCmds")?.addEventListener("click", () => {
     document.querySelectorAll('#sampleCommandsList input[type="checkbox"]').forEach((cb) => (cb.checked = true));
