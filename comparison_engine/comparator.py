@@ -163,6 +163,7 @@ def normalize_config_with_scheme(config: dict, scheme: dict) -> dict:
 # ACCMS Intelligent Pre-Comparison Analysis
 # ─────────────────────────────────────────────────────────────────
 
+
 def _detect_acl_pointless_rules(rules):
     """Detect ACL rules that are shadowed by earlier rules or by 'any any'.
     Returns list of (rule_index, outcome_code) tuples.
@@ -209,23 +210,27 @@ def _check_ospf_areas(ospf_configs):
 
         # Single-area OSPF should use area 0
         if not is_multi_area and "0" not in areas_used:
-            results.append({
-                "feature": "show_running_config.routing.ospf.area_validation",
-                "expected": "area 0 for single-area OSPF",
-                "actual": f"area {sorted(areas_used)[0]}",
-                "status": "mismatch",
-                "outcome_code": "MISMATCH_OSPF_AREA_ID_SINGLE",
-            })
+            results.append(
+                {
+                    "feature": "show_running_config.routing.ospf.area_validation",
+                    "expected": "area 0 for single-area OSPF",
+                    "actual": f"area {sorted(areas_used)[0]}",
+                    "status": "mismatch",
+                    "outcome_code": "MISMATCH_OSPF_AREA_ID_SINGLE",
+                }
+            )
 
         # Multi-area OSPF must have area 0
         if is_multi_area and "0" not in areas_used:
-            results.append({
-                "feature": "show_running_config.routing.ospf.area_validation",
-                "expected": "area 0 must exist in multi-area OSPF",
-                "actual": f"areas: {sorted(areas_used)}",
-                "status": "mismatch",
-                "outcome_code": "MISMATCH_OSPF_AREA_0_MISSING",
-            })
+            results.append(
+                {
+                    "feature": "show_running_config.routing.ospf.area_validation",
+                    "expected": "area 0 must exist in multi-area OSPF",
+                    "actual": f"areas: {sorted(areas_used)}",
+                    "status": "mismatch",
+                    "outcome_code": "MISMATCH_OSPF_AREA_0_MISSING",
+                }
+            )
 
     return results
 
@@ -256,23 +261,27 @@ def _check_nat_pool_ranges(template_pools, student_pools):
 
         # Student range extends outside template
         if s_start < t_start or s_end > t_end:
-            results.append({
-                "feature": f"show_running_config.nat.pools.{name}.range",
-                "expected": f"{t_start}-{t_end}",
-                "actual": f"{s_start}-{s_end}",
-                "status": "mismatch",
-                "outcome_code": "MISMATCH_NAT_POOL_RANGE_OUTSIDE",
-            })
+            results.append(
+                {
+                    "feature": f"show_running_config.nat.pools.{name}.range",
+                    "expected": f"{t_start}-{t_end}",
+                    "actual": f"{s_start}-{s_end}",
+                    "status": "mismatch",
+                    "outcome_code": "MISMATCH_NAT_POOL_RANGE_OUTSIDE",
+                }
+            )
 
         # Student range doesn't cover entire template
         if s_start > t_start or s_end < t_end:
-            results.append({
-                "feature": f"show_running_config.nat.pools.{name}.range",
-                "expected": f"{t_start}-{t_end}",
-                "actual": f"{s_start}-{s_end}",
-                "status": "mismatch",
-                "outcome_code": "MISMATCH_NAT_POOL_RANGE_INSIDE",
-            })
+            results.append(
+                {
+                    "feature": f"show_running_config.nat.pools.{name}.range",
+                    "expected": f"{t_start}-{t_end}",
+                    "actual": f"{s_start}-{s_end}",
+                    "status": "mismatch",
+                    "outcome_code": "MISMATCH_NAT_POOL_RANGE_INSIDE",
+                }
+            )
 
     return results
 
@@ -282,9 +291,18 @@ def _check_configured_but_shutdown(interfaces):
     Returns list of outcome dicts.
     """
     results = []
-    config_keys = {"ip", "mask", "encapsulation", "switchport_mode", "access_vlan",
-                   "trunk_native_vlan", "trunk_allowed_vlans", "ppp_authentication",
-                   "channel_group", "ospf_network_type"}
+    config_keys = {
+        "ip",
+        "mask",
+        "encapsulation",
+        "switchport_mode",
+        "access_vlan",
+        "trunk_native_vlan",
+        "trunk_allowed_vlans",
+        "ppp_authentication",
+        "channel_group",
+        "ospf_network_type",
+    }
 
     for iface_name, iface_cfg in interfaces.items():
         if not isinstance(iface_cfg, dict):
@@ -292,18 +310,19 @@ def _check_configured_but_shutdown(interfaces):
         if iface_cfg.get("shutdown") is not True:
             continue
         has_config = any(
-            iface_cfg.get(k) is not None for k in config_keys
-            if k in iface_cfg
+            iface_cfg.get(k) is not None for k in config_keys if k in iface_cfg
         )
         # Check if the IP is set (not None)
         if has_config and iface_cfg.get("ip") is not None:
-            results.append({
-                "feature": f"show_running_config.interfaces.{iface_name}.configured_if_shutdown",
-                "expected": "shutdown with no configuration OR no shutdown with configuration",
-                "actual": f"shutdown=True but has IP/config",
-                "status": "mismatch",
-                "outcome_code": "MISMATCH_CONFIGURED_IF_SHUTDOWN",
-            })
+            results.append(
+                {
+                    "feature": f"show_running_config.interfaces.{iface_name}.configured_if_shutdown",
+                    "expected": "shutdown with no configuration OR no shutdown with configuration",
+                    "actual": f"shutdown=True but has IP/config",
+                    "status": "mismatch",
+                    "outcome_code": "MISMATCH_CONFIGURED_IF_SHUTDOWN",
+                }
+            )
 
     return results
 
@@ -332,13 +351,15 @@ def _check_acl_not_applied(access_lists, interfaces):
 
     for acl_name in access_lists:
         if acl_name not in applied_acls:
-            results.append({
-                "feature": f"show_running_config.access_lists.{acl_name}.applied",
-                "expected": "ACL applied to at least one interface",
-                "actual": "ACL not applied to any interface",
-                "status": "missing",
-                "outcome_code": "MISSING_ACL_APPLIED",
-            })
+            results.append(
+                {
+                    "feature": f"show_running_config.access_lists.{acl_name}.applied",
+                    "expected": "ACL applied to at least one interface",
+                    "actual": "ACL not applied to any interface",
+                    "status": "missing",
+                    "outcome_code": "MISSING_ACL_APPLIED",
+                }
+            )
 
     return results
 
@@ -354,13 +375,15 @@ def _check_routing_instances(routing):
     for protocol in ("eigrp", "ospf", "rip"):
         instances = routing.get(protocol, [])
         if isinstance(instances, list) and len(instances) > 1:
-            results.append({
-                "feature": f"show_running_config.routing.{protocol}.instances",
-                "expected": f"1 {protocol.upper()} instance",
-                "actual": f"{len(instances)} instances",
-                "status": "extra",
-                "outcome_code": "EXTRA_ROUTING_INSTANCE",
-            })
+            results.append(
+                {
+                    "feature": f"show_running_config.routing.{protocol}.instances",
+                    "expected": f"1 {protocol.upper()} instance",
+                    "actual": f"{len(instances)} instances",
+                    "status": "extra",
+                    "outcome_code": "EXTRA_ROUTING_INSTANCE",
+                }
+            )
 
     return results
 
@@ -369,7 +392,7 @@ def _classify_static_routes(static_routes):
     """Separate default routes (0.0.0.0/0) from other static routes."""
     default_routes = []
     other_routes = []
-    for route in (static_routes or []):
+    for route in static_routes or []:
         if not isinstance(route, dict):
             continue
         network = str(route.get("network", ""))
@@ -420,13 +443,15 @@ def _check_dhcp_excluded_conflicts(parsed_config):
                 break
 
         if not in_any_pool:
-            results.append({
-                "feature": "show_running_config.dhcp_excluded.bad_exclusion",
-                "expected": "Excluded IPs within a configured DHCP pool range",
-                "actual": f"Excluded IP {start} not in any pool",
-                "status": "mismatch",
-                "outcome_code": "MISMATCH_DHCP_BAD_EXCLUSION",
-            })
+            results.append(
+                {
+                    "feature": "show_running_config.dhcp_excluded.bad_exclusion",
+                    "expected": "Excluded IPs within a configured DHCP pool range",
+                    "actual": f"Excluded IP {start} not in any pool",
+                    "status": "mismatch",
+                    "outcome_code": "MISMATCH_DHCP_BAD_EXCLUSION",
+                }
+            )
 
     return results
 
@@ -441,13 +466,15 @@ def _check_dhcp_empty_pools(student_pools):
             continue
         network = pool_cfg.get("network")
         if not network:
-            results.append({
-                "feature": f"show_running_config.dhcp_pools.{pool_name}.network",
-                "expected": "DHCP pool with network statement",
-                "actual": "Pool created but no network configured",
-                "status": "missing",
-                "outcome_code": "MISSING_DHCP_EMPTY_POOL",
-            })
+            results.append(
+                {
+                    "feature": f"show_running_config.dhcp_pools.{pool_name}.network",
+                    "expected": "DHCP pool with network statement",
+                    "actual": "Pool created but no network configured",
+                    "status": "missing",
+                    "outcome_code": "MISSING_DHCP_EMPTY_POOL",
+                }
+            )
     return results
 
 
@@ -459,7 +486,7 @@ def _check_trunk_ip_assigned(template_interfaces, student_interfaces):
 
     # Collect base interfaces that have sub-interfaces in template
     template_bases_with_subint = set()
-    for iface_name in (template_interfaces or {}):
+    for iface_name in template_interfaces or {}:
         if not isinstance(iface_name, str):
             continue
         if "." in iface_name:
@@ -471,20 +498,24 @@ def _check_trunk_ip_assigned(template_interfaces, student_interfaces):
         if not isinstance(s_cfg, dict):
             continue
         if s_cfg.get("ip") is not None:
-            results.append({
-                "feature": f"show_running_config.interfaces.{base_iface}.trunk_ip_assigned",
-                "expected": "No IP on trunk interface (sub-interfaces expected)",
-                "actual": f"IP {s_cfg.get('ip')} assigned to trunk interface",
-                "status": "mismatch",
-                "outcome_code": "MISMATCH_TRUNK_IP_ASSIGNED",
-            })
+            results.append(
+                {
+                    "feature": f"show_running_config.interfaces.{base_iface}.trunk_ip_assigned",
+                    "expected": "No IP on trunk interface (sub-interfaces expected)",
+                    "actual": f"IP {s_cfg.get('ip')} assigned to trunk interface",
+                    "status": "mismatch",
+                    "outcome_code": "MISMATCH_TRUNK_IP_ASSIGNED",
+                }
+            )
     return results
 
 
 def _check_extra_ppp(template_interfaces, student_interfaces):
     """Detect PPP configured on interfaces that should not have it."""
     results = []
-    if not isinstance(student_interfaces, dict) or not isinstance(template_interfaces, dict):
+    if not isinstance(student_interfaces, dict) or not isinstance(
+        template_interfaces, dict
+    ):
         return results
 
     for iface_name, s_cfg in student_interfaces.items():
@@ -496,13 +527,15 @@ def _check_extra_ppp(template_interfaces, student_interfaces):
         if not isinstance(t_cfg, dict):
             t_cfg = {}
         if t_cfg.get("encapsulation") != "ppp":
-            results.append({
-                "feature": f"show_running_config.interfaces.{iface_name}.extra_ppp",
-                "expected": f"encapsulation {t_cfg.get('encapsulation', 'hdlc (default)')}",
-                "actual": "encapsulation ppp",
-                "status": "extra",
-                "outcome_code": "EXTRA_PPP_ENABLED",
-            })
+            results.append(
+                {
+                    "feature": f"show_running_config.interfaces.{iface_name}.extra_ppp",
+                    "expected": f"encapsulation {t_cfg.get('encapsulation', 'hdlc (default)')}",
+                    "actual": "encapsulation ppp",
+                    "status": "extra",
+                    "outcome_code": "EXTRA_PPP_ENABLED",
+                }
+            )
     return results
 
 
@@ -525,19 +558,21 @@ def _check_nat_completeness(student_nat):
             pool_names.add(pool["name"])
 
     bound_pools = set()
-    for src in (sources or []):
+    for src in sources or []:
         if isinstance(src, dict) and src.get("pool"):
             bound_pools.add(src["pool"])
 
     for pool_name in pool_names:
         if pool_name not in bound_pools:
-            results.append({
-                "feature": f"show_running_config.nat.pools.{pool_name}.acl_binding",
-                "expected": f"ip nat inside source list <acl> pool {pool_name}",
-                "actual": "No inside source binding for this pool",
-                "status": "missing",
-                "outcome_code": "MISSING_NAT_ACL",
-            })
+            results.append(
+                {
+                    "feature": f"show_running_config.nat.pools.{pool_name}.acl_binding",
+                    "expected": f"ip nat inside source list <acl> pool {pool_name}",
+                    "actual": "No inside source binding for this pool",
+                    "status": "missing",
+                    "outcome_code": "MISSING_NAT_ACL",
+                }
+            )
 
     return results
 
@@ -545,7 +580,9 @@ def _check_nat_completeness(student_nat):
 def _check_etherchannel_members(template_ec_summary, student_ec_summary):
     """Compare etherchannel group membership from show etherchannel summary."""
     results = []
-    if not isinstance(template_ec_summary, dict) or not isinstance(student_ec_summary, dict):
+    if not isinstance(template_ec_summary, dict) or not isinstance(
+        student_ec_summary, dict
+    ):
         return results
 
     t_groups = template_ec_summary.get("groups", {})
@@ -556,13 +593,15 @@ def _check_etherchannel_members(template_ec_summary, student_ec_summary):
             continue
         s_info = s_groups.get(group_num)
         if not s_info:
-            results.append({
-                "feature": f"verification.show_etherchannel_summary.groups.{group_num}",
-                "expected": t_info,
-                "actual": None,
-                "status": "missing",
-                "outcome_code": "MISSING_ETHERCHANNEL",
-            })
+            results.append(
+                {
+                    "feature": f"verification.show_etherchannel_summary.groups.{group_num}",
+                    "expected": t_info,
+                    "actual": None,
+                    "status": "missing",
+                    "outcome_code": "MISSING_ETHERCHANNEL",
+                }
+            )
             continue
 
         # Compare members
@@ -576,32 +615,38 @@ def _check_etherchannel_members(template_ec_summary, student_ec_summary):
                 s_members.add(m.get("interface", ""))
 
         for missing_m in sorted(t_members - s_members):
-            results.append({
-                "feature": f"verification.show_etherchannel_summary.groups.{group_num}.members.{missing_m}",
-                "expected": f"Interface {missing_m} in port-channel group {group_num}",
-                "actual": "Not in group",
-                "status": "missing",
-                "outcome_code": "MISSING_ETHERCHANNEL_MEMBER",
-            })
+            results.append(
+                {
+                    "feature": f"verification.show_etherchannel_summary.groups.{group_num}.members.{missing_m}",
+                    "expected": f"Interface {missing_m} in port-channel group {group_num}",
+                    "actual": "Not in group",
+                    "status": "missing",
+                    "outcome_code": "MISSING_ETHERCHANNEL_MEMBER",
+                }
+            )
         for extra_m in sorted(s_members - t_members):
-            results.append({
-                "feature": f"verification.show_etherchannel_summary.groups.{group_num}.members.{extra_m}",
-                "expected": f"Interface {extra_m} not in group {group_num}",
-                "actual": "In group",
-                "status": "extra",
-                "outcome_code": "EXTRA_ETHERCHANNEL_MEMBER",
-            })
+            results.append(
+                {
+                    "feature": f"verification.show_etherchannel_summary.groups.{group_num}.members.{extra_m}",
+                    "expected": f"Interface {extra_m} not in group {group_num}",
+                    "actual": "In group",
+                    "status": "extra",
+                    "outcome_code": "EXTRA_ETHERCHANNEL_MEMBER",
+                }
+            )
 
     # Extra groups in student
     for group_num, s_info in s_groups.items():
         if group_num not in t_groups:
-            results.append({
-                "feature": f"verification.show_etherchannel_summary.groups.{group_num}",
-                "expected": None,
-                "actual": s_info,
-                "status": "extra",
-                "outcome_code": "EXTRA_ETHERCHANNEL",
-            })
+            results.append(
+                {
+                    "feature": f"verification.show_etherchannel_summary.groups.{group_num}",
+                    "expected": None,
+                    "actual": s_info,
+                    "status": "extra",
+                    "outcome_code": "EXTRA_ETHERCHANNEL",
+                }
+            )
 
     return results
 
@@ -609,6 +654,7 @@ def _check_etherchannel_members(template_ec_summary, student_ec_summary):
 # ─────────────────────────────────────────────────────────────────
 # Outcome Code Mapping Helpers
 # ─────────────────────────────────────────────────────────────────
+
 
 def _outcome_code_for_path(full_key, status):
     """Determine the specific ACCMS outcome code based on feature path and status."""
@@ -1075,7 +1121,9 @@ def _verification_outcome_code_for_path(full_key, status, expected=None, actual=
 
     if feature.startswith("verification.show_ip_dhcp_pool"):
         if feature.endswith(".pool_names"):
-            expected_names = set(expected or []) if isinstance(expected, list) else set()
+            expected_names = (
+                set(expected or []) if isinstance(expected, list) else set()
+            )
             actual_names = set(actual or []) if isinstance(actual, list) else set()
             if expected_names - actual_names:
                 return "VERIFY_DHCP_POOL_MISSING"
@@ -1201,7 +1249,11 @@ def _route_table_failure(protocol, expected_routes, actual_routes, expected_code
     actual_codes = _route_codes(actual_routes)
     expected_destinations = _extract_route_destinations(expected_routes)
     actual_destinations = _extract_route_destinations(actual_routes)
-    missing_code_prefix = [code for code in expected_codes if not any(c.startswith(code.rstrip("*")) for c in actual_codes)]
+    missing_code_prefix = [
+        code
+        for code in expected_codes
+        if not any(c.startswith(code.rstrip("*")) for c in actual_codes)
+    ]
     if missing_code_prefix:
         return "VERIFY_ROUTE_PROTOCOL_ABSENT", {
             "expected_codes": sorted(expected_codes),
@@ -1220,7 +1272,9 @@ def _find_default_static_route(routes):
     for route in routes or []:
         if not isinstance(route, dict):
             continue
-        destination = str(route.get("network") or route.get("destination") or "").strip()
+        destination = str(
+            route.get("network") or route.get("destination") or ""
+        ).strip()
         mask = str(route.get("mask", "")).strip()
         if destination in {"0.0.0.0", "0.0.0.0/0"} and mask in {"0.0.0.0", "", "/0"}:
             return route
@@ -1239,14 +1293,12 @@ def _check_routing_verification(template, student):
     student_verification = student.get("verification", {}) or {}
 
     def _eigrp_result():
-        t_neighbors = (
-            (template_verification.get("show_ip_eigrp_neighbor") or {}).get("neighbors")
-            or []
-        )
-        s_neighbors = (
-            (student_verification.get("show_ip_eigrp_neighbor") or {}).get("neighbors")
-            or []
-        )
+        t_neighbors = (template_verification.get("show_ip_eigrp_neighbor") or {}).get(
+            "neighbors"
+        ) or []
+        s_neighbors = (student_verification.get("show_ip_eigrp_neighbor") or {}).get(
+            "neighbors"
+        ) or []
         if t_neighbors:
             if not s_neighbors:
                 return _make_verification_chain_result(
@@ -1284,8 +1336,12 @@ def _check_routing_verification(template, student):
                     chain_stopped=True,
                 )
 
-        t_topology = (template_verification.get("show_ip_eigrp_topology") or {}).get("routes") or []
-        s_topology = (student_verification.get("show_ip_eigrp_topology") or {}).get("routes") or []
+        t_topology = (template_verification.get("show_ip_eigrp_topology") or {}).get(
+            "routes"
+        ) or []
+        s_topology = (student_verification.get("show_ip_eigrp_topology") or {}).get(
+            "routes"
+        ) or []
         if t_topology:
             t_destinations = _extract_route_destinations(t_topology)
             s_destinations = _extract_route_destinations(s_topology)
@@ -1303,7 +1359,10 @@ def _check_routing_verification(template, student):
                     details=missing,
                 )
             s_topology_by_dest = {
-                str(route.get("destination", "")).strip(): str(route.get("state", "")).strip().lower()
+                str(route.get("destination", ""))
+                .strip(): str(route.get("state", ""))
+                .strip()
+                .lower()
                 for route in s_topology
                 if isinstance(route, dict)
             }
@@ -1324,13 +1383,11 @@ def _check_routing_verification(template, student):
                     )
 
         t_eigrp_interfaces = (
-            (template_verification.get("show_ip_eigrp_interfaces") or {}).get("interfaces")
-            or []
-        )
+            template_verification.get("show_ip_eigrp_interfaces") or {}
+        ).get("interfaces") or []
         s_eigrp_interfaces = (
-            (student_verification.get("show_ip_eigrp_interfaces") or {}).get("interfaces")
-            or []
-        )
+            student_verification.get("show_ip_eigrp_interfaces") or {}
+        ).get("interfaces") or []
         if t_eigrp_interfaces:
             t_ifaces = _normalized_interface_set(t_eigrp_interfaces)
             s_ifaces = _normalized_interface_set(s_eigrp_interfaces)
@@ -1350,7 +1407,9 @@ def _check_routing_verification(template, student):
 
         passive = set()
         for process in template_routing.get("eigrp", []) or []:
-            passive.update(_normalized_interface_set(process.get("passive_interfaces") or []))
+            passive.update(
+                _normalized_interface_set(process.get("passive_interfaces") or [])
+            )
         if passive and s_eigrp_interfaces:
             s_ifaces = _normalized_interface_set(s_eigrp_interfaces)
             active_passive = sorted(passive & s_ifaces)
@@ -1376,7 +1435,8 @@ def _check_routing_verification(template, student):
                 return _make_verification_chain_result(
                     "verification.show_ip_route.eigrp.level3",
                     code,
-                    details.get("expected_destinations") or details.get("expected_codes"),
+                    details.get("expected_destinations")
+                    or details.get("expected_codes"),
                     details.get("actual_destinations") or details.get("actual_codes"),
                     "show_ip_route",
                     3,
@@ -1385,14 +1445,12 @@ def _check_routing_verification(template, student):
         return None
 
     def _ospf_result():
-        t_neighbors = (
-            (template_verification.get("show_ip_ospf_neighbor") or {}).get("neighbors")
-            or []
-        )
-        s_neighbors = (
-            (student_verification.get("show_ip_ospf_neighbor") or {}).get("neighbors")
-            or []
-        )
+        t_neighbors = (template_verification.get("show_ip_ospf_neighbor") or {}).get(
+            "neighbors"
+        ) or []
+        s_neighbors = (student_verification.get("show_ip_ospf_neighbor") or {}).get(
+            "neighbors"
+        ) or []
         if t_neighbors:
             if not s_neighbors:
                 return _make_verification_chain_result(
@@ -1443,8 +1501,12 @@ def _check_routing_verification(template, student):
                     chain_stopped=True,
                 )
 
-        t_db = (template_verification.get("show_ip_ospf_database") or {}).get("lsa_types") or {}
-        s_db = (student_verification.get("show_ip_ospf_database") or {}).get("lsa_types") or {}
+        t_db = (template_verification.get("show_ip_ospf_database") or {}).get(
+            "lsa_types"
+        ) or {}
+        s_db = (student_verification.get("show_ip_ospf_database") or {}).get(
+            "lsa_types"
+        ) or {}
         if t_db.get("router", 0) > 0 and s_db.get("router", 0) == 0:
             return _make_verification_chain_result(
                 "verification.show_ip_ospf_database.level2",
@@ -1479,14 +1541,12 @@ def _check_routing_verification(template, student):
                 chain_stopped=True,
             )
 
-        t_interfaces = (
-            (template_verification.get("show_ip_ospf_interface") or {}).get("interfaces")
-            or []
-        )
-        s_interfaces = (
-            (student_verification.get("show_ip_ospf_interface") or {}).get("interfaces")
-            or []
-        )
+        t_interfaces = (template_verification.get("show_ip_ospf_interface") or {}).get(
+            "interfaces"
+        ) or []
+        s_interfaces = (student_verification.get("show_ip_ospf_interface") or {}).get(
+            "interfaces"
+        ) or []
         if t_interfaces:
             s_by_name = {
                 _normalize_interface_name(interface.get("name")): interface
@@ -1509,7 +1569,10 @@ def _check_routing_verification(template, student):
                         "ospf",
                         chain_stopped=True,
                     )
-                if str(interface.get("area", "")).strip() != str(student_interface.get("area", "")).strip():
+                if (
+                    str(interface.get("area", "")).strip()
+                    != str(student_interface.get("area", "")).strip()
+                ):
                     return _make_verification_chain_result(
                         f"verification.show_ip_ospf_interface.level2.{name}.area",
                         "VERIFY_OSPF_WRONG_AREA",
@@ -1521,8 +1584,13 @@ def _check_routing_verification(template, student):
                         chain_stopped=True,
                     )
                 t_network_type = str(interface.get("network_type", "")).strip().upper()
-                s_network_type = str(student_interface.get("network_type", "")).strip().upper()
-                if t_network_type == "POINT_TO_POINT" and s_network_type != "POINT_TO_POINT":
+                s_network_type = (
+                    str(student_interface.get("network_type", "")).strip().upper()
+                )
+                if (
+                    t_network_type == "POINT_TO_POINT"
+                    and s_network_type != "POINT_TO_POINT"
+                ):
                     return _make_verification_chain_result(
                         f"verification.show_ip_ospf_interface.level2.{name}.network_type",
                         "VERIFY_OSPF_WRONG_NETWORK_TYPE",
@@ -1555,7 +1623,8 @@ def _check_routing_verification(template, student):
                 return _make_verification_chain_result(
                     "verification.show_ip_route.ospf.level3",
                     code,
-                    details.get("expected_destinations") or details.get("expected_codes"),
+                    details.get("expected_destinations")
+                    or details.get("expected_codes"),
                     details.get("actual_destinations") or details.get("actual_codes"),
                     "show_ip_route",
                     3,
@@ -1564,8 +1633,12 @@ def _check_routing_verification(template, student):
         return None
 
     def _rip_result():
-        t_db = (template_verification.get("show_ip_rip_database") or {}).get("routes") or []
-        s_db = (student_verification.get("show_ip_rip_database") or {}).get("routes") or []
+        t_db = (template_verification.get("show_ip_rip_database") or {}).get(
+            "routes"
+        ) or []
+        s_db = (student_verification.get("show_ip_rip_database") or {}).get(
+            "routes"
+        ) or []
         if t_db:
             if not s_db:
                 return _make_verification_chain_result(
@@ -1627,7 +1700,8 @@ def _check_routing_verification(template, student):
                 return _make_verification_chain_result(
                     "verification.show_ip_route.rip.level3",
                     code,
-                    details.get("expected_destinations") or details.get("expected_codes"),
+                    details.get("expected_destinations")
+                    or details.get("expected_codes"),
                     details.get("actual_destinations") or details.get("actual_codes"),
                     "show_ip_route",
                     3,
@@ -1639,10 +1713,14 @@ def _check_routing_verification(template, student):
         t_static = template_routing.get("static_routes") or []
         if not t_static:
             return None
-        s_route_static = (student_verification.get("show_ip_route_static") or {}).get("routes") or []
+        s_route_static = (student_verification.get("show_ip_route_static") or {}).get(
+            "routes"
+        ) or []
         if not s_route_static:
             show_ip_route = student_verification.get("show_ip_route") or {}
-            s_route_static = _filter_route_table(show_ip_route.get("routes") or [], {"S"})
+            s_route_static = _filter_route_table(
+                show_ip_route.get("routes") or [], {"S"}
+            )
 
         t_default = _find_default_static_route(t_static)
         if t_default:
@@ -1673,7 +1751,9 @@ def _check_routing_verification(template, student):
             mask = str(route.get("mask", "")).strip()
             if network and mask and not (network == "0.0.0.0" and mask == "0.0.0.0"):
                 try:
-                    expected_static.add(str(ipaddress.IPv4Network(f"{network}/{mask}", strict=False)))
+                    expected_static.add(
+                        str(ipaddress.IPv4Network(f"{network}/{mask}", strict=False))
+                    )
                 except Exception:
                     expected_static.add(f"{network}/{mask}")
 
@@ -1688,7 +1768,13 @@ def _check_routing_verification(template, student):
                     actual_static.add(destination)
                 elif mask:
                     try:
-                        actual_static.add(str(ipaddress.IPv4Network(f"{destination}/{mask}", strict=False)))
+                        actual_static.add(
+                            str(
+                                ipaddress.IPv4Network(
+                                    f"{destination}/{mask}", strict=False
+                                )
+                            )
+                        )
                     except Exception:
                         actual_static.add(f"{destination}/{mask}")
 
@@ -1707,9 +1793,7 @@ def _check_routing_verification(template, student):
         return None
 
     t_protocols = {
-        proto
-        for proto in ("eigrp", "ospf", "rip")
-        if template_routing.get(proto)
+        proto for proto in ("eigrp", "ospf", "rip") if template_routing.get(proto)
     }
 
     if "eigrp" in t_protocols:
@@ -1728,8 +1812,12 @@ def _check_routing_verification(template, student):
     if static_result:
         results.append(static_result)
 
-    t_gateway = (template_verification.get("show_ip_route") or {}).get("gateway", {}) or {}
-    s_gateway = (student_verification.get("show_ip_route") or {}).get("gateway", {}) or {}
+    t_gateway = (template_verification.get("show_ip_route") or {}).get(
+        "gateway", {}
+    ) or {}
+    s_gateway = (student_verification.get("show_ip_route") or {}).get(
+        "gateway", {}
+    ) or {}
     t_next_hop = str(t_gateway.get("next_hop", "")).strip()
     s_next_hop = str(s_gateway.get("next_hop", "")).strip()
     if t_next_hop and s_next_hop and t_next_hop != s_next_hop:
@@ -1808,10 +1896,10 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
         upper_name = iface_name.upper()
         if upper_name.startswith("NVI") or upper_name.startswith("LOOPBACK"):
             return False
-            
+
         if not isinstance(iface_cfg, dict):
             return False
-            
+
         # Check if it's from show_running_config (has 'shutdown' key)
         if "shutdown" in iface_cfg:
             if iface_cfg.get("shutdown") is not True:
@@ -1819,14 +1907,14 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
             if iface_cfg.get("ip") is not None or iface_cfg.get("mask") is not None:
                 return False
             return True
-            
+
         # Check if it's from show_ip_interface_brief (has 'status' key)
         if "status" in iface_cfg:
             status = str(iface_cfg.get("status", "")).strip().lower()
             ip = str(iface_cfg.get("ip", "")).strip().lower()
             if status == "administratively down" and ip in {"unassigned", "none", ""}:
                 return True
-                
+
         return False
 
     def _is_ip_field(path):
@@ -1878,10 +1966,12 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
         template_show_run = template.get("show_running_config", {}) or {}
         t_nat = template_show_run.get("nat", {}) or {}
         s_nat = student_show_run.get("nat", {}) or {}
-        results.extend(_check_nat_pool_ranges(
-            t_nat.get("pools", []),
-            s_nat.get("pools", []),
-        ))
+        results.extend(
+            _check_nat_pool_ranges(
+                t_nat.get("pools", []),
+                s_nat.get("pools", []),
+            )
+        )
 
         # Configured-but-shutdown detection
         s_interfaces = student_show_run.get("interfaces", {}) or {}
@@ -1904,13 +1994,15 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
             rules = acl_data.get("rules", [])
             pointless = _detect_acl_pointless_rules(rules)
             for rule_idx, code in pointless:
-                results.append({
-                    "feature": f"show_running_config.access_lists.{acl_name}.rules.{rule_idx}",
-                    "expected": "Effective ACL rule",
-                    "actual": f"Rule shadowed: {rules[rule_idx]}",
-                    "status": "mismatch",
-                    "outcome_code": code,
-                })
+                results.append(
+                    {
+                        "feature": f"show_running_config.access_lists.{acl_name}.rules.{rule_idx}",
+                        "expected": "Effective ACL rule",
+                        "actual": f"Rule shadowed: {rules[rule_idx]}",
+                        "status": "mismatch",
+                        "outcome_code": code,
+                    }
+                )
 
         # DHCP empty pool detection
         s_dhcp_pools = student_show_run.get("dhcp_pools", {}) or {}
@@ -1949,13 +2041,19 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
         has_student_key = key in student
         s_val = student.get(key)
 
-        if full_key.endswith("verification.show_ip_nat_translations") and isinstance(t_val, dict):
+        if full_key.endswith("verification.show_ip_nat_translations") and isinstance(
+            t_val, dict
+        ):
             if t_val.get("tested") is False:
                 continue
-        if full_key.endswith("verification.show_ip_dhcp_binding") and isinstance(t_val, dict):
+        if full_key.endswith("verification.show_ip_dhcp_binding") and isinstance(
+            t_val, dict
+        ):
             if t_val.get("has_assignments") is False:
                 continue
-        if full_key.endswith("verification.show_ip_dhcp_pool") and isinstance(t_val, dict):
+        if full_key.endswith("verification.show_ip_dhcp_pool") and isinstance(
+            t_val, dict
+        ):
             if t_val.get("tested") is False:
                 continue
 
@@ -2036,9 +2134,7 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                     "extra",
                     None,
                     s_val,
-                    _verification_outcome_code_for_path(
-                        full_key, "extra", None, s_val
-                    ),
+                    _verification_outcome_code_for_path(full_key, "extra", None, s_val),
                 )
             )
         elif t_val is not None and s_val is None:
@@ -2117,17 +2213,21 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
 
                 merged_missing = set()
                 merged_extra = set()
-                for base in sorted(set(missing_by_base.keys()) & set(extra_by_base.keys())):
+                for base in sorted(
+                    set(missing_by_base.keys()) & set(extra_by_base.keys())
+                ):
                     m_list = sorted(missing_by_base[base], key=lambda x: x[0])
                     e_list = sorted(extra_by_base[base], key=lambda x: x[0])
                     for (m_iface, m_cfg), (e_iface, e_cfg) in zip(m_list, e_list):
-                        results.append(_make_result(
-                            f"{full_key}.{base}.subinterface",
-                            "mismatch",
-                            {"name": m_iface, "config": m_cfg},
-                            {"name": e_iface, "config": e_cfg},
-                            "MISMATCH_SUB_INT_VLAN",
-                        ))
+                        results.append(
+                            _make_result(
+                                f"{full_key}.{base}.subinterface",
+                                "mismatch",
+                                {"name": m_iface, "config": m_cfg},
+                                {"name": e_iface, "config": e_cfg},
+                                "MISMATCH_SUB_INT_VLAN",
+                            )
+                        )
                         merged_missing.add(m_iface)
                         merged_extra.add(e_iface)
 
@@ -2151,13 +2251,15 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                     for (m_iface, m_cfg), (e_iface, e_cfg) in zip(
                         missing_vlans, extra_vlans
                     ):
-                        results.append(_make_result(
-                            f"{full_key}.Vlan.interface",
-                            "mismatch",
-                            {"name": m_iface, "config": m_cfg},
-                            {"name": e_iface, "config": e_cfg},
-                            "MISMATCH_VLAN_INTERFACE",
-                        ))
+                        results.append(
+                            _make_result(
+                                f"{full_key}.Vlan.interface",
+                                "mismatch",
+                                {"name": m_iface, "config": m_cfg},
+                                {"name": e_iface, "config": e_cfg},
+                                "MISMATCH_VLAN_INTERFACE",
+                            )
+                        )
                         merged_missing.add(m_iface)
                         merged_extra.add(e_iface)
 
@@ -2206,31 +2308,37 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                     if k != "static_routes" and _iface_has_config(v)
                 }
                 if t_protocols and s_protocols and t_protocols.isdisjoint(s_protocols):
-                    results.append(_make_result(
-                        f"{full_key}.protocol",
-                        "mismatch",
-                        sorted(t_protocols),
-                        sorted(s_protocols),
-                        "MISMATCH_ROUTING_PROTOCOL",
-                    ))
+                    results.append(
+                        _make_result(
+                            f"{full_key}.protocol",
+                            "mismatch",
+                            sorted(t_protocols),
+                            sorted(s_protocols),
+                            "MISMATCH_ROUTING_PROTOCOL",
+                        )
+                    )
                     continue
                 if t_protocols and not s_protocols:
-                    results.append(_make_result(
-                        f"{full_key}.protocol",
-                        "missing",
-                        sorted(t_protocols),
-                        [],
-                        "MISSING_ROUTING_PROTOCOL",
-                    ))
+                    results.append(
+                        _make_result(
+                            f"{full_key}.protocol",
+                            "missing",
+                            sorted(t_protocols),
+                            [],
+                            "MISSING_ROUTING_PROTOCOL",
+                        )
+                    )
                     continue
                 if s_protocols and not t_protocols:
-                    results.append(_make_result(
-                        f"{full_key}.protocol",
-                        "extra",
-                        [],
-                        sorted(s_protocols),
-                        "EXTRA_ROUTING_PROTOCOL",
-                    ))
+                    results.append(
+                        _make_result(
+                            f"{full_key}.protocol",
+                            "extra",
+                            [],
+                            sorted(s_protocols),
+                            "EXTRA_ROUTING_PROTOCOL",
+                        )
+                    )
                     continue
             # VLAN brief: merge missing/extra VLAN IDs with same VLAN name.
             if full_key.endswith("verification.show_vlan_brief.vlans") and isinstance(
@@ -2303,13 +2411,15 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                     m_list = sorted(missing_by_name[name], key=lambda x: x[0])
                     e_list = sorted(extra_by_name[name], key=lambda x: x[0])
                     for (m_id, m_cfg), (e_id, e_cfg) in zip(m_list, e_list):
-                        results.append(_make_result(
-                            f"{full_key}.vlan",
-                            "mismatch",
-                            {"id": m_id, "config": m_cfg},
-                            {"id": e_id, "config": e_cfg},
-                            "MISMATCH_VLAN_ID",
-                        ))
+                        results.append(
+                            _make_result(
+                                f"{full_key}.vlan",
+                                "mismatch",
+                                {"id": m_id, "config": m_cfg},
+                                {"id": e_id, "config": e_cfg},
+                                "MISMATCH_VLAN_ID",
+                            )
+                        )
                         merged_missing.add(m_id)
                         merged_extra.add(e_id)
 
@@ -2375,31 +2485,47 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                 s_users = {u["username"]: u for u in s_val}
                 for uname, udata in t_users.items():
                     if uname not in s_users:
-                        results.append(_make_result(
-                            f"{full_key}.{uname}", "missing", udata, None, "MISSING_USER"
-                        ))
+                        results.append(
+                            _make_result(
+                                f"{full_key}.{uname}",
+                                "missing",
+                                udata,
+                                None,
+                                "MISSING_USER",
+                            )
+                        )
                     else:
                         if udata.get("privilege") != s_users[uname].get("privilege"):
-                            results.append(_make_result(
-                                f"{full_key}.{uname}.privilege",
-                                "mismatch",
-                                udata.get("privilege"),
-                                s_users[uname].get("privilege"),
-                                "MISMATCH_USER_PRIVILEGE",
-                            ))
+                            results.append(
+                                _make_result(
+                                    f"{full_key}.{uname}.privilege",
+                                    "mismatch",
+                                    udata.get("privilege"),
+                                    s_users[uname].get("privilege"),
+                                    "MISMATCH_USER_PRIVILEGE",
+                                )
+                            )
                         if udata.get("auth_type") != s_users[uname].get("auth_type"):
-                            results.append(_make_result(
-                                f"{full_key}.{uname}.auth_type",
-                                "mismatch",
-                                udata.get("auth_type"),
-                                s_users[uname].get("auth_type"),
-                                "MISMATCH_USER_AUTH_TYPE",
-                            ))
+                            results.append(
+                                _make_result(
+                                    f"{full_key}.{uname}.auth_type",
+                                    "mismatch",
+                                    udata.get("auth_type"),
+                                    s_users[uname].get("auth_type"),
+                                    "MISMATCH_USER_AUTH_TYPE",
+                                )
+                            )
                 for uname in s_users:
                     if uname not in t_users:
-                        results.append(_make_result(
-                            f"{full_key}.{uname}", "extra", None, s_users[uname], "EXTRA_USER"
-                        ))
+                        results.append(
+                            _make_result(
+                                f"{full_key}.{uname}",
+                                "extra",
+                                None,
+                                s_users[uname],
+                                "EXTRA_USER",
+                            )
+                        )
                 continue
 
             # Generic list comparison: order-insensitive multiset compare.
