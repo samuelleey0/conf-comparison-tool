@@ -1169,6 +1169,7 @@ def _classify_items(items, policy, rubric_rules=None):
         classified_config.append(item_copy)
 
     classified_verification = []
+    verification_rule_hits = set()
     for item in verification_items:
         item_copy = _classify_single_item(item, rubric_compiled, rubric_by_code, disabled_compiled, disabled_by_code)
         item_copy["layer"] = "verification"
@@ -1178,6 +1179,7 @@ def _classify_items(items, policy, rubric_rules=None):
         )
         item_copy["layer1_ref"] = item_copy.get("layer1_ref") or layer1_ref
         item_copy["deduplicated"] = deduplicated
+        item_copy["verification_rule_deduplicated"] = False
         item_copy["chain_stopped"] = bool(item_copy.get("chain_stopped", False))
         item_copy["counts_toward_marking"] = (
             item_copy.get("status") in {"missing", "extra", "mismatch"} and not deduplicated
@@ -1194,18 +1196,31 @@ def _classify_items(items, policy, rubric_rules=None):
             if deduplicated:
                 summary["verify_deduplicated"] += 1
             else:
-                summary["verify_failed"] += 1
                 severity = item_copy.get("severity", "minor")
                 rule_id = item_copy.get("rule_id")
-                if severity == "major":
-                    summary["major"] += 1
+                rule_key = item_copy.get("rule_code") or item_copy.get("outcome_code") or rule_id or ""
+                verification_hit_key = (
+                    item_copy.get("hostname") or "",
+                    item_copy.get("block_name") or "",
+                    rule_key,
+                )
+                if rule_key and verification_hit_key in verification_rule_hits:
+                    item_copy["verification_rule_deduplicated"] = True
+                    item_copy["counts_toward_marking"] = False
+                    summary["verify_deduplicated"] += 1
                 else:
-                    if rule_id:
-                        if rule_id not in minor_rule_hits:
-                            summary["minor"] += 1
-                            minor_rule_hits.add(rule_id)
+                    if rule_key:
+                        verification_rule_hits.add(verification_hit_key)
+                    summary["verify_failed"] += 1
+                    if severity == "major":
+                        summary["major"] += 1
                     else:
-                        summary["minor"] += 1
+                        if rule_id:
+                            if rule_id not in minor_rule_hits:
+                                summary["minor"] += 1
+                                minor_rule_hits.add(rule_id)
+                        else:
+                            summary["minor"] += 1
         else:
             summary["verify_skipped"] += 1
 
@@ -1402,6 +1417,53 @@ def _extract_error_context(template_config, student_config, feature: str, expect
                 "student_context": s_subs if s_subs else None,
             }
 
+    # Special handling for VLAN SVI mismatches:
+    # For features like .Vlan.interface, show only the paired expected/actual
+    # SVI entries from the comparison result rather than the entire interfaces map.
+    if (
+        len(feature_parts) >= 4
+        and feature_parts[0] == "show_running_config"
+        and feature_parts[1] == "interfaces"
+        and feature_parts[2] == "Vlan"
+        and feature_parts[3] == "interface"
+    ):
+        t_ifaces = _resolve_json_parts(template_config, ["show_running_config", "interfaces"])
+        s_ifaces = _resolve_json_parts(student_config, ["show_running_config", "interfaces"])
+        expected_name = expected.get("name") if isinstance(expected, dict) else None
+        actual_name = actual.get("name") if isinstance(actual, dict) else None
+        template_vlan = _MISSING
+        student_vlan = _MISSING
+        if isinstance(t_ifaces, dict) and expected_name:
+            template_vlan = t_ifaces.get(expected_name, _MISSING)
+        if isinstance(s_ifaces, dict) and actual_name:
+            student_vlan = s_ifaces.get(actual_name, _MISSING)
+        if template_vlan is not _MISSING or student_vlan is not _MISSING:
+            return {
+                "context_path": "show_running_config.interfaces.Vlan.interface",
+                "highlight_key": "interface",
+                "template_context": None if template_vlan is _MISSING else {expected_name: template_vlan},
+                "student_context": None if student_vlan is _MISSING else {actual_name: student_vlan},
+            }
+
+    if (
+        len(feature_parts) >= 3
+        and feature_parts[0] == "show_running_config"
+        and feature_parts[1] == "interfaces"
+        and len(feature_parts) == 3
+    ):
+        iface_name = feature_parts[2]
+        t_ifaces = _resolve_json_parts(template_config, ["show_running_config", "interfaces"])
+        s_ifaces = _resolve_json_parts(student_config, ["show_running_config", "interfaces"])
+        template_iface = t_ifaces.get(iface_name, _MISSING) if isinstance(t_ifaces, dict) else _MISSING
+        student_iface = s_ifaces.get(iface_name, _MISSING) if isinstance(s_ifaces, dict) else _MISSING
+        if template_iface is not _MISSING or student_iface is not _MISSING:
+            return {
+                "context_path": f"show_running_config.interfaces.{iface_name}",
+                "highlight_key": iface_name,
+                "template_context": None if template_iface is _MISSING else {iface_name: template_iface},
+                "student_context": None if student_iface is _MISSING else {iface_name: student_iface},
+            }
+
     if (
         len(feature_parts) >= 3
         and feature_parts[0] == "show_running_config"
@@ -1500,6 +1562,46 @@ def _extract_error_context(template_config, student_config, feature: str, expect
                 "highlight_key": "protocol",
                 "template_context": None if template_subset is _MISSING else template_subset,
                 "student_context": None if student_subset is _MISSING else student_subset,
+            }
+
+    if (
+        len(feature_parts) >= 3
+        and feature_parts[0] == "show_running_config"
+        and feature_parts[1] == "routing"
+        and feature_parts[2] in {"rip", "eigrp", "ospf", "static_routes"}
+    ):
+        routing_key = feature_parts[2]
+        t_routing = _resolve_json_parts(template_config, ["show_running_config", "routing"])
+        s_routing = _resolve_json_parts(student_config, ["show_running_config", "routing"])
+        template_routing = t_routing.get(routing_key, _MISSING) if isinstance(t_routing, dict) else _MISSING
+        student_routing = s_routing.get(routing_key, _MISSING) if isinstance(s_routing, dict) else _MISSING
+        if template_routing is not _MISSING or student_routing is not _MISSING:
+            return {
+                "context_path": f"show_running_config.routing.{routing_key}",
+                "highlight_key": routing_key,
+                "template_context": None if template_routing is _MISSING else template_routing,
+                "student_context": None if student_routing is _MISSING else student_routing,
+            }
+
+    if (
+        len(feature_parts) >= 4
+        and feature_parts[0] == "verification"
+        and feature_parts[1] in {"show_ip_interface_brief", "show_port_security", "show_interfaces_trunk"}
+        and feature_parts[2] in {"interfaces", "trunks"}
+    ):
+        command = feature_parts[1]
+        collection_key = feature_parts[2]
+        iface_name = feature_parts[3]
+        t_verify = _resolve_json_parts(template_config, ["verification", command, collection_key])
+        s_verify = _resolve_json_parts(student_config, ["verification", command, collection_key])
+        template_iface = t_verify.get(iface_name, _MISSING) if isinstance(t_verify, dict) else _MISSING
+        student_iface = s_verify.get(iface_name, _MISSING) if isinstance(s_verify, dict) else _MISSING
+        if template_iface is not _MISSING or student_iface is not _MISSING:
+            return {
+                "context_path": f"verification.{command}.{collection_key}.{iface_name}",
+                "highlight_key": iface_name,
+                "template_context": None if template_iface is _MISSING else {iface_name: template_iface},
+                "student_context": None if student_iface is _MISSING else {iface_name: student_iface},
             }
 
     while parts:
@@ -1802,14 +1904,45 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
                             sub_blocks.append(block)
             if sub_blocks:
                 return "\n\n".join(sub_blocks)
+        # For "Vlan.interface" mismatch, show only the paired VLAN SVI blocks
+        if len(parts) >= 4 and iface == "Vlan" and parts[3] == "interface":
+            expected_name = expected.get("name") if isinstance(expected, dict) else None
+            actual_name = actual.get("name") if isinstance(actual, dict) else None
+            svi_blocks = []
+            for svi_name in [expected_name, actual_name]:
+                if not svi_name:
+                    continue
+                idx = _find_line_index(
+                    lines,
+                    lambda line, si=svi_name: line.strip().lower() == f"interface {si}".lower(),
+                )
+                block = _extract_cli_block(lines, idx)
+                if block:
+                    svi_blocks.append(block)
+            if svi_blocks:
+                return "\n\n".join(svi_blocks)
         # Fallback: parent interface
         idx = _find_line_index(lines, lambda line: line.strip().lower() == f"interface {iface}".lower())
         block = _extract_cli_block(lines, idx)
         if block:
             return block
 
+    if len(parts) >= 3 and parts[1] == "interfaces":
+        iface = parts[2]
+        idx = _find_line_index(lines, lambda line: line.strip().lower() == f"interface {iface}".lower())
+        block = _extract_cli_block(lines, idx)
+        if block:
+            return block
+        return f"No interface {iface} found in running-config."
+
     if len(parts) >= 3 and parts[1] == "vty":
         idx = _find_line_index(lines, lambda line: line.strip().lower().startswith("line vty "))
+        block = _extract_cli_block(lines, idx)
+        if block:
+            return block
+
+    if len(parts) >= 3 and parts[1] == "console":
+        idx = _find_line_index(lines, lambda line: line.strip().lower() == "line con 0")
         block = _extract_cli_block(lines, idx)
         if block:
             return block
@@ -1833,6 +1966,11 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
                 return block
         if routing_key == "eigrp":
             idx = _find_line_index(lines, lambda line: line.strip().lower().startswith("router eigrp "))
+            block = _extract_cli_block(lines, idx)
+            if block:
+                return block
+        if routing_key == "rip":
+            idx = _find_line_index(lines, lambda line: line.strip().lower() == "router rip")
             block = _extract_cli_block(lines, idx)
             if block:
                 return block
@@ -1888,6 +2026,14 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
         block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith("ip http "))
         if block:
             return block
+        field = feature.split(".")[-1] if "." in feature else "http_server"
+        if field == "enabled":
+            return "No 'ip http server' command found in running-config."
+        if field == "secure_server":
+            return "No 'ip http secure-server' command found in running-config."
+        if field == "authentication":
+            return "No 'ip http authentication' command found in running-config."
+        return "No 'ip http' configuration found in running-config."
 
     if feature.startswith("show_running_config.users."):
         parts = feature.split(".")
@@ -1941,7 +2087,10 @@ def _extract_show_ip_interface_brief_excerpt(lines, feature: str):
         lines,
         lambda line: any(re.search(rf"^{re.escape(alias)}(\s|$)", line.strip(), re.IGNORECASE) for alias in aliases),
     )
-    return _excerpt_around(lines, idx, before=2, after=2)
+    excerpt = _excerpt_around(lines, idx, before=2, after=2)
+    if excerpt:
+        return excerpt
+    return f"No interface {iface} found in show ip interface brief."
 
 
 def _extract_show_vlan_brief_excerpt(lines, feature: str):

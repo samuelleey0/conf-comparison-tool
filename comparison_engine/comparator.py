@@ -16,6 +16,9 @@ NAT_STATS_VOLATILE_KEYS = {
     "queued_packets",
 }
 
+_UNSET = object()
+VALUE_NOT_PRESENT = "__ACCMS_NOT_PRESENT__"
+
 
 def _normalize_interface_list_value(value):
     if isinstance(value, list):
@@ -308,7 +311,7 @@ def _check_configured_but_shutdown(interfaces):
     return results
 
 
-def _check_acl_not_applied(access_lists, interfaces):
+def _check_acl_not_applied(access_lists, interfaces, nat=None):
     """Detect ACLs that are created but not applied to any interface.
     Returns list of outcome dicts.
     """
@@ -327,8 +330,16 @@ def _check_acl_not_applied(access_lists, interfaces):
                 if isinstance(ag, dict):
                     applied_acls.add(str(ag.get("acl", "")))
 
-    # Also check NAT ACL references
-    # (handled separately, not flagged here)
+    # Treat NAT source ACL bindings as valid ACL usage.
+    nat_inside_source = []
+    if isinstance(nat, dict):
+        nat_inside_source = nat.get("inside_source", []) or []
+    for source in nat_inside_source:
+        if not isinstance(source, dict):
+            continue
+        acl_name = str(source.get("acl", "")).strip()
+        if acl_name:
+            applied_acls.add(acl_name)
 
     for acl_name in access_lists:
         if acl_name not in applied_acls:
@@ -965,12 +976,12 @@ def _outcome_code_for_path(full_key, status):
     return None
 
 
-def _make_result(feature, status, expected=None, actual=None, outcome_code=None):
+def _make_result(feature, status, expected=_UNSET, actual=_UNSET, outcome_code=None):
     """Create a standardized result dict with optional outcome code."""
     result = {"feature": feature, "status": status}
-    if expected is not None:
+    if expected is not _UNSET:
         result["expected"] = expected
-    if actual is not None:
+    if actual is not _UNSET:
         result["actual"] = actual
     if outcome_code:
         result["outcome_code"] = outcome_code
@@ -1666,24 +1677,31 @@ def _check_routing_verification(template, student):
                 )
 
         expected_static = set()
+        expected_static_networks = set()
         for route in t_static:
             if not isinstance(route, dict):
                 continue
             network = str(route.get("network", "")).strip()
             mask = str(route.get("mask", "")).strip()
             if network and mask and not (network == "0.0.0.0" and mask == "0.0.0.0"):
+                expected_static_networks.add(network)
                 try:
                     expected_static.add(str(ipaddress.IPv4Network(f"{network}/{mask}", strict=False)))
                 except Exception:
                     expected_static.add(f"{network}/{mask}")
 
         actual_static = set()
+        actual_static_networks = set()
         for route in s_route_static:
             if not isinstance(route, dict):
                 continue
             destination = str(route.get("destination", "")).strip()
             mask = str(route.get("mask", "")).strip()
             if destination:
+                if "/" in destination:
+                    actual_static_networks.add(destination.split("/", 1)[0])
+                else:
+                    actual_static_networks.add(destination)
                 if "/" in destination:
                     actual_static.add(destination)
                 elif mask:
@@ -1692,13 +1710,18 @@ def _check_routing_verification(template, student):
                     except Exception:
                         actual_static.add(f"{destination}/{mask}")
 
-        missing_static = sorted(expected_static - actual_static)
+        missing_static = sorted(
+            cidr
+            for cidr in expected_static
+            if cidr not in actual_static
+            and cidr.split("/", 1)[0] not in actual_static_networks
+        )
         if missing_static:
             return _make_verification_chain_result(
                 "verification.show_ip_route.static.level3.routes",
                 "VERIFY_STATIC_ROUTE_MISSING",
                 sorted(expected_static),
-                sorted(actual_static),
+                sorted(actual_static or actual_static_networks),
                 "show_ip_route_static",
                 3,
                 "static",
@@ -1889,7 +1912,7 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
 
         # ACL not applied detection
         s_acls = student_show_run.get("access_lists", {}) or {}
-        results.extend(_check_acl_not_applied(s_acls, s_interfaces))
+        results.extend(_check_acl_not_applied(s_acls, s_interfaces, s_nat))
 
         # Routing instance detection
         results.extend(_check_routing_instances(student_routing))
@@ -1982,7 +2005,7 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                             full_key,
                             "mismatch",
                             t_val,
-                            None,
+                            VALUE_NOT_PRESENT,
                             _verification_outcome_code_for_path(
                                 full_key, "mismatch", t_val, None
                             ),
@@ -2011,7 +2034,7 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                     full_key,
                     "missing",
                     t_val,
-                    None,
+                    VALUE_NOT_PRESENT,
                     _verification_outcome_code_for_path(
                         full_key, "missing", t_val, None
                     ),
