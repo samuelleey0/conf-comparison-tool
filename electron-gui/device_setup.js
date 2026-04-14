@@ -442,6 +442,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const formData = new FormData();
     formData.append("template_name", templateName);
+    if (loadedFromServer && selectedTemplateName) {
+      formData.append("source_template_name", selectedTemplateName);
+    }
 
     let hasError = false;
     let deviceIndex = 0;
@@ -496,7 +499,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const anyFileSelected = Array.from(document.querySelectorAll(".cmd-file")).some(
         (input) => input.files && input.files.length > 0
       );
-      if (!anyFileSelected) {
+      if (!anyFileSelected && templateName === selectedTemplateName) {
         localStorage.setItem("templateName", templateName);
         localStorage.setItem("templateDevices", JSON.stringify(devicesMeta));
         alert("Template loaded. No new files uploaded, continuing.");

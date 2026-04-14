@@ -1,5 +1,6 @@
 import os
 import json
+import shutil
 from comparison_engine.parser import parse_device_logs
 from comparison_engine.template_manager import choose_show_run_file
 
@@ -17,6 +18,17 @@ def handle_template_upload(files, form_data, base_dir):
         return {"status": "error", "message": "Invalid devices metadata format."}
 
     template_dir = os.path.join(base_dir, "comparison_engine", "templates", template_name)
+    source_template_name = (form_data.get("source_template_name") or "").strip()
+    source_template_dir = os.path.join(
+        base_dir, "comparison_engine", "templates", source_template_name
+    )
+
+    if (
+        source_template_name
+        and source_template_name != template_name
+        and os.path.isdir(source_template_dir)
+    ):
+        shutil.copytree(source_template_dir, template_dir, dirs_exist_ok=True)
     
     results = {}
 
