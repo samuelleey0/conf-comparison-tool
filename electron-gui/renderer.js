@@ -1766,9 +1766,13 @@ async function resetCiscoDevice({ triggerButton = null } = {}) {
     return false;
   }
 
-  const confirmed = confirm(
-    "This will delete vlan.dat and reload the connected Cisco device without saving the running configuration. Continue?"
-  );
+  const deviceTypeSelect = document.getElementById("resetDeviceType");
+  const deviceType = (deviceTypeSelect?.value || "switch").toLowerCase();
+  const resetMessage = deviceType === "router"
+    ? "This will reload the connected Cisco router without saving the running configuration. Continue?"
+    : "This will delete vlan.dat and reload the connected Cisco switch without saving the running configuration. Continue?";
+
+  const confirmed = confirm(resetMessage);
   if (!confirmed) return false;
 
   const portInput = document.getElementById("serialPort");
@@ -1799,6 +1803,7 @@ async function resetCiscoDevice({ triggerButton = null } = {}) {
       body: JSON.stringify({
         connection: "serial",
         mode: "serial",
+        device_type: deviceType,
         serial: { port },
       }),
     });

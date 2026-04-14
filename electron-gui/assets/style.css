@@ -232,6 +232,21 @@ button.danger:hover:not(:disabled) {
   filter: brightness(0.95);
 }
 
+button.sync-accent {
+  background: linear-gradient(135deg, #0f8a83 0%, #1aa39b 55%, #2dbcc0 100%);
+  border-color: #0f8a83;
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(15, 138, 131, 0.22);
+}
+
+button.sync-accent:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0b716b 0%, #138a83 55%, #1fa6aa 100%);
+  border-color: #0b716b;
+  color: #ffffff;
+  box-shadow: 0 14px 28px rgba(11, 113, 107, 0.28);
+  transform: translateY(-1px);
+}
+
 .toggle-chip {
   display: inline-flex;
   align-items: center;

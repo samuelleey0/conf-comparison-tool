@@ -82,6 +82,13 @@
           <progress id="progress" value="0" max="100"></progress>
           <pre id="log" class="log"></pre>
         </div>
+        <div class="actions justify-end" style="align-items: center; margin-top: 10px;">
+          <label for="resetDeviceType" style="margin: 0; font-weight: 600;">Reset As</label>
+          <select id="resetDeviceType" style="max-width: 160px;">
+            <option value="switch" selected>Switch</option>
+            <option value="router">Router</option>
+          </select>
+        </div>
         <div class="actions justify-end">
           <button type="button" id="abortExecutionBtn" class="danger" style="display: none;">⏹ Stop Execution</button>
           <button type="button" id="resetDeviceBtn" class="danger">Reset Cisco Device</button>

@@ -2865,6 +2865,7 @@ def api_connect():
 def api_reset_device():
     data = request.get_json() or {}
     mode = (data.get("mode") or data.get("connection") or "serial").lower()
+    device_type = str(data.get("device_type") or "switch").strip().lower()
     if mode != "serial":
         return (
             jsonify(
@@ -2896,7 +2897,11 @@ def api_reset_device():
     _close_serial_connection()
     _close_ssh_connection()
 
-    result = reload_cisco_device(port=port, baudrate=baudrate)
+    result = reload_cisco_device(
+        port=port,
+        baudrate=baudrate,
+        delete_vlan_database=(device_type != "router"),
+    )
     logs = result.get("logs") or []
     message = result.get("message") or "Reset completed."
     if result.get("success"):
@@ -2907,6 +2912,7 @@ def api_reset_device():
                 "logs": logs,
                 "port": port,
                 "baudrate": baudrate,
+                "device_type": device_type,
             }
         )
     return (
