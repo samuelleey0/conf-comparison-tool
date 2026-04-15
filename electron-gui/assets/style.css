@@ -969,6 +969,21 @@ button.block {
     align-items: flex-start;
     gap: 8px;
   }
+
+  .bulk-toggle-row {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .bulk-actions {
+    padding-right: 0;
+  }
+
+  .main-student-grid {
+    grid-template-columns: 1fr;
+    max-width: none;
+    justify-content: stretch;
+  }
 }
 
 .directory-card {
@@ -1019,6 +1034,56 @@ button.block {
 
 .directory-section.hidden {
   display: none;
+}
+
+.main-student-grid {
+  margin-top: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 15px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 250px));
+  justify-content: space-around;
+  gap: 15px;
+  align-content: flex-start;
+  max-height: 400px;
+  max-width: 600px;
+  overflow-y: auto;
+}
+
+.existing-student-actions {
+  margin-top: 20px;
+}
+
+.bulk-toggle-row {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.bulk-toggle-group {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.bulk-toggle-group .toggle-chip {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.bulk-toggle-hint {
+  margin-top: 6px;
+}
+
+.bulk-default-note {
+  margin-top: 6px;
+}
+
+.bulk-actions {
+  justify-content: flex-end;
+  padding-right: 24px;
 }
 
 .list-box label {
@@ -1566,6 +1631,28 @@ progress::-moz-progress-bar {
     padding: 40px 32px 56px;
   }
 
+  .directory-body .page-shell {
+    padding: 36px 28px 56px;
+  }
+
+  .directory-body .form-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .directory-body .form-row .form-group {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    margin-bottom: 0;
+  }
+
+  .bulk-toggle-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
   .connection-shell {
     padding: 40px 32px 56px;
   }
@@ -1601,6 +1688,31 @@ progress::-moz-progress-bar {
 
   .directory-options {
     flex-direction: column;
+  }
+
+  .directory-body .page-shell {
+    padding: 24px 18px 40px;
+  }
+
+  .directory-card {
+    padding: 8px 0 36px;
+  }
+
+  .directory-section {
+    padding: 18px 0;
+    margin-top: 16px;
+    gap: 14px;
+  }
+
+  .bulk-toggle-row {
+    margin-top: 6px;
+    gap: 10px;
+  }
+
+  .bulk-toggle-hint,
+  .bulk-default-note {
+    font-size: 0.88rem;
+    line-height: 1.45;
   }
 
   .actions {
@@ -1672,6 +1784,19 @@ progress::-moz-progress-bar {
 
   .page-card {
     padding: 18px 16px;
+  }
+
+  .directory-body .page-shell {
+    padding: 18px 12px 32px;
+  }
+
+  .main-student-grid {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .bulk-toggle-group .toggle-chip {
+    padding: 8px 10px;
   }
 
   .connection-shell {

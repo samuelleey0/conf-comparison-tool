@@ -60,12 +60,11 @@
         </div>
 
         <!-- Student Grid for the Main Page -->
-        <div id="mainStudentGridContainer"
-          style="margin-top: 20px; border: 1px solid var(--color-border); border-radius: 6px; padding: 15px; display: grid; grid-template-columns: repeat(2, minmax(150px, 250px)); justify-content: space-around; gap: 15px; align-content: flex-start; max-height: 400px; max-width: 600px; overflow-y: auto;">
+        <div id="mainStudentGridContainer" class="main-student-grid">
           <!-- Rendered students go here -->
         </div>
 
-        <div class="actions align-left" style="margin-top: 20px;">
+        <div class="actions align-left existing-student-actions">
           <button type="button" class="secondary" id="clearExistingSelectionBtn">Clear</button>
           <button type="button" id="use-existing-btn" class="primary" disabled>Use Selected Student</button>
           <button type="button" id="addStudentBtn" class="secondary">Add Student</button>
@@ -146,31 +145,34 @@
               <input type="file" id="bulkFile" accept=".csv,.txt,.xlsx,.xls" required />
             </div>
           </div>
-          <div class="form-row" style="margin-top: 10px; gap: 16px;">
-            <div class="hint" style="width: 100%; line-height: 1.6;">
-              Bulk file format guide:<br />
-              `Title row?` = turn on if row 1 is a title such as `Active Student Listing`.<br />
-              `Header row?` = turn on if the next row contains labels like `Student Number` and `Student Name`.<br />
-              `Number column?` = turn on if column 1 is only a serial number like `1, 2, 3...`.<br />
-              Default parsing with all switches off: column 1 = student ID, column 2 = student name.
+          <div class="form-row bulk-toggle-row">
+            <div class="form-group bulk-toggle-group">
+              <label class="toggle-chip">
+                <input type="checkbox" id="bulkHasTitleRow" />
+                <span class="toggle-track"></span>
+                <span class="toggle-text">Title row?</span>
+              </label>
+              <div class="hint bulk-toggle-hint">Turn on if row 1 is a title such as `Active Student Listing`.</div>
             </div>
-            <label class="toggle-chip">
-              <input type="checkbox" id="bulkHasTitleRow" />
-              <span class="toggle-track"></span>
-              <span class="toggle-text">Title row?</span>
+            <div class="form-group bulk-toggle-group">
+              <label class="toggle-chip">
+                <input type="checkbox" id="bulkHasHeader" />
+                <span class="toggle-track"></span>
+                <span class="toggle-text">Header row?</span>
+              </label>
+              <div class="hint bulk-toggle-hint">Turn on if the next row contains labels like `Student Number` and `Student Name`.</div>
             </div>
-            <label class="toggle-chip">
-              <input type="checkbox" id="bulkHasHeader" />
-              <span class="toggle-track"></span>
-              <span class="toggle-text">Header row?</span>
-            </label>
-            <label class="toggle-chip">
-              <input type="checkbox" id="bulkHasNumber" />
-              <span class="toggle-track"></span>
-              <span class="toggle-text">Number column?</span>
-            </label>
+            <div class="form-group bulk-toggle-group">
+              <label class="toggle-chip">
+                <input type="checkbox" id="bulkHasNumber" />
+                <span class="toggle-track"></span>
+                <span class="toggle-text">Number column?</span>
+              </label>
+              <div class="hint bulk-toggle-hint">Turn on if column 1 is only a serial number like `1, 2, 3...`.</div>
+            </div>
           </div>
-          <div class="actions" style="justify-content: flex-end; padding-right: 24px;">
+          <div class="hint bulk-default-note">Default parsing with all switches off: column 1 = student ID, column 2 = student name.</div>
+          <div class="actions bulk-actions">
             <button type="submit" id="bulk-create-btn" class="primary">Create Directories</button>
           </div>
         </form>

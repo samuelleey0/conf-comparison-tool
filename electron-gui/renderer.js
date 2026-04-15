@@ -983,13 +983,7 @@ async function handleBulkCreate(event) {
     }
 
     resultsBox.classList.remove("hidden");
-    resultsBox.innerHTML = `
-      <strong>Created ${created.length} directories.</strong>
-      <ul>${created
-        .map((dir) => `<li>${dir.display}</li>`)
-        .join("")}</ul>
-      <p>Opening session folder...</p>
-    `;
+    resultsBox.innerHTML = `<strong>Created ${created.length} student director${created.length === 1 ? "y" : "ies"}.</strong>`;
 
     // Let user pick via dialog
     const primary = created[0];
