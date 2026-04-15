@@ -498,23 +498,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     formData.append("devices_meta", JSON.stringify(devicesMeta));
 
-    // If user loaded an existing template and didn't upload anything new,
-    // still save the edited device list to localStorage and continue.
-    if (loadedFromServer) {
-      const anyFileSelected = Array.from(document.querySelectorAll(".cmd-file")).some(
-        (input) => input.files && input.files.length > 0
-      );
-      if (!anyFileSelected && templateName === selectedTemplateName) {
-        localStorage.setItem("templateName", templateName);
-        localStorage.setItem("templateDevices", JSON.stringify(devicesMeta));
-        alert("Template loaded. No new files uploaded, continuing.");
-        goTo("index.html");
-        saveBtn.disabled = false;
-        saveBtn.textContent = "Save Template & Continue";
-        return;
-      }
-    }
-
     try {
       const res = await fetch("http://127.0.0.1:5050/api/templates/upload", {
         method: "POST",
@@ -528,8 +511,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       localStorage.setItem("templateName", templateName);
       localStorage.setItem("templateDevices", JSON.stringify(devicesMeta));
-      
-      alert("Template configuration saved! You may proceed.");
+
+      const anyFileSelected = Array.from(document.querySelectorAll(".cmd-file")).some(
+        (input) => input.files && input.files.length > 0
+      );
+      if (anyFileSelected) {
+        alert("Template baseline saved. You may proceed.");
+      } else {
+        alert("Device and command setup saved. No template baseline uploaded yet.");
+      }
       goTo("index.html");
 
     } catch (err) {

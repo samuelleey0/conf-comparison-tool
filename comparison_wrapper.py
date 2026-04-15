@@ -4,6 +4,19 @@ import shutil
 from comparison_engine.parser import parse_device_logs
 from comparison_engine.template_manager import choose_show_run_file
 
+
+def _write_template_manifest(template_dir, template_name, devices_meta, has_baseline):
+    os.makedirs(template_dir, exist_ok=True)
+    manifest_path = os.path.join(template_dir, "template_manifest.json")
+    payload = {
+        "template_name": template_name,
+        "devices_meta": devices_meta or {},
+        "has_baseline": bool(has_baseline),
+    }
+    with open(manifest_path, "w") as handle:
+        json.dump(payload, handle, indent=4)
+
+
 def handle_template_upload(files, form_data, base_dir):
     """
     Handles extracting uploaded logs from Device Setup, saving them into the 
@@ -31,6 +44,7 @@ def handle_template_upload(files, form_data, base_dir):
         shutil.copytree(source_template_dir, template_dir, dirs_exist_ok=True)
     
     results = {}
+    has_baseline = False
 
     for hostname, commands in devices_meta.items():
         hostname_logs_dir = os.path.join(template_dir, hostname, "logs")
@@ -91,7 +105,18 @@ def handle_template_upload(files, form_data, base_dir):
                 }, manifest_file, indent=4)
                 
             results[hostname] = "Success"
+            has_baseline = True
         except Exception as e:
             results[hostname] = f"Error parsing: {str(e)}"
+
+    if not has_baseline and os.path.isdir(template_dir):
+        for entry in os.scandir(template_dir):
+            if not entry.is_dir():
+                continue
+            if os.path.exists(os.path.join(entry.path, "config.json")):
+                has_baseline = True
+                break
+
+    _write_template_manifest(template_dir, template_name, devices_meta, has_baseline)
 
     return {"status": "success", "results": results}

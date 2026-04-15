@@ -3850,17 +3850,28 @@ def api_admin_list_templates():
     return jsonify({"status": "ok", "templates": templates})
 
 
-@app.route("/api/templates/<template_name>", methods=["GET"])
-def api_get_template_details(template_name):
-    if not template_name:
-        return jsonify({"status": "error", "message": "Missing template name."}), 400
+def _template_manifest_path(template_name: str) -> Path:
+    return TEMPLATES_DIR / template_name / "template_manifest.json"
 
+
+def _load_template_manifest(template_name: str):
     target = _safe_resolve_child(TEMPLATES_DIR, TEMPLATES_DIR / template_name)
     if not target or not target.exists():
-        return jsonify({"status": "error", "message": "Template not found."}), 404
+        return None
+
+    manifest_path = target / "template_manifest.json"
+    if manifest_path.exists():
+        try:
+            with open(manifest_path, "r") as handle:
+                manifest = json.load(handle) or {}
+            manifest.setdefault("template_name", template_name)
+            manifest.setdefault("devices_meta", {})
+            manifest["has_baseline"] = bool(manifest.get("has_baseline"))
+            return manifest
+        except Exception:
+            pass
 
     devices_meta = {}
-    logs_by_command = {}
     for hostname_dir in sorted(target.iterdir()):
         if not hostname_dir.is_dir():
             continue
@@ -3872,11 +3883,54 @@ def api_get_template_details(template_name):
                     manifest = json.load(handle) or {}
                 for name in manifest.get("logs", []):
                     base = os.path.splitext(name)[0]
-                    cmd = base.replace("_", " ")
-                    commands.append(cmd)
-                    logs_by_command.setdefault(hostname_dir.name, {})[cmd] = name
+                    commands.append(base.replace("_", " "))
             except Exception:
                 commands = []
+        if commands:
+            devices_meta[hostname_dir.name] = commands
+
+    has_baseline = False
+    for hostname_dir in sorted(target.iterdir()):
+        if hostname_dir.is_dir() and (hostname_dir / "config.json").exists():
+            has_baseline = True
+            break
+
+    return {
+        "template_name": template_name,
+        "devices_meta": devices_meta,
+        "has_baseline": has_baseline,
+    }
+
+
+@app.route("/api/templates/<template_name>", methods=["GET"])
+def api_get_template_details(template_name):
+    if not template_name:
+        return jsonify({"status": "error", "message": "Missing template name."}), 400
+
+    target = _safe_resolve_child(TEMPLATES_DIR, TEMPLATES_DIR / template_name)
+    if not target or not target.exists():
+        return jsonify({"status": "error", "message": "Template not found."}), 404
+
+    manifest = _load_template_manifest(template_name) or {}
+    devices_meta = dict(manifest.get("devices_meta") or {})
+    logs_by_command = {}
+    for hostname_dir in sorted(target.iterdir()):
+        if not hostname_dir.is_dir():
+            continue
+        logs_manifest = hostname_dir / "logs.json"
+        commands = list(devices_meta.get(hostname_dir.name) or [])
+        if logs_manifest.exists():
+            try:
+                with open(logs_manifest, "r") as handle:
+                    manifest = json.load(handle) or {}
+                for name in manifest.get("logs", []):
+                    base = os.path.splitext(name)[0]
+                    cmd = base.replace("_", " ")
+                    if cmd not in commands:
+                        commands.append(cmd)
+                    logs_by_command.setdefault(hostname_dir.name, {})[cmd] = name
+            except Exception:
+                pass
         if commands:
             devices_meta[hostname_dir.name] = commands
 
@@ -3885,6 +3939,7 @@ def api_get_template_details(template_name):
         "template": template_name,
         "devices_meta": devices_meta,
         "logs_by_command": logs_by_command,
+        "has_baseline": bool(manifest.get("has_baseline")),
     })
 
 
@@ -4159,7 +4214,21 @@ def _load_template_configs(template_name: str):
     return template_configs
 
 
+def _template_has_baseline(template_name: str) -> bool:
+    manifest = _load_template_manifest(template_name) or {}
+    if manifest.get("has_baseline"):
+        return True
+    template_configs = _load_template_configs(template_name) or {}
+    return bool(template_configs)
+
+
 def _grade_session_from_config(target_path: str, template_name: str):
+    if not _template_has_baseline(template_name):
+        return [], (
+            f"Template '{template_name}' has device/command setup only. "
+            "Upload template baseline logs before grading."
+        )
+
     template_configs = _load_template_configs(template_name)
     if not template_configs:
         return [], f"No template configs found for '{template_name}'."
