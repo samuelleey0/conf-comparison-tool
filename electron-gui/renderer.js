@@ -793,23 +793,25 @@ function renderMainStudentGrid(students) {
 // }
 
 function parseStudentFile(content, options = {}) {
-  const { hasHeader = false, hasNumberColumn = false } = options;
+  const { hasTitleRow = false, hasHeader = false, hasNumberColumn = false } = options;
   const lines = content.split(/\r?\n/);
   const students = [];
+  const rowsToSkip = (hasTitleRow ? 1 : 0) + (hasHeader ? 1 : 0);
+  const studentIdIndex = hasNumberColumn ? 1 : 0;
+  const studentNameIndex = studentIdIndex + 1;
   lines.forEach((line, index) => {
     const trimmed = line.trim();
     if (!trimmed) return;
-    if (hasHeader && index === 0) return;
+    if (index < rowsToSkip) return;
 
-    const parts = trimmed.split(/[\t,]+/).map((p) => p.trim()).filter(Boolean);
+    const parts = trimmed.split(/[\t,]+/).map((p) => p.trim());
     if (!parts.length) return;
 
-    const startIndex = hasNumberColumn ? 1 : 0;
-    const studentId = (parts[startIndex] || "").trim();
+    const studentId = (parts[studentIdIndex] || "").trim();
     if (!studentId) return;
 
-    const nameParts = parts.slice(startIndex + 1, startIndex + 3);
-    students.push({ id: studentId, name: nameParts.join(" ").trim() });
+    const studentName = (parts[studentNameIndex] || "").trim();
+    students.push({ id: studentId, name: studentName });
   });
   return students;
 }
@@ -914,6 +916,7 @@ async function handleBulkCreate(event) {
   const session = document.getElementById("bulkSessionId").value.trim();
   const fileInput = document.getElementById("bulkFile");
   const resultsBox = document.getElementById("bulkResults");
+  const hasTitleRow = document.getElementById("bulkHasTitleRow")?.checked || false;
   const hasHeader = document.getElementById("bulkHasHeader")?.checked || false;
   const hasNumberColumn = document.getElementById("bulkHasNumber")?.checked || false;
 
@@ -941,22 +944,24 @@ async function handleBulkCreate(event) {
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
       const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      const rowsToSkip = (hasTitleRow ? 1 : 0) + (hasHeader ? 1 : 0);
+      const studentIdIndex = hasNumberColumn ? 1 : 0;
+      const studentNameIndex = studentIdIndex + 1;
 
       students = json
-        .filter((row, idx) => !(hasHeader && idx === 0))
+        .filter((row, idx) => idx >= rowsToSkip)
         .map(row => {
-          const cols = row.map(cell => (cell || "").toString().trim()).filter(Boolean);
-          const startIndex = hasNumberColumn ? 1 : 0;
-          const id = (cols[startIndex] || "").toString().trim();
-          const nameParts = cols.slice(startIndex + 1, startIndex + 3);
-          return { id, name: nameParts.join(" ").trim() };
+          const cols = row.map(cell => (cell || "").toString().trim());
+          const id = (cols[studentIdIndex] || "").toString().trim();
+          const studentName = (cols[studentNameIndex] || "").toString().trim();
+          return { id, name: studentName };
         })
         .filter(s => s.id);
 
     } else {
       // Assume text/csv
       const content = await readFileAsText(file);
-      students = parseStudentFile(content, { hasHeader, hasNumberColumn });
+      students = parseStudentFile(content, { hasTitleRow, hasHeader, hasNumberColumn });
     }
 
     if (!students.length) {

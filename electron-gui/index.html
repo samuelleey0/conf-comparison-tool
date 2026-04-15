@@ -147,13 +147,22 @@
             </div>
           </div>
           <div class="form-row" style="margin-top: 10px; gap: 16px;">
-            <div class="hint" style="width: 100%;">
-              Use `Title row?` if the first row is headers. Use `Number column?` if the first column is a row number. Turn on both if the file starts with `No, StudentID, FirstName, LastName, ...`.
+            <div class="hint" style="width: 100%; line-height: 1.6;">
+              Bulk file format guide:<br />
+              `Title row?` = turn on if row 1 is a title such as `Active Student Listing`.<br />
+              `Header row?` = turn on if the next row contains labels like `Student Number` and `Student Name`.<br />
+              `Number column?` = turn on if column 1 is only a serial number like `1, 2, 3...`.<br />
+              Default parsing with all switches off: column 1 = student ID, column 2 = student name.
+            </div>
+            <label class="toggle-chip">
+              <input type="checkbox" id="bulkHasTitleRow" />
+              <span class="toggle-track"></span>
+              <span class="toggle-text">Title row?</span>
             </div>
             <label class="toggle-chip">
               <input type="checkbox" id="bulkHasHeader" />
               <span class="toggle-track"></span>
-              <span class="toggle-text">Title row?</span>
+              <span class="toggle-text">Header row?</span>
             </label>
             <label class="toggle-chip">
               <input type="checkbox" id="bulkHasNumber" />
@@ -161,7 +170,7 @@
               <span class="toggle-text">Number column?</span>
             </label>
           </div>
-          <div class="actions justify-end">
+          <div class="actions" style="justify-content: flex-end; padding-right: 24px;">
             <button type="submit" id="bulk-create-btn" class="primary">Create Directories</button>
           </div>
         </form>

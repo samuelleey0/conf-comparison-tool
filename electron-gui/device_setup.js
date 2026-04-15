@@ -114,18 +114,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     row.dataset.command = commandText;
     
     row.innerHTML = `
-      <input type="text" class="cmd-input" value="${commandText}" readonly />
-      <input type="file" class="cmd-file" />
-      <button type="button" class="remove-cmd-btn danger-text">X</button>
+      <div class="command-meta">
+        <input type="text" class="cmd-input" value="${commandText}" readonly />
+        <div class="command-badges"></div>
+      </div>
+      <div class="command-actions">
+        <input type="file" class="cmd-file" />
+        <button type="button" class="remove-cmd-btn danger-text">X</button>
+      </div>
     `;
 
     const fileInput = row.querySelector(".cmd-file");
+    const badges = row.querySelector(".command-badges");
     if (existingFileName) {
       const fileLabel = document.createElement("small");
-      fileLabel.textContent = `(Loaded: ${existingFileName})`;
-      fileLabel.style.color = "var(--color-text-muted)";
-      fileLabel.style.marginLeft = "8px";
-      row.insertBefore(fileLabel, fileInput);
+      fileLabel.className = "command-badge command-badge--loaded";
+      fileLabel.textContent = `Loaded: ${existingFileName}`;
+      badges?.appendChild(fileLabel);
       fileInput.required = false;
     }
 
@@ -402,12 +407,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         const cmdRows = block.querySelectorAll(".command-item");
         cmdRows.forEach(row => {
           const fileInput = row.querySelector(".cmd-file");
+          const badges = row.querySelector(".command-badges");
           fileInput.required = false;
           const prevUploadedLabel = document.createElement("small");
-          prevUploadedLabel.textContent = "(Previously Uploaded)";
-          prevUploadedLabel.style.color = "var(--color-success, #28a745)";
-          prevUploadedLabel.style.marginLeft = "8px";
-          row.insertBefore(prevUploadedLabel, fileInput);
+          prevUploadedLabel.className = "command-badge command-badge--uploaded";
+          prevUploadedLabel.textContent = "Previously Uploaded";
+          badges?.appendChild(prevUploadedLabel);
         });
       });
 
