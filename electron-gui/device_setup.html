@@ -104,21 +104,18 @@
       padding: 24px;
       margin-bottom: 20px;
       position: relative;
-<<<<<<< HEAD
       z-index: 0;
+      transition: all 0.2s ease;
+      overflow: visible;
     }
 
     .device-block.dropdown-open {
       z-index: 250;
-=======
-      transition: all 0.2s ease;
-      overflow: visible;
     }
 
     .device-block:hover {
       border-color: var(--color-accent);
       box-shadow: 0 4px 12px rgba(10, 92, 187, 0.08);
->>>>>>> Hazim
     }
 
     .device-block-header {
@@ -181,13 +178,8 @@
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       gap: 12px;
-<<<<<<< HEAD
-      background: var(--color-bg-card);
-      padding: 8px 12px;
-=======
       background: var(--color-bg-soft);
       padding: 12px 14px;
->>>>>>> Hazim
       border: 1px solid var(--color-border);
       border-radius: 0;
       transition: all 0.2s ease;
@@ -208,18 +200,14 @@
     }
 
     .command-item input[type="text"] {
-<<<<<<< HEAD
       width: 100%;
       min-width: 0;
-      padding: 6px;
-=======
       flex: 1;
       padding: 8px 10px;
       border: none;
       background: var(--color-surface);
       border-radius: 0;
       font-size: 0.9rem;
->>>>>>> Hazim
     }
 
     .command-badges {
@@ -259,11 +247,8 @@
 
     .command-item input[type="file"] {
       max-width: 260px;
-<<<<<<< HEAD
-=======
       padding: 6px 10px;
       font-size: 0.85rem;
->>>>>>> Hazim
     }
 
     .command-remove-btn {
@@ -297,19 +282,14 @@
     .custom-dropdown {
       position: relative;
       user-select: none;
-<<<<<<< HEAD
-      width: 300px;
+      width: 100%;
       min-width: 200px;
       flex-shrink: 1;
       z-index: 1;
     }
 
     .custom-dropdown.dropdown-open {
-      z-index: 260;
-=======
-      width: 100%;
       z-index: 999999;
->>>>>>> Hazim
     }
 
     .device-block-header label {
@@ -529,34 +509,9 @@
         flex-direction: column;
       }
 
-<<<<<<< HEAD
-    .dropdown-search {
-      position: sticky;
-      top: 0;
-      background: #fff;
-      padding: 10px;
-      border-bottom: 1px solid var(--color-border);
-      z-index: 1;
-    }
-
-    .dropdown-search input {
-      width: 100%;
-      padding: 8px 10px;
-      font-size: 0.9rem;
-    }
-
-    .dropdown-item {
-      padding: 8px 12px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      cursor: pointer;
-    }
-=======
       .device-actions button {
         width: 100%;
       }
->>>>>>> Hazim
 
       .add-device-action {
         flex-direction: column;
@@ -572,6 +527,21 @@
       color: var(--color-muted);
       font-size: 0.9rem;
     }
+
+    .dropdown-search {
+      position: sticky;
+      top: 0;
+      background: #fff;
+      padding: 10px;
+      border-bottom: 1px solid var(--color-border);
+      z-index: 1;
+    }
+
+    .dropdown-search input {
+      width: 100%;
+      padding: 8px 10px;
+      font-size: 0.9rem;
+    }
   </style>
 </head>
 
@@ -585,17 +555,6 @@
         <p class="page-subtitle">Configure devices, map commands, and upload perfect rubrics for the grading engine.</p>
       </header>
 
-<<<<<<< HEAD
-      <div class="form-group" style="margin-bottom: 24px;">
-        <label for="templateName">Template Name (e.g. TNE10016)</label>
-        <input type="text" id="templateName" placeholder="TNE10016" required />
-      </div>
-      <div class="form-group" style="margin-bottom: 24px;">
-        <label for="templateSelect">Load Existing Template</label>
-        <div style="display: flex; gap: 10px; align-items: center;">
-          <div id="templateSelect" class="app-select" style="flex: 1;"></div>
-          <button type="button" id="loadTemplateBtn" class="secondary">Load</button>
-=======
       <!-- Template Configuration Section -->
       <div class="setup-section">
         <div class="section-header">
@@ -614,11 +573,10 @@
           <div class="form-group">
             <label for="templateSelect">Load Existing Template</label>
             <div style="display: flex; gap: 12px; align-items: flex-end;">
-              <select id="templateSelect" style="flex: 1;"></select>
+              <div id="templateSelect" class="app-select" style="flex: 1;"></div>
               <button type="button" id="loadTemplateBtn" class="load-template-btn">Load</button>
             </div>
           </div>
->>>>>>> Hazim
         </div>
       </div>
 

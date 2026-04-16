@@ -370,23 +370,9 @@ function renderReport(report) {
     errorDetails.open = true;
     errorDetails.innerHTML = `<summary>Errors (${errors.length})</summary>`;
     errors.forEach((item) => {
-      const div = document.createElement("div");
-      const severity = item.severity ? item.severity : "minor";
-      const severityClass = severity === "major" ? "severity-major" : "severity-minor";
-      const codeLine = item.rule_code
-        ? `<div class="result-code">Code: ${item.rule_code}</div>`
-        : "";
-      div.className = "result-item";
-      div.innerHTML = `
-        <div class="meta">${item.feature || "(unknown)"}</div>
-        ${codeLine}
-        <div class="status ${severityClass}">${item.status || "mismatch"} • ${severity.toUpperCase()}</div>
-        <div class="result-values">
-          <div><strong>Expected</strong><pre>${formatValue(item.expected)}</pre></div>
-          <div><strong>Actual</strong><pre>${formatValue(item.actual)}</pre></div>
-        </div>
-      `;
-      div.addEventListener("click", () => openErrorContext(report, item));
+      const isVerification =
+        item.layer === "verification" || String(item.feature || "").startsWith("verification.");
+      const div = _renderErrorItem(report, item, isVerification);
       errorDetails.appendChild(div);
     });
 
@@ -395,7 +381,6 @@ function renderReport(report) {
   });
 }
 
-<<<<<<< HEAD
 function _renderErrorItem(report, item, isVerification) {
   const div = document.createElement("div");
   const severity = item.severity ? item.severity : "minor";
@@ -460,9 +445,6 @@ function _renderErrorItem(report, item, isVerification) {
   div.addEventListener("click", () => openErrorContext(report, item));
   return div;
 }
-
-=======
->>>>>>> Hazim
 async function runComparison() {
   const sessionPath = getSessionPath();
   if (!sessionPath) {

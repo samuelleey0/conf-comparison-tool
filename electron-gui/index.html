@@ -628,19 +628,11 @@
         </div>
 
         <!-- Student Grid for the Main Page -->
-<<<<<<< HEAD
         <div id="mainStudentGridContainer" class="main-student-grid">
           <!-- Rendered students go here -->
         </div>
 
         <div class="actions align-left existing-student-actions">
-=======
-        <div id="mainStudentGridContainer">
-          <!-- Rendered students go here -->
-        </div>
-
-        <div class="actions align-left">
->>>>>>> Hazim
           <button type="button" class="secondary" id="clearExistingSelectionBtn">Clear</button>
           <button type="button" id="use-existing-btn" class="primary" disabled>Use Selected Student</button>
           <button type="button" id="addStudentBtn" class="secondary">Add Student</button>
@@ -715,7 +707,6 @@
               <input type="file" id="bulkFile" accept=".csv,.txt,.xlsx,.xls" required />
             </div>
           </div>
-<<<<<<< HEAD
           <div class="form-row bulk-toggle-row">
             <div class="form-group bulk-toggle-group">
               <label class="toggle-chip">
@@ -744,25 +735,6 @@
           </div>
           <div class="hint bulk-default-note">Default parsing with all switches off: column 1 = student ID, column 2 = student name.</div>
           <div class="actions bulk-actions">
-=======
-
-          <div class="hint">
-            Use <strong>Title row?</strong> if the first row is headers. Use <strong>Number column?</strong> if the first column is a row number. Enable both if file starts with: <code>No, StudentID, FirstName, LastName, ...</code>
-          </div>
-
-          <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
-            <label class="toggle-chip">
-              <input type="checkbox" id="bulkHasHeader" />
-              <span>Title row?</span>
-            </label>
-            <label class="toggle-chip">
-              <input type="checkbox" id="bulkHasNumber" />
-              <span>Number column?</span>
-            </label>
-          </div>
-
-          <div class="actions justify-end">
->>>>>>> Hazim
             <button type="submit" id="bulk-create-btn" class="primary">Create Directories</button>
           </div>
         </form>

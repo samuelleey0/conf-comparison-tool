@@ -2465,31 +2465,73 @@ def _list_existing_exams():
     return sorted(results, key=lambda x: x["display"])
 
 
+def _list_students_in_session(session_dir: Path):
+    session_dir = Path(session_dir).resolve()
+    if not session_dir.exists():
+        raise FileNotFoundError(f"Path not found: {session_dir}")
+    if not session_dir.is_dir():
+        raise NotADirectoryError(f"Path is not a directory: {session_dir}")
+
+    exam_name = session_dir.parent.name if session_dir.parent else ""
+    session_id = session_dir.name
+    student_names = _load_session_student_names(session_dir)
+    students = []
+
+    for student_dir in sorted(session_dir.iterdir(), key=lambda item: item.name.lower()):
+        if not student_dir.is_dir() or student_dir.name.startswith("."):
+            continue
+        students.append(
+            {
+                "path": str(student_dir),
+                "exam_name": exam_name,
+                "session_id": session_id,
+                "student_id": student_dir.name,
+                "student_name": student_names.get(student_dir.name, ""),
+                "display": f"{exam_name}/{session_id}/{student_dir.name}",
+            }
+        )
+
+    return {
+        "session_path": str(session_dir),
+        "exam_name": exam_name,
+        "session_id": session_id,
+        "students": students,
+    }
+
+
 @app.route("/api/directories", methods=["GET"])
 def api_list_directories():
     path_val = request.args.get("path")
     docs_path = (Path.home() / "Documents").resolve()
-    
-    # If a path is provided, use it as the "current" one, otherwise default to ~/Documents
-    if path_val:
-        try:
-            current = Path(_expand_path(path_val)).resolve()
-        except Exception:
-            current = docs_path
-    else:
-        current = docs_path
-            
-    # Only return the managed "directories" list if we are explicitly at the managed root.
-    # Otherwise, we want the frontend to fall back to 'loadSubfolders' to show the actual directory contents.
-    directories = []
-    if current == docs_path:
-        directories = _list_existing_directories()
 
-    return jsonify({
-        "status": "ok", 
-        "directories": directories,
-        "current_path": str(current)
-    })
+    try:
+        if path_val:
+            try:
+                current = Path(_expand_path(path_val)).resolve()
+            except Exception:
+                current = docs_path
+        else:
+            current = docs_path
+
+        directories = []
+        if current == docs_path:
+            directories = _list_existing_directories()
+
+        return jsonify({
+            "status": "ok",
+            "directories": directories,
+            "current_path": str(current)
+        })
+    except Exception as exc:
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": f"Failed to list directories: {exc}",
+                }
+            ),
+            500,
+        )
 
 @app.route("/api/subfolders", methods=["GET"])
 def api_list_subfolders():
@@ -2526,6 +2568,35 @@ def api_list_subfolders():
         "current_path": str(target),
         "parent_path": str(target.parent)
     })
+
+
+@app.route("/api/session_students", methods=["GET"])
+def api_session_students():
+    path_val = request.args.get("path")
+    session_path = _expand_path(path_val)
+    if not session_path:
+        return (
+            jsonify({"status": "error", "message": "Missing path for session lookup."}),
+            400,
+        )
+
+    try:
+        payload = _list_students_in_session(Path(session_path))
+        return jsonify({"status": "ok", **payload})
+    except FileNotFoundError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 404
+    except NotADirectoryError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+    except Exception as exc:
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": f"Failed to load session students: {exc}",
+                }
+            ),
+            500,
+        )
 
 
 @app.route("/api/directories/bulk", methods=["POST"])

@@ -114,20 +114,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     row.dataset.command = commandText;
     
     row.innerHTML = `
-<<<<<<< HEAD
       <div class="command-meta">
         <input type="text" class="cmd-input" value="${commandText}" readonly />
         <div class="command-badges"></div>
       </div>
       <div class="command-actions">
         <input type="file" class="cmd-file" />
-        <button type="button" class="remove-cmd-btn danger-text">X</button>
+        <button type="button" class="command-remove-btn" title="Remove">✕</button>
       </div>
-=======
-      <input type="text" class="cmd-input" value="${commandText}" readonly />
-      <input type="file" class="cmd-file" />
-      <button type="button" class="command-remove-btn" title="Remove">✕</button>
->>>>>>> Hazim
     `;
 
     const fileInput = row.querySelector(".cmd-file");
@@ -177,6 +171,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (dropdown !== exceptDropdown) {
         dropdown.classList.remove("dropdown-open");
         dropdown.querySelector(".dropdown-list")?.classList.add("hidden");
+        const searchInput = dropdown.querySelector(".dropdown-search-input");
+        if (searchInput) searchInput.value = "";
+        dropdown.querySelectorAll(".dropdown-item.hidden").forEach((item) => {
+          item.classList.remove("hidden");
+        });
         dropdown.closest(".device-block")?.classList.remove("dropdown-open");
       }
     });
@@ -211,14 +210,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             <label style="display: block; font-weight: 600; color: var(--color-heading); margin-bottom: 6px; font-size: 0.9rem;">Hostname</label>
             <input type="text" class="hostname-input" placeholder="e.g. R1 or S1" required />
           </div>
-<<<<<<< HEAD
-          <div class="dropdown-list hidden">
-            <div class="dropdown-search">
-              <input type="text" class="dropdown-search-input" placeholder="Search commands..." />
-            </div>
-            ${dropdownListHtml}
-=======
-          
           <div style="flex: 1;">
             <label style="display: block; font-weight: 600; color: var(--color-heading); margin-bottom: 6px; font-size: 0.9rem;">Commands</label>
             <div class="custom-dropdown" id="dropdown-${deviceId}">
@@ -227,10 +218,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                 <small>▼</small>
               </div>
               <div class="dropdown-list hidden">
+                <div class="dropdown-search">
+                  <input type="text" class="dropdown-search-input" placeholder="Search commands..." />
+                </div>
                 ${dropdownListHtml}
               </div>
             </div>
->>>>>>> Hazim
           </div>
         </div>
 
@@ -246,10 +239,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     const dropdownRoot = block.querySelector(`#dropdown-${deviceId}`);
     const dropdownHeader = block.querySelector('.dropdown-header');
     const dropdownList = block.querySelector('.dropdown-list');
-<<<<<<< HEAD
     const dropdownSearch = block.querySelector('.dropdown-search-input');
+
+    function positionDropdown() {
+      const rect = dropdownHeader.getBoundingClientRect();
+      dropdownList.style.top = `${rect.bottom}px`;
+      dropdownList.style.left = `${rect.left}px`;
+      dropdownList.style.width = `${rect.width}px`;
+    }
     
-    // Toggle dropdown
+    window.addEventListener('scroll', () => {
+      if (!dropdownList.classList.contains("hidden")) {
+        positionDropdown();
+      }
+    });
+    
+    window.addEventListener('resize', () => {
+      if (!dropdownList.classList.contains("hidden")) {
+        positionDropdown();
+      }
+    });
+    
     dropdownHeader.addEventListener("click", (e) => {
       e.stopPropagation();
       const willOpen = dropdownList.classList.contains("hidden");
@@ -258,57 +268,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       dropdownRoot?.classList.toggle("dropdown-open", willOpen);
       block.classList.toggle("dropdown-open", willOpen);
       if (willOpen) {
+        positionDropdown();
         dropdownSearch?.focus();
-      }
-    });
-
-    // Close dropdown on click outside
-    document.addEventListener("click", (e) => {
-      if (!dropdownRoot.contains(e.target)) {
-         dropdownList.classList.add("hidden");
-         dropdownRoot.classList.remove("dropdown-open");
-         block.classList.remove("dropdown-open");
-=======
-    const customDropdown = block.querySelector(`#dropdown-${deviceId}`);
-    
-    // Position fixed dropdown
-    function positionDropdown() {
-      const rect = dropdownHeader.getBoundingClientRect();
-      dropdownList.style.top = (rect.bottom) + 'px';
-      dropdownList.style.left = rect.left + 'px';
-      dropdownList.style.width = rect.width + 'px';
-    }
-    
-    // Reposition on scroll and resize
-    window.addEventListener('scroll', () => {
-      if (!dropdownList.classList.contains('hidden')) {
-        positionDropdown();
-      }
-    });
-    
-    window.addEventListener('resize', () => {
-      if (!dropdownList.classList.contains('hidden')) {
-        positionDropdown();
-      }
-    });
-    
-    // Toggle dropdown and close others
-    dropdownHeader.addEventListener("click", (e) => {
-      e.stopPropagation();
-      
-      // Close all other dropdowns
-      document.querySelectorAll('.dropdown-list:not(.hidden)').forEach(list => {
-        if (list !== dropdownList) {
-          list.classList.add("hidden");
-        }
-      });
-      
-      dropdownList.classList.toggle("hidden");
-      
-      // Position the dropdown if opening
-      if (!dropdownList.classList.contains('hidden')) {
-        positionDropdown();
->>>>>>> Hazim
       }
     });
 
@@ -404,14 +365,17 @@ document.addEventListener("DOMContentLoaded", async () => {
             const cmdRows = block.querySelectorAll(".command-item");
             cmdRows.forEach(row => {
                const fileInput = row.querySelector(".cmd-file");
+               const badges = row.querySelector(".command-badges");
                fileInput.required = false; 
                
                const prevUploadedLabel = document.createElement("small");
-               prevUploadedLabel.textContent = "(Previously Uploaded)";
-               prevUploadedLabel.style.color = "var(--color-success, #28a745)";
-               prevUploadedLabel.style.marginLeft = "8px";
-               
-               row.insertBefore(prevUploadedLabel, fileInput);
+               prevUploadedLabel.className = "command-badge command-badge--uploaded";
+               prevUploadedLabel.textContent = "Previously Uploaded";
+               if (badges) {
+                 badges.appendChild(prevUploadedLabel);
+               } else {
+                 row.insertBefore(prevUploadedLabel, fileInput);
+               }
             });
           });
           return;
@@ -429,11 +393,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Global click listener to close dropdowns when clicking outside
   document.addEventListener("click", (e) => {
-    // Close all dropdowns if click is outside of any dropdown
     if (!e.target.closest(".custom-dropdown") && !e.target.closest(".dropdown-list")) {
-      document.querySelectorAll(".dropdown-list").forEach(list => {
-        list.classList.add("hidden");
-      });
+      closeCommandDropdowns();
     }
   });
 

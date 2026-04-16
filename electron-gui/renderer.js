@@ -149,11 +149,28 @@ async function fetchJson(path, options = {}) {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     ...options,
   });
+  return parseJsonResponse(res);
+}
+
+async function fetchJsonAbsolute(url, options = {}) {
+  const res = await fetch(url, {
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    ...options,
+  });
+  return parseJsonResponse(res);
+}
+
+async function parseJsonResponse(res) {
+  const rawText = await res.text();
   let data = {};
   try {
-    data = await res.json();
+    data = rawText ? JSON.parse(rawText) : {};
   } catch (_) {
-    // ignore parse errors; handled below.
+    const trimmed = String(rawText || "").trim();
+    const message = trimmed.startsWith("<")
+      ? `Server returned HTML instead of JSON (${res.status} ${res.statusText}).`
+      : trimmed || res.statusText || "Request failed. Please try again.";
+    throw new Error(message);
   }
   if (!res.ok || data.status === "error") {
     const message =
@@ -435,6 +452,28 @@ function openCustomDirectoryPicker() {
 
 let currentPickerPath = null;
 
+async function loadSessionStudents(sessionPath) {
+  if (!sessionPath) {
+    throw new Error("Missing session path.");
+  }
+
+  const data = await fetchJson(`/api/session_students?path=${encodeURIComponent(sessionPath)}`);
+  const display = [data.exam_name, data.session_id].filter(Boolean).join("/");
+
+  setSelectedExistingDirectory(data.session_path, display);
+  setDirectoryInfo({
+    exam_name: data.exam_name,
+    session_id: data.session_id,
+    student_id: "",
+    path: data.session_path,
+    mode: "existing",
+    display,
+  });
+  localStorage.setItem("sessionPath", data.session_path);
+  renderMainStudentGrid(data.students || []);
+  return data;
+}
+
 async function loadDirectory(pathVal = null) {
   const container = document.getElementById("folderTreeContainer");
   const pathLabel = document.getElementById("pickerCurrentPath");
@@ -452,8 +491,7 @@ async function loadDirectory(pathVal = null) {
       ? `${API_ROOT}/api/directories?path=${encodeURIComponent(pathVal)}`
       : `${API_ROOT}/api/directories`;
 
-    const res = await fetch(url);
-    const data = await res.json();
+    const data = await fetchJsonAbsolute(url);
 
     if (data.status === "ok") {
       currentPickerPath = data.current_path;
@@ -480,8 +518,7 @@ async function loadDirectory(pathVal = null) {
 
 async function loadSubfolders(pathVal, container) {
   try {
-    const res = await fetch(`${API_ROOT}/api/subfolders?path=${encodeURIComponent(pathVal)}`);
-    const data = await res.json();
+    const data = await fetchJson(`/api/subfolders?path=${encodeURIComponent(pathVal)}`);
 
     if (data.status === "ok") {
       renderSubfolders(container, data.subfolders);
@@ -1062,9 +1099,24 @@ function setupDirectoryPage() {
 
 
   if (chooseBtn) {
-    chooseBtn.addEventListener("click", () => {
-      // Pass the currently selected path if it exists, otherwise undefined (which defaults to Docs)
-      // openExistingDirectoryDialog(selectedExistingPath);
+    chooseBtn.addEventListener("click", async () => {
+      const currentSessionPath =
+        localStorage.getItem("sessionPath") ||
+        (selectedExistingPath && pathModule ? pathModule.dirname(selectedExistingPath) : null) ||
+        selectedExistingPath ||
+        undefined;
+
+      if (ipcRenderer) {
+        try {
+          const selected = await ipcRenderer.invoke("select-directory", currentSessionPath);
+          if (!selected) return;
+          await loadSessionStudents(selected);
+          return;
+        } catch (err) {
+          console.error("Native directory picker failed:", err);
+        }
+      }
+
       openCustomDirectoryPicker();
     });
   }
@@ -1115,14 +1167,7 @@ function setupDirectoryPage() {
               student_name: (studentName || "").trim(),
             }),
           });
-          const res = await fetch(`${API_ROOT}/api/directories`);
-          const data = await res.json();
-          if (data.status === "ok" && data.directories) {
-            const hierarchy = transformToHierarchy(data.directories);
-            if (hierarchy[exam] && hierarchy[exam][session]) {
-              renderMainStudentGrid(hierarchy[exam][session]);
-            }
-          }
+          await loadSessionStudents(sessionPath);
         } catch (err) {
           console.error(err);
           alert(`Failed to add student: ${err.message}`);
@@ -1140,22 +1185,14 @@ function setupDirectoryPage() {
       localStorage.getItem("directoryDisplay")
     );
     
-    // Auto-load grid if we have a path
-    if (storedBasePath && storedBasePath !== "null") {
-       fetch(`${API_ROOT}/api/directories`) // Wait, if we use the backend API, the default fetches subfolders. We can use loadDirectory natively.
-         .then(res => res.json())
-         .then(data => {
-            if (data.status === "ok" && data.directories) {
-               const hierarchy = transformToHierarchy(data.directories);
-               const exam = localStorage.getItem("examName");
-               const session = localStorage.getItem("sessionId");
-               
-               if (exam && session && hierarchy[exam] && hierarchy[exam][session]) {
-                  const students = hierarchy[exam][session];
-                  renderMainStudentGrid(students);
-               }
-            }
-         }).catch(err => console.error("Auto-load failed:", err));
+    const storedSessionPath =
+      localStorage.getItem("sessionPath") ||
+      (storedBasePath && pathModule ? pathModule.dirname(storedBasePath) : null);
+
+    if (storedSessionPath && storedSessionPath !== "null") {
+      loadSessionStudents(storedSessionPath).catch((err) => {
+        console.error("Auto-load failed:", err);
+      });
     }
   } else {
     setSelectedExistingDirectory(null);
