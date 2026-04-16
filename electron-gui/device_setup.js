@@ -114,6 +114,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     row.dataset.command = commandText;
     
     row.innerHTML = `
+<<<<<<< HEAD
       <div class="command-meta">
         <input type="text" class="cmd-input" value="${commandText}" readonly />
         <div class="command-badges"></div>
@@ -122,6 +123,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         <input type="file" class="cmd-file" />
         <button type="button" class="remove-cmd-btn danger-text">X</button>
       </div>
+=======
+      <input type="text" class="cmd-input" value="${commandText}" readonly />
+      <input type="file" class="cmd-file" />
+      <button type="button" class="command-remove-btn" title="Remove">✕</button>
+>>>>>>> Hazim
     `;
 
     const fileInput = row.querySelector(".cmd-file");
@@ -135,7 +141,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // Removing from row should also uncheck the dropdown box
-    row.querySelector(".remove-cmd-btn").addEventListener("click", () => {
+    row.querySelector(".command-remove-btn").addEventListener("click", () => {
       row.remove();
       const deviceBlock = row.closest(".device-block");
       if (deviceBlock) {
@@ -198,26 +204,39 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     block.innerHTML = `
       <div class="device-block-header">
-        <label>
-          <strong>Hostname:</strong> 
-          <input type="text" class="hostname-input" placeholder="e.g. R1 or S1" required />
-        </label>
+        <div class="device-block-title">Device ${deviceCount}</div>
         
-        <div class="custom-dropdown" id="dropdown-${deviceId}">
-          <div class="dropdown-header">
-            <span>Select Commands</span>
-            <small>▼</small>
+        <div style="display: flex; gap: 16px; flex: 1; align-items: flex-end;">
+          <div style="flex: 1;">
+            <label style="display: block; font-weight: 600; color: var(--color-heading); margin-bottom: 6px; font-size: 0.9rem;">Hostname</label>
+            <input type="text" class="hostname-input" placeholder="e.g. R1 or S1" required />
           </div>
+<<<<<<< HEAD
           <div class="dropdown-list hidden">
             <div class="dropdown-search">
               <input type="text" class="dropdown-search-input" placeholder="Search commands..." />
             </div>
             ${dropdownListHtml}
+=======
+          
+          <div style="flex: 1;">
+            <label style="display: block; font-weight: 600; color: var(--color-heading); margin-bottom: 6px; font-size: 0.9rem;">Commands</label>
+            <div class="custom-dropdown" id="dropdown-${deviceId}">
+              <div class="dropdown-header">
+                <span>Select Commands</span>
+                <small>▼</small>
+              </div>
+              <div class="dropdown-list hidden">
+                ${dropdownListHtml}
+              </div>
+            </div>
+>>>>>>> Hazim
           </div>
         </div>
 
         <button type="button" class="remove-device-btn">Remove Device</button>
       </div>
+      
       <div class="command-list" id="cmds-${deviceId}">
         <!-- Selected Commands Spawn Here -->
       </div>
@@ -227,6 +246,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const dropdownRoot = block.querySelector(`#dropdown-${deviceId}`);
     const dropdownHeader = block.querySelector('.dropdown-header');
     const dropdownList = block.querySelector('.dropdown-list');
+<<<<<<< HEAD
     const dropdownSearch = block.querySelector('.dropdown-search-input');
     
     // Toggle dropdown
@@ -248,6 +268,47 @@ document.addEventListener("DOMContentLoaded", async () => {
          dropdownList.classList.add("hidden");
          dropdownRoot.classList.remove("dropdown-open");
          block.classList.remove("dropdown-open");
+=======
+    const customDropdown = block.querySelector(`#dropdown-${deviceId}`);
+    
+    // Position fixed dropdown
+    function positionDropdown() {
+      const rect = dropdownHeader.getBoundingClientRect();
+      dropdownList.style.top = (rect.bottom) + 'px';
+      dropdownList.style.left = rect.left + 'px';
+      dropdownList.style.width = rect.width + 'px';
+    }
+    
+    // Reposition on scroll and resize
+    window.addEventListener('scroll', () => {
+      if (!dropdownList.classList.contains('hidden')) {
+        positionDropdown();
+      }
+    });
+    
+    window.addEventListener('resize', () => {
+      if (!dropdownList.classList.contains('hidden')) {
+        positionDropdown();
+      }
+    });
+    
+    // Toggle dropdown and close others
+    dropdownHeader.addEventListener("click", (e) => {
+      e.stopPropagation();
+      
+      // Close all other dropdowns
+      document.querySelectorAll('.dropdown-list:not(.hidden)').forEach(list => {
+        if (list !== dropdownList) {
+          list.classList.add("hidden");
+        }
+      });
+      
+      dropdownList.classList.toggle("hidden");
+      
+      // Position the dropdown if opening
+      if (!dropdownList.classList.contains('hidden')) {
+        positionDropdown();
+>>>>>>> Hazim
       }
     });
 
@@ -279,6 +340,11 @@ document.addEventListener("DOMContentLoaded", async () => {
          }
          updateDropdownCount(block);
       });
+    });
+
+    // Prevent dropdown list clicks from closing the dropdown
+    dropdownList.addEventListener("click", (e) => {
+      e.stopPropagation();
     });
 
     block.querySelector(".remove-device-btn").addEventListener("click", () => {
@@ -360,6 +426,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   loadTemplateState();
+
+  // Global click listener to close dropdowns when clicking outside
+  document.addEventListener("click", (e) => {
+    // Close all dropdowns if click is outside of any dropdown
+    if (!e.target.closest(".custom-dropdown") && !e.target.closest(".dropdown-list")) {
+      document.querySelectorAll(".dropdown-list").forEach(list => {
+        list.classList.add("hidden");
+      });
+    }
+  });
 
   async function loadTemplateFromServer(templateName) {
     if (!templateName) return;

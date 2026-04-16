@@ -1,8 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   loadNavbar();
   
-  const commandsTableBody = document.getElementById("commandsTableBody");
-  const commentsTable = document.getElementById("commentsTable");
+  const commandsGrid = document.getElementById("commandsGrid");
   const loadingIndicator = document.getElementById("loadingIndicator");
   const newCommandInput = document.getElementById("newCommandInput");
   const addCommandBtn = document.getElementById("addCommandBtn");
@@ -116,7 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function fetchCommands() {
     try {
       loadingIndicator.style.display = "block";
-      commentsTable.style.display = "none";
+      commandsGrid.style.display = "none";
       
       const res = await fetch("http://127.0.0.1:5050/api/commands");
       const data = await res.json();
@@ -132,36 +131,65 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("Error fetching commands. Is the backend running?");
     } finally {
       loadingIndicator.style.display = "none";
+<<<<<<< HEAD
       commentsTable.style.display = "grid";
+=======
+      commandsGrid.style.display = "grid";
+>>>>>>> Hazim
     }
   }
 
   function renderCommands() {
-    commandsTableBody.innerHTML = "";
+    commandsGrid.innerHTML = "";
     countBadge.textContent = `${globalCommands.length} commands`;
     
     if (globalCommands.length === 0) {
+<<<<<<< HEAD
       commandsTableBody.innerHTML = `
         <div class="command-row-empty">No commands configured. Add one above.</div>
+=======
+      commandsGrid.innerHTML = `
+        <div class="commands-container-empty">
+          <p>No commands configured. Add one below.</p>
+        </div>
+>>>>>>> Hazim
       `;
       return;
     }
 
     globalCommands.forEach((cmd) => {
+<<<<<<< HEAD
       const row = document.createElement("div");
       row.className = "command-row";
 
       row.innerHTML = `
         <code>${cmd}</code>
         <div class="command-actions">
+=======
+      const card = document.createElement("div");
+      card.className = "command-card";
+      
+      card.innerHTML = `
+        <div class="command-card-content">
+          <code>${cmd}</code>
+        </div>
+        <div class="command-card-actions">
+>>>>>>> Hazim
           <button type="button" class="remove-btn" title="Delete Command">Remove</button>
         </div>
       `;
       
+<<<<<<< HEAD
       const deleteBtn = row.querySelector("button");
       deleteBtn.addEventListener("click", () => deleteCommand(cmd));
       
       commandsTableBody.appendChild(row);
+=======
+      const deleteBtn = card.querySelector("button");
+      deleteBtn.addEventListener("click", () => deleteCommand(cmd));
+      
+      commandsGrid.appendChild(card);
+>>>>>>> Hazim
     });
   }
 
