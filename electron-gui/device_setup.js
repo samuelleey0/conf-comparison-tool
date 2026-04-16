@@ -144,16 +144,45 @@ document.addEventListener("DOMContentLoaded", async () => {
     const cmdList = block.querySelector(`#cmds-${deviceId}`);
     const dropdownHeader = block.querySelector('.dropdown-header');
     const dropdownList = block.querySelector('.dropdown-list');
+    const customDropdown = block.querySelector(`#dropdown-${deviceId}`);
     
-    // Toggle dropdown
-    dropdownHeader.addEventListener("click", () => {
-      dropdownList.classList.toggle("hidden");
+    // Position fixed dropdown
+    function positionDropdown() {
+      const rect = dropdownHeader.getBoundingClientRect();
+      dropdownList.style.top = (rect.bottom) + 'px';
+      dropdownList.style.left = rect.left + 'px';
+      dropdownList.style.width = rect.width + 'px';
+    }
+    
+    // Reposition on scroll and resize
+    window.addEventListener('scroll', () => {
+      if (!dropdownList.classList.contains('hidden')) {
+        positionDropdown();
+      }
     });
-
-    // Close dropdown on click outside
-    document.addEventListener("click", (e) => {
-      if (!block.querySelector(`#dropdown-${deviceId}`).contains(e.target)) {
-         dropdownList.classList.add("hidden");
+    
+    window.addEventListener('resize', () => {
+      if (!dropdownList.classList.contains('hidden')) {
+        positionDropdown();
+      }
+    });
+    
+    // Toggle dropdown and close others
+    dropdownHeader.addEventListener("click", (e) => {
+      e.stopPropagation();
+      
+      // Close all other dropdowns
+      document.querySelectorAll('.dropdown-list:not(.hidden)').forEach(list => {
+        if (list !== dropdownList) {
+          list.classList.add("hidden");
+        }
+      });
+      
+      dropdownList.classList.toggle("hidden");
+      
+      // Position the dropdown if opening
+      if (!dropdownList.classList.contains('hidden')) {
+        positionDropdown();
       }
     });
 
@@ -172,6 +201,11 @@ document.addEventListener("DOMContentLoaded", async () => {
          }
          updateDropdownCount(block);
       });
+    });
+
+    // Prevent dropdown list clicks from closing the dropdown
+    dropdownList.addEventListener("click", (e) => {
+      e.stopPropagation();
     });
 
     block.querySelector(".remove-device-btn").addEventListener("click", () => {
@@ -253,6 +287,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   loadTemplateState();
+
+  // Global click listener to close dropdowns when clicking outside
+  document.addEventListener("click", (e) => {
+    // Close all dropdowns if click is outside of any dropdown
+    if (!e.target.closest(".custom-dropdown") && !e.target.closest(".dropdown-list")) {
+      document.querySelectorAll(".dropdown-list").forEach(list => {
+        list.classList.add("hidden");
+      });
+    }
+  });
 
   async function loadTemplateFromServer(templateName) {
     if (!templateName) return;

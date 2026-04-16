@@ -12,6 +12,7 @@
     #deviceSetupPage {
       max-width: 100%;
       margin: 0 auto;
+      overflow: visible;
     }
 
     #deviceSetupPage .page-header {
@@ -28,6 +29,7 @@
       padding: 28px;
       margin-bottom: 32px;
       box-shadow: 0 2px 8px rgba(15, 23, 46, 0.04);
+      overflow: visible;
     }
 
     .section-header {
@@ -103,6 +105,7 @@
       margin-bottom: 20px;
       position: relative;
       transition: all 0.2s ease;
+      overflow: visible;
     }
 
     .device-block:hover {
@@ -119,6 +122,7 @@
       margin-bottom: 20px;
       padding-bottom: 16px;
       border-bottom: 1px solid var(--color-border);
+      overflow: visible;
     }
 
     .device-block-title {
@@ -150,6 +154,8 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+      position: relative;
+      z-index: auto;
     }
 
     .command-section-label {
@@ -171,6 +177,8 @@
       border: 1px solid var(--color-border);
       border-radius: 0;
       transition: all 0.2s ease;
+      position: relative;
+      z-index: auto;
     }
 
     .command-item:focus-within {
@@ -225,7 +233,7 @@
       position: relative;
       user-select: none;
       width: 100%;
-      z-index: 100;
+      z-index: 999999;
     }
 
     .device-block-header label {
@@ -253,6 +261,8 @@
       min-height: 42px;
       font-size: 0.95rem;
       transition: all 0.2s ease;
+      position: relative;
+      z-index: auto;
     }
 
     .dropdown-header:hover {
@@ -260,19 +270,16 @@
     }
 
     .dropdown-list {
-      position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
-      width: 100%;
+      position: fixed;
       background: var(--color-surface);
       border: 1px solid var(--color-border);
-      border-top: none;
       border-radius: 0;
       max-height: 220px;
       overflow-y: auto;
-      z-index: 1000;
+      z-index: 999999;
       box-shadow: 0 6px 16px rgba(15, 23, 46, 0.12);
+      width: 100%;
+      min-width: 300px;
     }
 
     .dropdown-list.hidden {
