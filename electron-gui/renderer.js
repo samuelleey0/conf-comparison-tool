@@ -49,7 +49,6 @@ let statusModalOverlay = null;
 let statusModalMessageEl = null;
 let statusModalCloseBtn = null;
 let statusModalHideTimeout = null;
-let autoRunAfterConnect = false;
 
 restoreSidebarPreference();
 
