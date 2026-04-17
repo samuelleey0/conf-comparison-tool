@@ -40,7 +40,7 @@ let currentFolderTreeData = [];
 let pendingSelectedFolder = null;
 let pendingSelectedStudent = null;
 
-function openCustomDirectoryPicker() {
+function openCustomDirectoryPicker(startPath = null) {
   const overlay = document.getElementById("folderPickerOverlay");
   const closeBtn = document.getElementById("closeFolderPickerBtn");
   const cancelBtn = document.getElementById("cancelFolderPickerBtn");
@@ -53,7 +53,7 @@ function openCustomDirectoryPicker() {
   if (confirmBtn) confirmBtn.disabled = true;
 
   overlay.classList.remove("hidden");
-  loadDirectory(null);
+  loadDirectory(startPath || null);
 
   // Event handlers
   const close = () => overlay.classList.add("hidden");
@@ -548,7 +548,7 @@ async function handleCreateDirectory(event) {
   const student = document.getElementById("createStudentId").value.trim();
   const studentName = (document.getElementById("createStudentName")?.value || "").trim();
   if (!exam || !session || !student) {
-    alert("Please complete all fields for the new directory.");
+    alert("Please provide exam name, session ID, and student ID.");
     return;
   }
 
@@ -721,7 +721,7 @@ async function handleBulkCreate(event) {
     // Launch the picker rooted at sessionPath to help them
     // Note: sessionPath is for OS dialog, but for custom picker we just open it.
     // Ideally we could filter/expand to that exam/session, but for now just opening it is fine.
-    setTimeout(() => openCustomDirectoryPicker(), 500);
+    setTimeout(() => openCustomDirectoryPicker(sessionPath), 500);
   } catch (err) {
     console.error(err);
     alert(`Bulk creation failed: ${err.message}`);
@@ -773,25 +773,14 @@ function setupDirectoryPage() {
 
 
   if (chooseBtn) {
-    chooseBtn.addEventListener("click", async () => {
+    chooseBtn.addEventListener("click", () => {
       const currentSessionPath =
         localStorage.getItem("sessionPath") ||
         (selectedExistingPath && pathModule ? pathModule.dirname(selectedExistingPath) : null) ||
         selectedExistingPath ||
         undefined;
 
-      if (ipcRenderer) {
-        try {
-          const selected = await ipcRenderer.invoke("select-directory", currentSessionPath);
-          if (!selected) return;
-          await loadSessionStudents(selected);
-          return;
-        } catch (err) {
-          console.error("Native directory picker failed:", err);
-        }
-      }
-
-      openCustomDirectoryPicker();
+      openCustomDirectoryPicker(currentSessionPath);
     });
   }
   if (clearBtn) clearBtn.addEventListener("click", () =>
