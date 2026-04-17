@@ -23,47 +23,54 @@
       <section class="connection-panel page-card">
         <h2 class="section-title">Connection Setup</h2>
         <form id="connectionForm">
-          <div class="form-group" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--color-border);">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div class="form-group connection-queue">
+            <div class="connection-queue__header">
                <label>Device Queue</label>
-               <span id="queueStatus" style="font-size: 0.85rem; color: var(--color-muted); font-weight: 600;">Idle</span>
+               <span id="queueStatus" class="connection-queue__status">Idle</span>
             </div>
-            <div id="deviceQueueContainer" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px; max-height: 200px; overflow-y: auto;">
+            <div id="deviceQueueContainer" class="connection-queue__list">
                <!-- Populated by JS -->
             </div>
           </div>
-          <div class="form-group">
+          <div class="form-group connection-mode-group">
             <label class="choice-label"><input type="radio" name="connType" value="serial" /> Serial</label>
             <label class="choice-label"><input type="radio" name="connType" value="ssh" /> SSH</label>
           </div>
 
           <div id="serialFields">
             <p class="hint">Choose the preset that matches your system or select custom.</p>
-            <div class="inline-options">
-              <label class="choice-label"><input type="radio" name="serialPreset" value="linux_usb" checked /> Linux USB-Serial
+            <div class="inline-options connection-preset-grid">
+              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset" value="linux_usb" checked /> Linux USB-Serial
                 (/dev/ttyUSB0)</label>
-              <label class="choice-label"><input type="radio" name="serialPreset" value="linux_rs232" /> Linux
+              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset" value="linux_rs232" /> Linux
                 RS232 (/dev/ttyS0)</label>
-              <label class="choice-label"><input type="radio" name="serialPreset" value="windows" /> Windows
+              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset" value="windows" /> Windows
                 (COM3)</label>
-              <label class="choice-label"><input type="radio" name="serialPreset" value="mac" /> macOS
+              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset" value="mac" /> macOS
                 (/dev/cu.usbserial-10)</label>
-              <label class="choice-label"><input type="radio" name="serialPreset" value="custom" /> Custom</label>
+              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset" value="custom" /> Custom</label>
             </div>
             <label for="serialPort">Serial Port</label>
             <input type="text" id="serialPort" placeholder="/dev/ttyUSB0" />
           </div>
 
-          <div id="sshFields" class="hidden">
-            <label for="sshHost">SSH Host</label><br>
-            <input type="text" id="sshHost" placeholder="192.168.1.1" /><br>
-            <label for="sshUser">SSH Username</label><br>
-            <input type="text" id="sshUser" placeholder="admin" /><br>
-            <label for="sshPass">SSH Password</label><br>
-            <input type="password" id="sshPass" placeholder="Password" />
-            <br>
-            <label for="sshPort">SSH Port</label><br>
-            <input type="text" id="sshPort" placeholder="22" />
+          <div id="sshFields" class="hidden connection-ssh-grid">
+            <div class="form-group">
+              <label for="sshHost">SSH Host</label>
+              <input type="text" id="sshHost" placeholder="192.168.1.1" />
+            </div>
+            <div class="form-group">
+              <label for="sshPort">SSH Port</label>
+              <input type="text" id="sshPort" placeholder="22" />
+            </div>
+            <div class="form-group">
+              <label for="sshUser">SSH Username</label>
+              <input type="text" id="sshUser" placeholder="admin" />
+            </div>
+            <div class="form-group">
+              <label for="sshPass">SSH Password</label>
+              <input type="password" id="sshPass" placeholder="Password" />
+            </div>
           </div>
         </form>
         <div id="selectedCommandsInfo" class="info-box hidden"></div>
@@ -82,20 +89,20 @@
           <progress id="progress" value="0" max="100"></progress>
           <pre id="log" class="log"></pre>
         </div>
-        <div class="actions justify-end" style="align-items: center; margin-top: 10px;">
-          <label for="resetDeviceType" style="margin: 0; font-weight: 600;">Reset As</label>
-          <select id="resetDeviceType" style="max-width: 160px;">
+        <div class="actions justify-end connection-reset-row">
+          <label for="resetDeviceType" class="connection-reset-row__label">Reset As</label>
+          <select id="resetDeviceType" class="connection-reset-row__select">
             <option value="switch" selected>Switch</option>
             <option value="router">Router</option>
           </select>
         </div>
-        <div class="actions justify-end">
-          <button type="button" id="abortExecutionBtn" class="danger" style="display: none;">⏹ Stop Execution</button>
+        <div class="actions justify-end connection-action-grid">
+          <button type="button" id="abortExecutionBtn" class="danger connection-action-grid__abort" style="display: none;">⏹ Stop Execution</button>
           <button type="button" id="resetDeviceBtn" class="danger">Reset Cisco Device</button>
           <button type="button" id="reconnectRunBtn" class="secondary">Test Connection</button>
           <button type="button" id="startSequenceBtn" class="primary">Start Auto-Execution Sequence</button>
-          <button type="button" id="doneStudentBtn" class="primary"
-            style="margin-left: 10px; background-color: var(--color-success, #28a745);" disabled>Done (Next Student)</button>
+          <button type="button" id="doneStudentBtn" class="primary connection-action-grid__done"
+            disabled>Done (Next Student)</button>
         </div>
       </section>
     </div>
