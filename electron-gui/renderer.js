@@ -163,6 +163,9 @@ async function fetchJson(path, options = {}) {
 }
 
 function setDirectoryInfo({
+  classroom,
+  tutor_name,
+  time_slot,
   exam_name,
   session_id,
   student_id,
@@ -170,16 +173,26 @@ function setDirectoryInfo({
   mode,
   display,
 }) {
+  const resolvedClassroom = classroom || exam_name || "";
+  const resolvedTutor = tutor_name || session_id || "";
+  const resolvedTime = time_slot || localStorage.getItem("timeSlot") || "";
+
   const prevSessionKey = localStorage.getItem("sessionKey");
-  const nextSessionKey = `${exam_name || ""}::${session_id || ""}`;
+  const nextSessionKey = `${resolvedClassroom}::${resolvedTutor}::${resolvedTime}`;
   if (prevSessionKey !== nextSessionKey) {
     localStorage.setItem("sessionKey", nextSessionKey);
     localStorage.removeItem("completedStudents");
     localStorage.removeItem("sessionStudents");
     localStorage.removeItem("sessionStudentsCount");
   }
-  localStorage.setItem("examName", exam_name);
-  localStorage.setItem("sessionId", session_id);
+  localStorage.setItem("classroom", resolvedClassroom);
+  localStorage.setItem("tutorName", resolvedTutor);
+  localStorage.setItem("timeSlot", resolvedTime);
+
+  // Legacy keys remain for pages that still consume exam/session.
+  localStorage.setItem("examName", resolvedClassroom);
+  localStorage.setItem("sessionId", resolvedTutor);
+
   localStorage.setItem("studentId", student_id);
   if (path) localStorage.setItem("basePath", path);
   else localStorage.removeItem("basePath");
@@ -189,10 +202,11 @@ function setDirectoryInfo({
 }
 
 function ensureDirectoryConfigured() {
-  const exam = localStorage.getItem("examName");
-  const session = localStorage.getItem("sessionId");
+  const classroom = localStorage.getItem("classroom") || localStorage.getItem("examName");
+  const tutorName = localStorage.getItem("tutorName") || localStorage.getItem("sessionId");
+  const timeSlot = localStorage.getItem("timeSlot");
   const student = localStorage.getItem("studentId");
-  if (!exam || !session || !student) {
+  if (!classroom || !tutorName || !timeSlot || !student) {
     alert("Please set up a directory before continuing.");
     goTo("index.html");
     return false;
@@ -201,18 +215,22 @@ function ensureDirectoryConfigured() {
 }
 
 function getDirectoryInfo() {
-  const exam_name = localStorage.getItem("examName");
-  const session_id = localStorage.getItem("sessionId");
+  const classroom = localStorage.getItem("classroom") || localStorage.getItem("examName");
+  const tutor_name = localStorage.getItem("tutorName") || localStorage.getItem("sessionId");
+  const time_slot = localStorage.getItem("timeSlot");
   const student_id = localStorage.getItem("studentId");
   const base_path = localStorage.getItem("basePath");
   const mode = localStorage.getItem("directoryMode");
   const display = localStorage.getItem("directoryDisplay");
 
-  if (!exam_name || !session_id) return null;
+  if (!classroom || !tutor_name || !time_slot) return null;
 
   return {
-    exam_name,
-    session_id,
+    classroom,
+    tutor_name,
+    time_slot,
+    exam_name: classroom,
+    session_id: tutor_name,
     student_id,
     base_path,
     mode,
@@ -288,16 +306,16 @@ function hideStatusModal() {
 function setupWelcomePage() {
   // Clear previous session setup when the app is freshly opened
   const keysToClear = [
-     "templateName", 
-     "templateDevices", 
-     "hasRubrics",
-     "directoryMode", 
-     "basePath", 
-     "directoryDisplay", 
-     "examName", 
-     "sessionId", 
-     "selectedStudent",
-     "sessionPath"
+    "templateName",
+    "templateDevices",
+    "hasRubrics",
+    "directoryMode",
+    "basePath",
+    "directoryDisplay",
+    "examName",
+    "sessionId",
+    "selectedStudent",
+    "sessionPath"
   ];
   keysToClear.forEach(k => localStorage.removeItem(k));
 
@@ -400,13 +418,13 @@ function openCustomDirectoryPicker() {
 
       const infoBox = document.getElementById("existingInfoBox");
       if (infoBox) infoBox.classList.add("hidden");
-      
+
       let sessionPath = "";
       if (students && students.length > 0 && typeof pathModule !== "undefined") {
-         sessionPath = pathModule.dirname(students[0].path);
+        sessionPath = pathModule.dirname(students[0].path);
       }
       if (!sessionPath && currentPickerPath && typeof pathModule !== "undefined") {
-         sessionPath = currentPickerPath;
+        sessionPath = currentPickerPath;
       }
       if (!sessionPath && typeof pathModule !== "undefined") {
         try {
@@ -420,7 +438,7 @@ function openCustomDirectoryPicker() {
       setDirectoryInfo({
         exam_name: exam,
         session_id: session,
-        student_id: "", 
+        student_id: "",
         path: sessionPath,
         mode: "existing",
         display: `${exam}/${session}`
@@ -498,9 +516,13 @@ async function loadSubfolders(pathVal, container) {
 function transformToHierarchy(flatDirs) {
   const hierarchy = {};
   flatDirs.forEach(d => {
-    if (!hierarchy[d.exam_name]) hierarchy[d.exam_name] = {};
-    if (!hierarchy[d.exam_name][d.session_id]) hierarchy[d.exam_name][d.session_id] = [];
-    hierarchy[d.exam_name][d.session_id].push(d);
+    const classroom = d.classroom || d.exam_name || "UnknownClassroom";
+    const tutor = d.tutor_name || d.session_id || "UnknownTutor";
+    const time = d.time_slot || "UnknownTime";
+    const slotLabel = `${tutor}/${time}`;
+    if (!hierarchy[classroom]) hierarchy[classroom] = {};
+    if (!hierarchy[classroom][slotLabel]) hierarchy[classroom][slotLabel] = [];
+    hierarchy[classroom][slotLabel].push(d);
   });
   return hierarchy;
 }
@@ -661,7 +683,7 @@ function renderMainStudentGrid(students) {
             const files = require("fs").readdirSync(hostDir);
             commands.forEach((cmd) => {
               totalExpected += 1;
-              const safeCommand = cmd.replace(/\\s+/g, "_").replace(/\\//g, "_");
+              const safeCommand = cmd.replace(/\\s+/g, "_").replace(/\\/ / g, "_");
               const matched = files.some((name) => name.startsWith(safeCommand));
               if (matched) totalFound += 1;
             });
@@ -713,17 +735,17 @@ function renderMainStudentGrid(students) {
         el.classList.remove("selected-student");
         // Reset to completed state or default depending
         if (el.dataset.completed === "true") {
-           el.style.borderColor = "var(--color-success, #28a745)";
-           el.style.backgroundColor = "rgba(40, 167, 69, 0.05)";
+          el.style.borderColor = "var(--color-success, #28a745)";
+          el.style.backgroundColor = "rgba(40, 167, 69, 0.05)";
         } else if (el.dataset.completed === "partial") {
-           el.style.borderColor = "#ff9800";
-           el.style.backgroundColor = "rgba(255, 152, 0, 0.08)";
+          el.style.borderColor = "#ff9800";
+          el.style.backgroundColor = "rgba(255, 152, 0, 0.08)";
         } else if (el.classList.contains("executed-student")) {
-           el.style.borderColor = "var(--color-primary)";
-           el.style.backgroundColor = "rgba(31, 59, 115, 0.1)";
+          el.style.borderColor = "var(--color-primary)";
+          el.style.backgroundColor = "rgba(31, 59, 115, 0.1)";
         } else {
-           el.style.borderColor = "var(--color-border)";
-           el.style.backgroundColor = "var(--color-bg-card)";
+          el.style.borderColor = "var(--color-border)";
+          el.style.backgroundColor = "var(--color-bg-card)";
         }
         el.style.color = "inherit";
       });
@@ -834,11 +856,12 @@ function readFileAsArrayBuffer(file) {
 
 async function handleCreateDirectory(event) {
   event.preventDefault();
-  const exam = document.getElementById("createExamName").value.trim();
-  const session = document.getElementById("createSessionId").value.trim();
+  const classroom = document.getElementById("createClassroom").value.trim();
+  const tutorName = document.getElementById("createTutorName").value.trim();
+  const timeSlot = document.getElementById("createTimeSlot").value.trim();
   const student = document.getElementById("createStudentId").value.trim();
   const studentName = (document.getElementById("createStudentName")?.value || "").trim();
-  if (!exam || !session || !student) {
+  if (!classroom || !tutorName || !timeSlot || !student) {
     alert("Please complete all fields for the new directory.");
     return;
   }
@@ -847,19 +870,21 @@ async function handleCreateDirectory(event) {
     const data = await fetchJson("/api/create_directory", {
       method: "POST",
       body: JSON.stringify({
-        examName: exam,
-        sessionId: session,
+        classroom,
+        tutor_name: tutorName,
+        time_slot: timeSlot,
         studentId: student,
         studentName: studentName,
       }),
     });
     setDirectoryInfo({
-      exam_name: data.exam_name,
-      session_id: data.session_id,
+      classroom: data.classroom,
+      tutor_name: data.tutor_name,
+      time_slot: data.time_slot,
       student_id: data.student_id,
       path: data.path,
       mode: "create",
-      display: `${data.exam_name}/${data.session_id}/${data.student_id}`,
+      display: `${data.classroom}/${data.tutor_name}/${data.time_slot}/${data.student_id}`,
     });
     if (pathModule) {
       localStorage.setItem("sessionPath", pathModule.dirname(data.path));
@@ -886,19 +911,20 @@ async function handleUseExistingDirectory() {
       }),
     });
     setDirectoryInfo({
-      exam_name: data.exam_name,
-      session_id: data.session_id,
+      classroom: data.classroom,
+      tutor_name: data.tutor_name,
+      time_slot: data.time_slot,
       student_id: data.student_id,
       path: data.path,
       mode: "existing",
-      display: `${data.exam_name}/${data.session_id}/${data.student_id}`,
+      display: `${data.classroom}/${data.tutor_name}/${data.time_slot}/${data.student_id}`,
     });
     if (pathModule) {
       localStorage.setItem("sessionPath", pathModule.dirname(data.path));
     }
     setSelectedExistingDirectory(
       data.path,
-      `${data.exam_name}/${data.session_id}/${data.student_id}`
+      `${data.classroom}/${data.tutor_name}/${data.time_slot}/${data.student_id}`
     );
     alert(data.message);
     goTo("connection.html");
@@ -910,8 +936,9 @@ async function handleUseExistingDirectory() {
 
 async function handleBulkCreate(event) {
   event.preventDefault();
-  const exam = document.getElementById("bulkExamName").value.trim();
-  const session = document.getElementById("bulkSessionId").value.trim();
+  const classroom = document.getElementById("bulkClassroom").value.trim();
+  const tutorName = document.getElementById("bulkTutorName").value.trim();
+  const timeSlot = document.getElementById("bulkTimeSlot").value.trim();
   const fileInput = document.getElementById("bulkFile");
   const resultsBox = document.getElementById("bulkResults");
   const hasHeader = document.getElementById("bulkHasHeader")?.checked || false;
@@ -921,8 +948,8 @@ async function handleBulkCreate(event) {
     alert("Please select a file.");
     return;
   }
-  if (!exam || !session) {
-    alert("Please provide exam and session details for bulk creation.");
+  if (!classroom || !tutorName || !timeSlot) {
+    alert("Please provide classroom, tutor name, and time for bulk creation.");
     return;
   }
 
@@ -966,7 +993,7 @@ async function handleBulkCreate(event) {
 
     const data = await fetchJson("/api/directories/bulk", {
       method: "POST",
-      body: JSON.stringify({ examName: exam, sessionId: session, students }),
+      body: JSON.stringify({ classroom, tutor_name: tutorName, time_slot: timeSlot, students }),
     });
 
     const created = data.created || [];
@@ -1063,7 +1090,7 @@ function setupDirectoryPage() {
   if (createForm) createForm.addEventListener("submit", handleCreateDirectory);
   if (bulkForm) bulkForm.addEventListener("submit", handleBulkCreate);
   if (useBtn) useBtn.addEventListener("click", handleUseExistingDirectory);
-  
+
 
 
   if (chooseBtn) {
@@ -1138,29 +1165,29 @@ function setupDirectoryPage() {
 
   const storedMode = localStorage.getItem("directoryMode");
   const storedBasePath = localStorage.getItem("basePath");
-  
+
   if (storedMode === "existing") {
     setSelectedExistingDirectory(
       storedBasePath,
       localStorage.getItem("directoryDisplay")
     );
-    
+
     // Auto-load grid if we have a path
     if (storedBasePath && storedBasePath !== "null") {
-       fetch(`${API_ROOT}/api/directories`) // Wait, if we use the backend API, the default fetches subfolders. We can use loadDirectory natively.
-         .then(res => res.json())
-         .then(data => {
-            if (data.status === "ok" && data.directories) {
-               const hierarchy = transformToHierarchy(data.directories);
-               const exam = localStorage.getItem("examName");
-               const session = localStorage.getItem("sessionId");
-               
-               if (exam && session && hierarchy[exam] && hierarchy[exam][session]) {
-                  const students = hierarchy[exam][session];
-                  renderMainStudentGrid(students);
-               }
+      fetch(`${API_ROOT}/api/directories`) // Wait, if we use the backend API, the default fetches subfolders. We can use loadDirectory natively.
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === "ok" && data.directories) {
+            const hierarchy = transformToHierarchy(data.directories);
+            const exam = localStorage.getItem("examName");
+            const session = localStorage.getItem("sessionId");
+
+            if (exam && session && hierarchy[exam] && hierarchy[exam][session]) {
+              const students = hierarchy[exam][session];
+              renderMainStudentGrid(students);
             }
-         }).catch(err => console.error("Auto-load failed:", err));
+          }
+        }).catch(err => console.error("Auto-load failed:", err));
     }
   } else {
     setSelectedExistingDirectory(null);
@@ -1754,7 +1781,7 @@ async function saveConnection({ autoRun = false, triggerButton = null } = {}) {
     }
     autoRunAfterConnect = false;
   }
-  
+
   return connectionSucceeded;
 }
 
@@ -1917,7 +1944,7 @@ function setupConnectionPage() {
           commands: devicesMeta[hostname],
           status: "pending" // pending, running, done
         }));
-        
+
         executionQueue.forEach((device, index) => {
           const row = document.createElement("div");
           row.className = `queue-item ${index === 0 ? "active-queue-item" : ""}`;
@@ -1931,7 +1958,7 @@ function setupConnectionPage() {
              justify-content: space-between;
              align-items: center;
           `;
-          
+
           row.innerHTML = `
             <div>
               <strong>${device.hostname}</strong>
@@ -1939,7 +1966,7 @@ function setupConnectionPage() {
             </div>
             <span class="q-badge" style="font-size: 0.85rem; font-weight: bold; color: var(--color-muted);">WAITING</span>
           `;
-          
+
           if (index === 0) {
             row.style.borderColor = "var(--color-primary)";
             row.style.backgroundColor = "rgba(31, 59, 115, 0.05)";
@@ -1954,11 +1981,11 @@ function setupConnectionPage() {
             manualNextHostname = device.hostname;
             document.getElementById("startSequenceBtn")?.click();
           });
-          
+
           deviceQueueContainer.appendChild(row);
         });
       }
-    } catch(err) {
+    } catch (err) {
       console.error(err);
     }
   }
@@ -2039,16 +2066,16 @@ function setupConnectionPage() {
     });
 
   startSequenceBtn?.addEventListener("click", () => {
-     if (isSequenceRunning) return;
-     isSequenceRunning = true;
-     currentQueueIndex = 0;
-     completedQueueHosts = new Set();
-     startSequenceBtn.disabled = true;
-     startSequenceBtn.textContent = "Sequence Running...";
-     doneStudentBtn.disabled = true;
-     queueStatus.textContent = "Running";
-     queueStatus.style.color = "var(--color-primary)";
-     runNextDeviceInQueue();
+    if (isSequenceRunning) return;
+    isSequenceRunning = true;
+    currentQueueIndex = 0;
+    completedQueueHosts = new Set();
+    startSequenceBtn.disabled = true;
+    startSequenceBtn.textContent = "Sequence Running...";
+    doneStudentBtn.disabled = true;
+    queueStatus.textContent = "Running";
+    queueStatus.style.color = "var(--color-primary)";
+    runNextDeviceInQueue();
   });
 }
 
@@ -2100,7 +2127,7 @@ async function runNextDeviceInQueue() {
   const currentDevice = executionQueue[currentQueueIndex];
   const row = document.getElementById(`q-${currentDevice.hostname}`);
   const badge = row.querySelector(".q-badge");
-  
+
   badge.textContent = "PLUG IN NOW";
   badge.style.color = "#ff9800"; // Orange attention
   row.style.borderColor = "#ff9800";
@@ -2134,135 +2161,135 @@ async function runNextDeviceInQueue() {
     if (abortBtn) abortBtn.style.display = "inline-block";
 
     try {
-         const directoryMode = localStorage.getItem("directoryMode") || "create";
-         const basePath = localStorage.getItem("basePath");
-         const payload = {
-           deviceId: currentDevice.hostname,
-           commands: currentDevice.commands,
-           student_id: localStorage.getItem("studentId") || localStorage.getItem("selectedStudent") || "unknown",
-           exam_name: localStorage.getItem("examName") || "unknown",
-           session_id: localStorage.getItem("sessionId") || "unknown",
-           log_mode: directoryMode,
-         };
-         if (forceSkipHostname) {
-           payload.skip_hostname_check = true;
-         }
-         if (directoryMode === "existing" && basePath) {
-           payload.log_dir = basePath;
-         }
-         const portInput = document.getElementById("serialPort");
-         let currentPort = portInput ? portInput.value.trim() : "";
-         if (!currentPort) {
-           currentPort = localStorage.getItem("serialPort") || SERIAL_PRESETS.linux_usb;
-         }
-         payload.serial = { port: currentPort };
-         const res = await fetch(`${API_ROOT}/api/execute`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-            signal: currentAbortController.signal,
-         });
-         if (!res.ok) {
-            const txt = await res.text();
-            throw new Error(txt || "Execution failed");
-         }
-         if (!res.body) {
-            throw new Error("Execution failed: no response body.");
-         }
-
-         const reader = res.body.getReader();
-         const dec = new TextDecoder();
-         let buffer = "";
-         let hadError = false;
-         let hostnameMismatchMsg = null;
-
-         while (true) {
-           const { done, value } = await reader.read();
-           if (done) break;
-           buffer += dec.decode(value, { stream: true });
-           const lines = buffer.split("\n");
-           buffer = lines.pop() || "";
-           for (const line of lines) {
-             if (!line.trim()) continue;
-             try {
-               const obj = JSON.parse(line);
-               if (obj.type === "error") {
-                 hadError = true;
-                 appendLogLine(`[ERROR] ${obj.msg || "Execution error"}`);
-                 if (obj.error_code === "HOSTNAME_MISMATCH") {
-                   hostnameMismatchMsg = obj.msg;
-                 }
-               } else if (obj.type === "progress") {
-                 appendLogLine(`[${nowTimestamp()}] ${obj.msg}`);
-               } else if (obj.type === "result") {
-                 appendLogLine(`[RESULT] ${obj.msg || "Done"}`);
-               } else if (obj.type === "done") {
-                 appendLogLine(`[DONE] ${obj.msg || "Finished"}`);
-               }
-             } catch (_) {
-               appendLogLine(line.trim());
-             }
-           }
-         }
-
-         if (abortBtn) abortBtn.style.display = "none";
-         currentAbortController = null;
-
-         if (!hadError) {
-            badge.textContent = "DONE";
-            badge.style.color = "var(--color-success, #28a745)";
-            row.style.borderColor = "var(--color-success, #28a745)";
-            row.style.backgroundColor = "rgba(40, 167, 69, 0.05)";
-            
-            appendLogLine(`[SUCCESS] Finished ${currentDevice.hostname}`);
-            completedQueueHosts.add(currentDevice.hostname);
-            runNextDeviceInQueue(); // Recurse next
-         } else if (hostnameMismatchMsg) {
-            // Special handling: offer to continue despite mismatch
-            badge.textContent = "MISMATCH";
-            badge.style.color = "#ff9800";
-            row.style.borderColor = "#ff9800";
-            row.style.backgroundColor = "rgba(255, 152, 0, 0.05)";
-
-            const continueAnyway = confirm(
-              `${hostnameMismatchMsg}\n\nDo you want to continue anyway?\nLogs will be saved under the selected device name "${currentDevice.hostname}".`
-            );
-            if (continueAnyway) {
-              appendLogLine(`[INFO] User chose to continue despite hostname mismatch.`);
-              runExecute(true); // Retry with skip flag
-            } else {
-              appendLogLine(`[INFO] User chose to stop due to hostname mismatch.`);
-              badge.textContent = "SKIPPED";
-              badge.style.color = "var(--color-muted)";
-              document.getElementById("startSequenceBtn").disabled = false;
-              isSequenceRunning = false;
-            }
-         } else {
-            throw new Error("Execution failed during command run.");
-         }
-      } catch (e) {
-         if (abortBtn) abortBtn.style.display = "none";
-         currentAbortController = null;
-
-         if (e.name === "AbortError") {
-           // User clicked Stop Execution
-           badge.textContent = "STOPPED";
-           badge.style.color = "var(--color-danger)";
-           appendLogLine(`[STOPPED] Execution aborted by user.`);
-           document.getElementById("startSequenceBtn").disabled = false;
-           isSequenceRunning = false;
-           // Tell backend to abort too
-           try { fetch(`${API_ROOT}/api/abort`, { method: "POST" }); } catch (_) {}
-           return;
-         }
-
-         badge.textContent = "ERROR";
-         badge.style.color = "var(--color-danger)";
-         console.error(e);
-         alert(`Execution failed on ${currentDevice.hostname}. Stopping queue.`);
-         document.getElementById("startSequenceBtn").disabled = false;
-         isSequenceRunning = false;
+      const directoryMode = localStorage.getItem("directoryMode") || "create";
+      const basePath = localStorage.getItem("basePath");
+      const payload = {
+        deviceId: currentDevice.hostname,
+        commands: currentDevice.commands,
+        student_id: localStorage.getItem("studentId") || localStorage.getItem("selectedStudent") || "unknown",
+        exam_name: localStorage.getItem("examName") || "unknown",
+        session_id: localStorage.getItem("sessionId") || "unknown",
+        log_mode: directoryMode,
+      };
+      if (forceSkipHostname) {
+        payload.skip_hostname_check = true;
       }
+      if (directoryMode === "existing" && basePath) {
+        payload.log_dir = basePath;
+      }
+      const portInput = document.getElementById("serialPort");
+      let currentPort = portInput ? portInput.value.trim() : "";
+      if (!currentPort) {
+        currentPort = localStorage.getItem("serialPort") || SERIAL_PRESETS.linux_usb;
+      }
+      payload.serial = { port: currentPort };
+      const res = await fetch(`${API_ROOT}/api/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: currentAbortController.signal,
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || "Execution failed");
+      }
+      if (!res.body) {
+        throw new Error("Execution failed: no response body.");
+      }
+
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buffer = "";
+      let hadError = false;
+      let hostnameMismatchMsg = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += dec.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const obj = JSON.parse(line);
+            if (obj.type === "error") {
+              hadError = true;
+              appendLogLine(`[ERROR] ${obj.msg || "Execution error"}`);
+              if (obj.error_code === "HOSTNAME_MISMATCH") {
+                hostnameMismatchMsg = obj.msg;
+              }
+            } else if (obj.type === "progress") {
+              appendLogLine(`[${nowTimestamp()}] ${obj.msg}`);
+            } else if (obj.type === "result") {
+              appendLogLine(`[RESULT] ${obj.msg || "Done"}`);
+            } else if (obj.type === "done") {
+              appendLogLine(`[DONE] ${obj.msg || "Finished"}`);
+            }
+          } catch (_) {
+            appendLogLine(line.trim());
+          }
+        }
+      }
+
+      if (abortBtn) abortBtn.style.display = "none";
+      currentAbortController = null;
+
+      if (!hadError) {
+        badge.textContent = "DONE";
+        badge.style.color = "var(--color-success, #28a745)";
+        row.style.borderColor = "var(--color-success, #28a745)";
+        row.style.backgroundColor = "rgba(40, 167, 69, 0.05)";
+
+        appendLogLine(`[SUCCESS] Finished ${currentDevice.hostname}`);
+        completedQueueHosts.add(currentDevice.hostname);
+        runNextDeviceInQueue(); // Recurse next
+      } else if (hostnameMismatchMsg) {
+        // Special handling: offer to continue despite mismatch
+        badge.textContent = "MISMATCH";
+        badge.style.color = "#ff9800";
+        row.style.borderColor = "#ff9800";
+        row.style.backgroundColor = "rgba(255, 152, 0, 0.05)";
+
+        const continueAnyway = confirm(
+          `${hostnameMismatchMsg}\n\nDo you want to continue anyway?\nLogs will be saved under the selected device name "${currentDevice.hostname}".`
+        );
+        if (continueAnyway) {
+          appendLogLine(`[INFO] User chose to continue despite hostname mismatch.`);
+          runExecute(true); // Retry with skip flag
+        } else {
+          appendLogLine(`[INFO] User chose to stop due to hostname mismatch.`);
+          badge.textContent = "SKIPPED";
+          badge.style.color = "var(--color-muted)";
+          document.getElementById("startSequenceBtn").disabled = false;
+          isSequenceRunning = false;
+        }
+      } else {
+        throw new Error("Execution failed during command run.");
+      }
+    } catch (e) {
+      if (abortBtn) abortBtn.style.display = "none";
+      currentAbortController = null;
+
+      if (e.name === "AbortError") {
+        // User clicked Stop Execution
+        badge.textContent = "STOPPED";
+        badge.style.color = "var(--color-danger)";
+        appendLogLine(`[STOPPED] Execution aborted by user.`);
+        document.getElementById("startSequenceBtn").disabled = false;
+        isSequenceRunning = false;
+        // Tell backend to abort too
+        try { fetch(`${API_ROOT}/api/abort`, { method: "POST" }); } catch (_) { }
+        return;
+      }
+
+      badge.textContent = "ERROR";
+      badge.style.color = "var(--color-danger)";
+      console.error(e);
+      alert(`Execution failed on ${currentDevice.hostname}. Stopping queue.`);
+      document.getElementById("startSequenceBtn").disabled = false;
+      isSequenceRunning = false;
+    }
   };
 
   // Wire abort button
@@ -2281,24 +2308,24 @@ async function runNextDeviceInQueue() {
 async function attemptTransparentConnection() {
   const type = document.querySelector('input[name="connType"]:checked');
   if (!type || type.value !== "serial") return false; // SSH polling unsupported for now
-  
+
   const portInput = document.getElementById("serialPort");
   const port = portInput ? portInput.value.trim() : "/dev/ttyUSB0";
 
   try {
-     const controller = new AbortController();
-     setTimeout(() => controller.abort(), 2500); // Fast timeout for serial polling
-     const res = await fetch(`${API_ROOT}/api/connect`, {
-       method: "POST",
-       headers: { "Content-Type": "application/json" },
-       body: JSON.stringify({ connection: "serial", mode: "serial", serial: { port } }),
-       signal: controller.signal
-     });
-     
-     if (res.ok) {
-       // It stream-responses, but just knowing the socket opened is enough success for the queue.
-       return true;
-     }
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 2500); // Fast timeout for serial polling
+    const res = await fetch(`${API_ROOT}/api/connect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ connection: "serial", mode: "serial", serial: { port } }),
+      signal: controller.signal
+    });
+
+    if (res.ok) {
+      // It stream-responses, but just knowing the socket opened is enough success for the queue.
+      return true;
+    }
   } catch (e) {
     // Ignore aborts and fails while polling
   }
@@ -2502,7 +2529,7 @@ function setStoredCommandsFromDevice(hostname) {
         renderSelectedCommandsInfo();
       }
     }
-  } catch(err) {
+  } catch (err) {
     console.error(err);
   }
 }
@@ -2603,6 +2630,10 @@ async function startExecution({ commands, initiatedFromConnection = false } = {}
   const fileExtension = extSelect ? extSelect.value : ".txt";
 
   const payload = {
+    classroom: localStorage.getItem("classroom") || localStorage.getItem("examName"),
+    tutor_name: localStorage.getItem("tutorName") || localStorage.getItem("sessionId"),
+    time_slot: localStorage.getItem("timeSlot"),
+    // Legacy fields for endpoints not yet migrated.
     exam_name: localStorage.getItem("examName"),
     session_id: localStorage.getItem("sessionId"),
     student_id: localStorage.getItem("studentId"),
