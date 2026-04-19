@@ -2848,10 +2848,5 @@ function setupCommandsPage() {
 // -----------------------------
 
 document.addEventListener("DOMContentLoaded", () => {
-  loadNavbar();
   if (document.getElementById("welcomePage")) setupWelcomePage();
-  if (document.getElementById("directoryPage")) setupDirectoryPage();
-  if (document.getElementById("connectionForm")) setupConnectionPage();
-  if (document.getElementById("commandsPage")) setupCommandsPage();
-  if (document.getElementById("sampleCollectPage")) setupSampleCollectPage();
 });

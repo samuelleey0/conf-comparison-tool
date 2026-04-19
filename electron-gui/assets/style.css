@@ -232,6 +232,21 @@ button.danger:hover:not(:disabled) {
   filter: brightness(0.95);
 }
 
+button.sync-accent {
+  background: linear-gradient(135deg, #0f8a83 0%, #1aa39b 55%, #2dbcc0 100%);
+  border-color: #0f8a83;
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(15, 138, 131, 0.22);
+}
+
+button.sync-accent:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0b716b 0%, #138a83 55%, #1fa6aa 100%);
+  border-color: #0b716b;
+  color: #ffffff;
+  box-shadow: 0 14px 28px rgba(11, 113, 107, 0.28);
+  transform: translateY(-1px);
+}
+
 .toggle-chip {
   display: inline-flex;
   align-items: center;
@@ -954,6 +969,21 @@ button.block {
     align-items: flex-start;
     gap: 8px;
   }
+
+  .bulk-toggle-row {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .bulk-actions {
+    padding-right: 0;
+  }
+
+  .main-student-grid {
+    grid-template-columns: 1fr;
+    max-width: none;
+    justify-content: stretch;
+  }
 }
 
 .directory-card {
@@ -1004,6 +1034,56 @@ button.block {
 
 .directory-section.hidden {
   display: none;
+}
+
+.main-student-grid {
+  margin-top: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 15px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 250px));
+  justify-content: space-around;
+  gap: 15px;
+  align-content: flex-start;
+  max-height: 400px;
+  max-width: 600px;
+  overflow-y: auto;
+}
+
+.existing-student-actions {
+  margin-top: 20px;
+}
+
+.bulk-toggle-row {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.bulk-toggle-group {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.bulk-toggle-group .toggle-chip {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.bulk-toggle-hint {
+  margin-top: 6px;
+}
+
+.bulk-default-note {
+  margin-top: 6px;
+}
+
+.bulk-actions {
+  justify-content: flex-end;
+  padding-right: 24px;
 }
 
 .list-box label {
@@ -1218,6 +1298,83 @@ button.block {
   gap: 12px;
 }
 
+.connection-queue {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.connection-queue__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.connection-queue__status {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.connection-queue__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.connection-mode-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+
+.connection-preset-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px 18px;
+}
+
+.connection-preset-grid .choice-label,
+.connection-mode-group .choice-label {
+  min-width: 0;
+}
+
+.connection-preset-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  line-height: 1.45;
+}
+
+.connection-preset-option:hover {
+  border-color: rgba(31, 59, 115, 0.3);
+  background: #f9fbff;
+}
+
+.connection-preset-option input[type="radio"] {
+  margin-top: 3px;
+}
+
+.connection-ssh-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+.connection-ssh-grid .form-group {
+  margin-bottom: 0;
+}
+
 .connection-panel .actions {
   justify-content: flex-start;
 }
@@ -1269,6 +1426,33 @@ button.block {
   font-weight: 600;
   min-width: 48px;
   text-align: right;
+}
+
+.connection-reset-row {
+  align-items: center;
+  margin-top: 10px;
+}
+
+.connection-reset-row__label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.connection-reset-row__select {
+  width: min(160px, 100%);
+}
+
+.connection-action-grid {
+  align-items: stretch;
+}
+
+.connection-action-grid__done {
+  background-color: var(--color-success, #28a745);
+  border-color: var(--color-success, #28a745);
+}
+
+.connection-action-grid__done:hover:not(:disabled) {
+  filter: brightness(0.95);
 }
 
 progress {
@@ -1551,6 +1735,28 @@ progress::-moz-progress-bar {
     padding: 40px 32px 56px;
   }
 
+  .directory-body .page-shell {
+    padding: 36px 28px 56px;
+  }
+
+  .directory-body .form-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .directory-body .form-row .form-group {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    margin-bottom: 0;
+  }
+
+  .bulk-toggle-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
   .connection-shell {
     padding: 40px 32px 56px;
   }
@@ -1569,6 +1775,10 @@ progress::-moz-progress-bar {
     padding-left: 0;
     border-left: none;
   }
+
+  .connection-preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 768px) {
@@ -1586,6 +1796,31 @@ progress::-moz-progress-bar {
 
   .directory-options {
     flex-direction: column;
+  }
+
+  .directory-body .page-shell {
+    padding: 24px 18px 40px;
+  }
+
+  .directory-card {
+    padding: 8px 0 36px;
+  }
+
+  .directory-section {
+    padding: 18px 0;
+    margin-top: 16px;
+    gap: 14px;
+  }
+
+  .bulk-toggle-row {
+    margin-top: 6px;
+    gap: 10px;
+  }
+
+  .bulk-toggle-hint,
+  .bulk-default-note {
+    font-size: 0.88rem;
+    line-height: 1.45;
   }
 
   .actions {
@@ -1636,8 +1871,37 @@ progress::-moz-progress-bar {
     width: 100%;
   }
 
+  .connection-queue__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .connection-ssh-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .connection-reset-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .connection-reset-row__select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .connection-preset-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .connection-action-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
   /* Full-width buttons */
-  .connection-panel button {
+  .connection-panel button,
+  .connection-status button {
     width: 100%;
   }
 }
@@ -1659,8 +1923,30 @@ progress::-moz-progress-bar {
     padding: 18px 16px;
   }
 
+  .directory-body .page-shell {
+    padding: 18px 12px 32px;
+  }
+
+  .main-student-grid {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .bulk-toggle-group .toggle-chip {
+    padding: 8px 10px;
+  }
+
   .connection-shell {
     padding: 20px 14px 32px;
+  }
+
+  .connection-layout {
+    gap: 22px;
+    padding-top: 22px;
+  }
+
+  .status-panel.modern {
+    padding: 18px;
   }
 
   /* Status banner — stacked layout for very narrow screens */

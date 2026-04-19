@@ -25,7 +25,11 @@ def _read_until(ser, triggers, timeout=15, log_cb=None):
 
 
 def reload_cisco_device(
-    port: str, baudrate: int = 9600, status_cb=None, erase_startup_config: bool = False
+    port: str,
+    baudrate: int = 9600,
+    status_cb=None,
+    erase_startup_config: bool = False,
+    delete_vlan_database: bool = True,
 ):
     logs = []
 
@@ -112,102 +116,105 @@ def reload_cisco_device(
         ser.read(ser.in_waiting or 1024)  # drain any residual data
         time.sleep(0.5)
 
-        # --- STEP 4: DELETE VLAN.DAT --- [ALWAYS]
-        emit("[INFO] Deleting vlan.dat...")
-        ser.write(b"delete flash:vlan.dat\n")
-        ser.flush()
+        # --- STEP 4: DELETE VLAN.DAT --- [SWITCH ONLY]
+        if delete_vlan_database:
+            emit("[INFO] Deleting vlan.dat...")
+            ser.write(b"delete flash:vlan.dat\n")
+            ser.flush()
 
-        # First prompt: "Delete filename [vlan.dat]?"
-        resp, trigger = _read_until(
-            ser,
-            ["delete filename", "confirm", "[ok]", "no such file", "not found"],
-            timeout=10,
-        )
-        emit(f"[DEBUG] Device response: {repr(resp)}")
-        emit(f"[DEBUG] Matched trigger: {trigger}")
+            # First prompt: "Delete filename [vlan.dat]?"
+            resp, trigger = _read_until(
+                ser,
+                ["delete filename", "confirm", "[ok]", "no such file", "not found"],
+                timeout=10,
+            )
+            emit(f"[DEBUG] Device response: {repr(resp)}")
+            emit(f"[DEBUG] Matched trigger: {trigger}")
 
-        if trigger and (
-            "no such file" in trigger.lower() or "not found" in trigger.lower()
-        ):
-            emit("[INFO] vlan.dat does not exist. Skipping.")
-        elif trigger:
-            if "delete filename" in trigger.lower():
-                emit("[INFO] Confirming filename...")
-                ser.write(b"\n")
-                ser.flush()
-                # Wait for second prompt: "Delete flash:/vlan.dat? [confirm]"
-                resp2, trigger2 = _read_until(ser, ["confirm", "[ok]"], timeout=10)
-                emit(f"[DEBUG] Second response: {repr(resp2)}")
-                emit(f"[DEBUG] Second trigger: {trigger2}")
+            if trigger and (
+                "no such file" in trigger.lower() or "not found" in trigger.lower()
+            ):
+                emit("[INFO] vlan.dat does not exist. Skipping.")
+            elif trigger:
+                if "delete filename" in trigger.lower():
+                    emit("[INFO] Confirming filename...")
+                    ser.write(b"\n")
+                    ser.flush()
+                    # Wait for second prompt: "Delete flash:/vlan.dat? [confirm]"
+                    resp2, trigger2 = _read_until(ser, ["confirm", "[ok]"], timeout=10)
+                    emit(f"[DEBUG] Second response: {repr(resp2)}")
+                    emit(f"[DEBUG] Second trigger: {trigger2}")
 
-                if trigger2:
+                    if trigger2:
+                        emit("[INFO] Confirming deletion...")
+                        ser.write(b"\n")
+                        ser.flush()
+                        time.sleep(2)
+                elif "confirm" in trigger.lower():
                     emit("[INFO] Confirming deletion...")
                     ser.write(b"\n")
                     ser.flush()
                     time.sleep(2)
-            elif "confirm" in trigger.lower():
-                emit("[INFO] Confirming deletion...")
-                ser.write(b"\n")
-                ser.flush()
-                time.sleep(2)
-        else:
-            if not resp.strip():
-                emit(
-                    "[INFO] No immediate response for vlan.dat delete; probing device prompt..."
-                )
-                ser.write(b"\n")
-                ser.flush()
-                resp_probe, trigger_probe = _read_until(
-                    ser,
-                    [
+            else:
+                if not resp.strip():
+                    emit(
+                        "[INFO] No immediate response for vlan.dat delete; probing device prompt..."
+                    )
+                    ser.write(b"\n")
+                    ser.flush()
+                    resp_probe, trigger_probe = _read_until(
+                        ser,
+                        [
+                            "delete filename",
+                            "confirm",
+                            "[ok]",
+                            "no such file",
+                            "not found",
+                            "#",
+                            ">",
+                        ],
+                        timeout=3,
+                    )
+                    emit(f"[DEBUG] Probe response: {repr(resp_probe)}")
+                    emit(f"[DEBUG] Probe trigger: {trigger_probe}")
+
+                    if trigger_probe and trigger_probe.lower() in (
                         "delete filename",
                         "confirm",
-                        "[ok]",
-                        "no such file",
-                        "not found",
-                        "#",
-                        ">",
-                    ],
-                    timeout=3,
-                )
-                emit(f"[DEBUG] Probe response: {repr(resp_probe)}")
-                emit(f"[DEBUG] Probe trigger: {trigger_probe}")
-
-                if trigger_probe and trigger_probe.lower() in (
-                    "delete filename",
-                    "confirm",
-                ):
-                    if trigger_probe.lower() == "delete filename":
-                        emit("[INFO] Confirming filename...")
-                        ser.write(b"\n")
-                        ser.flush()
-                        resp2, trigger2 = _read_until(
-                            ser, ["confirm", "[ok]"], timeout=10
-                        )
-                        emit(f"[DEBUG] Second response: {repr(resp2)}")
-                        emit(f"[DEBUG] Second trigger: {trigger2}")
-                        if trigger2:
+                    ):
+                        if trigger_probe.lower() == "delete filename":
+                            emit("[INFO] Confirming filename...")
+                            ser.write(b"\n")
+                            ser.flush()
+                            resp2, trigger2 = _read_until(
+                                ser, ["confirm", "[ok]"], timeout=10
+                            )
+                            emit(f"[DEBUG] Second response: {repr(resp2)}")
+                            emit(f"[DEBUG] Second trigger: {trigger2}")
+                            if trigger2:
+                                emit("[INFO] Confirming deletion...")
+                                ser.write(b"\n")
+                                ser.flush()
+                                time.sleep(2)
+                        else:
                             emit("[INFO] Confirming deletion...")
                             ser.write(b"\n")
                             ser.flush()
                             time.sleep(2)
                     else:
-                        emit("[INFO] Confirming deletion...")
-                        ser.write(b"\n")
-                        ser.flush()
-                        time.sleep(2)
+                        emit(
+                            "[INFO] No interactive delete prompt detected; continuing to reload."
+                        )
                 else:
                     emit(
-                        "[INFO] No interactive delete prompt detected; continuing to reload."
+                        f"[WARNING] No prompt detected for vlan.dat deletion. Device response was: {repr(resp)}"
                     )
-            else:
-                emit(
-                    f"[WARNING] No prompt detected for vlan.dat deletion. Device response was: {repr(resp)}"
-                )
-                emit("[WARNING] Continuing anyway...")
+                    emit("[WARNING] Continuing anyway...")
 
-        ser.read(ser.in_waiting or 1024)  # drain buffer
-        time.sleep(1)
+            ser.read(ser.in_waiting or 1024)  # drain buffer
+            time.sleep(1)
+        else:
+            emit("[INFO] Skipping vlan.dat deletion for router reset.")
 
         # --- STEP 5: RELOAD ---
         emit("[INFO] Sending reload command...")

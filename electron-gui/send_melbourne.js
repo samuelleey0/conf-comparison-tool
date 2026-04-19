@@ -264,6 +264,7 @@ function setupSendMelbournePage() {
 
 document.addEventListener("DOMContentLoaded", () => {
   if (document.getElementById("sendMelbournePage")) {
+    if (typeof loadNavbar === "function") loadNavbar();
     setupSendMelbournePage();
   }
 });

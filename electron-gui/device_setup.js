@@ -114,18 +114,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     row.dataset.command = commandText;
     
     row.innerHTML = `
-      <input type="text" class="cmd-input" value="${commandText}" readonly />
-      <input type="file" class="cmd-file" />
-      <button type="button" class="remove-cmd-btn danger-text">X</button>
+      <div class="command-meta">
+        <input type="text" class="cmd-input" value="${commandText}" readonly />
+        <div class="command-badges"></div>
+      </div>
+      <div class="command-actions">
+        <input type="file" class="cmd-file" />
+        <button type="button" class="remove-cmd-btn danger-text">X</button>
+      </div>
     `;
 
     const fileInput = row.querySelector(".cmd-file");
+    const badges = row.querySelector(".command-badges");
     if (existingFileName) {
       const fileLabel = document.createElement("small");
-      fileLabel.textContent = `(Loaded: ${existingFileName})`;
-      fileLabel.style.color = "var(--color-text-muted)";
-      fileLabel.style.marginLeft = "8px";
-      row.insertBefore(fileLabel, fileInput);
+      fileLabel.className = "command-badge command-badge--loaded";
+      fileLabel.textContent = `Loaded: ${existingFileName}`;
+      badges?.appendChild(fileLabel);
       fileInput.required = false;
     }
 
@@ -402,12 +407,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         const cmdRows = block.querySelectorAll(".command-item");
         cmdRows.forEach(row => {
           const fileInput = row.querySelector(".cmd-file");
+          const badges = row.querySelector(".command-badges");
           fileInput.required = false;
           const prevUploadedLabel = document.createElement("small");
-          prevUploadedLabel.textContent = "(Previously Uploaded)";
-          prevUploadedLabel.style.color = "var(--color-success, #28a745)";
-          prevUploadedLabel.style.marginLeft = "8px";
-          row.insertBefore(prevUploadedLabel, fileInput);
+          prevUploadedLabel.className = "command-badge command-badge--uploaded";
+          prevUploadedLabel.textContent = "Previously Uploaded";
+          badges?.appendChild(prevUploadedLabel);
         });
       });
 
@@ -442,6 +447,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const formData = new FormData();
     formData.append("template_name", templateName);
+    if (loadedFromServer && selectedTemplateName) {
+      formData.append("source_template_name", selectedTemplateName);
+    }
 
     let hasError = false;
     let deviceIndex = 0;
@@ -490,23 +498,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     formData.append("devices_meta", JSON.stringify(devicesMeta));
 
-    // If user loaded an existing template and didn't upload anything new,
-    // still save the edited device list to localStorage and continue.
-    if (loadedFromServer) {
-      const anyFileSelected = Array.from(document.querySelectorAll(".cmd-file")).some(
-        (input) => input.files && input.files.length > 0
-      );
-      if (!anyFileSelected) {
-        localStorage.setItem("templateName", templateName);
-        localStorage.setItem("templateDevices", JSON.stringify(devicesMeta));
-        alert("Template loaded. No new files uploaded, continuing.");
-        goTo("index.html");
-        saveBtn.disabled = false;
-        saveBtn.textContent = "Save Template & Continue";
-        return;
-      }
-    }
-
     try {
       const res = await fetch("http://127.0.0.1:5050/api/templates/upload", {
         method: "POST",
@@ -520,8 +511,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       localStorage.setItem("templateName", templateName);
       localStorage.setItem("templateDevices", JSON.stringify(devicesMeta));
-      
-      alert("Template configuration saved! You may proceed.");
+
+      const anyFileSelected = Array.from(document.querySelectorAll(".cmd-file")).some(
+        (input) => input.files && input.files.length > 0
+      );
+      if (anyFileSelected) {
+        alert("Template baseline saved. You may proceed.");
+      } else {
+        alert("Device and command setup saved. No template baseline uploaded yet.");
+      }
       goTo("index.html");
 
     } catch (err) {

@@ -123,6 +123,7 @@ function renderResultsList(reports) {
 function formatValue(value) {
   if (value === null) return "configured as null";
   if (value === undefined) return "not present";
+  if (value === "__ACCMS_NOT_PRESENT__") return "not present";
   if (typeof value === "string") return value;
   try {
     return JSON.stringify(value, null, 2);
@@ -413,6 +414,7 @@ function _renderErrorItem(report, item, isVerification) {
   const div = document.createElement("div");
   const severity = item.severity ? item.severity : "minor";
   const isDeduplicated = item.deduplicated === true;
+  const isVerificationRuleDedup = item.verification_rule_deduplicated === true;
   const isRuleDedup = item.rule_deduplicated === true;
   const isSkipped = item.status === "skipped";
   const codeLine = item.rule_code
@@ -424,6 +426,10 @@ function _renderErrorItem(report, item, isVerification) {
     severityClass = "severity-skipped";
     statusLabel = "SKIPPED • RULE DISABLED";
     div.className = "result-item result-item--skipped";
+  } else if (isVerification && isVerificationRuleDedup) {
+    severityClass = "severity-verified";
+    statusLabel = `${item.status || "mismatch"} • ALREADY COUNTED`;
+    div.className = "result-item result-item--dedup";
   } else if (isVerification && isDeduplicated) {
     severityClass = "severity-verified";
     statusLabel = `${item.status || "mismatch"} • ALREADY COUNTED`;
@@ -440,7 +446,10 @@ function _renderErrorItem(report, item, isVerification) {
 
   // Build the dedup info line
   let dedupInfo = "";
-  if (isVerification && isDeduplicated) {
+  if (isVerification && isVerificationRuleDedup) {
+    const ref = item.block_name || item.layer1_ref || "";
+    dedupInfo = `<div class="dedup-ref">↳ Same verification rule already scored for <strong>${escapeHtml(ref || "this block")}</strong></div>`;
+  } else if (isVerification && isDeduplicated) {
     const ref = item.layer1_ref || item.block_name || "";
     const shortRef = ref.replace(/^show_running_config\./, "");
     dedupInfo = `<div class="dedup-ref">↳ Counted under: <strong>${escapeHtml(shortRef || "config error")}</strong></div>`;
