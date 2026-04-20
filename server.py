@@ -69,7 +69,12 @@ last_used_serial_settings = {"port": "/dev/ttyUSB0", "baudrate": 9600}
 
 ssh_client = None
 ssh_hostname = None
-last_used_ssh_credentials = {"host": None, "username": None, "password": None, "port": 22}
+last_used_ssh_credentials = {
+    "host": None,
+    "username": None,
+    "password": None,
+    "port": 22,
+}
 
 execution_abort = threading.Event()
 
@@ -155,71 +160,191 @@ def _default_rubric_rules():
         ("MISMATCH_HOSTNAME", "minor", "Device hostname differs from template."),
         ("MISMATCH_MOTD", "minor", "MOTD banner content differs from template."),
         ("EXTRA_MOTD", "minor", "MOTD configured when it should not be."),
-        ("MISMATCH_ROUTING_PROTOCOL", "major", "Wrong routing protocol type configured."),
-        ("MISMATCH_IRP_INCONSEQUENTIAL", "minor", "Non-functioning routing protocol configured."),
-        ("MISMATCH_ROUTING_NETWORK", "major", "Routing protocol network statement differs."),
-        ("EXTRA_NETWORK_ADVERTISED", "minor", "Network advertised when it should not be."),
-        ("MISMATCH_AUTO_SUMMARY", "minor", "Auto-summarisation not disabled when required."),
-        ("MISMATCH_AUTO_SUMMARY_INCONSEQUENTIAL", "minor", "Auto-summarisation not disabled (inconsequential)."),
-        ("EXTRA_REDISTRIBUTE", "minor", "Default routes redistributed when they should not be."),
-        ("MISSING_REDISTRIBUTE", "major", "Default routes not redistributed when required."),
-        ("MISSING_NETWORK_STATEMENT_INTERFACE", "major", "Routing protocol network statement matches no interface."),
-        ("EXTRA_ROUTING_INSTANCE", "major", "Multiple routing protocol instances configured."),
+        (
+            "MISMATCH_ROUTING_PROTOCOL",
+            "major",
+            "Wrong routing protocol type configured.",
+        ),
+        (
+            "MISMATCH_IRP_INCONSEQUENTIAL",
+            "minor",
+            "Non-functioning routing protocol configured.",
+        ),
+        (
+            "MISMATCH_ROUTING_NETWORK",
+            "major",
+            "Routing protocol network statement differs.",
+        ),
+        (
+            "EXTRA_NETWORK_ADVERTISED",
+            "minor",
+            "Network advertised when it should not be.",
+        ),
+        (
+            "MISMATCH_AUTO_SUMMARY",
+            "minor",
+            "Auto-summarisation not disabled when required.",
+        ),
+        (
+            "MISMATCH_AUTO_SUMMARY_INCONSEQUENTIAL",
+            "minor",
+            "Auto-summarisation not disabled (inconsequential).",
+        ),
+        (
+            "EXTRA_REDISTRIBUTE",
+            "minor",
+            "Default routes redistributed when they should not be.",
+        ),
+        (
+            "MISSING_REDISTRIBUTE",
+            "major",
+            "Default routes not redistributed when required.",
+        ),
+        (
+            "MISSING_NETWORK_STATEMENT_INTERFACE",
+            "major",
+            "Routing protocol network statement matches no interface.",
+        ),
+        (
+            "EXTRA_ROUTING_INSTANCE",
+            "major",
+            "Multiple routing protocol instances configured.",
+        ),
         ("MISMATCH_RIP_VERSION", "minor", "RIP version incorrectly set."),
-        ("MISMATCH_EIGRP_AS_MISMATCH", "major", "EIGRP AS numbers not common across devices."),
+        (
+            "MISMATCH_EIGRP_AS_MISMATCH",
+            "major",
+            "EIGRP AS numbers not common across devices.",
+        ),
         ("MISMATCH_EIGRP_AS_INCORRECT", "major", "EIGRP AS number incorrectly set."),
         ("MISMATCH_ROUTING_PASSIVE", "minor", "Passive interface declaration differs."),
         ("MISMATCH_ROUTING_REDISTRIBUTE", "minor", "Redistribution statement differs."),
         ("MISMATCH_ROUTING_AUTO_SUMMARY", "minor", "Auto-summary setting differs."),
         ("MISMATCH_OSPF_AREA_ID_SINGLE", "major", "Single-area OSPF not using area 0."),
         ("MISMATCH_OSPF_AREA_0_MISSING", "major", "Multi-area OSPF missing area 0."),
-        ("MISMATCH_OSPF_AREA_LINK", "major", "Interfaces on same link in different OSPF areas."),
-        ("MISMATCH_OSPF_NOT_MULTIAREA", "major", "OSPF is not multi-area when required."),
-        ("MISMATCH_OSPF_NOT_SINGLEAREA", "major", "OSPF is not single-area when required."),
-        ("MISMATCH_OSPF_GROUP_MULTIAREA", "major", "OSPF network groups not in a single area."),
+        (
+            "MISMATCH_OSPF_AREA_LINK",
+            "major",
+            "Interfaces on same link in different OSPF areas.",
+        ),
+        (
+            "MISMATCH_OSPF_NOT_MULTIAREA",
+            "major",
+            "OSPF is not multi-area when required.",
+        ),
+        (
+            "MISMATCH_OSPF_NOT_SINGLEAREA",
+            "major",
+            "OSPF is not single-area when required.",
+        ),
+        (
+            "MISMATCH_OSPF_GROUP_MULTIAREA",
+            "major",
+            "OSPF network groups not in a single area.",
+        ),
         ("MISMATCH_OSPF_WRONG_AREA", "major", "OSPF network groups in wrong area."),
-        ("MISSING_OSPF_POINT_TO_POINT", "minor", "Missing ip ospf network point-to-point command."),
+        (
+            "MISSING_OSPF_POINT_TO_POINT",
+            "minor",
+            "Missing ip ospf network point-to-point command.",
+        ),
         ("MISMATCH_STATIC_ROUTE_NETWORK", "major", "Static route destination differs."),
         ("MISMATCH_STATIC_ROUTE_NEXTHOP", "minor", "Static route next-hop differs."),
         ("MISMATCH_DEFAULT_ROUTE_NEXTHOP", "major", "Default route next-hop differs."),
         ("EXTRA_STATIC_ROUTE", "minor", "Extra static route added when not required."),
         ("EXTRA_DEFAULT_ROUTE", "minor", "Multiple correct default routes configured."),
-        ("EXTRA_STATIC_CONFIGURED", "minor", "Static routes installed when there should be none."),
+        (
+            "EXTRA_STATIC_CONFIGURED",
+            "minor",
+            "Static routes installed when there should be none.",
+        ),
         ("MISMATCH_DHCP_POOL", "major", "DHCP pool properties incorrect."),
         ("MISMATCH_DHCP_EXCLUDED", "minor", "DHCP excluded range differs."),
         ("MISMATCH_DHCP_BAD_EXCLUSION", "minor", "Excluded IPs outside pool range."),
         ("EXTRA_DHCP_POOL", "major", "DHCP configured when it should not be."),
-        ("EXTRA_DHCP_ADVERTISING", "minor", "DHCP pools advertising when should not be."),
+        (
+            "EXTRA_DHCP_ADVERTISING",
+            "minor",
+            "DHCP pools advertising when should not be.",
+        ),
         ("MISMATCH_NAT_DIRECTION", "major", "NAT inside/outside assignment differs."),
         ("MISMATCH_NAT_POOL", "major", "NAT pool range differs."),
-        ("MISMATCH_NAT_POOL_RANGE_OUTSIDE", "major", "NAT pool range extends outside required range."),
-        ("MISMATCH_NAT_POOL_RANGE_INSIDE", "major", "NAT pool range does not cover required range."),
+        (
+            "MISMATCH_NAT_POOL_RANGE_OUTSIDE",
+            "major",
+            "NAT pool range extends outside required range.",
+        ),
+        (
+            "MISMATCH_NAT_POOL_RANGE_INSIDE",
+            "major",
+            "NAT pool range does not cover required range.",
+        ),
         ("MISMATCH_NAT_POOL_PREFIX", "major", "NAT pool prefix incorrect."),
         ("MISMATCH_NAT_ACL_BINDING", "major", "NAT ACL to pool binding differs."),
         ("MISMATCH_NAT_ACL_INCORRECT", "major", "NAT ACL does not match required IPs."),
         ("MISMATCH_NAT_ACL_NOT_OPTIMAL", "minor", "NAT ACL not using optimal set."),
-        ("MISMATCH_NAT_ACL_POINTLESS_NORMAL", "minor", "Pointless NAT ACL rules shadowed by earlier rules."),
-        ("MISMATCH_NAT_ACL_POINTLESS_DEFAULT", "minor", "Pointless NAT ACL rules after permit/deny any any."),
+        (
+            "MISMATCH_NAT_ACL_POINTLESS_NORMAL",
+            "minor",
+            "Pointless NAT ACL rules shadowed by earlier rules.",
+        ),
+        (
+            "MISMATCH_NAT_ACL_POINTLESS_DEFAULT",
+            "minor",
+            "Pointless NAT ACL rules after permit/deny any any.",
+        ),
         ("EXTRA_NAT_OVERLOAD", "major", "NAT pool overloaded when it should not be."),
-        ("EXTRA_NAT_INTERFACE_CONFIGURED", "major", "NAT configured on interface when it should not be."),
+        (
+            "EXTRA_NAT_INTERFACE_CONFIGURED",
+            "major",
+            "NAT configured on interface when it should not be.",
+        ),
         ("MISMATCH_IP", "major", "Interface IP address differs from template."),
         ("MISMATCH_MASK", "major", "Interface subnet mask differs."),
         ("MISMATCH_GATEWAY_ADDRESS", "major", "Incorrect IP on gateway interface."),
         ("MISMATCH_HOST_ADDRESS", "minor", "Incorrect IP on host interface."),
-        ("MISMATCH_TRUNK_IP_ASSIGNED", "major", "Trunk interface has IP when it should have sub-interfaces."),
-        ("MISMATCH_SUB_INT_VLAN", "major", "Sub-interface name does not match VLAN ID."),
+        (
+            "MISMATCH_TRUNK_IP_ASSIGNED",
+            "major",
+            "Trunk interface has IP when it should have sub-interfaces.",
+        ),
+        (
+            "MISMATCH_SUB_INT_VLAN",
+            "major",
+            "Sub-interface name does not match VLAN ID.",
+        ),
         ("MISMATCH_LINK_NETWORK", "major", "Shared L3 link not in same network."),
-        ("MISMATCH_LINK_CONFLICT_ADDRESS", "major", "Shared L3 link has conflicting IPs."),
+        (
+            "MISMATCH_LINK_CONFLICT_ADDRESS",
+            "major",
+            "Shared L3 link has conflicting IPs.",
+        ),
         ("MISMATCH_SHUTDOWN", "major", "Interface shutdown state differs."),
-        ("MISMATCH_CONFIGURED_IF_SHUTDOWN", "minor", "Interface shutdown but configured."),
+        (
+            "MISMATCH_CONFIGURED_IF_SHUTDOWN",
+            "minor",
+            "Interface shutdown but configured.",
+        ),
         ("MISMATCH_CLOCK_RATE", "minor", "Serial clock rate differs."),
         ("MISSING_DESCRIPTION", "minor", "Required interface description not set."),
-        ("EXTRA_DESCRIPTION", "minor", "Interface description set when it should not be."),
-        ("EXTRA_IFACE_CONFIGURED", "minor", "Interface configured when it should not have been."),
+        (
+            "EXTRA_DESCRIPTION",
+            "minor",
+            "Interface description set when it should not be.",
+        ),
+        (
+            "EXTRA_IFACE_CONFIGURED",
+            "minor",
+            "Interface configured when it should not have been.",
+        ),
         ("MISMATCH_ENCAPSULATION", "major", "Serial encapsulation type differs."),
         ("EXTRA_PPP_ENABLED", "major", "PPP enabled when it should not be."),
         ("MISMATCH_PPP_AUTH", "major", "PPP authentication method differs."),
-        ("MISMATCH_PPP_PROTOCOL_CONFLICT", "major", "PPP protocol conflict on shared link."),
+        (
+            "MISMATCH_PPP_PROTOCOL_CONFLICT",
+            "major",
+            "PPP protocol conflict on shared link.",
+        ),
         ("MISMATCH_PPP_USERNAME", "major", "Incorrect PPP username."),
         ("MISMATCH_PPP_PASSWORD", "major", "Incorrect PPP password."),
         ("MISSING_PPP_ACCOUNT", "major", "Required PPP account missing."),
@@ -227,14 +352,34 @@ def _default_rubric_rules():
         ("MISMATCH_ACL_TYPE", "major", "ACL type differs."),
         ("MISMATCH_ACL_RULE", "major", "ACL rule content differs."),
         ("MISMATCH_ACL_NOT_OPTIMAL", "minor", "ACL not using optimal rules."),
-        ("MISMATCH_ACL_POINTLESS_NORMAL", "minor", "ACL rules shadowed by earlier rules."),
-        ("MISMATCH_ACL_POINTLESS_DEFAULT", "minor", "ACL rules after permit/deny any any."),
-        ("MISMATCH_ACL_UNCLEAN_PRUNE", "minor", "ACL rule ranges outside equivalent of any."),
-        ("EXTRA_ACL_APPLIED", "major", "ACL applied to interface when it should not be."),
+        (
+            "MISMATCH_ACL_POINTLESS_NORMAL",
+            "minor",
+            "ACL rules shadowed by earlier rules.",
+        ),
+        (
+            "MISMATCH_ACL_POINTLESS_DEFAULT",
+            "minor",
+            "ACL rules after permit/deny any any.",
+        ),
+        (
+            "MISMATCH_ACL_UNCLEAN_PRUNE",
+            "minor",
+            "ACL rule ranges outside equivalent of any.",
+        ),
+        (
+            "EXTRA_ACL_APPLIED",
+            "major",
+            "ACL applied to interface when it should not be.",
+        ),
         ("MISSING_ACL_APPLIED", "major", "ACL configured but not applied."),
         ("MISMATCH_SWITCHPORT_MODE", "major", "Switchport mode differs."),
         ("MISMATCH_ACCESS_VLAN", "major", "Access VLAN number differs."),
-        ("MISMATCH_VLAN_INTERFACE", "major", "VLAN SVI numbering differs from template."),
+        (
+            "MISMATCH_VLAN_INTERFACE",
+            "major",
+            "VLAN SVI numbering differs from template.",
+        ),
         ("MISMATCH_VLAN_ID", "major", "VLAN ID differs."),
         ("MISMATCH_VLAN_NAME", "minor", "VLAN name differs."),
         ("MISMATCH_TRUNK_ENCAPSULATION", "major", "Trunk encapsulation differs."),
@@ -243,10 +388,22 @@ def _default_rubric_rules():
         ("MISMATCH_TRUNK_ALLOWED_VLANS", "major", "Allowed VLAN list differs."),
         ("MISMATCH_TRUNK_BOTH_ENDS", "major", "Trunk not trunking at both ends."),
         ("MISMATCH_TRUNK_ENCAP_MISMATCH", "major", "Trunk encapsulation mismatch."),
-        ("MISMATCH_TRUNK_NATIVE_VLAN_MISMATCH", "major", "Native VLAN mismatch between switches."),
+        (
+            "MISMATCH_TRUNK_NATIVE_VLAN_MISMATCH",
+            "major",
+            "Native VLAN mismatch between switches.",
+        ),
         ("MISMATCH_PORT_SECURITY_MAX", "minor", "Port security maximum differs."),
-        ("MISMATCH_PORT_SECURITY_VIOLATION", "major", "Port security violation action differs."),
-        ("MISMATCH_PORT_SECURITY_STICKY", "minor", "Port security sticky setting differs."),
+        (
+            "MISMATCH_PORT_SECURITY_VIOLATION",
+            "major",
+            "Port security violation action differs.",
+        ),
+        (
+            "MISMATCH_PORT_SECURITY_STICKY",
+            "minor",
+            "Port security sticky setting differs.",
+        ),
         ("MISMATCH_STP_PROTOCOL", "major", "Wrong spanning tree protocol applied."),
         ("MISMATCH_STP_MODE", "minor", "Spanning tree mode differs."),
         ("MISMATCH_STP_PRIORITY", "major", "Bridge priority differs."),
@@ -258,9 +415,21 @@ def _default_rubric_rules():
         ("MISMATCH_ETHERCHANNEL_GROUP", "major", "Port-channel group number differs."),
         ("MISMATCH_ETHERCHANNEL_MODE", "major", "EtherChannel mode differs."),
         ("MISMATCH_ETHERCHANNEL_MEMBERS", "major", "Port-channel members differ."),
-        ("MISMATCH_ETHERCHANNEL_LOAD_BALANCE", "minor", "EtherChannel load-balancing differs."),
-        ("MISMATCH_PORTCHANNEL_VLAN", "major", "VLANs allowed on port-channel trunk differ."),
-        ("MISMATCH_PORTCHANNEL_TRUNK_MODE", "major", "Port-channel trunk mode differs."),
+        (
+            "MISMATCH_ETHERCHANNEL_LOAD_BALANCE",
+            "minor",
+            "EtherChannel load-balancing differs.",
+        ),
+        (
+            "MISMATCH_PORTCHANNEL_VLAN",
+            "major",
+            "VLANs allowed on port-channel trunk differ.",
+        ),
+        (
+            "MISMATCH_PORTCHANNEL_TRUNK_MODE",
+            "major",
+            "Port-channel trunk mode differs.",
+        ),
         ("MISMATCH_PAGP_MODE", "major", "PAgP mode differs."),
         ("MISMATCH_PAGP_LEARN_METHOD", "minor", "PAgP learn method differs."),
         ("MISMATCH_LACP_MODE", "major", "LACP mode differs."),
@@ -275,12 +444,20 @@ def _default_rubric_rules():
         ("MISSING_HOSTNAME", "minor", "Device hostname not configured."),
         ("MISSING_MOTD", "minor", "Required MOTD banner not configured."),
         ("MISSING_ROUTING_PROTOCOL", "major", "Routing protocol entirely absent."),
-        ("MISSING_ROUTING_NETWORK", "major", "Network statement absent from routing protocol."),
+        (
+            "MISSING_ROUTING_NETWORK",
+            "major",
+            "Network statement absent from routing protocol.",
+        ),
         ("MISSING_STATIC_ROUTE", "major", "Static route absent."),
         ("MISSING_DEFAULT_ROUTE", "major", "Default route not configured."),
         ("MISSING_DEFAULT_GATEWAY", "major", "Switch default gateway not configured."),
         ("MISSING_PASSIVE_INTERFACE", "minor", "Passive interface missing."),
-        ("MISSING_REDISTRIBUTE", "major", "Default routes not redistributed when required."),
+        (
+            "MISSING_REDISTRIBUTE",
+            "major",
+            "Default routes not redistributed when required.",
+        ),
         ("MISSING_DHCP_POOL", "major", "Required DHCP pool not configured."),
         ("MISSING_DHCP_EXCLUDED", "minor", "DHCP excluded range not configured."),
         ("MISSING_DHCP_EMPTY_POOL", "major", "DHCP pool created but no addresses."),
@@ -305,14 +482,26 @@ def _default_rubric_rules():
         ("MISSING_VLAN_NAME", "minor", "VLAN created but not named."),
         ("MISSING_TRUNK_PORT", "major", "Trunk not configured on required port."),
         ("MISSING_TRUNK_ALLOWED_VLAN", "major", "Required VLAN not allowed on trunk."),
-        ("MISSING_PORT_SECURITY", "major", "Port security not enabled on required port."),
+        (
+            "MISSING_PORT_SECURITY",
+            "major",
+            "Port security not enabled on required port.",
+        ),
         ("MISSING_STP_MODE", "minor", "Spanning tree mode not configured."),
         ("MISSING_STP_PRIORITY", "major", "Bridge priority not set on required VLAN."),
-        ("MISSING_STP_ROOT_FORCED", "major", "Root bridge not forced to be established."),
+        (
+            "MISSING_STP_ROOT_FORCED",
+            "major",
+            "Root bridge not forced to be established.",
+        ),
         ("MISSING_STP_PORTFAST", "minor", "PortFast not configured on access port."),
         ("MISSING_STP_BPDU_GUARD", "minor", "BPDU guard not configured."),
         ("MISSING_ETHERCHANNEL", "major", "EtherChannel group absent."),
-        ("MISSING_ETHERCHANNEL_MEMBER", "major", "Interface missing from port-channel."),
+        (
+            "MISSING_ETHERCHANNEL_MEMBER",
+            "major",
+            "Interface missing from port-channel.",
+        ),
         ("MISSING_PORTCHANNEL_TRUNK", "major", "Port-channel not configured as trunk."),
         ("MISSING_PAGP_MODE", "major", "PAgP mode not configured."),
         ("MISSING_LACP_MODE", "major", "LACP mode not configured."),
@@ -320,86 +509,282 @@ def _default_rubric_rules():
         ("MISSING_VTY_LOGIN", "minor", "VTY login not configured."),
         ("MISSING_LINE_PASSWORD", "major", "No password specified on lines."),
         ("MISSING_USER", "major", "Required user account absent."),
-        ("EXTRA_ROUTING_PROTOCOL", "major", "Routing protocol configured when not required."),
+        (
+            "EXTRA_ROUTING_PROTOCOL",
+            "major",
+            "Routing protocol configured when not required.",
+        ),
         ("EXTRA_ROUTING_NETWORK", "minor", "Extra network advertised."),
-        ("EXTRA_ROUTING_INSTANCE", "major", "Multiple routing protocol instances configured."),
+        (
+            "EXTRA_ROUTING_INSTANCE",
+            "major",
+            "Multiple routing protocol instances configured.",
+        ),
         ("EXTRA_STATIC_ROUTE", "minor", "Extra static route added."),
         ("EXTRA_DEFAULT_ROUTE", "minor", "Redundant default routes configured."),
-        ("EXTRA_STATIC_CONFIGURED", "minor", "Static routes installed when they should be none."),
-        ("EXTRA_REDISTRIBUTE", "minor", "Default routes redistributed when not required."),
+        (
+            "EXTRA_STATIC_CONFIGURED",
+            "minor",
+            "Static routes installed when they should be none.",
+        ),
+        (
+            "EXTRA_REDISTRIBUTE",
+            "minor",
+            "Default routes redistributed when not required.",
+        ),
         ("EXTRA_DHCP_POOL", "major", "Unrequired DHCP pool configured."),
         ("EXTRA_DHCP_ADVERTISING", "minor", "DHCP pool advertising when not required."),
         ("EXTRA_NAT_OVERLOAD", "major", "NAT pool overloaded when it should not be."),
-        ("EXTRA_NAT_INTERFACE_CONFIGURED", "major", "NAT configured on interface when not required."),
+        (
+            "EXTRA_NAT_INTERFACE_CONFIGURED",
+            "major",
+            "NAT configured on interface when not required.",
+        ),
         ("EXTRA_NAT_SOURCE", "minor", "Extra NAT inside source binding."),
-        ("EXTRA_IFACE_CONFIGURED", "minor", "Interface configured when it should not have been."),
+        (
+            "EXTRA_IFACE_CONFIGURED",
+            "minor",
+            "Interface configured when it should not have been.",
+        ),
         ("EXTRA_PPP_ENABLED", "major", "PPP enabled when it should not be."),
         ("EXTRA_ACL", "minor", "Extra ACL created."),
         ("EXTRA_ACL_RULE", "minor", "Extra ACL rule added."),
         ("EXTRA_ACL_APPLIED", "major", "ACL applied to wrong interface."),
         ("EXTRA_VLAN", "minor", "Extra VLAN created."),
         ("EXTRA_VTY_CONFIG", "minor", "Extra VTY command added."),
-        ("EXTRA_DESCRIPTION", "minor", "Interface description added when not required."),
+        (
+            "EXTRA_DESCRIPTION",
+            "minor",
+            "Interface description added when not required.",
+        ),
         ("EXTRA_USER", "minor", "Extra user account created."),
         ("EXTRA_TRUNK_ALLOWED_VLAN", "minor", "Extra VLAN allowed on trunk."),
         ("EXTRA_STP_PRIORITY", "minor", "Extra STP priority configured."),
         ("EXTRA_ETHERCHANNEL", "minor", "Extra port-channel group created."),
-        ("EXTRA_ETHERCHANNEL_MEMBER", "minor", "Extra interface added to port-channel."),
+        (
+            "EXTRA_ETHERCHANNEL_MEMBER",
+            "minor",
+            "Extra interface added to port-channel.",
+        ),
         ("EXTRA_LINE_ENABLED", "major", "Line access enabled when it should not be."),
-        ("VERIFY_IFACE_DOWN", "minor", "Interface should be up but is down in show ip interface brief."),
-        ("VERIFY_IFACE_IP_WRONG", "major", "Interface IP in show ip interface brief differs from template."),
-        ("VERIFY_IFACE_ADMIN_UP", "major", "Interface should be administratively down but is up."),
-        ("VERIFY_ROUTE_MISSING_DEFAULT", "major", "Expected default route not installed in routing table."),
-        ("VERIFY_ROUTE_MISSING_LEARNED", "major", "Expected learned routes missing from routing table."),
-        ("VERIFY_GATEWAY_WRONG", "major", "Gateway of last resort differs from template."),
-        ("VERIFY_ROUTE_PROTOCOL_ABSENT", "major", "Expected route protocol code absent from routing table."),
+        (
+            "VERIFY_IFACE_DOWN",
+            "minor",
+            "Interface should be up but is down in show ip interface brief.",
+        ),
+        (
+            "VERIFY_IFACE_IP_WRONG",
+            "major",
+            "Interface IP in show ip interface brief differs from template.",
+        ),
+        (
+            "VERIFY_IFACE_ADMIN_UP",
+            "major",
+            "Interface should be administratively down but is up.",
+        ),
+        (
+            "VERIFY_ROUTE_MISSING_DEFAULT",
+            "major",
+            "Expected default route not installed in routing table.",
+        ),
+        (
+            "VERIFY_ROUTE_MISSING_LEARNED",
+            "major",
+            "Expected learned routes missing from routing table.",
+        ),
+        (
+            "VERIFY_GATEWAY_WRONG",
+            "major",
+            "Gateway of last resort differs from template.",
+        ),
+        (
+            "VERIFY_ROUTE_PROTOCOL_ABSENT",
+            "major",
+            "Expected route protocol code absent from routing table.",
+        ),
         ("VERIFY_ACL_MISSING", "major", "Template ACL absent in show access-lists."),
-        ("VERIFY_ACL_RULE_WRONG", "major", "ACL rule content differs in show access-lists."),
-        ("VERIFY_ACL_EMPTY", "major", "ACL exists but has no rules in show access-lists."),
-        ("VERIFY_NAT_NOT_WORKING", "major", "NAT translations not present when template shows NAT tested."),
-        ("VERIFY_NAT_IFACE_WRONG", "major", "NAT inside/outside interfaces differ in show ip nat statistics."),
-        ("VERIFY_NAT_MAPPING_WRONG", "major", "NAT ACL-to-pool mappings differ in show ip nat statistics."),
-        ("VERIFY_NAT_POOL_WRONG", "major", "NAT pool details differ in show ip nat statistics."),
-        ("VERIFY_NAT_NO_STATS", "major", "Template has NAT statistics but student has none."),
-        ("VERIFY_DHCP_NOT_ASSIGNING", "minor", "Template shows DHCP bindings but student has none."),
-        ("VERIFY_DHCP_POOL_MISSING", "major", "Required DHCP pool name absent in show ip dhcp pool."),
-        ("VERIFY_DHCP_POOL_EXTRA", "minor", "Extra DHCP pool name present in show ip dhcp pool."),
-        ("VERIFY_VLAN_SCHEME_MISMATCH", "major", "VLAN scheme differs in show vlan brief."),
+        (
+            "VERIFY_ACL_RULE_WRONG",
+            "major",
+            "ACL rule content differs in show access-lists.",
+        ),
+        (
+            "VERIFY_ACL_EMPTY",
+            "major",
+            "ACL exists but has no rules in show access-lists.",
+        ),
+        (
+            "VERIFY_NAT_NOT_WORKING",
+            "major",
+            "NAT translations not present when template shows NAT tested.",
+        ),
+        (
+            "VERIFY_NAT_IFACE_WRONG",
+            "major",
+            "NAT inside/outside interfaces differ in show ip nat statistics.",
+        ),
+        (
+            "VERIFY_NAT_MAPPING_WRONG",
+            "major",
+            "NAT ACL-to-pool mappings differ in show ip nat statistics.",
+        ),
+        (
+            "VERIFY_NAT_POOL_WRONG",
+            "major",
+            "NAT pool details differ in show ip nat statistics.",
+        ),
+        (
+            "VERIFY_NAT_NO_STATS",
+            "major",
+            "Template has NAT statistics but student has none.",
+        ),
+        (
+            "VERIFY_DHCP_NOT_ASSIGNING",
+            "minor",
+            "Template shows DHCP bindings but student has none.",
+        ),
+        (
+            "VERIFY_DHCP_POOL_MISSING",
+            "major",
+            "Required DHCP pool name absent in show ip dhcp pool.",
+        ),
+        (
+            "VERIFY_DHCP_POOL_EXTRA",
+            "minor",
+            "Extra DHCP pool name present in show ip dhcp pool.",
+        ),
+        (
+            "VERIFY_VLAN_SCHEME_MISMATCH",
+            "major",
+            "VLAN scheme differs in show vlan brief.",
+        ),
         ("VERIFY_VLAN_MISSING", "major", "Required VLAN missing from show vlan brief."),
         ("VERIFY_VLAN_NAME_WRONG", "minor", "VLAN name differs in show vlan brief."),
         ("VERIFY_VLAN_NOT_ACTIVE", "major", "VLAN exists but is not active."),
-        ("VERIFY_VLAN_PORT_WRONG", "major", "VLAN port assignments differ in show vlan brief."),
+        (
+            "VERIFY_VLAN_PORT_WRONG",
+            "major",
+            "VLAN port assignments differ in show vlan brief.",
+        ),
         ("VERIFY_VLAN_EXTRA", "minor", "Extra VLAN present in show vlan brief."),
-        ("VERIFY_TRUNK_NOT_TRUNKING", "major", "Interface is not trunking in show interfaces trunk."),
-        ("VERIFY_TRUNK_ENCAP_WRONG", "major", "Trunk encapsulation differs in show interfaces trunk."),
-        ("VERIFY_TRUNK_NATIVE_WRONG", "major", "Trunk native VLAN differs in show interfaces trunk."),
-        ("VERIFY_TRUNK_MODE_WRONG", "minor", "Trunk mode differs in show interfaces trunk."),
-        ("VERIFY_PORT_SECURITY_MAX_WRONG", "minor", "Port security maximum differs in show port-security."),
-        ("VERIFY_PORT_SECURITY_ACTION_WRONG", "major", "Port security action differs in show port-security."),
-        ("VERIFY_PORT_SECURITY_VIOLATION", "minor", "Port security violations detected in show port-security."),
-        ("VERIFY_PORT_SECURITY_MISSING_IFACE", "major", "Expected secured interface missing from show port-security."),
+        (
+            "VERIFY_TRUNK_NOT_TRUNKING",
+            "major",
+            "Interface is not trunking in show interfaces trunk.",
+        ),
+        (
+            "VERIFY_TRUNK_ENCAP_WRONG",
+            "major",
+            "Trunk encapsulation differs in show interfaces trunk.",
+        ),
+        (
+            "VERIFY_TRUNK_NATIVE_WRONG",
+            "major",
+            "Trunk native VLAN differs in show interfaces trunk.",
+        ),
+        (
+            "VERIFY_TRUNK_MODE_WRONG",
+            "minor",
+            "Trunk mode differs in show interfaces trunk.",
+        ),
+        (
+            "VERIFY_PORT_SECURITY_MAX_WRONG",
+            "minor",
+            "Port security maximum differs in show port-security.",
+        ),
+        (
+            "VERIFY_PORT_SECURITY_ACTION_WRONG",
+            "major",
+            "Port security action differs in show port-security.",
+        ),
+        (
+            "VERIFY_PORT_SECURITY_VIOLATION",
+            "minor",
+            "Port security violations detected in show port-security.",
+        ),
+        (
+            "VERIFY_PORT_SECURITY_MISSING_IFACE",
+            "major",
+            "Expected secured interface missing from show port-security.",
+        ),
         ("VERIFY_EIGRP_NO_NEIGHBORS", "major", "No EIGRP neighbors formed."),
-        ("VERIFY_EIGRP_NEIGHBOR_COUNT", "major", "Fewer EIGRP neighbors than expected."),
-        ("VERIFY_EIGRP_WRONG_INTERFACE", "major", "EIGRP neighbor formed on the wrong interface."),
-        ("VERIFY_EIGRP_ROUTE_MISSING", "major", "Expected EIGRP route missing from topology."),
-        ("VERIFY_EIGRP_ROUTE_ACTIVE", "minor", "EIGRP route is Active instead of Passive."),
-        ("VERIFY_EIGRP_IFACE_MISSING", "major", "Required interface missing from EIGRP interfaces."),
-        ("VERIFY_EIGRP_PASSIVE_ACTIVE", "minor", "Passive interface appears active in EIGRP."),
+        (
+            "VERIFY_EIGRP_NEIGHBOR_COUNT",
+            "major",
+            "Fewer EIGRP neighbors than expected.",
+        ),
+        (
+            "VERIFY_EIGRP_WRONG_INTERFACE",
+            "major",
+            "EIGRP neighbor formed on the wrong interface.",
+        ),
+        (
+            "VERIFY_EIGRP_ROUTE_MISSING",
+            "major",
+            "Expected EIGRP route missing from topology.",
+        ),
+        (
+            "VERIFY_EIGRP_ROUTE_ACTIVE",
+            "minor",
+            "EIGRP route is Active instead of Passive.",
+        ),
+        (
+            "VERIFY_EIGRP_IFACE_MISSING",
+            "major",
+            "Required interface missing from EIGRP interfaces.",
+        ),
+        (
+            "VERIFY_EIGRP_PASSIVE_ACTIVE",
+            "minor",
+            "Passive interface appears active in EIGRP.",
+        ),
         ("VERIFY_OSPF_NO_NEIGHBORS", "major", "No OSPF neighbors formed."),
         ("VERIFY_OSPF_NOT_FULL", "major", "OSPF neighbor not in FULL state."),
         ("VERIFY_OSPF_NEIGHBOR_COUNT", "major", "Fewer OSPF neighbors than expected."),
-        ("VERIFY_OSPF_WRONG_INTERFACE", "major", "OSPF neighbor formed on the wrong interface."),
-        ("VERIFY_OSPF_NO_ROUTER_LSA", "major", "No Router LSAs present in OSPF database."),
-        ("VERIFY_OSPF_NO_SUMMARY_LSA", "major", "No Summary LSAs present in OSPF database."),
-        ("VERIFY_OSPF_NO_EXTERNAL_LSA", "minor", "No External LSAs present when redistribution is expected."),
+        (
+            "VERIFY_OSPF_WRONG_INTERFACE",
+            "major",
+            "OSPF neighbor formed on the wrong interface.",
+        ),
+        (
+            "VERIFY_OSPF_NO_ROUTER_LSA",
+            "major",
+            "No Router LSAs present in OSPF database.",
+        ),
+        (
+            "VERIFY_OSPF_NO_SUMMARY_LSA",
+            "major",
+            "No Summary LSAs present in OSPF database.",
+        ),
+        (
+            "VERIFY_OSPF_NO_EXTERNAL_LSA",
+            "minor",
+            "No External LSAs present when redistribution is expected.",
+        ),
         ("VERIFY_OSPF_WRONG_AREA", "major", "OSPF interface is in the wrong area."),
-        ("VERIFY_OSPF_WRONG_NETWORK_TYPE", "minor", "OSPF network type differs from template."),
+        (
+            "VERIFY_OSPF_WRONG_NETWORK_TYPE",
+            "minor",
+            "OSPF network type differs from template.",
+        ),
         ("VERIFY_OSPF_IFACE_DOWN", "major", "OSPF interface is down or missing."),
         ("VERIFY_RIP_DATABASE_EMPTY", "major", "RIP database is empty."),
-        ("VERIFY_RIP_ROUTE_MISSING", "major", "Expected RIP route missing from database."),
+        (
+            "VERIFY_RIP_ROUTE_MISSING",
+            "major",
+            "Expected RIP route missing from database.",
+        ),
         ("VERIFY_RIP_ROUTE_UNREACHABLE", "major", "RIP route metric is unreachable."),
-        ("VERIFY_RIP_ROUTE_POSSIBLY_DOWN", "minor", "RIP route flagged as possibly down."),
-        ("VERIFY_STATIC_ROUTE_MISSING", "major", "Expected static route not installed."),
+        (
+            "VERIFY_RIP_ROUTE_POSSIBLY_DOWN",
+            "minor",
+            "RIP route flagged as possibly down.",
+        ),
+        (
+            "VERIFY_STATIC_ROUTE_MISSING",
+            "major",
+            "Expected static route not installed.",
+        ),
         ("VERIFY_DEFAULT_ROUTE_MISSING", "major", "Default route not installed."),
     ]
 
@@ -432,7 +817,10 @@ def _default_rubric_rules():
         "MISMATCH_STATIC_ROUTE_NEXTHOP": [r"\.static_routes"],
         "MISSING_STATIC_ROUTE": [r"\.static_routes"],
         "EXTRA_STATIC_ROUTE": [r"\.static_routes"],
-        "MISMATCH_IP": [r"\.interfaces\..+\.ip$", r"\.show_ip_interface_brief\.interfaces\..+\.ip$"],
+        "MISMATCH_IP": [
+            r"\.interfaces\..+\.ip$",
+            r"\.show_ip_interface_brief\.interfaces\..+\.ip$",
+        ],
         "MISSING_IP": [r"\.interfaces\..+\.ip$"],
         "MISMATCH_MASK": [r"\.interfaces\..+\.mask$"],
         "MISMATCH_SHUTDOWN": [r"\.interfaces\..+\.shutdown$"],
@@ -473,9 +861,15 @@ def _default_rubric_rules():
         "MISSING_VLAN": [r"\.show_vlan_brief\.vlans\.\d+$"],
         "MISSING_VLAN_NAME": [r"\.show_vlan_brief\.vlans\.\d+\.name$"],
         "EXTRA_VLAN": [r"\.show_vlan_brief\.vlans\.\d+$"],
-        "MISMATCH_TRUNK_ENCAPSULATION": [r"\.trunk_encapsulation$", r"\.show_interfaces_trunk\..*\.encapsulation$"],
+        "MISMATCH_TRUNK_ENCAPSULATION": [
+            r"\.trunk_encapsulation$",
+            r"\.show_interfaces_trunk\..*\.encapsulation$",
+        ],
         "MISMATCH_TRUNK_MODE": [r"\.show_interfaces_trunk\..*\.mode$"],
-        "MISMATCH_TRUNK_NATIVE_VLAN": [r"\.trunk_native_vlan$", r"\.show_interfaces_trunk\..*\.native_vlan$"],
+        "MISMATCH_TRUNK_NATIVE_VLAN": [
+            r"\.trunk_native_vlan$",
+            r"\.show_interfaces_trunk\..*\.native_vlan$",
+        ],
         "MISMATCH_TRUNK_ALLOWED_VLANS": [r"\.trunk_allowed_vlans$"],
         "MISSING_TRUNK_PORT": [r"\.show_interfaces_trunk\.trunks\..+$"],
         "MISSING_TRUNK_ALLOWED_VLAN": [r"\.trunk_allowed_vlans$"],
@@ -486,7 +880,10 @@ def _default_rubric_rules():
         "MISSING_PORT_SECURITY": [r"\.port_security\.enabled$"],
         "MISMATCH_STP_MODE": [r"\.spanning_tree\.mode$"],
         "MISSING_STP_MODE": [r"\.spanning_tree\.mode$"],
-        "MISMATCH_STP_PRIORITY": [r"\.spanning_tree\.vlan_priorities", r"\.spanning_tree\.vlan_root"],
+        "MISMATCH_STP_PRIORITY": [
+            r"\.spanning_tree\.vlan_priorities",
+            r"\.spanning_tree\.vlan_root",
+        ],
         "MISSING_STP_PRIORITY": [r"\.spanning_tree\.vlan_priorities"],
         "EXTRA_STP_PRIORITY": [r"\.spanning_tree\.vlan_priorities"],
         "MISMATCH_STP_PORTFAST": [r"\.stp_portfast$"],
@@ -533,8 +930,12 @@ def _default_rubric_rules():
         "EXTRA_PPP_ENABLED": [r"\.extra_ppp$"],
         "MISSING_NAT_ACL": [r"\.nat\.pools\..+\.acl_binding$"],
         "MISSING_DHCP_EMPTY_POOL": [r"\.dhcp_pools\..+\.network$"],
-        "MISSING_ETHERCHANNEL_MEMBER": [r"\.show_etherchannel_summary\.groups\..+\.members"],
-        "EXTRA_ETHERCHANNEL_MEMBER": [r"\.show_etherchannel_summary\.groups\..+\.members"],
+        "MISSING_ETHERCHANNEL_MEMBER": [
+            r"\.show_etherchannel_summary\.groups\..+\.members"
+        ],
+        "EXTRA_ETHERCHANNEL_MEMBER": [
+            r"\.show_etherchannel_summary\.groups\..+\.members"
+        ],
         "EXTRA_ETHERCHANNEL": [r"\.show_etherchannel_summary\.groups\.\d+$"],
     }
 
@@ -613,7 +1014,9 @@ def _default_rubric_rules():
         elif prefix == "VERIFY":
             statuses = ["missing", "extra", "mismatch"]
         category = code.split("_", 2)[1].lower() if "_" in code else "rule"
-        subcategory = "_".join(code.split("_")[2:]).lower() if code.count("_") >= 2 else ""
+        subcategory = (
+            "_".join(code.split("_")[2:]).lower() if code.count("_") >= 2 else ""
+        )
         section = _get_section(code)
         rules.append(
             {
@@ -634,7 +1037,9 @@ def _default_rubric_rules():
 
 def load_rubric_rules():
     defaults = _default_rubric_rules()
-    default_by_id = {rule.get("id"): rule for rule in defaults if isinstance(rule, dict)}
+    default_by_id = {
+        rule.get("id"): rule for rule in defaults if isinstance(rule, dict)
+    }
     default_ids = set(default_by_id.keys())
     # Tag defaults
     for rule in defaults:
@@ -925,7 +1330,12 @@ def _config_block_ref(feature: str):
         and parts[3] == "groups"
     ):
         return ".".join(parts[:5])
-    if len(parts) >= 3 and parts[1] in {"routing", "access_lists", "users", "dhcp_pools"}:
+    if len(parts) >= 3 and parts[1] in {
+        "routing",
+        "access_lists",
+        "users",
+        "dhcp_pools",
+    }:
         return ".".join(parts[:3])
     if len(parts) >= 3 and parts[1] == "switching":
         return ".".join(parts[:3])
@@ -954,19 +1364,31 @@ def _verification_layer1_ref(feature: str):
     if parts[1] in routing_command_map:
         return routing_command_map[parts[1]]
 
-    if len(parts) >= 4 and parts[1] == "show_ip_interface_brief" and parts[2] == "interfaces":
+    if (
+        len(parts) >= 4
+        and parts[1] == "show_ip_interface_brief"
+        and parts[2] == "interfaces"
+    ):
         return f"show_running_config.interfaces.{_expand_interface_name(parts[3])}"
 
     if len(parts) >= 4 and parts[1] == "show_interfaces_trunk" and parts[2] == "trunks":
         return f"show_running_config.interfaces.{_expand_interface_name(parts[3])}"
 
-    if len(parts) >= 4 and parts[1] == "show_port_security" and parts[2] == "interfaces":
+    if (
+        len(parts) >= 4
+        and parts[1] == "show_port_security"
+        and parts[2] == "interfaces"
+    ):
         return f"show_running_config.interfaces.{_expand_interface_name(parts[3])}"
 
     if len(parts) >= 4 and parts[1] == "show_access_lists" and parts[2] == "acls":
         return f"show_running_config.access_lists.{parts[3]}"
 
-    if len(parts) >= 4 and parts[1] == "show_etherchannel_summary" and parts[2] == "groups":
+    if (
+        len(parts) >= 4
+        and parts[1] == "show_etherchannel_summary"
+        and parts[2] == "groups"
+    ):
         return f"show_running_config.switching.etherchannel.groups.{parts[3]}"
 
     if parts[1] in {"show_ip_nat_statistics", "show_ip_nat_translations"}:
@@ -1007,20 +1429,35 @@ def _verification_block_name(feature: str):
         if len(parts) >= 3 and parts[2] in {"eigrp", "ospf", "rip", "static"}:
             return f"{command}.{parts[2]}"
         return command
-    if command in {"show_ip_interface_brief", "show_interfaces_trunk", "show_port_security"} and len(parts) >= 4:
+    if (
+        command
+        in {"show_ip_interface_brief", "show_interfaces_trunk", "show_port_security"}
+        and len(parts) >= 4
+    ):
         return f"{command}.{parts[3]}"
-    if command in {"show_access_lists", "show_etherchannel_summary"} and len(parts) >= 4:
+    if (
+        command in {"show_access_lists", "show_etherchannel_summary"}
+        and len(parts) >= 4
+    ):
         return f"{command}.{parts[3]}"
     if command == "show_vlan_brief":
         return "show_vlan_brief.vlan_scheme"
     if command == "show_ip_route":
-        if len(parts) >= 3 and parts[2] in {"eigrp", "ospf", "rip", "static", "gateway"}:
+        if len(parts) >= 3 and parts[2] in {
+            "eigrp",
+            "ospf",
+            "rip",
+            "static",
+            "gateway",
+        }:
             return f"show_ip_route.{parts[2]}"
         return "show_ip_route.routing_table"
     return command
 
 
-def _verification_is_deduplicated(feature: str, failed_config_refs, failed_config_features):
+def _verification_is_deduplicated(
+    feature: str, failed_config_refs, failed_config_features
+):
     layer1_ref = _verification_layer1_ref(feature)
     if layer1_ref and layer1_ref.startswith("show_running_config.routing."):
         if any(
@@ -1057,7 +1494,9 @@ def _verification_is_deduplicated(feature: str, failed_config_refs, failed_confi
 
     if str(feature or "").startswith("verification.show_ip_route."):
         for failed_feature in failed_config_features:
-            if failed_feature.startswith("show_running_config.routing") or failed_feature.startswith(
+            if failed_feature.startswith(
+                "show_running_config.routing"
+            ) or failed_feature.startswith(
                 "show_running_config.switching.default_gateway"
             ):
                 return True, "show_running_config.routing"
@@ -1065,7 +1504,9 @@ def _verification_is_deduplicated(feature: str, failed_config_refs, failed_confi
     return False, layer1_ref
 
 
-def _classify_single_item(item, rubric_compiled, rubric_by_code, disabled_compiled, disabled_by_code):
+def _classify_single_item(
+    item, rubric_compiled, rubric_by_code, disabled_compiled, disabled_by_code
+):
     status = item.get("status")
     severity = None
     rule_id = None
@@ -1115,25 +1556,39 @@ def _classify_single_item(item, rubric_compiled, rubric_by_code, disabled_compil
 
 
 def _classify_items(items, policy, rubric_rules=None):
-    rubric_compiled, rubric_by_code, disabled_compiled, disabled_by_code = _compile_rubric_rules(rubric_rules)
+    rubric_compiled, rubric_by_code, disabled_compiled, disabled_by_code = (
+        _compile_rubric_rules(rubric_rules)
+    )
 
     summary = _empty_phase1_summary()
 
     minor_rule_hits = set()
 
-    config_items = [item for item in items if not _is_verification_feature(item.get("feature"))]
-    verification_items = [item for item in items if _is_verification_feature(item.get("feature"))]
+    config_items = [
+        item for item in items if not _is_verification_feature(item.get("feature"))
+    ]
+    verification_items = [
+        item for item in items if _is_verification_feature(item.get("feature"))
+    ]
 
     classified_config = []
     failed_config_refs = set()
     failed_config_features = set()
 
     for item in config_items:
-        item_copy = _classify_single_item(item, rubric_compiled, rubric_by_code, disabled_compiled, disabled_by_code)
+        item_copy = _classify_single_item(
+            item, rubric_compiled, rubric_by_code, disabled_compiled, disabled_by_code
+        )
         item_copy["layer"] = "config"
-        item_copy["block_name"] = _config_block_ref(item.get("feature")) or item.get("feature")
+        item_copy["block_name"] = _config_block_ref(item.get("feature")) or item.get(
+            "feature"
+        )
         item_copy["layer1_ref"] = item_copy["block_name"]
-        item_copy["counts_toward_marking"] = item_copy.get("status") in {"missing", "extra", "mismatch"}
+        item_copy["counts_toward_marking"] = item_copy.get("status") in {
+            "missing",
+            "extra",
+            "mismatch",
+        }
 
         status = item_copy.get("status")
         if status in summary:
@@ -1171,9 +1626,13 @@ def _classify_items(items, policy, rubric_rules=None):
     classified_verification = []
     verification_rule_hits = set()
     for item in verification_items:
-        item_copy = _classify_single_item(item, rubric_compiled, rubric_by_code, disabled_compiled, disabled_by_code)
+        item_copy = _classify_single_item(
+            item, rubric_compiled, rubric_by_code, disabled_compiled, disabled_by_code
+        )
         item_copy["layer"] = "verification"
-        item_copy["block_name"] = item_copy.get("block_name") or _verification_block_name(item.get("feature"))
+        item_copy["block_name"] = item_copy.get(
+            "block_name"
+        ) or _verification_block_name(item.get("feature"))
         deduplicated, layer1_ref = _verification_is_deduplicated(
             item.get("feature"), failed_config_refs, failed_config_features
         )
@@ -1182,7 +1641,8 @@ def _classify_items(items, policy, rubric_rules=None):
         item_copy["verification_rule_deduplicated"] = False
         item_copy["chain_stopped"] = bool(item_copy.get("chain_stopped", False))
         item_copy["counts_toward_marking"] = (
-            item_copy.get("status") in {"missing", "extra", "mismatch"} and not deduplicated
+            item_copy.get("status") in {"missing", "extra", "mismatch"}
+            and not deduplicated
         )
         classified_verification.append(item_copy)
 
@@ -1291,6 +1751,7 @@ def _resolve_json_parts(data, parts):
     Handles keys that contain dots (e.g., 'GigabitEthernet0/0/1.20') by trying
     greedy multi-part matching before single-part matching.
     """
+
     def _walk(current, idx):
         if idx >= len(parts):
             return current
@@ -1298,7 +1759,7 @@ def _resolve_json_parts(data, parts):
             return _MISSING
         # Try greedy: join parts[idx..j] and see if it's a key (longest first)
         for j in range(len(parts) - 1, idx, -1):
-            candidate = ".".join(parts[idx:j + 1])
+            candidate = ".".join(parts[idx : j + 1])
             if candidate in current:
                 result = _walk(current[candidate], j + 1)
                 if result is not _MISSING:
@@ -1332,7 +1793,11 @@ def _preferred_context_parts(feature: str):
     ):
         return parts, parts[2]
 
-    if len(parts) >= 4 and parts[0] == "show_running_config" and parts[1] == "interfaces":
+    if (
+        len(parts) >= 4
+        and parts[0] == "show_running_config"
+        and parts[1] == "interfaces"
+    ):
         # For subinterfaces like GigabitEthernet0/0/1.20.vlan,
         # parts = ["show_running_config", "interfaces", "GigabitEthernet0/0/1", "20", "vlan"]
         # The actual JSON key is "GigabitEthernet0/0/1.20", so we need to include
@@ -1371,7 +1836,9 @@ def _preferred_context_parts(feature: str):
     return parts, None
 
 
-def _extract_error_context(template_config, student_config, feature: str, expected=None, actual=None):
+def _extract_error_context(
+    template_config, student_config, feature: str, expected=None, actual=None
+):
     parts, highlight_key = _preferred_context_parts(feature)
     if not parts:
         return {
@@ -1393,8 +1860,12 @@ def _extract_error_context(template_config, student_config, feature: str, expect
         and feature_parts[3] == "subinterface"
     ):
         parent_iface = feature_parts[2]
-        t_ifaces = _resolve_json_parts(template_config, ["show_running_config", "interfaces"])
-        s_ifaces = _resolve_json_parts(student_config, ["show_running_config", "interfaces"])
+        t_ifaces = _resolve_json_parts(
+            template_config, ["show_running_config", "interfaces"]
+        )
+        s_ifaces = _resolve_json_parts(
+            student_config, ["show_running_config", "interfaces"]
+        )
         if t_ifaces is not _MISSING or s_ifaces is not _MISSING:
             expected_name = expected.get("name") if isinstance(expected, dict) else None
             actual_name = actual.get("name") if isinstance(actual, dict) else None
@@ -1404,12 +1875,20 @@ def _extract_error_context(template_config, student_config, feature: str, expect
                 if expected_name and expected_name in t_ifaces:
                     t_subs = {expected_name: t_ifaces.get(expected_name)}
                 else:
-                    t_subs = {k: v for k, v in t_ifaces.items() if k.startswith(f"{parent_iface}.")}
+                    t_subs = {
+                        k: v
+                        for k, v in t_ifaces.items()
+                        if k.startswith(f"{parent_iface}.")
+                    }
             if isinstance(s_ifaces, dict):
                 if actual_name and actual_name in s_ifaces:
                     s_subs = {actual_name: s_ifaces.get(actual_name)}
                 else:
-                    s_subs = {k: v for k, v in s_ifaces.items() if k.startswith(f"{parent_iface}.")}
+                    s_subs = {
+                        k: v
+                        for k, v in s_ifaces.items()
+                        if k.startswith(f"{parent_iface}.")
+                    }
             return {
                 "context_path": f"show_running_config.interfaces.{parent_iface}.*",
                 "highlight_key": "subinterface",
@@ -1477,7 +1956,10 @@ def _extract_error_context(template_config, student_config, feature: str, expect
             if not isinstance(users_list, list):
                 return _MISSING
             for entry in users_list:
-                if isinstance(entry, dict) and str(entry.get("username") or "").lower() == wanted.lower():
+                if (
+                    isinstance(entry, dict)
+                    and str(entry.get("username") or "").lower() == wanted.lower()
+                ):
                     return entry
             return _MISSING
 
@@ -1487,7 +1969,9 @@ def _extract_error_context(template_config, student_config, feature: str, expect
             return {
                 "context_path": f"show_running_config.users.{username}",
                 "highlight_key": username,
-                "template_context": None if template_user is _MISSING else template_user,
+                "template_context": (
+                    None if template_user is _MISSING else template_user
+                ),
                 "student_context": None if student_user is _MISSING else student_user,
             }
 
@@ -1497,11 +1981,19 @@ def _extract_error_context(template_config, student_config, feature: str, expect
         and feature_parts[1] == "access_lists"
     ):
         acl_name = feature_parts[2]
-        t_acls = _resolve_json_parts(template_config, ["show_running_config", "access_lists"])
-        s_acls = _resolve_json_parts(student_config, ["show_running_config", "access_lists"])
+        t_acls = _resolve_json_parts(
+            template_config, ["show_running_config", "access_lists"]
+        )
+        s_acls = _resolve_json_parts(
+            student_config, ["show_running_config", "access_lists"]
+        )
 
-        template_acl = t_acls.get(acl_name, _MISSING) if isinstance(t_acls, dict) else _MISSING
-        student_acl = s_acls.get(acl_name, _MISSING) if isinstance(s_acls, dict) else _MISSING
+        template_acl = (
+            t_acls.get(acl_name, _MISSING) if isinstance(t_acls, dict) else _MISSING
+        )
+        student_acl = (
+            s_acls.get(acl_name, _MISSING) if isinstance(s_acls, dict) else _MISSING
+        )
 
         if template_acl is not _MISSING or student_acl is not _MISSING:
             return {
@@ -1520,8 +2012,12 @@ def _extract_error_context(template_config, student_config, feature: str, expect
         t_nat = _resolve_json_parts(template_config, ["show_running_config", "nat"])
         s_nat = _resolve_json_parts(student_config, ["show_running_config", "nat"])
 
-        template_nat = t_nat.get(nat_field, _MISSING) if isinstance(t_nat, dict) else _MISSING
-        student_nat = s_nat.get(nat_field, _MISSING) if isinstance(s_nat, dict) else _MISSING
+        template_nat = (
+            t_nat.get(nat_field, _MISSING) if isinstance(t_nat, dict) else _MISSING
+        )
+        student_nat = (
+            s_nat.get(nat_field, _MISSING) if isinstance(s_nat, dict) else _MISSING
+        )
 
         if template_nat is not _MISSING or student_nat is not _MISSING:
             return {
@@ -1537,8 +2033,12 @@ def _extract_error_context(template_config, student_config, feature: str, expect
         and feature_parts[1] == "routing"
         and feature_parts[2] == "protocol"
     ):
-        t_routing = _resolve_json_parts(template_config, ["show_running_config", "routing"])
-        s_routing = _resolve_json_parts(student_config, ["show_running_config", "routing"])
+        t_routing = _resolve_json_parts(
+            template_config, ["show_running_config", "routing"]
+        )
+        s_routing = _resolve_json_parts(
+            student_config, ["show_running_config", "routing"]
+        )
 
         expected_protocols = expected if isinstance(expected, list) else []
         actual_protocols = actual if isinstance(actual, list) else []
@@ -1560,8 +2060,12 @@ def _extract_error_context(template_config, student_config, feature: str, expect
             return {
                 "context_path": "show_running_config.routing.protocol",
                 "highlight_key": "protocol",
-                "template_context": None if template_subset is _MISSING else template_subset,
-                "student_context": None if student_subset is _MISSING else student_subset,
+                "template_context": (
+                    None if template_subset is _MISSING else template_subset
+                ),
+                "student_context": (
+                    None if student_subset is _MISSING else student_subset
+                ),
             }
 
     if (
@@ -1611,8 +2115,12 @@ def _extract_error_context(template_config, student_config, feature: str, expect
             return {
                 "context_path": ".".join(parts),
                 "highlight_key": highlight_key,
-                "template_context": None if template_context is _MISSING else template_context,
-                "student_context": None if student_context is _MISSING else student_context,
+                "template_context": (
+                    None if template_context is _MISSING else template_context
+                ),
+                "student_context": (
+                    None if student_context is _MISSING else student_context
+                ),
             }
         parts = parts[:-1]
 
@@ -1760,7 +2268,9 @@ def _find_log_file(log_dir: Path, command_hint: str):
         normalized = _normalize_text(entry.name)
         if normalized in desired_aliases:
             score = 0
-        elif any(alias in normalized or normalized in alias for alias in desired_aliases):
+        elif any(
+            alias in normalized or normalized in alias for alias in desired_aliases
+        ):
             score = 1
         else:
             continue
@@ -1846,7 +2356,7 @@ def _interface_aliases(interface_name: str):
     }
     for long_name, short_name in replacements.items():
         if text.startswith(long_name):
-            aliases.add(short_name + text[len(long_name):])
+            aliases.add(short_name + text[len(long_name) :])
     return sorted(aliases, key=len, reverse=True)
 
 
@@ -1858,13 +2368,19 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
     def _extract_router_protocol_block(proto_name):
         proto = str(proto_name or "").lower()
         if proto == "eigrp":
-            idx = _find_line_index(lines, lambda line: line.strip().lower().startswith("router eigrp "))
+            idx = _find_line_index(
+                lines, lambda line: line.strip().lower().startswith("router eigrp ")
+            )
             return _extract_cli_block(lines, idx)
         if proto == "ospf":
-            idx = _find_line_index(lines, lambda line: line.strip().lower().startswith("router ospf "))
+            idx = _find_line_index(
+                lines, lambda line: line.strip().lower().startswith("router ospf ")
+            )
             return _extract_cli_block(lines, idx)
         if proto == "rip":
-            idx = _find_line_index(lines, lambda line: line.strip().lower() == "router rip")
+            idx = _find_line_index(
+                lines, lambda line: line.strip().lower() == "router rip"
+            )
             return _extract_cli_block(lines, idx)
         return None
 
@@ -1875,7 +2391,11 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
         # parts = ["show_running_config", "interfaces", "GigabitEthernet0/0/1", "20", "vlan"]
         if len(parts) >= 5 and parts[3].isdigit():
             sub_iface = f"{iface}.{parts[3]}"  # e.g., GigabitEthernet0/0/1.20
-            idx = _find_line_index(lines, lambda line, si=sub_iface: line.strip().lower() == f"interface {si}".lower())
+            idx = _find_line_index(
+                lines,
+                lambda line, si=sub_iface: line.strip().lower()
+                == f"interface {si}".lower(),
+            )
             block = _extract_cli_block(lines, idx)
             if block:
                 return block
@@ -1889,7 +2409,8 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
                 for sub_name in pair_names:
                     idx = _find_line_index(
                         lines,
-                        lambda line, si=sub_name: line.strip().lower() == f"interface {si}".lower(),
+                        lambda line, si=sub_name: line.strip().lower()
+                        == f"interface {si}".lower(),
                     )
                     block = _extract_cli_block(lines, idx)
                     if block:
@@ -1922,7 +2443,9 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
             if svi_blocks:
                 return "\n\n".join(svi_blocks)
         # Fallback: parent interface
-        idx = _find_line_index(lines, lambda line: line.strip().lower() == f"interface {iface}".lower())
+        idx = _find_line_index(
+            lines, lambda line: line.strip().lower() == f"interface {iface}".lower()
+        )
         block = _extract_cli_block(lines, idx)
         if block:
             return block
@@ -1936,7 +2459,9 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
         return f"No interface {iface} found in running-config."
 
     if len(parts) >= 3 and parts[1] == "vty":
-        idx = _find_line_index(lines, lambda line: line.strip().lower().startswith("line vty "))
+        idx = _find_line_index(
+            lines, lambda line: line.strip().lower().startswith("line vty ")
+        )
         block = _extract_cli_block(lines, idx)
         if block:
             return block
@@ -1950,7 +2475,11 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
     if len(parts) >= 3 and parts[1] == "routing":
         routing_key = parts[2].lower()
         if routing_key == "protocol":
-            protocols = expected if isinstance(expected, list) and expected else actual if isinstance(actual, list) else []
+            protocols = (
+                expected
+                if isinstance(expected, list) and expected
+                else actual if isinstance(actual, list) else []
+            )
             blocks = []
             for proto in protocols:
                 block = _extract_router_protocol_block(proto)
@@ -1960,12 +2489,16 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
                 return "\n\n".join(blocks)
             return "No matching routing protocol block found in running-config."
         if routing_key == "ospf":
-            idx = _find_line_index(lines, lambda line: line.strip().lower().startswith("router ospf "))
+            idx = _find_line_index(
+                lines, lambda line: line.strip().lower().startswith("router ospf ")
+            )
             block = _extract_cli_block(lines, idx)
             if block:
                 return block
         if routing_key == "eigrp":
-            idx = _find_line_index(lines, lambda line: line.strip().lower().startswith("router eigrp "))
+            idx = _find_line_index(
+                lines, lambda line: line.strip().lower().startswith("router eigrp ")
+            )
             block = _extract_cli_block(lines, idx)
             if block:
                 return block
@@ -1975,19 +2508,27 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
             if block:
                 return block
         if routing_key == "static_routes":
-            block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith("ip route "))
+            block = _extract_matching_lines(
+                lines, lambda line: line.strip().lower().startswith("ip route ")
+            )
             if block:
                 return block
 
     if len(parts) >= 3 and parts[1] == "dhcp_pools":
         pool_name = parts[2]
-        idx = _find_line_index(lines, lambda line: line.strip().lower() == f"ip dhcp pool {pool_name}".lower())
+        idx = _find_line_index(
+            lines,
+            lambda line: line.strip().lower() == f"ip dhcp pool {pool_name}".lower(),
+        )
         block = _extract_cli_block(lines, idx)
         if block:
             return block
 
     if len(parts) >= 2 and parts[1] == "dhcp_excluded":
-        block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith("ip dhcp excluded-address"))
+        block = _extract_matching_lines(
+            lines,
+            lambda line: line.strip().lower().startswith("ip dhcp excluded-address"),
+        )
         if block:
             return block
 
@@ -1995,12 +2536,18 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
         acl_name = parts[2]
         idx = _find_line_index(
             lines,
-            lambda line: line.strip().lower().startswith(f"ip access-list ") and line.strip().split()[-1].lower() == acl_name.lower(),
+            lambda line: line.strip().lower().startswith(f"ip access-list ")
+            and line.strip().split()[-1].lower() == acl_name.lower(),
         )
         block = _extract_cli_block(lines, idx)
         if block:
             return block
-        block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith(f"access-list {acl_name.lower()} "))
+        block = _extract_matching_lines(
+            lines,
+            lambda line: line.strip()
+            .lower()
+            .startswith(f"access-list {acl_name.lower()} "),
+        )
         if block:
             return block
         return f"No ACL named '{acl_name}' found in running-config."
@@ -2012,18 +2559,24 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
     }
     for prefix, needle in prefix_map.items():
         if feature.startswith(prefix):
-            idx = _find_line_index(lines, lambda line: line.strip().lower().startswith(needle))
+            idx = _find_line_index(
+                lines, lambda line: line.strip().lower().startswith(needle)
+            )
             excerpt = _excerpt_around(lines, idx, before=0, after=0)
             if excerpt:
                 return excerpt
 
     if feature.startswith("show_running_config.switching.spanning_tree"):
-        block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith("spanning-tree "))
+        block = _extract_matching_lines(
+            lines, lambda line: line.strip().lower().startswith("spanning-tree ")
+        )
         if block:
             return block
 
     if feature.startswith("show_running_config.http_server"):
-        block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith("ip http "))
+        block = _extract_matching_lines(
+            lines, lambda line: line.strip().lower().startswith("ip http ")
+        )
         if block:
             return block
         field = feature.split(".")[-1] if "." in feature else "http_server"
@@ -2051,26 +2604,37 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
     if feature.startswith("show_running_config.nat."):
         nat_field = parts[2] if len(parts) > 2 else ""
         if nat_field == "inside_interfaces":
-            block = _extract_matching_lines(lines, lambda line: line.strip().lower() == "ip nat inside")
+            block = _extract_matching_lines(
+                lines, lambda line: line.strip().lower() == "ip nat inside"
+            )
             if block:
                 return block
             return "No 'ip nat inside' configuration found in running-config."
         if nat_field == "outside_interfaces":
-            block = _extract_matching_lines(lines, lambda line: line.strip().lower() == "ip nat outside")
+            block = _extract_matching_lines(
+                lines, lambda line: line.strip().lower() == "ip nat outside"
+            )
             if block:
                 return block
             return "No 'ip nat outside' configuration found in running-config."
         if nat_field == "pools":
-            block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith("ip nat pool "))
+            block = _extract_matching_lines(
+                lines, lambda line: line.strip().lower().startswith("ip nat pool ")
+            )
             if block:
                 return block
             return "No 'ip nat pool' configuration found in running-config."
         if nat_field == "inside_source":
-            block = _extract_matching_lines(lines, lambda line: line.strip().lower().startswith("ip nat inside source "))
+            block = _extract_matching_lines(
+                lines,
+                lambda line: line.strip().lower().startswith("ip nat inside source "),
+            )
             if block:
                 return block
             return "No 'ip nat inside source' configuration found in running-config."
-        block = _extract_matching_lines(lines, lambda line: "ip nat" in line.strip().lower())
+        block = _extract_matching_lines(
+            lines, lambda line: "ip nat" in line.strip().lower()
+        )
         if block:
             return block
 
@@ -2085,7 +2649,10 @@ def _extract_show_ip_interface_brief_excerpt(lines, feature: str):
     aliases = _interface_aliases(iface)
     idx = _find_line_index(
         lines,
-        lambda line: any(re.search(rf"^{re.escape(alias)}(\s|$)", line.strip(), re.IGNORECASE) for alias in aliases),
+        lambda line: any(
+            re.search(rf"^{re.escape(alias)}(\s|$)", line.strip(), re.IGNORECASE)
+            for alias in aliases
+        ),
     )
     excerpt = _excerpt_around(lines, idx, before=2, after=2)
     if excerpt:
@@ -2098,7 +2665,9 @@ def _extract_show_vlan_brief_excerpt(lines, feature: str):
     if len(parts) < 4 or parts[2] != "vlans":
         return None
     vlan_id = parts[3]
-    idx = _find_line_index(lines, lambda line: re.search(rf"^{re.escape(vlan_id)}\s", line.strip()))
+    idx = _find_line_index(
+        lines, lambda line: re.search(rf"^{re.escape(vlan_id)}\s", line.strip())
+    )
     return _excerpt_around(lines, idx, before=2, after=1)
 
 
@@ -2122,9 +2691,14 @@ def _extract_show_ip_route_excerpt(lines, feature: str, expected=None, actual=No
 
 def _extract_show_access_lists_excerpt(lines, feature: str):
     parts = [part for part in str(feature or "").split(".") if part]
-    acl_name = parts[3] if len(parts) >= 4 and parts[2] in {"acls", "access_lists"} else None
+    acl_name = (
+        parts[3] if len(parts) >= 4 and parts[2] in {"acls", "access_lists"} else None
+    )
     if acl_name:
-        idx = _find_line_index(lines, lambda line: re.search(rf"\b{re.escape(acl_name)}\b", line, re.IGNORECASE))
+        idx = _find_line_index(
+            lines,
+            lambda line: re.search(rf"\b{re.escape(acl_name)}\b", line, re.IGNORECASE),
+        )
         if idx is not None:
             start = idx
             while start > 0 and lines[start - 1].strip():
@@ -2142,7 +2716,9 @@ def _extract_raw_excerpt(log_path: Path, feature: str, expected=None, actual=Non
         return None
 
     if feature.startswith("show_running_config."):
-        excerpt = _extract_running_config_excerpt(lines, feature, expected=expected, actual=actual)
+        excerpt = _extract_running_config_excerpt(
+            lines, feature, expected=expected, actual=actual
+        )
         if excerpt:
             return excerpt
         if feature == "show_running_config.banner_motd":
@@ -2161,7 +2737,9 @@ def _extract_raw_excerpt(log_path: Path, feature: str, expected=None, actual=Non
             return excerpt
 
     if feature.startswith("verification.show_ip_route."):
-        excerpt = _extract_show_ip_route_excerpt(lines, feature, expected=expected, actual=actual)
+        excerpt = _extract_show_ip_route_excerpt(
+            lines, feature, expected=expected, actual=actual
+        )
         if excerpt:
             return excerpt
 
@@ -2172,7 +2750,9 @@ def _extract_raw_excerpt(log_path: Path, feature: str, expected=None, actual=Non
 
     search_terms = []
     for part in str(feature or "").split("."):
-        if "/" in part or part.lower().startswith(("vlan", "fa", "gi", "se", "lo", "po")):
+        if "/" in part or part.lower().startswith(
+            ("vlan", "fa", "gi", "se", "lo", "po")
+        ):
             search_terms.append(part)
     for value in [expected, actual]:
         if isinstance(value, str) and value.strip() and len(value.strip()) < 80:
@@ -2221,15 +2801,20 @@ def _hostname_matches_target(expected, actual):
     return expected_name == actual_name
 
 
-def _engine_student_logs_dir(exam_name, session_id, student_id, hostname=None):
-    safe_exam = (str(exam_name or "").strip())
-    safe_session = (str(session_id or "").strip())
-    safe_student = (str(student_id or "").strip())
-    if not all([safe_exam, safe_session, safe_student]):
+def _engine_student_logs_dir(
+    classroom, tutor_name, time_slot, student_id, hostname=None
+):
+    safe_classroom = str(classroom or "").strip()
+    safe_tutor = str(tutor_name or "").strip()
+    safe_time = str(time_slot or "").strip()
+    safe_student = str(student_id or "").strip()
+    if not all([safe_classroom, safe_tutor, safe_time, safe_student]):
         return None
     if safe_student.lower() in {"sample", "unknown"}:
         return None
-    target_dir = ENGINE_STUDENTS_DIR / safe_exam / safe_session / safe_student
+    target_dir = (
+        ENGINE_STUDENTS_DIR / safe_classroom / safe_tutor / safe_time / safe_student
+    )
     if hostname:
         target_dir = target_dir / str(hostname).strip()
     return target_dir
@@ -2269,22 +2854,28 @@ def _load_session_student_names(session_dir: Path) -> dict:
 
 def _save_session_student_names(session_dir: Path, names: dict):
     path = _session_student_names_path(session_dir)
-    cleaned = {str(k): str(v) for k, v in (names or {}).items() if str(k).strip() and str(v).strip()}
+    cleaned = {
+        str(k): str(v)
+        for k, v in (names or {}).items()
+        if str(k).strip() and str(v).strip()
+    }
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(cleaned, handle, indent=2, ensure_ascii=False)
 
 
 def _save_output_to_engine_students(
-    command, output, exam_name, session_id, student_id, hostname
+    command, output, classroom, tutor_name, time_slot, student_id, hostname
 ):
     """
     Save command output under
-    comparison_engine/students/<exam_name>/<session_id>/<student_id>/<hostname>/.
+    comparison_engine/students/<classroom>/<tutor_name>/<time_slot>/<student_id>/<hostname>/.
     Only stores command logs (no config.json).
     """
     if not hostname:
         return None
-    target_dir = _engine_student_logs_dir(exam_name, session_id, student_id, hostname)
+    target_dir = _engine_student_logs_dir(
+        classroom, tutor_name, time_slot, student_id, hostname
+    )
     if target_dir is None:
         return None
     safe_command = command.replace(" ", "_").replace("/", "_")
@@ -2299,19 +2890,31 @@ def _save_output_to_engine_students(
 # ✅ Directory Endpoints
 # -------------------------------------------------
 def _validate_directory_payload(data):
-    exam_name = data.get("examName")
-    session_id = data.get("sessionId")
-    student_id = data.get("studentId")
+    classroom = (
+        data.get("classroom") or data.get("examName") or data.get("exam_name") or ""
+    ).strip()
+    tutor_name = (
+        data.get("tutor_name")
+        or data.get("tutorName")
+        or data.get("sessionId")
+        or data.get("session_id")
+        or ""
+    ).strip()
+    time_slot = (data.get("time_slot") or data.get("timeSlot") or "").strip()
+    student_id = (data.get("studentId") or data.get("student_id") or "").strip()
 
-    if not all([exam_name, session_id, student_id]):
+    if not all([classroom, tutor_name, time_slot, student_id]):
         return (
             None,
             jsonify(
-                {"status": "error", "message": "Missing examName/sessionId/studentId"}
+                {
+                    "status": "error",
+                    "message": "Missing classroom/tutor_name/time_slot/studentId",
+                }
             ),
             400,
         )
-    return (exam_name, session_id, student_id), None, None
+    return (classroom, tutor_name, time_slot, student_id), None, None
 
 
 @app.route("/api/create_directory", methods=["POST"])
@@ -2324,14 +2927,14 @@ def api_create_directory():
     if error_resp:
         return error_resp, status
 
-    exam_name, session_id, student_id = validated
+    classroom, tutor_name, time_slot, student_id = validated
     student_name = (data.get("studentName") or data.get("student_name") or "").strip()
     base_path = os.path.expanduser(
-        os.path.join("~/Documents", exam_name, session_id, student_id)
+        os.path.join("~/Documents", classroom, tutor_name, time_slot, student_id)
     )
     os.makedirs(base_path, exist_ok=True)
     if student_name:
-        session_dir = Path.home() / "Documents" / exam_name / session_id
+        session_dir = Path.home() / "Documents" / classroom / tutor_name / time_slot
         names = _load_session_student_names(session_dir)
         names[student_id] = student_name
         _save_session_student_names(session_dir, names)
@@ -2340,8 +2943,12 @@ def api_create_directory():
             "status": "ok",
             "message": f"Directory ready: {base_path}",
             "path": base_path,
-            "exam_name": exam_name,
-            "session_id": session_id,
+            "classroom": classroom,
+            "tutor_name": tutor_name,
+            "time_slot": time_slot,
+            # Backward-compatible response keys
+            "exam_name": classroom,
+            "session_id": tutor_name,
             "student_id": student_id,
             "student_name": student_name,
         }
@@ -2365,19 +2972,36 @@ def api_select_directory():
 
     if os.path.exists(existing_path):
         parts = Path(existing_path).parts
-        if len(parts) >= 3:
-            exam_name, session_id, student_id = parts[-3], parts[-2], parts[-1]
+        if len(parts) >= 4:
+            classroom, tutor_name, time_slot, student_id = (
+                parts[-4],
+                parts[-3],
+                parts[-2],
+                parts[-1],
+            )
         else:
-            exam_name = data.get("examName")
-            session_id = data.get("sessionId")
-            student_id = data.get("studentId")
+            classroom = (
+                data.get("classroom") or data.get("examName") or data.get("exam_name")
+            )
+            tutor_name = (
+                data.get("tutor_name")
+                or data.get("tutorName")
+                or data.get("sessionId")
+                or data.get("session_id")
+            )
+            time_slot = data.get("time_slot") or data.get("timeSlot")
+            student_id = data.get("studentId") or data.get("student_id")
         return jsonify(
             {
                 "status": "ok",
                 "message": f"Using existing directory: {existing_path}",
                 "path": existing_path,
-                "exam_name": exam_name,
-                "session_id": session_id,
+                "classroom": classroom,
+                "tutor_name": tutor_name,
+                "time_slot": time_slot,
+                # Backward-compatible response keys
+                "exam_name": classroom,
+                "session_id": tutor_name,
                 "student_id": student_id,
             }
         )
@@ -2394,26 +3018,36 @@ def _list_existing_directories():
     if not docs_path.exists():
         return results
 
-    for exam_dir in docs_path.iterdir():
-        if not exam_dir.is_dir() or exam_dir.name.startswith("."):
+    for classroom_dir in docs_path.iterdir():
+        if not classroom_dir.is_dir() or classroom_dir.name.startswith("."):
             continue
-        for session_dir in exam_dir.iterdir():
-            if not session_dir.is_dir():
+        for tutor_dir in classroom_dir.iterdir():
+            if not tutor_dir.is_dir() or tutor_dir.name.startswith("."):
                 continue
-            student_names = _load_session_student_names(session_dir)
-            for student_dir in session_dir.iterdir():
-                if not student_dir.is_dir():
+            for time_dir in tutor_dir.iterdir():
+                if not time_dir.is_dir() or time_dir.name.startswith("."):
                     continue
-                results.append(
-                    {
-                        "path": str(student_dir),
-                        "exam_name": exam_dir.name,
-                        "session_id": session_dir.name,
-                        "student_id": student_dir.name,
-                        "student_name": student_names.get(student_dir.name, ""),
-                        "display": f"{exam_dir.name}/{session_dir.name}/{student_dir.name}",
-                    }
-                )
+                student_names = _load_session_student_names(time_dir)
+                for student_dir in time_dir.iterdir():
+                    if not student_dir.is_dir() or student_dir.name.startswith("."):
+                        continue
+                    results.append(
+                        {
+                            "path": str(student_dir),
+                            "classroom": classroom_dir.name,
+                            "tutor_name": tutor_dir.name,
+                            "time_slot": time_dir.name,
+                            # Backward-compatible keys
+                            "exam_name": classroom_dir.name,
+                            "session_id": tutor_dir.name,
+                            "student_id": student_dir.name,
+                            "student_name": student_names.get(student_dir.name, ""),
+                            "display": (
+                                f"{classroom_dir.name}/{tutor_dir.name}/"
+                                f"{time_dir.name}/{student_dir.name}"
+                            ),
+                        }
+                    )
     return sorted(results, key=lambda x: x["display"])
 
 
@@ -2423,20 +3057,26 @@ def _list_existing_sessions():
     if not docs_path.exists():
         return results
 
-    for exam_dir in docs_path.iterdir():
-        if not exam_dir.is_dir() or exam_dir.name.startswith("."):
+    for classroom_dir in docs_path.iterdir():
+        if not classroom_dir.is_dir() or classroom_dir.name.startswith("."):
             continue
-        for session_dir in exam_dir.iterdir():
-            if not session_dir.is_dir():
+        for tutor_dir in classroom_dir.iterdir():
+            if not tutor_dir.is_dir() or tutor_dir.name.startswith("."):
                 continue
-            results.append(
-                {
-                    "path": str(session_dir),
-                    "exam_name": exam_dir.name,
-                    "session_id": session_dir.name,
-                    "display": f"{exam_dir.name}/{session_dir.name}",
-                }
-            )
+            for time_dir in tutor_dir.iterdir():
+                if not time_dir.is_dir() or time_dir.name.startswith("."):
+                    continue
+                results.append(
+                    {
+                        "path": str(time_dir),
+                        "classroom": classroom_dir.name,
+                        "tutor_name": tutor_dir.name,
+                        "time_slot": time_dir.name,
+                        "exam_name": classroom_dir.name,
+                        "session_id": tutor_dir.name,
+                        "display": f"{classroom_dir.name}/{tutor_dir.name}/{time_dir.name}",
+                    }
+                )
     return sorted(results, key=lambda x: x["display"])
 
 
@@ -2446,20 +3086,20 @@ def _list_existing_exams():
     if not docs_path.exists():
         return results
 
-    for exam_dir in docs_path.iterdir():
-        if not exam_dir.is_dir() or exam_dir.name.startswith("."):
+    for classroom_dir in docs_path.iterdir():
+        if not classroom_dir.is_dir() or classroom_dir.name.startswith("."):
             continue
-        # Only include dirs that contain at least one session subdirectory
+        # Only include dirs that contain at least one tutor/time subdirectory
         has_session = any(
-            d.is_dir() for d in exam_dir.iterdir()
-            if not d.name.startswith(".")
+            d.is_dir() for d in classroom_dir.iterdir() if not d.name.startswith(".")
         )
         if has_session:
             results.append(
                 {
-                    "path": str(exam_dir),
-                    "exam_name": exam_dir.name,
-                    "display": exam_dir.name,
+                    "path": str(classroom_dir),
+                    "classroom": classroom_dir.name,
+                    "exam_name": classroom_dir.name,
+                    "display": classroom_dir.name,
                 }
             )
     return sorted(results, key=lambda x: x["display"])
@@ -2469,7 +3109,7 @@ def _list_existing_exams():
 def api_list_directories():
     path_val = request.args.get("path")
     docs_path = (Path.home() / "Documents").resolve()
-    
+
     # If a path is provided, use it as the "current" one, otherwise default to ~/Documents
     if path_val:
         try:
@@ -2478,23 +3118,22 @@ def api_list_directories():
             current = docs_path
     else:
         current = docs_path
-            
+
     # Only return the managed "directories" list if we are explicitly at the managed root.
     # Otherwise, we want the frontend to fall back to 'loadSubfolders' to show the actual directory contents.
     directories = []
     if current == docs_path:
         directories = _list_existing_directories()
 
-    return jsonify({
-        "status": "ok", 
-        "directories": directories,
-        "current_path": str(current)
-    })
+    return jsonify(
+        {"status": "ok", "directories": directories, "current_path": str(current)}
+    )
+
 
 @app.route("/api/subfolders", methods=["GET"])
 def api_list_subfolders():
     path_val = request.args.get("path")
-    
+
     # If path not provided, default to user home so they can see Documents, Downloads etc.
     if not path_val:
         target = Path.home()
@@ -2503,44 +3142,52 @@ def api_list_subfolders():
             target = Path(_expand_path(path_val)).resolve()
         except:
             return jsonify({"status": "error", "message": "Invalid path"}), 400
-        
+
     if not target.exists() or not target.is_dir():
-         return jsonify({"status": "error", "message": "Path not found"}), 404
-         
+        return jsonify({"status": "error", "message": "Path not found"}), 404
+
     subfolders = []
     try:
         # List directories only
         for item in target.iterdir():
             if item.is_dir() and not item.name.startswith("."):
-                subfolders.append({
-                    "name": item.name,
-                    "path": str(item)
-                })
+                subfolders.append({"name": item.name, "path": str(item)})
         subfolders.sort(key=lambda x: x["name"].lower())
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-        
-    return jsonify({
-        "status": "ok", 
-        "subfolders": subfolders,
-        "current_path": str(target),
-        "parent_path": str(target.parent)
-    })
+
+    return jsonify(
+        {
+            "status": "ok",
+            "subfolders": subfolders,
+            "current_path": str(target),
+            "parent_path": str(target.parent),
+        }
+    )
 
 
 @app.route("/api/directories/bulk", methods=["POST"])
 def api_bulk_directories():
     data = request.get_json() or {}
-    exam_name = data.get("examName")
-    session_id = data.get("sessionId")
+    classroom = (
+        data.get("classroom") or data.get("examName") or data.get("exam_name") or ""
+    ).strip()
+    tutor_name = (
+        data.get("tutor_name")
+        or data.get("tutorName")
+        or data.get("sessionId")
+        or data.get("session_id")
+        or ""
+    ).strip()
+    time_slot = (data.get("time_slot") or data.get("timeSlot") or "").strip()
     students = data.get("students") or []
 
-    if not exam_name or not session_id or not students:
+    if not classroom or not tutor_name or not time_slot or not students:
         return (
             jsonify(
                 {
                     "status": "error",
-                    "message": "Missing examName/sessionId/students for bulk creation.",
+                    "message": "Missing classroom/tutor_name/time_slot/students for bulk creation.",
                 }
             ),
             400,
@@ -2548,7 +3195,7 @@ def api_bulk_directories():
 
     created = []
     base_docs_path = Path.home() / "Documents"
-    session_dir = base_docs_path / exam_name / session_id
+    session_dir = base_docs_path / classroom / tutor_name / time_slot
     session_dir.mkdir(parents=True, exist_ok=True)
     student_names = _load_session_student_names(session_dir)
 
@@ -2564,11 +3211,14 @@ def api_bulk_directories():
         created.append(
             {
                 "path": str(student_dir),
-                "exam_name": exam_name,
-                "session_id": session_id,
+                "classroom": classroom,
+                "tutor_name": tutor_name,
+                "time_slot": time_slot,
+                "exam_name": classroom,
+                "session_id": tutor_name,
                 "student_id": student_id,
                 "student_name": student_name,
-                "display": f"{exam_name}/{session_id}/{student_id}",
+                "display": f"{classroom}/{tutor_name}/{time_slot}/{student_id}",
             }
         )
 
@@ -2580,6 +3230,7 @@ def api_bulk_directories():
 # -------------------------------------------------
 # ✅ Connection Test Endpoint
 # -------------------------------------------------
+
 
 @app.route("/api/connect", methods=["POST"])
 def api_connect():
@@ -2715,8 +3366,10 @@ def api_connect():
         host = ssh.get("host") or data.get("host")
         user = ssh.get("username") or data.get("username")
         pwd = ssh.get("password") or data.get("password")
-        raw_port = ssh.get("port") or data.get("port") or last_used_ssh_credentials.get(
-            "port", 22
+        raw_port = (
+            ssh.get("port")
+            or data.get("port")
+            or last_used_ssh_credentials.get("port", 22)
         )
         try:
             port_value = int(str(raw_port))
@@ -2780,9 +3433,7 @@ def api_connect():
         _close_serial_connection()
         _close_ssh_connection()
 
-        print(
-            f"[API][connect][ssh] Connecting to {host}:{port_value} ...", flush=True
-        )
+        print(f"[API][connect][ssh] Connecting to {host}:{port_value} ...", flush=True)
         yield stream_json_line(
             {
                 "type": "progress",
@@ -2881,8 +3532,16 @@ def api_reset_device():
     with connection_lock:
         stored_port = last_used_serial_settings.get("port")
         stored_baud = last_used_serial_settings.get("baudrate", 9600)
-    port = serial_payload.get("port") or data.get("port") or stored_port or "/dev/ttyUSB0"
-    raw_baud = serial_payload.get("baudrate") or serial_payload.get("baud") or data.get("baudrate") or stored_baud or 9600
+    port = (
+        serial_payload.get("port") or data.get("port") or stored_port or "/dev/ttyUSB0"
+    )
+    raw_baud = (
+        serial_payload.get("baudrate")
+        or serial_payload.get("baud")
+        or data.get("baudrate")
+        or stored_baud
+        or 9600
+    )
     try:
         baudrate = int(raw_baud)
     except (TypeError, ValueError):
@@ -2927,7 +3586,6 @@ def api_reset_device():
         ),
         500,
     )
-
 
 
 # -------------------------------------------------
@@ -2980,17 +3638,22 @@ def api_delete_command():
 @app.route("/api/save_log", methods=["POST"])
 def api_save_log():
     data = request.get_json() or {}
-    exam_name = data.get("exam_name")
-    session_id = data.get("session_id")
+    classroom = (
+        data.get("classroom") or data.get("exam_name") or data.get("examName") or ""
+    ).strip()
+    tutor_name = (
+        data.get("tutor_name") or data.get("session_id") or data.get("sessionId") or ""
+    ).strip()
+    time_slot = (data.get("time_slot") or data.get("timeSlot") or "").strip()
     student_id = data.get("student_id")
     filename = data.get("filename", "log.txt")
     content = data.get("content", "")
 
-    if not (exam_name and session_id and student_id):
+    if not (classroom and tutor_name and time_slot and student_id):
         return jsonify({"status": "error", "message": "Missing directory info"}), 400
 
     base_dir = os.path.expanduser(
-        os.path.join("~/Documents", exam_name, session_id, student_id)
+        os.path.join("~/Documents", classroom, tutor_name, time_slot, student_id)
     )
     os.makedirs(base_dir, exist_ok=True)
     path = os.path.join(base_dir, filename)
@@ -3012,8 +3675,11 @@ def _ensure_base_path(data):
     """
     mode = data.get("log_mode", "create")
     log_dir = data.get("log_dir")
-    exam_name = data.get("exam_name")
-    session_id = data.get("session_id")
+    classroom = data.get("classroom") or data.get("exam_name") or data.get("examName")
+    tutor_name = (
+        data.get("tutor_name") or data.get("session_id") or data.get("sessionId")
+    )
+    time_slot = data.get("time_slot") or data.get("timeSlot")
     student_id = data.get("student_id")
 
     if mode == "existing":
@@ -3022,17 +3688,18 @@ def _ensure_base_path(data):
         expanded = _expand_path(log_dir)
         if not expanded or not os.path.exists(expanded):
             raise FileNotFoundError(f"Existing directory not found: {log_dir}")
-        return expanded, exam_name, session_id, student_id
+        return expanded, classroom, tutor_name, time_slot, student_id
 
-    if not all([exam_name, session_id, student_id]):
-        raise ValueError("Missing exam/session/student details for directory creation.")
+    if not all([classroom, tutor_name, time_slot, student_id]):
+        raise ValueError(
+            "Missing classroom/tutor/time/student details for directory creation."
+        )
 
     base_path = os.path.expanduser(
-        os.path.join("~/Documents", exam_name, session_id, student_id)
+        os.path.join("~/Documents", classroom, tutor_name, time_slot, student_id)
     )
     os.makedirs(base_path, exist_ok=True)
-    return base_path, exam_name, session_id, student_id
-
+    return base_path, classroom, tutor_name, time_slot, student_id
 
 
 @app.route("/api/abort", methods=["POST"])
@@ -3074,7 +3741,9 @@ def api_execute():
         )
 
     try:
-        base_path, exam_name, session_id, student_id = _ensure_base_path(data)
+        base_path, classroom, tutor_name, time_slot, student_id = _ensure_base_path(
+            data
+        )
     except FileNotFoundError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 404
     except ValueError as exc:
@@ -3093,7 +3762,9 @@ def api_execute():
             with connection_lock:
                 stored_port = last_used_serial_settings.get("port")
                 stored_baud = last_used_serial_settings.get("baudrate", 9600)
-                existing_ser = serial_conn if serial_conn and serial_conn.is_open else None
+                existing_ser = (
+                    serial_conn if serial_conn and serial_conn.is_open else None
+                )
                 stored_hostname = serial_hostname or "device"
             port = serial_payload.get("port") or stored_port or "/dev/ttyUSB0"
             baudrate = (
@@ -3218,29 +3889,37 @@ def api_execute():
             completed = 0
             total_commands = len(commands)
             for cmd in commands:
-                yield stream_json_line({"type": "progress", "msg": f"Running '{cmd}'..."})
+                yield stream_json_line(
+                    {"type": "progress", "msg": f"Running '{cmd}'..."}
+                )
                 try:
                     output = send_command(local_ser, cmd, timeout=30)
                     file_path = save_output_to_file(
                         cmd,
                         output,
-                        exam_name,
-                        student_id,
-                        session_id,
-                        target_device or hostname,
+                        classroom=classroom,
+                        tutor_name=tutor_name,
+                        time_slot=time_slot,
+                        student_id=student_id,
+                        hostname=target_device or hostname,
                         base_dir=base_path,
                     )
                     _save_output_to_engine_students(
                         cmd,
                         output,
-                        exam_name,
-                        session_id,
+                        classroom,
+                        tutor_name,
+                        time_slot,
                         student_id,
                         target_device or hostname,
                     )
                     files_written.append(file_path)
                     completed += 1
-                    pct = round((completed / total_commands) * 100) if total_commands else 100
+                    pct = (
+                        round((completed / total_commands) * 100)
+                        if total_commands
+                        else 100
+                    )
                     yield stream_json_line(
                         {
                             "type": "progress",
@@ -3250,7 +3929,7 @@ def api_execute():
                         }
                     )
                 except Exception as exc:
-                    del_partial_logs(base_path, exam_name, session_id, student_id, hostname)
+                    del_partial_logs(base_path, hostname)
                     yield stream_json_line(
                         {
                             "type": "error",
@@ -3296,7 +3975,7 @@ def api_execute():
                                 "msg": f"Failed to save config.json: {exc}; fallback failed: {exc2}",
                             }
                         )
-            
+
             # Close the port so the user can physically unplug the cable for the next queue item
             _close_serial_connection()
             return True
@@ -3306,14 +3985,18 @@ def api_execute():
             nonlocal hostname
             ssh_payload = data.get("ssh") or {}
             with connection_lock:
-                active_client = ssh_client if _is_ssh_client_active(ssh_client) else None
+                active_client = (
+                    ssh_client if _is_ssh_client_active(ssh_client) else None
+                )
                 cached_host = last_used_ssh_credentials.get("host")
                 cached_user = last_used_ssh_credentials.get("username")
                 cached_port = last_used_ssh_credentials.get("port")
                 stored_hostname = ssh_hostname or ssh_payload.get("host")
             host = ssh_payload.get("host") or cached_host
             username = ssh_payload.get("username") or cached_user
-            password = ssh_payload.get("password") or last_used_ssh_credentials.get("password")
+            password = ssh_payload.get("password") or last_used_ssh_credentials.get(
+                "password"
+            )
             raw_port = ssh_payload.get("port") or cached_port or 22
             try:
                 port_value = int(str(raw_port))
@@ -3355,7 +4038,9 @@ def api_execute():
                 result = _acquire_ssh_connection(host, username, password, port_value)
                 client, shell, resolved_port = result
                 if not client:
-                    yield stream_json_line({"type": "error", "msg": "SSH connection failed."})
+                    yield stream_json_line(
+                        {"type": "error", "msg": "SSH connection failed."}
+                    )
                     return False
                 try:
                     yield stream_json_line(
@@ -3394,7 +4079,9 @@ def api_execute():
                         }
                     )
                     return False
-                if target_device and not _hostname_matches_target(target_device, hostname):
+                if target_device and not _hostname_matches_target(
+                    target_device, hostname
+                ):
                     if skip_hostname_check:
                         yield stream_json_line(
                             {
@@ -3421,10 +4108,14 @@ def api_execute():
                             }
                         )
                         return False
-                    _update_ssh_state(client, host, username, password, hostname, resolved_port)
+                    _update_ssh_state(
+                        client, host, username, password, hostname, resolved_port
+                    )
 
             if not reuse:
-                if target_device and not _hostname_matches_target(target_device, hostname):
+                if target_device and not _hostname_matches_target(
+                    target_device, hostname
+                ):
                     if skip_hostname_check:
                         yield stream_json_line(
                             {
@@ -3459,29 +4150,37 @@ def api_execute():
             completed = 0
             total_commands = len(commands)
             for cmd in commands:
-                yield stream_json_line({"type": "progress", "msg": f"Running '{cmd}'..."})
+                yield stream_json_line(
+                    {"type": "progress", "msg": f"Running '{cmd}'..."}
+                )
                 try:
                     output = send_command_remote(active, cmd, timeout=30)
                     file_path = save_output_to_file(
                         cmd,
                         output,
-                        exam_name,
-                        student_id,
-                        session_id,
-                        target_device or hostname,
+                        classroom=classroom,
+                        tutor_name=tutor_name,
+                        time_slot=time_slot,
+                        student_id=student_id,
+                        hostname=target_device or hostname,
                         base_dir=base_path,
                     )
                     _save_output_to_engine_students(
                         cmd,
                         output,
-                        exam_name,
-                        session_id,
+                        classroom,
+                        tutor_name,
+                        time_slot,
                         student_id,
                         target_device or hostname,
                     )
                     files_written.append(file_path)
                     completed += 1
-                    pct = round((completed / total_commands) * 100) if total_commands else 100
+                    pct = (
+                        round((completed / total_commands) * 100)
+                        if total_commands
+                        else 100
+                    )
                     yield stream_json_line(
                         {
                             "type": "progress",
@@ -3491,7 +4190,7 @@ def api_execute():
                         }
                     )
                 except Exception as exc:
-                    del_partial_logs(base_path, exam_name, session_id, student_id, hostname)
+                    del_partial_logs(base_path, hostname)
                     yield stream_json_line(
                         {
                             "type": "error",
@@ -3572,16 +4271,16 @@ def api_execute():
         except Exception as exc:
             tb = traceback.format_exc()
             if hostname:
-                del_partial_logs(base_path, exam_name, session_id, student_id, hostname)
+                del_partial_logs(base_path, hostname)
             yield stream_json_line({"type": "error", "msg": str(exc), "trace": tb})
 
     return Response(generate(), mimetype="text/plain")
 
 
-
 # -------------------------------------------------
 # ✅ Grading System Endpoints
 # -------------------------------------------------
+
 
 def _get_yaml_file(directory, file_id):
     path = directory / f"{file_id}.yaml"
@@ -3593,11 +4292,13 @@ def _get_yaml_file(directory, file_id):
     except Exception:
         return None
 
+
 def _save_yaml_file(directory, file_id, data):
     path = directory / f"{file_id}.yaml"
     with open(path, "w") as f:
         yaml.dump(data, f)
     return str(path)
+
 
 def _delete_yaml_file(directory, file_id):
     path = directory / f"{file_id}.yaml"
@@ -3605,6 +4306,7 @@ def _delete_yaml_file(directory, file_id):
         path.unlink()
         return True
     return False
+
 
 def _list_yaml_files(directory):
     items = []
@@ -3622,11 +4324,14 @@ def _list_yaml_files(directory):
             continue
     return sorted(items, key=lambda x: x.get("name", ""))
 
+
 # --- Schemes ---
+
 
 @app.route("/api/schemes", methods=["GET"])
 def api_list_schemes():
     return jsonify({"status": "ok", "schemes": _list_yaml_files(SCHEMES_DIR)})
+
 
 @app.route("/api/schemes", methods=["POST"])
 def api_save_scheme():
@@ -3634,14 +4339,16 @@ def api_save_scheme():
     scheme_id = data.get("id")
     if not scheme_id:
         import uuid
+
         scheme_id = str(uuid.uuid4())[:8]
         data["id"] = scheme_id
-    
+
     try:
         _save_yaml_file(SCHEMES_DIR, scheme_id, data)
         return jsonify({"status": "ok", "message": "Scheme saved", "id": scheme_id})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route("/api/schemes/<scheme_id>", methods=["DELETE"])
 def api_delete_scheme(scheme_id):
@@ -3649,11 +4356,14 @@ def api_delete_scheme(scheme_id):
         return jsonify({"status": "ok", "message": "Scheme deleted"})
     return jsonify({"status": "error", "message": "Scheme not found"}), 404
 
+
 # --- Rubrics ---
+
 
 @app.route("/api/rubrics", methods=["GET"])
 def api_list_rubrics():
     return jsonify({"status": "ok", "rubrics": _list_yaml_files(RUBRICS_DIR)})
+
 
 @app.route("/api/rubrics", methods=["POST"])
 def api_save_rubric():
@@ -3661,14 +4371,16 @@ def api_save_rubric():
     rubric_id = data.get("id")
     if not rubric_id:
         import uuid
+
         rubric_id = str(uuid.uuid4())[:8]
         data["id"] = rubric_id
-        
+
     try:
         _save_yaml_file(RUBRICS_DIR, rubric_id, data)
         return jsonify({"status": "ok", "message": "Rubric saved", "id": rubric_id})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route("/api/rubrics/<rubric_id>", methods=["DELETE"])
 def api_delete_rubric(rubric_id):
@@ -3676,7 +4388,9 @@ def api_delete_rubric(rubric_id):
         return jsonify({"status": "ok", "message": "Rubric deleted"})
     return jsonify({"status": "error", "message": "Rubric not found"}), 404
 
+
 # --- Grading Policy ---
+
 
 @app.route("/api/grading_policy", methods=["GET"])
 def api_get_grading_policy():
@@ -3695,12 +4409,16 @@ def api_save_grading_policy():
         major_threshold = int(major_threshold)
         minor_threshold = int(minor_threshold)
     except Exception:
-        return jsonify({"status": "error", "message": "Thresholds must be integers."}), 400
+        return (
+            jsonify({"status": "error", "message": "Thresholds must be integers."}),
+            400,
+        )
 
     if major_threshold < 1 or minor_threshold < 1:
-        return jsonify(
-            {"status": "error", "message": "Thresholds must be at least 1."}
-        ), 400
+        return (
+            jsonify({"status": "error", "message": "Thresholds must be at least 1."}),
+            400,
+        )
 
     policy = save_grading_policy(
         {
@@ -3740,6 +4458,7 @@ def api_reset_rubric_rules():
 
 # --- Results View ---
 
+
 @app.route("/api/results", methods=["GET"])
 def api_get_results():
     target_path = request.args.get("target_path")
@@ -3769,7 +4488,15 @@ def api_error_context():
     actual = data.get("actual")
 
     if not all([target_path, student_id, template_name, hostname, feature]):
-        return jsonify({"status": "error", "message": "Missing target_path, student_id, template_name, hostname, or feature."}), 400
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Missing target_path, student_id, template_name, hostname, or feature.",
+                }
+            ),
+            400,
+        )
 
     session_dir = Path(target_path).resolve()
     if not session_dir.is_dir():
@@ -3792,15 +4519,29 @@ def api_error_context():
         TEMPLATES_DIR, TEMPLATES_DIR / template_name / hostname / "logs"
     )
 
-    template_config = _load_json_file(template_config_path) if template_config_path and template_config_path.exists() else {}
-    student_config = _load_json_file(student_config_path) if student_config_path and student_config_path.exists() else {}
+    template_config = (
+        _load_json_file(template_config_path)
+        if template_config_path and template_config_path.exists()
+        else {}
+    )
+    student_config = (
+        _load_json_file(student_config_path)
+        if student_config_path and student_config_path.exists()
+        else {}
+    )
     command_hint = _command_hint_for_feature(feature)
     template_raw_path = _find_log_file(template_log_dir, command_hint)
     student_raw_path = _find_log_file(student_log_dir, command_hint)
 
-    context = _extract_error_context(template_config, student_config, feature, expected=expected, actual=actual)
-    template_raw_excerpt = _extract_raw_excerpt(template_raw_path, feature, expected=expected, actual=actual)
-    student_raw_excerpt = _extract_raw_excerpt(student_raw_path, feature, expected=expected, actual=actual)
+    context = _extract_error_context(
+        template_config, student_config, feature, expected=expected, actual=actual
+    )
+    template_raw_excerpt = _extract_raw_excerpt(
+        template_raw_path, feature, expected=expected, actual=actual
+    )
+    student_raw_excerpt = _extract_raw_excerpt(
+        student_raw_path, feature, expected=expected, actual=actual
+    )
 
     return jsonify(
         {
@@ -3813,11 +4554,27 @@ def api_error_context():
             "highlight_key": context["highlight_key"],
             "template_context": context["template_context"],
             "student_context": context["student_context"],
-            "template_config_path": str(template_config_path) if template_config_path and template_config_path.exists() else None,
-            "student_config_path": str(student_config_path) if student_config_path and student_config_path.exists() else None,
+            "template_config_path": (
+                str(template_config_path)
+                if template_config_path and template_config_path.exists()
+                else None
+            ),
+            "student_config_path": (
+                str(student_config_path)
+                if student_config_path and student_config_path.exists()
+                else None
+            ),
             "command_hint": command_hint,
-            "template_raw_path": str(template_raw_path) if template_raw_path and template_raw_path.exists() else None,
-            "student_raw_path": str(student_raw_path) if student_raw_path and student_raw_path.exists() else None,
+            "template_raw_path": (
+                str(template_raw_path)
+                if template_raw_path and template_raw_path.exists()
+                else None
+            ),
+            "student_raw_path": (
+                str(student_raw_path)
+                if student_raw_path and student_raw_path.exists()
+                else None
+            ),
             "template_raw_excerpt": template_raw_excerpt,
             "student_raw_excerpt": student_raw_excerpt,
         }
@@ -3934,13 +4691,14 @@ def api_get_template_details(template_name):
         if commands:
             devices_meta[hostname_dir.name] = commands
 
-    return jsonify({
-        "status": "ok",
-        "template": template_name,
-        "devices_meta": devices_meta,
-        "logs_by_command": logs_by_command,
-        "has_baseline": bool(manifest.get("has_baseline")),
-    })
+    return jsonify(
+        {
+            "status": "ok",
+            "template": template_name,
+            "devices_meta": devices_meta,
+            "logs_by_command": logs_by_command,
+        }
+    )
 
 
 @app.route("/api/admin/templates", methods=["DELETE"])
@@ -4061,9 +4819,12 @@ def api_admin_delete_students():
         return jsonify({"status": "error", "message": "Path not found."}), 404
 
     if target == DOCS_DIR:
-        return jsonify(
-            {"status": "error", "message": "Refusing to delete Documents root."}
-        ), 400
+        return (
+            jsonify(
+                {"status": "error", "message": "Refusing to delete Documents root."}
+            ),
+            400,
+        )
 
     if len(target.parts) >= len(DOCS_DIR.parts) + 3:
         relative = target.relative_to(DOCS_DIR)
@@ -4108,10 +4869,14 @@ def api_admin_sync_mirror():
                 docs_student = docs_session / student_dir.name
                 if not docs_student.exists():
                     shutil.rmtree(student_dir)
-                    removed.append(f"{exam_dir.name}/{session_dir.name}/{student_dir.name}")
+                    removed.append(
+                        f"{exam_dir.name}/{session_dir.name}/{student_dir.name}"
+                    )
 
     if removed:
-        msg = f"Removed {len(removed)} orphaned mirror folder(s):\n" + "\n".join(removed)
+        msg = f"Removed {len(removed)} orphaned mirror folder(s):\n" + "\n".join(
+            removed
+        )
     else:
         msg = "All mirror folders are in sync. Nothing to remove."
     return jsonify({"status": "ok", "message": msg, "removed": removed})
@@ -4125,7 +4890,12 @@ def api_add_student():
     student_name = (data.get("student_name") or "").strip()
 
     if not session_path or not student_id:
-        return jsonify({"status": "error", "message": "Missing session_path or student_id."}), 400
+        return (
+            jsonify(
+                {"status": "error", "message": "Missing session_path or student_id."}
+            ),
+            400,
+        )
 
     session_dir = Path(session_path)
     if not session_dir.exists() or not session_dir.is_dir():
@@ -4145,21 +4915,27 @@ def api_add_student():
     _save_session_student_names(session_dir, names)
 
     parts = student_dir.parts
-    exam_name = parts[-3] if len(parts) >= 3 else ""
-    session_id = parts[-2] if len(parts) >= 2 else ""
+    classroom = parts[-4] if len(parts) >= 4 else ""
+    tutor_name = parts[-3] if len(parts) >= 3 else ""
+    time_slot = parts[-2] if len(parts) >= 2 else ""
     return jsonify(
         {
             "status": "ok",
             "message": f"Student directory created: {student_dir}",
             "path": str(student_dir),
-            "exam_name": exam_name,
-            "session_id": session_id,
+            "classroom": classroom,
+            "tutor_name": tutor_name,
+            "time_slot": time_slot,
+            "exam_name": classroom,
+            "session_id": tutor_name,
             "student_id": student_id,
             "student_name": student_name or existing_name,
         }
     )
 
+
 # --- Grading Logic ---
+
 
 def _substitute_variables(pattern, variables):
     """
@@ -4170,6 +4946,7 @@ def _substitute_variables(pattern, variables):
         pattern = pattern.replace(f"{{{{{key}}}}}", str(val))
     return pattern
 
+
 def _check_criteria(content, criteria, variables):
     """
     Check if content matches the criteria pattern.
@@ -4177,20 +4954,23 @@ def _check_criteria(content, criteria, variables):
     pattern = criteria.get("pattern", "")
     # Substitute variables
     final_pattern = _substitute_variables(pattern, variables)
-    
+
     # Try Regex search
     try:
         if re.search(final_pattern, content, re.MULTILINE | re.IGNORECASE):
             return True, final_pattern
     except re.error:
         pass
-        
+
     # Check for simple string inclusion if regex fails or is simple
     if final_pattern in content:
         return True, final_pattern
-        
+
     return False, final_pattern
+
+
 from comparison_engine.compare_main import grading_pipeline
+
 
 def _load_template_configs(template_name: str):
     template_dir = _safe_resolve_child(TEMPLATES_DIR, TEMPLATES_DIR / template_name)
@@ -4298,7 +5078,9 @@ def _grade_session_from_config(target_path: str, template_name: str):
             summary["hostnames_compared"].append(hostname)
             summary["results"][hostname] = results
 
-            parsed_file = student_results_dir_student / f"{hostname}_student_parsed.json"
+            parsed_file = (
+                student_results_dir_student / f"{hostname}_student_parsed.json"
+            )
             with open(parsed_file, "w") as handle:
                 json.dump(student_config, handle, indent=4)
 
@@ -4308,12 +5090,16 @@ def _grade_session_from_config(target_path: str, template_name: str):
                 "grading_mode": "strict",
                 "hostname": hostname,
                 "student_show_run_file": show_run_file,
-                "student_config_file": str(student_config_path) if student_config_path.exists() else None,
+                "student_config_file": (
+                    str(student_config_path) if student_config_path.exists() else None
+                ),
                 "student_parsed_file": str(parsed_file),
                 "results": results,
             }
 
-            student_result_file = student_results_dir_student / f"{hostname}_result.json"
+            student_result_file = (
+                student_results_dir_student / f"{hostname}_result.json"
+            )
             with open(student_result_file, "w") as handle:
                 json.dump(result_payload, handle, indent=4)
 
@@ -4326,7 +5112,10 @@ def _grade_session_from_config(target_path: str, template_name: str):
         )
 
     if not results_summary:
-        return [], "No collected student logs found in this session. Select a student and collect logs before grading."
+        return (
+            [],
+            "No collected student logs found in this session. Select a student and collect logs before grading.",
+        )
 
     if skipped_students:
         return (
@@ -4341,33 +5130,43 @@ def _grade_session_from_config(target_path: str, template_name: str):
 @app.route("/api/grade", methods=["POST"])
 def api_run_grading():
     data = request.get_json() or {}
-    exam_name = data.get("exam_name")
-    session_id = data.get("session_id")
+    classroom = data.get("classroom") or data.get("exam_name")
+    tutor_name = data.get("tutor_name") or data.get("session_id")
+    time_slot = data.get("time_slot")
     target_path = data.get("target_path")
     template_name = data.get("template_name")
     include_reports = bool(data.get("include_reports"))
-    
-    if not all([exam_name, session_id, target_path]):
-         return jsonify({"status": "error", "message": "Missing arguments"}), 400
-         
+
+    if not target_path:
+        return jsonify({"status": "error", "message": "Missing arguments"}), 400
+
     try:
         # Determine template to use
         available_templates = []
         if TEMPLATES_DIR.is_dir():
-            available_templates = [p.name for p in TEMPLATES_DIR.iterdir() if p.is_dir()]
+            available_templates = [
+                p.name for p in TEMPLATES_DIR.iterdir() if p.is_dir()
+            ]
 
         chosen_template = template_name
         if not chosen_template:
             if len(available_templates) == 1:
                 chosen_template = available_templates[0]
             else:
-                return jsonify({
-                    "status": "error",
-                    "message": "Multiple templates available. Please select a template.",
-                    "templates": available_templates,
-                }), 400
+                return (
+                    jsonify(
+                        {
+                            "status": "error",
+                            "message": "Multiple templates available. Please select a template.",
+                            "templates": available_templates,
+                        }
+                    ),
+                    400,
+                )
 
-        summary_results, message = _grade_session_from_config(target_path, chosen_template)
+        summary_results, message = _grade_session_from_config(
+            target_path, chosen_template
+        )
 
         if not summary_results:
             return jsonify({"status": "error", "message": message}), 400
@@ -4380,13 +5179,15 @@ def api_run_grading():
         if include_reports:
             payload["reports"] = _build_session_reports(target_path)
             payload["policy"] = load_grading_policy()
-        
+
         return jsonify(payload)
-        
+
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         return jsonify({"status": "error", "message": f"Grading failed: {str(e)}"}), 500
+
 
 # -------------------------------------------------
 # ✅ Template Upload
@@ -4398,14 +5199,14 @@ def api_upload_templates():
     Creates template config.json using parsing logic.
     """
     from comparison_wrapper import handle_template_upload
-    
+
     form_data = request.form
     files = request.files
 
     print(f"\n[API][templates/upload] Uploading new template...")
     # Base dir for templates
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     try:
         results = handle_template_upload(files, form_data, base_dir)
         if results.get("status") == "error":
@@ -4421,10 +5222,14 @@ def api_upload_templates():
 # ✅ Run Flask
 # -------------------------------------------------
 if __name__ == "__main__":
+
     class _SuppressDevServerWarning(logging.Filter):
         def filter(self, record):
             message = record.getMessage()
-            return "This is a development server. Do not use it in a production deployment." not in message
+            return (
+                "This is a development server. Do not use it in a production deployment."
+                not in message
+            )
 
     logging.getLogger("werkzeug").addFilter(_SuppressDevServerWarning())
     print("[*] Running Flask server on http://127.0.0.1:5050")
