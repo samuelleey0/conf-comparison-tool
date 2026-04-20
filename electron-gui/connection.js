@@ -2,6 +2,8 @@
 // Connection page
 // -----------------------------
 
+let currentAbortController = null;
+
 function applySerialPreset(preset) {
   const portInput = document.getElementById("serialPort");
   if (!portInput) return;
@@ -172,9 +174,111 @@ function updateDoneStudentButtonLabel() {
   doneStudentBtn.textContent = allDone ? "Start Grading" : "Next Student";
 }
 
-function setupConnectionPage() {
+async function loadTemplateDevicesForConnection() {
+  const parseDevices = (raw) => {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? parsed
+        : null;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const templateName =
+    localStorage.getItem("templateName") ||
+    localStorage.getItem("activeTemplateName");
+
+  if (templateName) {
+    try {
+      const res = await fetch(`${API_ROOT}/api/templates/${encodeURIComponent(templateName)}`);
+      const data = await res.json();
+      if (res.ok && data.status === "ok" && data.devices_meta && Object.keys(data.devices_meta).length) {
+        localStorage.setItem("templateDevices", JSON.stringify(data.devices_meta));
+        localStorage.setItem("activeTemplateName", templateName);
+        localStorage.setItem("activeTemplateDevices", JSON.stringify(data.devices_meta));
+        return data.devices_meta;
+      }
+    } catch (err) {
+      console.warn("Could not reload template devices:", err);
+    }
+  }
+
+  const activeCached = parseDevices(localStorage.getItem("activeTemplateDevices"));
+  if (activeCached && Object.keys(activeCached).length) {
+    localStorage.setItem("templateDevices", JSON.stringify(activeCached));
+    return activeCached;
+  }
+
+  const cached = parseDevices(localStorage.getItem("templateDevices"));
+  if (cached && Object.keys(cached).length) return cached;
+
+  return {};
+}
+
+function renderDeviceQueue(devicesMeta, deviceQueueContainer) {
+  deviceQueueContainer.innerHTML = "";
+  executionQueue = Object.keys(devicesMeta || {}).map(hostname => ({
+    hostname,
+    commands: devicesMeta[hostname] || [],
+    status: "pending" // pending, running, done
+  }));
+
+  if (!executionQueue.length) {
+    deviceQueueContainer.innerHTML = `<div class="hint">No devices found. Return to Device Setup and save the template setup.</div>`;
+    const startBtn = document.getElementById("startSequenceBtn");
+    if (startBtn) startBtn.disabled = true;
+    return;
+  }
+
+  const startBtn = document.getElementById("startSequenceBtn");
+  if (startBtn) startBtn.disabled = false;
+
+  executionQueue.forEach((device, index) => {
+    const row = document.createElement("div");
+    row.className = `queue-item ${index === 0 ? "active-queue-item" : ""}`;
+    row.id = `q-${device.hostname}`;
+    row.style.cssText = `
+       background: var(--color-bg-card);
+       border: 1px solid var(--color-border);
+       padding: 10px 14px;
+       border-radius: 6px;
+       display: flex;
+       justify-content: space-between;
+       align-items: center;
+    `;
+
+    row.innerHTML = `
+      <div>
+        <strong>${device.hostname}</strong>
+        <div style="font-size: 0.8rem; color: var(--color-muted);">${device.commands.length} commands</div>
+      </div>
+      <span class="q-badge" style="font-size: 0.85rem; font-weight: bold; color: var(--color-muted);">WAITING</span>
+    `;
+
+    if (index === 0) {
+      row.style.borderColor = "var(--color-primary)";
+      row.style.backgroundColor = "rgba(31, 59, 115, 0.05)";
+    }
+
+    row.addEventListener("click", () => {
+      if (isSequenceRunning) {
+        return;
+      }
+      const proceed = confirm(`Start with ${device.hostname} now?`);
+      if (!proceed) return;
+      manualNextHostname = device.hostname;
+      document.getElementById("startSequenceBtn")?.click();
+    });
+
+    deviceQueueContainer.appendChild(row);
+  });
+}
+
+async function setupConnectionPage() {
   loadNavbar();
-  if (!ensureDirectoryConfigured()) return;
 
   // Build Execution Queue UI
   const deviceQueueContainer = document.getElementById("deviceQueueContainer");
@@ -182,63 +286,6 @@ function setupConnectionPage() {
   const startSequenceBtn = document.getElementById("startSequenceBtn");
   const doneStudentBtn = document.getElementById("doneStudentBtn");
   updateDoneStudentButtonLabel();
-
-  if (deviceQueueContainer) {
-    deviceQueueContainer.innerHTML = "";
-    try {
-      const devicesStr = localStorage.getItem("templateDevices");
-      if (devicesStr) {
-        const devicesMeta = JSON.parse(devicesStr);
-        executionQueue = Object.keys(devicesMeta).map(hostname => ({
-          hostname,
-          commands: devicesMeta[hostname],
-          status: "pending" // pending, running, done
-        }));
-        
-        executionQueue.forEach((device, index) => {
-          const row = document.createElement("div");
-          row.className = `queue-item ${index === 0 ? "active-queue-item" : ""}`;
-          row.id = `q-${device.hostname}`;
-          row.style.cssText = `
-             background: var(--color-bg-card);
-             border: 1px solid var(--color-border);
-             padding: 10px 14px;
-             border-radius: 6px;
-             display: flex;
-             justify-content: space-between;
-             align-items: center;
-          `;
-          
-          row.innerHTML = `
-            <div>
-              <strong>${device.hostname}</strong>
-              <div style="font-size: 0.8rem; color: var(--color-muted);">${device.commands.length} commands</div>
-            </div>
-            <span class="q-badge" style="font-size: 0.85rem; font-weight: bold; color: var(--color-muted);">WAITING</span>
-          `;
-          
-          if (index === 0) {
-            row.style.borderColor = "var(--color-primary)";
-            row.style.backgroundColor = "rgba(31, 59, 115, 0.05)";
-          }
-
-          row.addEventListener("click", () => {
-            if (isSequenceRunning) {
-              return;
-            }
-            const proceed = confirm(`Start with ${device.hostname} now?`);
-            if (!proceed) return;
-            manualNextHostname = device.hostname;
-            document.getElementById("startSequenceBtn")?.click();
-          });
-          
-          deviceQueueContainer.appendChild(row);
-        });
-      }
-    } catch(err) {
-      console.error(err);
-    }
-  }
 
   const form = document.getElementById("connectionForm");
   const radios = document.querySelectorAll('input[name="connType"]');
@@ -249,6 +296,10 @@ function setupConnectionPage() {
     const savedConn = localStorage.getItem("connection");
     const targetRadio = Array.from(radios).find((r) => r.value === savedConn);
     if (targetRadio) targetRadio.checked = true;
+    else {
+      const serialRadio = Array.from(radios).find((r) => r.value === "serial");
+      if (serialRadio) serialRadio.checked = true;
+    }
     toggleConnectionFields();
 
     form.addEventListener("submit", (evt) => evt.preventDefault());
@@ -310,6 +361,11 @@ function setupConnectionPage() {
 
   startSequenceBtn?.addEventListener("click", () => {
      if (isSequenceRunning) return;
+     if (!ensureDirectoryConfigured()) return;
+     if (!executionQueue.length) {
+       alert("No devices found. Return to Device Setup and save the template setup first.");
+       return;
+     }
      isSequenceRunning = true;
      currentQueueIndex = 0;
      completedQueueHosts = new Set();
@@ -320,6 +376,13 @@ function setupConnectionPage() {
      queueStatus.style.color = "var(--color-primary)";
      runNextDeviceInQueue();
   });
+
+  if (deviceQueueContainer) {
+    deviceQueueContainer.innerHTML = `<div class="hint">Loading devices...</div>`;
+    if (startSequenceBtn) startSequenceBtn.disabled = true;
+    const devicesMeta = await loadTemplateDevicesForConnection();
+    renderDeviceQueue(devicesMeta, deviceQueueContainer);
+  }
 }
 
 function getNextQueueIndex(preferredHostname) {
@@ -578,5 +641,13 @@ async function attemptTransparentConnection() {
 
 
 document.addEventListener("DOMContentLoaded", () => {
-  if (document.getElementById("connectionForm")) setupConnectionPage();
+  if (document.getElementById("connectionForm")) {
+    setupConnectionPage().catch((err) => {
+      console.error("Connection page setup failed:", err);
+      const queue = document.getElementById("deviceQueueContainer");
+      if (queue) {
+        queue.innerHTML = `<div class="hint">Connection page setup failed: ${err.message || err}</div>`;
+      }
+    });
+  }
 });

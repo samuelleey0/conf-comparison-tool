@@ -296,6 +296,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     localStorage.removeItem("templateName");
     localStorage.removeItem("templateDevices");
+    localStorage.removeItem("activeTemplateName");
+    localStorage.removeItem("activeTemplateDevices");
     loadedFromServer = false;
     deviceCount = 0;
     container.innerHTML = "";
@@ -308,9 +310,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   function loadTemplateState() {
     const savedName = localStorage.getItem("templateName");
     const savedDevicesStr = localStorage.getItem("templateDevices");
+    let restoredFromCache = false;
 
     if (savedName) {
       document.getElementById("templateName").value = savedName;
+      selectedTemplateName = savedName;
     }
 
     if (savedDevicesStr) {
@@ -348,11 +352,20 @@ document.addEventListener("DOMContentLoaded", async () => {
                row.insertBefore(prevUploadedLabel, fileInput);
             });
           });
-          return;
+          restoredFromCache = true;
         }
       } catch (err) {
         console.warn("Failed to parse saved devices:", err);
       }
+    }
+
+    if (restoredFromCache) {
+      return;
+    }
+
+    if (savedName) {
+      loadTemplateFromServer(savedName);
+      return;
     }
     
     // Only add an empty one if we didn't restore any
@@ -374,6 +387,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       const logsByCommand = data.logs_by_command || {};
       localStorage.setItem("templateName", templateName);
       localStorage.setItem("templateDevices", JSON.stringify(devicesMeta));
+      localStorage.setItem("activeTemplateName", templateName);
+      localStorage.setItem("activeTemplateDevices", JSON.stringify(devicesMeta));
       loadedFromServer = true;
       const nameInput = document.getElementById("templateName");
       if (nameInput) nameInput.value = templateName;
@@ -456,6 +471,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Collect data
     const devicesMeta = {}; // hostname -> array of commands
+    const seenHostnames = new Set();
 
     deviceBlocks.forEach(block => {
       const hostname = block.querySelector(".hostname-input").value.trim();
@@ -464,6 +480,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         hasError = true;
         return;
       }
+      const hostnameKey = hostname.toLowerCase();
+      if (seenHostnames.has(hostnameKey)) {
+        alert(`Duplicate hostname "${hostname}" found. Each device must have a unique hostname.`);
+        hasError = true;
+        return;
+      }
+      seenHostnames.add(hostnameKey);
       
       const commands = [];
       const cmdRows = block.querySelectorAll(".command-item");
@@ -511,6 +534,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       localStorage.setItem("templateName", templateName);
       localStorage.setItem("templateDevices", JSON.stringify(devicesMeta));
+      localStorage.setItem("activeTemplateName", templateName);
+      localStorage.setItem("activeTemplateDevices", JSON.stringify(devicesMeta));
 
       const anyFileSelected = Array.from(document.querySelectorAll(".cmd-file")).some(
         (input) => input.files && input.files.length > 0
