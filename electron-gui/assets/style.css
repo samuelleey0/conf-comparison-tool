@@ -1298,6 +1298,83 @@ button.block {
   gap: 12px;
 }
 
+.connection-queue {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.connection-queue__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.connection-queue__status {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.connection-queue__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.connection-mode-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+
+.connection-preset-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px 18px;
+}
+
+.connection-preset-grid .choice-label,
+.connection-mode-group .choice-label {
+  min-width: 0;
+}
+
+.connection-preset-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  line-height: 1.45;
+}
+
+.connection-preset-option:hover {
+  border-color: rgba(31, 59, 115, 0.3);
+  background: #f9fbff;
+}
+
+.connection-preset-option input[type="radio"] {
+  margin-top: 3px;
+}
+
+.connection-ssh-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+.connection-ssh-grid .form-group {
+  margin-bottom: 0;
+}
+
 .connection-panel .actions {
   justify-content: flex-start;
 }
@@ -1349,6 +1426,33 @@ button.block {
   font-weight: 600;
   min-width: 48px;
   text-align: right;
+}
+
+.connection-reset-row {
+  align-items: center;
+  margin-top: 10px;
+}
+
+.connection-reset-row__label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.connection-reset-row__select {
+  width: min(160px, 100%);
+}
+
+.connection-action-grid {
+  align-items: stretch;
+}
+
+.connection-action-grid__done {
+  background-color: var(--color-success, #28a745);
+  border-color: var(--color-success, #28a745);
+}
+
+.connection-action-grid__done:hover:not(:disabled) {
+  filter: brightness(0.95);
 }
 
 progress {
@@ -1784,6 +1888,10 @@ progress::-moz-progress-bar {
     padding-left: 0;
     border-left: none;
   }
+
+  .connection-preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 768px) {
@@ -2032,8 +2140,37 @@ progress::-moz-progress-bar {
     width: 100%;
   }
 
+  .connection-queue__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .connection-ssh-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .connection-reset-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .connection-reset-row__select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .connection-preset-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .connection-action-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
   /* Full-width buttons */
-  .connection-panel button {
+  .connection-panel button,
+  .connection-status button {
     width: 100%;
   }
 }
@@ -2070,6 +2207,15 @@ progress::-moz-progress-bar {
 
   .connection-shell {
     padding: 20px 14px 32px;
+  }
+
+  .connection-layout {
+    gap: 22px;
+    padding-top: 22px;
+  }
+
+  .status-panel.modern {
+    padding: 18px;
   }
 
   /* Status banner — stacked layout for very narrow screens */
