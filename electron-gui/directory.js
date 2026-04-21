@@ -630,7 +630,7 @@ async function handleBulkCreate(event) {
   const timeSlot = document.getElementById("bulkTimeSlot").value.trim();
   const fileInput = document.getElementById("bulkFile");
   const resultsBox = document.getElementById("bulkResults");
-  const hasTitleRow = false;
+  const hasTitleRow = document.getElementById("bulkHasTitle")?.checked || false;
   const hasHeader = document.getElementById("bulkHasHeader")?.checked || false;
   const hasNumberColumn = document.getElementById("bulkHasNumber")?.checked || false;
 
