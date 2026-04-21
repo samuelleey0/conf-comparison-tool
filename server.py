@@ -4732,26 +4732,35 @@ def api_admin_list_results():
     results = []
     docs_path = Path.home() / "Documents"
     if docs_path.exists():
-        for exam_dir in docs_path.iterdir():
-            if not exam_dir.is_dir() or exam_dir.name.startswith("."):
+        for classroom_dir in docs_path.iterdir():
+            if not classroom_dir.is_dir() or classroom_dir.name.startswith("."):
                 continue
-            for session_dir in exam_dir.iterdir():
-                if not session_dir.is_dir():
+            for tutor_dir in classroom_dir.iterdir():
+                if not tutor_dir.is_dir() or tutor_dir.name.startswith("."):
                     continue
-                for student_dir in session_dir.iterdir():
-                    if not student_dir.is_dir():
+                for time_dir in tutor_dir.iterdir():
+                    if not time_dir.is_dir() or time_dir.name.startswith("."):
                         continue
-                    results_dir = student_dir / "results"
-                    if results_dir.is_dir():
-                        results.append(
-                            {
-                                "path": str(results_dir),
-                                "exam_name": exam_dir.name,
-                                "session_id": session_dir.name,
-                                "student_id": student_dir.name,
-                                "display": f"{exam_dir.name}/{session_dir.name}/{student_dir.name}",
-                            }
-                        )
+                    for student_dir in time_dir.iterdir():
+                        if not student_dir.is_dir() or student_dir.name.startswith("."):
+                            continue
+                        results_dir = student_dir / "results"
+                        if results_dir.is_dir():
+                            results.append(
+                                {
+                                    "path": str(results_dir),
+                                    "classroom": classroom_dir.name,
+                                    "tutor_name": tutor_dir.name,
+                                    "time_slot": time_dir.name,
+                                    "exam_name": classroom_dir.name,
+                                    "session_id": tutor_dir.name,
+                                    "student_id": student_dir.name,
+                                    "display": (
+                                        f"{classroom_dir.name}/{tutor_dir.name}/"
+                                        f"{time_dir.name}/{student_dir.name}"
+                                    ),
+                                }
+                            )
     return jsonify({"status": "ok", "results": results})
 
 
@@ -4765,22 +4774,25 @@ def api_admin_delete_results():
         docs_dir = (Path.home() / "Documents").resolve()
         deleted = 0
         if docs_dir.exists():
-            for exam_dir in docs_dir.iterdir():
-                if not exam_dir.is_dir() or exam_dir.name.startswith("."):
+            for classroom_dir in docs_dir.iterdir():
+                if not classroom_dir.is_dir() or classroom_dir.name.startswith("."):
                     continue
-                for session_dir in exam_dir.iterdir():
-                    if not session_dir.is_dir():
+                for tutor_dir in classroom_dir.iterdir():
+                    if not tutor_dir.is_dir() or tutor_dir.name.startswith("."):
                         continue
-                    for student_dir in session_dir.iterdir():
-                        if not student_dir.is_dir():
+                    for time_dir in tutor_dir.iterdir():
+                        if not time_dir.is_dir() or time_dir.name.startswith("."):
                             continue
-                        results_dir = student_dir / "results"
-                        if results_dir.is_dir():
-                            try:
-                                shutil.rmtree(results_dir)
-                                deleted += 1
-                            except Exception:
-                                pass
+                        for student_dir in time_dir.iterdir():
+                            if not student_dir.is_dir() or student_dir.name.startswith("."):
+                                continue
+                            results_dir = student_dir / "results"
+                            if results_dir.is_dir():
+                                try:
+                                    shutil.rmtree(results_dir)
+                                    deleted += 1
+                                except Exception:
+                                    pass
         return jsonify({"status": "ok", "message": f"All results deleted ({deleted})."})
 
     if not path:

@@ -665,38 +665,86 @@ document.addEventListener("DOMContentLoaded", () => {
         fetchJson("http://127.0.0.1:5050/api/admin/students"),
       ]);
 
-      templateList.innerHTML = (templates.templates || [])
-        .map((name) => `<option value="${name}">${name}</option>`)
-        .join("");
+      fillSelect(
+        templateList,
+        (templates.templates || []).map((name) => ({ value: name, label: name })),
+        "No templates found"
+      );
 
-      resultList.innerHTML = (results.results || [])
-        .map((entry) => `<option value="${entry.path}">${entry.display}</option>`)
-        .join("");
+      fillSelect(
+        resultList,
+        (results.results || []).map((entry) => ({
+          value: entry.path,
+          label: formatCleanupDisplay(entry, "Result"),
+        })),
+        "No results found"
+      );
 
-      examList.innerHTML = (students.exams || [])
-        .map(
-          (e) =>
-            `<option value="${e.path}">${e.exam_name}</option>`
-        )
-        .join("");
+      fillSelect(
+        examList,
+        (students.exams || []).map((entry) => ({
+          value: entry.path,
+          label: formatCleanupDisplay(entry, "Exam"),
+        })),
+        "No exams found"
+      );
 
-      sessionList.innerHTML = (students.sessions || [])
-        .map(
-          (s) =>
-            `<option value="${s.path}">${s.exam_name}/${s.session_id}</option>`
-        )
-        .join("");
+      fillSelect(
+        sessionList,
+        (students.sessions || []).map((entry) => ({
+          value: entry.path,
+          label: formatCleanupDisplay(entry, "Session"),
+        })),
+        "No sessions found"
+      );
 
-      studentList.innerHTML = (students.students || [])
-        .map(
-          (s) =>
-            `<option value="${s.path}">${s.exam_name}/${s.session_id}/${s.student_id}</option>`
-        )
-        .join("");
+      fillSelect(
+        studentList,
+        (students.students || []).map((entry) => ({
+          value: entry.path,
+          label: formatCleanupDisplay(entry, "Student"),
+        })),
+        "No students found"
+      );
     } catch (err) {
       console.error(err);
       alert("Failed to load cleanup lists.");
     }
+  }
+
+  function fillSelect(selectEl, options, emptyLabel) {
+    if (!selectEl) return;
+    selectEl.innerHTML = "";
+
+    if (!options.length) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = emptyLabel;
+      selectEl.appendChild(option);
+      return;
+    }
+
+    options.forEach(({ value, label }) => {
+      const option = document.createElement("option");
+      option.value = value || "";
+      option.textContent = label || value || "";
+      selectEl.appendChild(option);
+    });
+  }
+
+  function formatCleanupDisplay(entry, fallbackLabel) {
+    if (!entry || typeof entry !== "object") return fallbackLabel;
+    if (entry.display) return entry.display;
+
+    const parts = [
+      entry.classroom || entry.exam_name,
+      entry.tutor_name || entry.session_id,
+      entry.time_slot,
+      entry.student_id,
+    ].filter(Boolean);
+
+    if (parts.length) return parts.join("/");
+    return entry.path || fallbackLabel;
   }
 
   async function deleteTemplate() {
