@@ -12,8 +12,8 @@ function readJsonFile(filePath) {
   }
 }
 
-function getSessionStudentNames(examName, sessionId) {
-  const metaPath = path.join(os.homedir(), "Documents", examName, sessionId, "students.json");
+function getSessionStudentNames(classroom, tutorName, timeSlot) {
+  const metaPath = path.join(os.homedir(), "Documents", classroom, tutorName, timeSlot, "students.json");
   const data = readJsonFile(metaPath);
   return data && typeof data === "object" ? data : {};
 }
@@ -33,28 +33,42 @@ function listDirectoryNames(targetPath) {
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 }
 
+function makeSessionKey(tutorName, timeSlot) {
+  return `${tutorName} / ${timeSlot}`;
+}
+
 function buildSessionIndex() {
-  const examNames = listDirectoryNames(ENGINE_STUDENTS_ROOT);
+  const classroomNames = listDirectoryNames(ENGINE_STUDENTS_ROOT);
   const index = {};
-  examNames.forEach((examName) => {
-    const examPath = path.join(ENGINE_STUDENTS_ROOT, examName);
-    const sessions = listDirectoryNames(examPath);
-    index[examName] = {};
-    sessions.forEach((sessionId) => {
-      const sessionPath = path.join(examPath, sessionId);
-      const studentNames = getSessionStudentNames(examName, sessionId);
-      const students = listDirectoryNames(sessionPath).map((studentId) => {
-        const studentPath = path.join(sessionPath, studentId);
-        return {
-          student_id: studentId,
-          student_name: studentNames[studentId] || "",
-          path: studentPath,
+  classroomNames.forEach((classroom) => {
+    const classroomPath = path.join(ENGINE_STUDENTS_ROOT, classroom);
+    const tutors = listDirectoryNames(classroomPath);
+    index[classroom] = {};
+    tutors.forEach((tutorName) => {
+      const tutorPath = path.join(classroomPath, tutorName);
+      const timeSlots = listDirectoryNames(tutorPath);
+      timeSlots.forEach((timeSlot) => {
+        const sessionPath = path.join(tutorPath, timeSlot);
+        const studentNames = getSessionStudentNames(classroom, tutorName, timeSlot);
+        const students = listDirectoryNames(sessionPath).map((studentId) => {
+          const studentPath = path.join(sessionPath, studentId);
+          return {
+            student_id: studentId,
+            student_name: studentNames[studentId] || "",
+            path: studentPath,
+          };
+        });
+        const sessionKey = makeSessionKey(tutorName, timeSlot);
+        index[classroom][sessionKey] = {
+          classroom,
+          tutor_name: tutorName,
+          time_slot: timeSlot,
+          session_id: tutorName,
+          label: sessionKey,
+          path: sessionPath,
+          students,
         };
       });
-      index[examName][sessionId] = {
-        path: sessionPath,
-        students,
-      };
     });
   });
   return index;
@@ -91,13 +105,15 @@ function setupSendMelbournePage() {
   const clearAllBtn = document.getElementById("clearAllMelbourneBtn");
 
   let sessionIndex = {};
-  const preferredExam = localStorage.getItem("examName") || "";
-  const preferredSession = localStorage.getItem("sessionId") || "";
+  const preferredExam = localStorage.getItem("classroom") || localStorage.getItem("examName") || "";
+  const preferredTutor = localStorage.getItem("tutorName") || localStorage.getItem("sessionId") || "";
+  const preferredTime = localStorage.getItem("timeSlot") || "";
+  const preferredSession = preferredTutor && preferredTime ? makeSessionKey(preferredTutor, preferredTime) : "";
 
   const getCurrentSession = () => {
-    const examName = examSelect?.value || "";
-    const sessionId = sessionSelect?.value || "";
-    return sessionIndex?.[examName]?.[sessionId] || null;
+    const classroom = examSelect?.value || "";
+    const sessionKey = sessionSelect?.value || "";
+    return sessionIndex?.[classroom]?.[sessionKey] || null;
   };
 
   const getSelectedStudents = () => {
@@ -245,7 +261,11 @@ function setupSendMelbournePage() {
         method: "POST",
         body: JSON.stringify({
           exam_name: examSelect.value,
-          session_id: sessionSelect.value,
+          classroom: session.classroom,
+          tutor_name: session.tutor_name,
+          time_slot: session.time_slot,
+          session_id: session.session_id,
+          session_label: session.label,
           session_path: session.path,
           students: selected,
         }),

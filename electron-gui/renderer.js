@@ -9,8 +9,6 @@ const SERIAL_PRESETS = {
   mac: "/dev/cu.usbserial-10",
 };
 
-let currentAbortController = null;
-
 let ipcRenderer = null;
 let shell = null;
 let pathModule = null;
@@ -49,7 +47,6 @@ let statusModalOverlay = null;
 let statusModalMessageEl = null;
 let statusModalCloseBtn = null;
 let statusModalHideTimeout = null;
-let autoRunAfterConnect = false;
 
 restoreSidebarPreference();
 
@@ -172,6 +169,9 @@ async function parseJsonResponse(res) {
 }
 
 function setDirectoryInfo({
+  classroom,
+  tutor_name,
+  time_slot,
   exam_name,
   session_id,
   student_id,
@@ -179,16 +179,26 @@ function setDirectoryInfo({
   mode,
   display,
 }) {
+  const resolvedClassroom = classroom || exam_name || "";
+  const resolvedTutor = tutor_name || session_id || "";
+  const resolvedTime = time_slot || localStorage.getItem("timeSlot") || "";
+
   const prevSessionKey = localStorage.getItem("sessionKey");
-  const nextSessionKey = `${exam_name || ""}::${session_id || ""}`;
+  const nextSessionKey = `${resolvedClassroom}::${resolvedTutor}::${resolvedTime}`;
   if (prevSessionKey !== nextSessionKey) {
     localStorage.setItem("sessionKey", nextSessionKey);
     localStorage.removeItem("completedStudents");
     localStorage.removeItem("sessionStudents");
     localStorage.removeItem("sessionStudentsCount");
   }
-  localStorage.setItem("examName", exam_name);
-  localStorage.setItem("sessionId", session_id);
+  localStorage.setItem("classroom", resolvedClassroom);
+  localStorage.setItem("tutorName", resolvedTutor);
+  localStorage.setItem("timeSlot", resolvedTime);
+
+  // Legacy keys remain for pages that still consume exam/session.
+  localStorage.setItem("examName", resolvedClassroom);
+  localStorage.setItem("sessionId", resolvedTutor);
+
   localStorage.setItem("studentId", student_id);
   if (path) localStorage.setItem("basePath", path);
   else localStorage.removeItem("basePath");
@@ -198,10 +208,11 @@ function setDirectoryInfo({
 }
 
 function ensureDirectoryConfigured() {
-  const exam = localStorage.getItem("examName");
-  const session = localStorage.getItem("sessionId");
+  const classroom = localStorage.getItem("classroom") || localStorage.getItem("examName");
+  const tutorName = localStorage.getItem("tutorName") || localStorage.getItem("sessionId");
+  const timeSlot = localStorage.getItem("timeSlot");
   const student = localStorage.getItem("studentId");
-  if (!exam || !session || !student) {
+  if (!classroom || !tutorName || !timeSlot || !student) {
     alert("Please set up a directory before continuing.");
     goTo("index.html");
     return false;
@@ -210,18 +221,22 @@ function ensureDirectoryConfigured() {
 }
 
 function getDirectoryInfo() {
-  const exam_name = localStorage.getItem("examName");
-  const session_id = localStorage.getItem("sessionId");
+  const classroom = localStorage.getItem("classroom") || localStorage.getItem("examName");
+  const tutor_name = localStorage.getItem("tutorName") || localStorage.getItem("sessionId");
+  const time_slot = localStorage.getItem("timeSlot");
   const student_id = localStorage.getItem("studentId");
   const base_path = localStorage.getItem("basePath");
   const mode = localStorage.getItem("directoryMode");
   const display = localStorage.getItem("directoryDisplay");
 
-  if (!exam_name || !session_id) return null;
+  if (!classroom || !tutor_name || !time_slot) return null;
 
   return {
-    exam_name,
-    session_id,
+    classroom,
+    tutor_name,
+    time_slot,
+    exam_name: classroom,
+    session_id: tutor_name,
     student_id,
     base_path,
     mode,
@@ -297,16 +312,18 @@ function hideStatusModal() {
 function setupWelcomePage() {
   // Clear previous session setup when the app is freshly opened
   const keysToClear = [
-     "templateName", 
-     "templateDevices", 
-     "hasRubrics",
-     "directoryMode", 
-     "basePath", 
-     "directoryDisplay", 
-     "examName", 
-     "sessionId", 
-     "selectedStudent",
-     "sessionPath"
+    "templateName",
+    "templateDevices",
+    "activeTemplateName",
+    "activeTemplateDevices",
+    "hasRubrics",
+    "directoryMode",
+    "basePath",
+    "directoryDisplay",
+    "examName",
+    "sessionId",
+    "selectedStudent",
+    "sessionPath"
   ];
   keysToClear.forEach(k => localStorage.removeItem(k));
 
@@ -318,24 +335,11 @@ function setupWelcomePage() {
   }
 }
 
-
-window.nowTimestamp = nowTimestamp;
-window.appendLogLine = appendLogLine;
-window.setProgressValue = setProgressValue;
-window.loadNavbar = loadNavbar;
-window.fetchJson = fetchJson;
-window.setDirectoryInfo = setDirectoryInfo;
-window.ensureDirectoryConfigured = ensureDirectoryConfigured;
-window.getDirectoryInfo = getDirectoryInfo;
-window.showStatusModal = showStatusModal;
-window.updateStatusModal = updateStatusModal;
-window.hideStatusModal = hideStatusModal;
-window.SERIAL_PRESETS = SERIAL_PRESETS;
-
 // -----------------------------
 // Init
 // -----------------------------
 
 document.addEventListener("DOMContentLoaded", () => {
+  loadNavbar();
   if (document.getElementById("welcomePage")) setupWelcomePage();
 });

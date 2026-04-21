@@ -65,18 +65,24 @@ def create_bulk_directories():
     Create directories for multiple students from file input.
     """
     try:
-        # Get exam and session info
+        # Get classroom/session details
         while True:
-            exam_name = input("Enter Exam Name (UNITCODE_Purpose_Time): ").strip()
-            if exam_name:
+            classroom = input("Enter Classroom (e.g., B408): ").strip()
+            if classroom:
                 break
-            print("Exam Name cannot be empty. Please try again.")
+            print("Classroom cannot be empty. Please try again.")
 
         while True:
-            session_id = input("Enter Session ID (e.g., Session1): ").strip()
-            if session_id:
+            tutor_name = input("Enter Tutor Name (e.g., Mark Tee): ").strip()
+            if tutor_name:
                 break
-            print("Session ID cannot be empty. Please try again.")
+            print("Tutor Name cannot be empty. Please try again.")
+
+        while True:
+            time_slot = input("Enter Time (e.g., 9:00am): ").strip()
+            if time_slot:
+                break
+            print("Time cannot be empty. Please try again.")
 
         # Load students from file
         students = load_students_from_file()
@@ -84,8 +90,9 @@ def create_bulk_directories():
             return None
 
         print(f"\nConfirm bulk directory creation:")
-        print(f"  Exam Name: {exam_name}")
-        print(f"  Session ID: {session_id}")
+        print(f"  Classroom: {classroom}")
+        print(f"  Tutor Name: {tutor_name}")
+        print(f"  Time: {time_slot}")
         print(f"  Students: {len(students)} students")
 
         confirm = input("Create directories for all students? (y/n): ").strip().lower()
@@ -98,16 +105,19 @@ def create_bulk_directories():
 
         for student in students:
             student_path = os.path.join(
-                base_docs_path, exam_name, session_id, student["id"]
+                base_docs_path, classroom, tutor_name, time_slot, student["id"]
             )
             os.makedirs(student_path, exist_ok=True)
             created_paths.append(
                 {
                     "base_path": student_path,
-                    "exam_name": exam_name,
-                    "session_id": session_id,
+                    "classroom": classroom,
+                    "tutor_name": tutor_name,
+                    "time_slot": time_slot,
                     "student_id": student["id"],
-                    "display": f"{exam_name}/{session_id}/{student['id']}",
+                    "display": (
+                        f"{classroom}/{tutor_name}/{time_slot}/{student['id']}"
+                    ),
                 }
             )
 
@@ -146,26 +156,32 @@ def list_existing_directories():
         print("[!] Documents folder not found.")
         return None
 
-    # Look for all student directories
+    # Look for student directories in classroom/tutor/time/student format
     student_paths = []
-    exam_dirs = [
+    classroom_dirs = [
         d for d in docs_path.iterdir() if d.is_dir() and not d.name.startswith(".")
     ]
 
-    for exam_dir in exam_dirs:
-        session_dirs = [s for s in exam_dir.iterdir() if s.is_dir()]
-        for session_dir in session_dirs:
-            student_dirs = [st for st in session_dir.iterdir() if st.is_dir()]
-            for student_dir in student_dirs:
-                student_paths.append(
-                    {
-                        "path": str(student_dir),
-                        "exam_name": exam_dir.name,
-                        "session_id": session_dir.name,
-                        "student_id": student_dir.name,
-                        "display": f"{exam_dir.name}/{session_dir.name}/{student_dir.name}",
-                    }
-                )
+    for classroom_dir in classroom_dirs:
+        tutor_dirs = [t for t in classroom_dir.iterdir() if t.is_dir()]
+        for tutor_dir in tutor_dirs:
+            time_dirs = [tm for tm in tutor_dir.iterdir() if tm.is_dir()]
+            for time_dir in time_dirs:
+                student_dirs = [st for st in time_dir.iterdir() if st.is_dir()]
+                for student_dir in student_dirs:
+                    student_paths.append(
+                        {
+                            "path": str(student_dir),
+                            "classroom": classroom_dir.name,
+                            "tutor_name": tutor_dir.name,
+                            "time_slot": time_dir.name,
+                            "student_id": student_dir.name,
+                            "display": (
+                                f"{classroom_dir.name}/{tutor_dir.name}/"
+                                f"{time_dir.name}/{student_dir.name}"
+                            ),
+                        }
+                    )
 
     if not student_paths:
         print("[!] No existing student directories found in Documents.")
@@ -188,8 +204,9 @@ def list_existing_directories():
                 selected = student_paths[choice_num - 1]
                 return {
                     "base_path": selected["path"],
-                    "exam_name": selected["exam_name"],
-                    "session_id": selected["session_id"],
+                    "classroom": selected["classroom"],
+                    "tutor_name": selected["tutor_name"],
+                    "time_slot": selected["time_slot"],
                     "student_id": selected["student_id"],
                 }
             else:
@@ -216,7 +233,7 @@ def build_base_path():
         elif choice == "3":
             return create_bulk_directories()
         else:
-            print("Invalid choice. Please enter 1 or 2.")
+            print("Invalid choice. Please enter 1, 2, or 3.")
 
 
 def create_new_directory():
@@ -225,16 +242,19 @@ def create_new_directory():
     """
     try:
         while True:
-            exam_name = input(
-                "Enter Exam Name (UNITCODE_Purpose_Time: TNE20002_SkillExam_8-10am): "
-            ).strip()
-            if not exam_name:
-                print("Exam Name cannot be empty. Please try again.")
+            classroom = input("Enter Classroom (e.g., B408): ").strip()
+            if not classroom:
+                print("Classroom cannot be empty. Please try again.")
                 continue
 
-            session_id = input("Enter Session ID (e.g., Session1): ").strip()
-            if not session_id:
-                print("Session ID cannot be empty. Please try again.")
+            tutor_name = input("Enter Tutor Name (e.g., Mark Tee): ").strip()
+            if not tutor_name:
+                print("Tutor Name cannot be empty. Please try again.")
+                continue
+
+            time_slot = input("Enter Time (e.g., 9:00am): ").strip()
+            if not time_slot:
+                print("Time cannot be empty. Please try again.")
                 continue
 
             student_id = input("Enter Student ID (e.g., 101XXXXXX): ").strip()
@@ -243,8 +263,9 @@ def create_new_directory():
                 continue
 
             print(f"\nPlease confirm your entries:")
-            print(f"  Exam Name: {exam_name}")
-            print(f"  Session ID: {session_id}")
+            print(f"  Classroom: {classroom}")
+            print(f"  Tutor Name: {tutor_name}")
+            print(f"  Time: {time_slot}")
             print(f"  Student ID: {student_id}")
             confirm = input("Is this correct? (y/n): ").strip().lower()
             if confirm == "y":
@@ -252,7 +273,7 @@ def create_new_directory():
             print("Try again.\n")
 
         base_path = os.path.expanduser(
-            f"~/Documents/{exam_name}/{session_id}/{student_id}"
+            f"~/Documents/{classroom}/{tutor_name}/{time_slot}/{student_id}"
         )
         os.makedirs(base_path, exist_ok=True)
         print(f"[+] Directory created: {base_path}")
@@ -268,8 +289,9 @@ def create_new_directory():
 
         return {
             "base_path": base_path,
-            "exam_name": exam_name,
-            "session_id": session_id,
+            "classroom": classroom,
+            "tutor_name": tutor_name,
+            "time_slot": time_slot,
             "student_id": student_id,
         }
     except KeyboardInterrupt:
@@ -301,17 +323,20 @@ def select_existing_directory():
 def save_output_to_file(
     command: str,
     output: str,
-    exam_name: str,
+    exam_name: str = None,
     student_id: str = None,
     session_id: str = None,
     hostname: str = None,
     base_dir="logs",
     extension=".txt",
+    classroom: str = None,
+    tutor_name: str = None,
+    time_slot: str = None,
 ):
     """
     Save Cisco device command output to a text file.
     Each command goes into its own file.
-    Example path: ~/Documents/TNE20002_SkillExam_8-10am/Session1/102778907/show_running-config.txt
+    Example path: ~/Documents/B408/Mark Tee/9:00am/102778907/R1/show_running-config.txt
     """
 
     if not hostname:
@@ -324,23 +349,36 @@ def save_output_to_file(
         # Build directory path
         if base_dir is None:
             base_dir = str(Path.home() / "Documents")  # Default to ~/Documents
-        dir_path = os.path.join(
-            base_dir,
-            exam_name,
-            session_id if session_id else "Session1",
-            student_id if student_id else "UnknownID",
-            hostname,
-        )
+
+        # Prefer new classroom/tutor/time schema when provided.
+        if classroom or tutor_name or time_slot:
+            dir_path = os.path.join(
+                base_dir,
+                classroom if classroom else "UnknownClassroom",
+                tutor_name if tutor_name else "UnknownTutor",
+                time_slot if time_slot else "UnknownTime",
+                student_id if student_id else "UnknownID",
+                hostname,
+            )
+        else:
+            # Backward compatibility for older callers still sending exam/session.
+            dir_path = os.path.join(
+                base_dir,
+                exam_name if exam_name else "UnknownExam",
+                session_id if session_id else "Session1",
+                student_id if student_id else "UnknownID",
+                hostname,
+            )
 
     os.makedirs(dir_path, exist_ok=True)
 
     # Clean command string for filename
     safe_command = command.replace(" ", "_").replace("/", "_")
-    
+
     # Ensure extension starts with dot
     if not extension.startswith("."):
         extension = f".{extension}"
-        
+
     file_name = f"{safe_command}{extension}"
 
     # Full file path
@@ -354,11 +392,36 @@ def save_output_to_file(
     return file_path
 
 
-def del_partial_logs(base_path, exam_name, session_id, student_id, hostname):
+def del_partial_logs(
+    base_path,
+    exam_name=None,
+    session_id=None,
+    student_id=None,
+    hostname=None,
+):
     """
     Delete all log files for the current session if the collection is incomplete.
     """
-    log_dir = os.path.join(base_path, exam_name, session_id, student_id, hostname)
+    # Support both signatures:
+    # - del_partial_logs(base_path, hostname)
+    # - del_partial_logs(base_path, exam_name, session_id, student_id, hostname)
+    if hostname is None and session_id is None and student_id is None:
+        hostname = exam_name
+
+    if not hostname:
+        print("[INFO] Hostname missing; no partial logs deleted.")
+        return
+
+    simple_log_dir = os.path.join(base_path, hostname)
+    legacy_log_dir = os.path.join(
+        base_path, exam_name, session_id, student_id, hostname
+    )
+
+    if os.path.exists(simple_log_dir):
+        log_dir = simple_log_dir
+    else:
+        log_dir = legacy_log_dir
+
     if os.path.exists(log_dir):
         print(f"[INFO] Deleting partial logs in {log_dir}...")
         for root, dirs, files in os.walk(log_dir, topdown=False):

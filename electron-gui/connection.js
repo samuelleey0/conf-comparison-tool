@@ -2,6 +2,8 @@
 // Connection page
 // -----------------------------
 
+let currentAbortController = null;
+
 function applySerialPreset(preset) {
   const portInput = document.getElementById("serialPort");
   if (!portInput) return;
@@ -28,215 +30,6 @@ function toggleConnectionFields() {
     serialFields.classList.remove("hidden");
     if (resetBtn) resetBtn.disabled = false;
   }
-}
-
-async function saveConnection({ autoRun = false, triggerButton = null } = {}) {
-  autoRunAfterConnect = autoRun;
-  const type = document.querySelector('input[name="connType"]:checked');
-  if (!type) {
-    alert("Please choose a connection type.");
-    autoRunAfterConnect = false;
-    return;
-  }
-  const conn = type.value;
-  const payload = { connection: conn, mode: conn };
-  const connectBtn = triggerButton || null;
-  const originalBtnText = connectBtn ? connectBtn.textContent : null;
-  setProgressValue(0);
-
-  let connectionSucceeded = false;
-  let finalHostname = null;
-  let errorMessage = "";
-  let errorLogged = false;
-
-  if (conn === "ssh") {
-    const storedHost = localStorage.getItem("sshHost") || "";
-    const storedUser = localStorage.getItem("sshUser") || "";
-    const storedPass = localStorage.getItem("sshPass") || "";
-
-    const hostInput = document.getElementById("sshHost");
-    const userInput = document.getElementById("sshUser");
-    const passInput = document.getElementById("sshPass");
-
-    let host = hostInput?.value.trim() || "";
-    let user = userInput?.value.trim() || "";
-    let pass = passInput?.value || "";
-
-    if (autoRunAfterConnect) {
-      host = storedHost || host;
-      user = storedUser || user;
-      pass = storedPass || pass;
-    } else {
-      if (!host && storedHost) host = storedHost;
-      if (!user && storedUser) user = storedUser;
-      if (!pass && storedPass) pass = storedPass;
-    }
-
-    if (!host || !user || !pass) {
-      alert("Please provide SSH host, username and password.");
-      autoRunAfterConnect = false;
-      return;
-    }
-
-    if (hostInput && hostInput.value.trim() !== host) hostInput.value = host;
-    if (userInput && userInput.value.trim() !== user) userInput.value = user;
-    if (passInput && passInput.value !== pass) passInput.value = pass;
-
-    const storedSshPort = localStorage.getItem("sshPort") || "22";
-    const sshPortInput = document.getElementById("sshPort");
-    let sshPortValue = sshPortInput ? sshPortInput.value.trim() : "";
-    if (!sshPortValue) {
-      sshPortValue = storedSshPort || "22";
-    }
-    payload.ssh = { host, username: user, password: pass, port: sshPortValue };
-    payload.host = host;
-    payload.username = user;
-    payload.password = pass;
-    payload.port = sshPortValue;
-  } else {
-    const storedPort = localStorage.getItem("serialPort") || "";
-    const portInput = document.getElementById("serialPort");
-    let port = portInput ? portInput.value.trim() : "";
-    if (autoRunAfterConnect && storedPort) {
-      port = storedPort;
-    } else if (!port && storedPort) {
-      port = storedPort;
-    }
-    if (!port) port = "/dev/ttyUSB0";
-    if (portInput && portInput.value.trim() !== port) {
-      portInput.value = port;
-    }
-    payload.serial = { port };
-  }
-
-  let timeoutId;
-  try {
-    if (connectBtn) {
-      connectBtn.textContent = "Connecting...";
-      connectBtn.disabled = true;
-    }
-    const modal = showStatusModal("Connecting... Please wait.", "pending");
-    const controller = new AbortController();
-    const connectionTimeoutMs = 15000;
-    timeoutId = setTimeout(() => controller.abort(), connectionTimeoutMs);
-    const response = await fetch(`${API_ROOT}/api/connect`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-
-    if (!response.ok || !response.body) {
-      const text = await response.text();
-      throw new Error(text || response.statusText || "Connection failed");
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        let payloadObj = null;
-        try {
-          payloadObj = JSON.parse(trimmed);
-        } catch (err) {
-          appendLogLine(trimmed);
-          continue;
-        }
-
-        const { type: evtType, msg, hostname, trace, success } = payloadObj;
-        const pct = typeof payloadObj.progress_pct === "number" ? payloadObj.progress_pct : null;
-        if (pct !== null) {
-          setProgressValue(pct);
-        }
-        if (evtType === "progress") {
-          appendLogLine(`[${nowTimestamp()}] ${msg}`);
-        } else if (evtType === "success") {
-          connectionSucceeded = true;
-          finalHostname = hostname || null;
-          const successMsg = msg || "Connection established.";
-          appendLogLine(`[SUCCESS] ${successMsg}`);
-          updateStatusModal(modal, successMsg, "success", true);
-        } else if (evtType === "error") {
-          errorMessage = msg || "Connection failed.";
-          appendLogLine(`[ERROR] ${errorMessage}`);
-          errorLogged = true;
-          if (trace) {
-            appendLogLine(trace);
-          }
-          updateStatusModal(modal, errorMessage, "error");
-        }
-
-        if (evtType === "done") {
-          if (!success && !connectionSucceeded && !errorMessage) {
-            errorMessage = "Connection failed.";
-            updateStatusModal(modal, errorMessage, "error");
-          }
-        }
-      }
-    }
-
-    if (buffer.trim()) {
-      try {
-        const payloadObj = JSON.parse(buffer.trim());
-        const { type: evtType, msg, hostname, trace } = payloadObj;
-        const pct = typeof payloadObj.progress_pct === "number" ? payloadObj.progress_pct : null;
-        if (pct !== null) {
-          setProgressValue(pct);
-        }
-        if (evtType === "progress") {
-          appendLogLine(`[${nowTimestamp()}] ${msg}`);
-        } else if (evtType === "success") {
-          connectionSucceeded = true;
-          finalHostname = hostname || null;
-          const successMsg = msg || "Connection established.";
-          appendLogLine(`[SUCCESS] ${successMsg}`);
-          updateStatusModal(modal, successMsg, "success", true);
-        } else if (evtType === "error") {
-          errorMessage = msg || "Connection failed.";
-          appendLogLine(`[ERROR] ${errorMessage}`);
-          errorLogged = true;
-          if (trace) appendLogLine(trace);
-          updateStatusModal(modal, errorMessage, "error");
-        }
-      } catch (err) {
-        appendLogLine(buffer.trim());
-      }
-    }
-  } catch (err) {
-    console.error(err);
-    if (!connectionSucceeded) {
-      if (err.name === "AbortError") {
-        showStatusModal(
-          "Connection timed out. Please check the device and try again.",
-          "error"
-        );
-      } else {
-        showStatusModal(`Connection failed: ${err.message}`, "error");
-      }
-    }
-  } finally {
-    if (typeof timeoutId !== "undefined") {
-      clearTimeout(timeoutId);
-      timeoutId = undefined;
-    }
-    if (connectBtn) {
-      connectBtn.disabled = false;
-      connectBtn.textContent = originalBtnText || "Connect";
-    }
-    autoRunAfterConnect = false;
-  }
-
-  return connectionSucceeded;
 }
 
 async function resetCiscoDevice({ triggerButton = null } = {}) {
@@ -381,9 +174,111 @@ function updateDoneStudentButtonLabel() {
   doneStudentBtn.textContent = allDone ? "Start Grading" : "Next Student";
 }
 
-function setupConnectionPage() {
+async function loadTemplateDevicesForConnection() {
+  const parseDevices = (raw) => {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? parsed
+        : null;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const templateName =
+    localStorage.getItem("templateName") ||
+    localStorage.getItem("activeTemplateName");
+
+  if (templateName) {
+    try {
+      const res = await fetch(`${API_ROOT}/api/templates/${encodeURIComponent(templateName)}`);
+      const data = await res.json();
+      if (res.ok && data.status === "ok" && data.devices_meta && Object.keys(data.devices_meta).length) {
+        localStorage.setItem("templateDevices", JSON.stringify(data.devices_meta));
+        localStorage.setItem("activeTemplateName", templateName);
+        localStorage.setItem("activeTemplateDevices", JSON.stringify(data.devices_meta));
+        return data.devices_meta;
+      }
+    } catch (err) {
+      console.warn("Could not reload template devices:", err);
+    }
+  }
+
+  const activeCached = parseDevices(localStorage.getItem("activeTemplateDevices"));
+  if (activeCached && Object.keys(activeCached).length) {
+    localStorage.setItem("templateDevices", JSON.stringify(activeCached));
+    return activeCached;
+  }
+
+  const cached = parseDevices(localStorage.getItem("templateDevices"));
+  if (cached && Object.keys(cached).length) return cached;
+
+  return {};
+}
+
+function renderDeviceQueue(devicesMeta, deviceQueueContainer) {
+  deviceQueueContainer.innerHTML = "";
+  executionQueue = Object.keys(devicesMeta || {}).map(hostname => ({
+    hostname,
+    commands: devicesMeta[hostname] || [],
+    status: "pending" // pending, running, done
+  }));
+
+  if (!executionQueue.length) {
+    deviceQueueContainer.innerHTML = `<div class="hint">No devices found. Return to Device Setup and save the template setup.</div>`;
+    const startBtn = document.getElementById("startSequenceBtn");
+    if (startBtn) startBtn.disabled = true;
+    return;
+  }
+
+  const startBtn = document.getElementById("startSequenceBtn");
+  if (startBtn) startBtn.disabled = false;
+
+  executionQueue.forEach((device, index) => {
+    const row = document.createElement("div");
+    row.className = `queue-item ${index === 0 ? "active-queue-item" : ""}`;
+    row.id = `q-${device.hostname}`;
+    row.style.cssText = `
+       background: var(--color-bg-card);
+       border: 1px solid var(--color-border);
+       padding: 10px 14px;
+       border-radius: 6px;
+       display: flex;
+       justify-content: space-between;
+       align-items: center;
+    `;
+
+    row.innerHTML = `
+      <div>
+        <strong>${device.hostname}</strong>
+        <div style="font-size: 0.8rem; color: var(--color-muted);">${device.commands.length} commands</div>
+      </div>
+      <span class="q-badge" style="font-size: 0.85rem; font-weight: bold; color: var(--color-muted);">WAITING</span>
+    `;
+
+    if (index === 0) {
+      row.style.borderColor = "var(--color-primary)";
+      row.style.backgroundColor = "rgba(31, 59, 115, 0.05)";
+    }
+
+    row.addEventListener("click", () => {
+      if (isSequenceRunning) {
+        return;
+      }
+      const proceed = confirm(`Start with ${device.hostname} now?`);
+      if (!proceed) return;
+      manualNextHostname = device.hostname;
+      document.getElementById("startSequenceBtn")?.click();
+    });
+
+    deviceQueueContainer.appendChild(row);
+  });
+}
+
+async function setupConnectionPage() {
   loadNavbar();
-  if (!ensureDirectoryConfigured()) return;
 
   // Build Execution Queue UI
   const deviceQueueContainer = document.getElementById("deviceQueueContainer");
@@ -391,63 +286,6 @@ function setupConnectionPage() {
   const startSequenceBtn = document.getElementById("startSequenceBtn");
   const doneStudentBtn = document.getElementById("doneStudentBtn");
   updateDoneStudentButtonLabel();
-
-  if (deviceQueueContainer) {
-    deviceQueueContainer.innerHTML = "";
-    try {
-      const devicesStr = localStorage.getItem("templateDevices");
-      if (devicesStr) {
-        const devicesMeta = JSON.parse(devicesStr);
-        executionQueue = Object.keys(devicesMeta).map(hostname => ({
-          hostname,
-          commands: devicesMeta[hostname],
-          status: "pending" // pending, running, done
-        }));
-
-        executionQueue.forEach((device, index) => {
-          const row = document.createElement("div");
-          row.className = `queue-item ${index === 0 ? "active-queue-item" : ""}`;
-          row.id = `q-${device.hostname}`;
-          row.style.cssText = `
-             background: var(--color-bg-card);
-             border: 1px solid var(--color-border);
-             padding: 10px 14px;
-             border-radius: 6px;
-             display: flex;
-             justify-content: space-between;
-             align-items: center;
-          `;
-
-          row.innerHTML = `
-            <div>
-              <strong>${device.hostname}</strong>
-              <div style="font-size: 0.8rem; color: var(--color-muted);">${device.commands.length} commands</div>
-            </div>
-            <span class="q-badge" style="font-size: 0.85rem; font-weight: bold; color: var(--color-muted);">WAITING</span>
-          `;
-
-          if (index === 0) {
-            row.style.borderColor = "var(--color-primary)";
-            row.style.backgroundColor = "rgba(31, 59, 115, 0.05)";
-          }
-
-          row.addEventListener("click", () => {
-            if (isSequenceRunning) {
-              return;
-            }
-            const proceed = confirm(`Start with ${device.hostname} now?`);
-            if (!proceed) return;
-            manualNextHostname = device.hostname;
-            document.getElementById("startSequenceBtn")?.click();
-          });
-
-          deviceQueueContainer.appendChild(row);
-        });
-      }
-    } catch(err) {
-      console.error(err);
-    }
-  }
 
   const form = document.getElementById("connectionForm");
   const radios = document.querySelectorAll('input[name="connType"]');
@@ -458,16 +296,13 @@ function setupConnectionPage() {
     const savedConn = localStorage.getItem("connection");
     const targetRadio = Array.from(radios).find((r) => r.value === savedConn);
     if (targetRadio) targetRadio.checked = true;
+    else {
+      const serialRadio = Array.from(radios).find((r) => r.value === "serial");
+      if (serialRadio) serialRadio.checked = true;
+    }
     toggleConnectionFields();
 
     form.addEventListener("submit", (evt) => evt.preventDefault());
-
-    document
-      .getElementById("reconnectRunBtn")
-      ?.addEventListener("click", (evt) => {
-        evt.preventDefault();
-        saveConnection({ autoRun: false, triggerButton: evt.currentTarget });
-      });
 
     document
       .getElementById("resetDeviceBtn")
@@ -526,6 +361,11 @@ function setupConnectionPage() {
 
   startSequenceBtn?.addEventListener("click", () => {
      if (isSequenceRunning) return;
+     if (!ensureDirectoryConfigured()) return;
+     if (!executionQueue.length) {
+       alert("No devices found. Return to Device Setup and save the template setup first.");
+       return;
+     }
      isSequenceRunning = true;
      currentQueueIndex = 0;
      completedQueueHosts = new Set();
@@ -536,6 +376,13 @@ function setupConnectionPage() {
      queueStatus.style.color = "var(--color-primary)";
      runNextDeviceInQueue();
   });
+
+  if (deviceQueueContainer) {
+    deviceQueueContainer.innerHTML = `<div class="hint">Loading devices...</div>`;
+    if (startSequenceBtn) startSequenceBtn.disabled = true;
+    const devicesMeta = await loadTemplateDevicesForConnection();
+    renderDeviceQueue(devicesMeta, deviceQueueContainer);
+  }
 }
 
 function getNextQueueIndex(preferredHostname) {
@@ -622,12 +469,28 @@ async function runNextDeviceInQueue() {
     try {
          const directoryMode = localStorage.getItem("directoryMode") || "create";
          const basePath = localStorage.getItem("basePath");
+         let classroom = localStorage.getItem("classroom") || localStorage.getItem("examName") || "";
+         let tutorName = localStorage.getItem("tutorName") || localStorage.getItem("sessionId") || "";
+         let timeSlot = localStorage.getItem("timeSlot") || "";
+         let studentId = localStorage.getItem("studentId") || localStorage.getItem("selectedStudent") || "";
+         if (basePath && pathModule && (!classroom || !tutorName || !timeSlot || !studentId)) {
+           const parts = basePath.split(pathModule.sep).filter(Boolean);
+           if (parts.length >= 4) {
+             classroom = classroom || parts[parts.length - 4];
+             tutorName = tutorName || parts[parts.length - 3];
+             timeSlot = timeSlot || parts[parts.length - 2];
+             studentId = studentId || parts[parts.length - 1];
+           }
+         }
          const payload = {
            deviceId: currentDevice.hostname,
            commands: currentDevice.commands,
-           student_id: localStorage.getItem("studentId") || localStorage.getItem("selectedStudent") || "unknown",
-           exam_name: localStorage.getItem("examName") || "unknown",
-           session_id: localStorage.getItem("sessionId") || "unknown",
+           classroom: classroom || "unknown",
+           tutor_name: tutorName || "unknown",
+           time_slot: timeSlot || "unknown",
+           student_id: studentId || "unknown",
+           exam_name: classroom || "unknown",
+           session_id: tutorName || "unknown",
            log_mode: directoryMode,
          };
          if (forceSkipHostname) {
@@ -794,5 +657,13 @@ async function attemptTransparentConnection() {
 
 
 document.addEventListener("DOMContentLoaded", () => {
-  if (document.getElementById("connectionForm")) setupConnectionPage();
+  if (document.getElementById("connectionForm")) {
+    setupConnectionPage().catch((err) => {
+      console.error("Connection page setup failed:", err);
+      const queue = document.getElementById("deviceQueueContainer");
+      if (queue) {
+        queue.innerHTML = `<div class="hint">Connection page setup failed: ${err.message || err}</div>`;
+      }
+    });
+  }
 });

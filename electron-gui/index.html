@@ -506,15 +506,22 @@
                                 </div>
                             </div>
                             <p class="dir-hint">
-                                Enable <strong>Title row</strong> if the first row is headers.
-                                Enable <strong>Number column</strong> if the first column is a row number.
-                                Turn on both if the file starts with <code>No, StudentID, FirstName, LastName, ...</code>
+                                Enable <strong>Title row</strong> if row 1 is a title such as
+                                <code>Active Student Listing</code>. Enable <strong>Header row</strong>
+                                if the next row contains labels like <code>Student Number</code> and
+                                <code>Student Name</code>. Enable <strong>Number column</strong> if
+                                column 1 is only a row number.
                             </p>
                             <div class="dir-toggles">
                                 <label class="toggle-chip">
-                                    <input type="checkbox" id="bulkHasHeader" />
+                                    <input type="checkbox" id="bulkHasTitle" />
                                     <span class="toggle-track"></span>
                                     <span class="toggle-text">Title row?</span>
+                                </label>
+                                <label class="toggle-chip">
+                                    <input type="checkbox" id="bulkHasHeader" />
+                                    <span class="toggle-track"></span>
+                                    <span class="toggle-text">Header row?</span>
                                 </label>
                                 <label class="toggle-chip">
                                     <input type="checkbox" id="bulkHasNumber" />
@@ -522,6 +529,10 @@
                                     <span class="toggle-text">Number column?</span>
                                 </label>
                             </div>
+                            <p class="dir-hint">
+                                Default with all switches off: column 1 = student ID,
+                                column 2 = student name.
+                            </p>
                             <div class="actions justify-end" style="margin-top:20px;">
                                 <button type="submit" id="bulk-create-btn" class="primary">
                                     Create Directories
