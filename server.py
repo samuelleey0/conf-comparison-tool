@@ -4847,31 +4847,48 @@ def api_admin_sync_mirror():
     if not ENGINE_STUDENTS_DIR.exists():
         return jsonify({"status": "ok", "message": "Nothing to sync.", "removed": []})
 
-    for exam_dir in list(ENGINE_STUDENTS_DIR.iterdir()):
-        if not exam_dir.is_dir():
+    for classroom_dir in list(ENGINE_STUDENTS_DIR.iterdir()):
+        if not classroom_dir.is_dir():
             continue
-        docs_exam = DOCS_DIR / exam_dir.name
-        if not docs_exam.exists():
-            shutil.rmtree(exam_dir)
-            removed.append(exam_dir.name)
+        docs_classroom = DOCS_DIR / classroom_dir.name
+        if not docs_classroom.exists():
+            shutil.rmtree(classroom_dir)
+            removed.append(classroom_dir.name)
             continue
-        for session_dir in list(exam_dir.iterdir()):
-            if not session_dir.is_dir():
+        for tutor_dir in list(classroom_dir.iterdir()):
+            if not tutor_dir.is_dir():
                 continue
-            docs_session = docs_exam / session_dir.name
-            if not docs_session.exists():
-                shutil.rmtree(session_dir)
-                removed.append(f"{exam_dir.name}/{session_dir.name}")
+            docs_tutor = docs_classroom / tutor_dir.name
+            if not docs_tutor.exists():
+                shutil.rmtree(tutor_dir)
+                removed.append(f"{classroom_dir.name}/{tutor_dir.name}")
                 continue
-            for student_dir in list(session_dir.iterdir()):
-                if not student_dir.is_dir():
+            for time_dir in list(tutor_dir.iterdir()):
+                if not time_dir.is_dir():
                     continue
-                docs_student = docs_session / student_dir.name
-                if not docs_student.exists():
-                    shutil.rmtree(student_dir)
+                docs_time = docs_tutor / time_dir.name
+                if not docs_time.exists():
+                    shutil.rmtree(time_dir)
                     removed.append(
-                        f"{exam_dir.name}/{session_dir.name}/{student_dir.name}"
+                        f"{classroom_dir.name}/{tutor_dir.name}/{time_dir.name}"
                     )
+                    continue
+                for student_dir in list(time_dir.iterdir()):
+                    if not student_dir.is_dir():
+                        continue
+                    docs_student = docs_time / student_dir.name
+                    if not docs_student.exists():
+                        shutil.rmtree(student_dir)
+                        removed.append(
+                            f"{classroom_dir.name}/{tutor_dir.name}/{time_dir.name}/{student_dir.name}"
+                        )
+
+                if time_dir.exists() and not any(time_dir.iterdir()):
+                    time_dir.rmdir()
+                if tutor_dir.exists() and not any(tutor_dir.iterdir()):
+                    tutor_dir.rmdir()
+        if classroom_dir.exists() and not any(classroom_dir.iterdir()):
+            classroom_dir.rmdir()
 
     if removed:
         msg = f"Removed {len(removed)} orphaned mirror folder(s):\n" + "\n".join(

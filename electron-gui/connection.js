@@ -469,12 +469,28 @@ async function runNextDeviceInQueue() {
     try {
          const directoryMode = localStorage.getItem("directoryMode") || "create";
          const basePath = localStorage.getItem("basePath");
+         let classroom = localStorage.getItem("classroom") || localStorage.getItem("examName") || "";
+         let tutorName = localStorage.getItem("tutorName") || localStorage.getItem("sessionId") || "";
+         let timeSlot = localStorage.getItem("timeSlot") || "";
+         let studentId = localStorage.getItem("studentId") || localStorage.getItem("selectedStudent") || "";
+         if (basePath && pathModule && (!classroom || !tutorName || !timeSlot || !studentId)) {
+           const parts = basePath.split(pathModule.sep).filter(Boolean);
+           if (parts.length >= 4) {
+             classroom = classroom || parts[parts.length - 4];
+             tutorName = tutorName || parts[parts.length - 3];
+             timeSlot = timeSlot || parts[parts.length - 2];
+             studentId = studentId || parts[parts.length - 1];
+           }
+         }
          const payload = {
            deviceId: currentDevice.hostname,
            commands: currentDevice.commands,
-           student_id: localStorage.getItem("studentId") || localStorage.getItem("selectedStudent") || "unknown",
-           exam_name: localStorage.getItem("examName") || "unknown",
-           session_id: localStorage.getItem("sessionId") || "unknown",
+           classroom: classroom || "unknown",
+           tutor_name: tutorName || "unknown",
+           time_slot: timeSlot || "unknown",
+           student_id: studentId || "unknown",
+           exam_name: classroom || "unknown",
+           session_id: tutorName || "unknown",
            log_mode: directoryMode,
          };
          if (forceSkipHostname) {
