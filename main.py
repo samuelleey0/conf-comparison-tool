@@ -19,7 +19,11 @@ from remote_utils import (
     get_hostname_remote,
     toggle_usb_adapter,
 )
-from ui_utils import choose_connection_type, choose_serial_port, remote_credentials
+from ui_utils import (
+    choose_connection_type,
+    choose_serial_port,
+    remote_credentials,
+)  # pyright: ignore[reportMissingImports]
 
 from file_utils import save_output_to_file, build_base_path, del_partial_logs
 
@@ -39,9 +43,8 @@ def main():
     if path_info is None:
         return
 
-    classroom = path_info["classroom"]
-    tutor_name = path_info["tutor_name"]
-    time_slot = path_info["time_slot"]
+    exam_name = path_info["exam_name"]
+    session_id = path_info["session_id"]
     student_id = path_info["student_id"]
     base_path = path_info["base_path"]
 
@@ -77,11 +80,10 @@ def main():
                         save_output_to_file(
                             cmd,
                             output,
-                            classroom=classroom,
-                            tutor_name=tutor_name,
-                            time_slot=time_slot,
-                            student_id=student_id,
-                            hostname=hostname,
+                            exam_name,
+                            session_id,
+                            student_id,
+                            hostname,
                             base_dir=base_path,
                         )
                         print(f"[*] Router output for '{cmd}':\n{output}\n{'-'*50}")
@@ -107,7 +109,7 @@ def main():
                 logout_close_connection(ser)
         if retry_count > max_retries and remaining_commands:
             print("[ERROR] Maximum retries reached. Some commands were not executed:")
-            del_partial_logs(base_path, hostname)
+            del_partial_logs(base_path, exam_name, session_id, student_id, hostname)
             print(
                 "[INFO] Partial logs deleted. Please re-run the process to collect all logs."
             )
@@ -146,11 +148,10 @@ def main():
                         save_output_to_file(
                             cmd,
                             output,
-                            classroom=classroom,
-                            tutor_name=tutor_name,
-                            time_slot=time_slot,
-                            student_id=student_id,
-                            hostname=hostname,
+                            exam_name,
+                            session_id,
+                            student_id,
+                            hostname,
                             base_dir=base_path,
                         )
                         print(f"[*] Router output for '{cmd}':\n{output}\n{'-'*50}")
@@ -192,7 +193,7 @@ def main():
 
         if retry_count > max_retries and remaining_commands:
             print("[ERROR] Maximum retries reached. Some commands were not executed:")
-            del_partial_logs(base_path, hostname)
+            del_partial_logs(base_path, exam_name, session_id, student_id, hostname)
             print(
                 "[INFO] Partial logs deleted. Will retry collection for remaining commands..."
             )
