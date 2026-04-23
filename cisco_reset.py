@@ -224,10 +224,25 @@ def reload_cisco_device(
         if delete_vlan_database:
             # Preserve switch behavior: standard save/confirm handling.
             resp, trigger = _read_until(
-                ser, ["save?", "yes/no", "modified", "confirm", "proceed"], timeout=15
+                ser,
+                [
+                    "save?",
+                    "yes/no",
+                    "modified",
+                    "please answer",
+                    "yes' or 'no'",
+                    "confirm",
+                    "proceed",
+                ],
+                timeout=15,
             )
 
-            if trigger and trigger.lower() in ("save?", "yes/no", "modified"):
+            resp_lower = (resp or "").lower()
+            if (
+                (trigger and trigger.lower() in ("save?", "yes/no", "modified"))
+                or "please answer" in resp_lower
+                or "yes' or 'no'" in resp_lower
+            ):
                 emit("[INFO] Responding 'no' to save prompt...")
                 ser.write(b"no\n")
                 ser.flush()
@@ -260,12 +275,13 @@ def reload_cisco_device(
                 "save?",
                 "yes/no",
                 "modified",
+                "please answer",
+                "yes' or 'no'",
                 "do you wish to proceed with reload anyway",
                 "proceed with reload",
                 "proceed",
                 "[confirm]",
                 "confirm",
-                "boot variable",
                 "keep it blank",
             ]
 
@@ -280,11 +296,12 @@ def reload_cisco_device(
 
                 trigger_lower = trigger.lower()
                 emit(f"[DEBUG] Reload prompt matched: {trigger_lower}")
+                resp_lower = (resp or "").lower()
 
-                if not save_answered and trigger_lower in (
-                    "save?",
-                    "yes/no",
-                    "modified",
+                if not save_answered and (
+                    trigger_lower in ("save?", "yes/no", "modified")
+                    or "please answer" in resp_lower
+                    or "yes' or 'no'" in resp_lower
                 ):
                     emit("[INFO] Responding 'no' to save prompt...")
                     ser.write(b"no\n")
@@ -298,7 +315,6 @@ def reload_cisco_device(
                     "proceed",
                     "[confirm]",
                     "confirm",
-                    "boot variable",
                     "keep it blank",
                 ):
                     emit("[INFO] Sending Enter to continue reload sequence...")
