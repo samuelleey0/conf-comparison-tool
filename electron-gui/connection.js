@@ -125,6 +125,85 @@ let manualNextHostname = null;
 let completedQueueHosts = new Set();
 let pollingDisconnect = false;
 
+function escapeConnectionPromptText(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function showConnectionPrompt({
+  title = "Continue",
+  message = "",
+  confirmText = "OK",
+  cancelText = "Cancel",
+  confirmClass = "primary",
+} = {}) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay connection-confirm-modal";
+    overlay.innerHTML = `
+      <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="connectionPromptTitle">
+        <div class="modal-header">
+          <h3 id="connectionPromptTitle">${escapeConnectionPromptText(title)}</h3>
+        </div>
+        <div class="modal-body">
+          <p style="white-space: pre-wrap;">${escapeConnectionPromptText(message)}</p>
+          <p class="hint" style="margin-top: 12px;">Press Enter to continue, or Esc to cancel.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="secondary" data-action="cancel">${escapeConnectionPromptText(cancelText)}</button>
+          <button type="button" class="${escapeConnectionPromptText(confirmClass)}" data-action="confirm">${escapeConnectionPromptText(confirmText)}</button>
+        </div>
+      </div>
+    `;
+
+    const finish = (value) => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+      overlay.remove();
+      resolve(value);
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        finish(true);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        finish(false);
+      }
+    };
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) finish(false);
+    });
+    overlay.querySelector('[data-action="cancel"]')?.addEventListener("click", () => finish(false));
+    overlay.querySelector('[data-action="confirm"]')?.addEventListener("click", () => finish(true));
+
+    document.body.appendChild(overlay);
+    document.addEventListener("keydown", handleKeyDown, true);
+    setTimeout(() => overlay.querySelector('[data-action="confirm"]')?.focus(), 0);
+  });
+}
+
+function setupConnectionKeyboardShortcuts() {
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.defaultPrevented) return;
+    if (document.querySelector(".connection-confirm-modal")) return;
+
+    const tag = (event.target?.tagName || "").toUpperCase();
+    if (["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(tag)) return;
+
+    const doneStudentBtn = document.getElementById("doneStudentBtn");
+    if (doneStudentBtn && !doneStudentBtn.disabled) {
+      event.preventDefault();
+      doneStudentBtn.click();
+    }
+  });
+}
+
 function getStudentProgressState() {
   let total = parseInt(localStorage.getItem("sessionStudentsCount") || "0", 10);
   let completed = [];
@@ -263,11 +342,15 @@ function renderDeviceQueue(devicesMeta, deviceQueueContainer) {
       row.style.backgroundColor = "rgba(31, 59, 115, 0.05)";
     }
 
-    row.addEventListener("click", () => {
+    row.addEventListener("click", async () => {
       if (isSequenceRunning) {
         return;
       }
-      const proceed = confirm(`Start with ${device.hostname} now?`);
+      const proceed = await showConnectionPrompt({
+        title: "Start From Device",
+        message: `Start with ${device.hostname} now?`,
+        confirmText: "Start",
+      });
       if (!proceed) return;
       manualNextHostname = device.hostname;
       document.getElementById("startSequenceBtn")?.click();
@@ -279,6 +362,7 @@ function renderDeviceQueue(devicesMeta, deviceQueueContainer) {
 
 async function setupConnectionPage() {
   loadNavbar();
+  setupConnectionKeyboardShortcuts();
 
   // Build Execution Queue UI
   const deviceQueueContainer = document.getElementById("deviceQueueContainer");
@@ -425,7 +509,16 @@ async function runNextDeviceInQueue() {
     document.getElementById("queueStatus").style.color = "var(--color-success, #28a745)";
     document.getElementById("doneStudentBtn").disabled = false;
     updateDoneStudentButtonLabel();
-    alert("All devices completed. Please hit Done to proceed to the next student.");
+    const doneStudentBtn = document.getElementById("doneStudentBtn");
+    const proceed = await showConnectionPrompt({
+      title: "All Devices Completed",
+      message: "All devices completed for this student.",
+      confirmText: doneStudentBtn?.textContent || "Continue",
+      cancelText: "Stay Here",
+    });
+    if (proceed) {
+      doneStudentBtn?.click();
+    }
     return;
   }
 
@@ -444,9 +537,11 @@ async function runNextDeviceInQueue() {
   setStoredCommandsFromDevice(currentDevice.hostname);
 
   // Require operator confirmation before running the next device
-  const proceed = confirm(
-    `Plug in ${currentDevice.hostname} and click OK to start collecting logs.`
-  );
+  const proceed = await showConnectionPrompt({
+    title: "Ready For Next Device",
+    message: `Plug in ${currentDevice.hostname}, then press Enter to start collecting logs.`,
+    confirmText: "Start Collection",
+  });
   if (!proceed) {
     badge.textContent = "WAITING";
     badge.style.color = "var(--color-muted)";
@@ -573,9 +668,12 @@ async function runNextDeviceInQueue() {
             row.style.borderColor = "#ff9800";
             row.style.backgroundColor = "rgba(255, 152, 0, 0.05)";
 
-            const continueAnyway = confirm(
-              `${hostnameMismatchMsg}\n\nDo you want to continue anyway?\nLogs will be saved under the selected device name "${currentDevice.hostname}".`
-            );
+            const continueAnyway = await showConnectionPrompt({
+              title: "Hostname Mismatch",
+              message: `${hostnameMismatchMsg}\n\nDo you want to continue anyway?\nLogs will be saved under the selected device name "${currentDevice.hostname}".`,
+              confirmText: "Continue Anyway",
+              cancelText: "Stop",
+            });
             if (continueAnyway) {
               appendLogLine(`[INFO] User chose to continue despite hostname mismatch.`);
               runExecute(true); // Retry with skip flag
