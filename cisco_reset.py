@@ -280,7 +280,7 @@ def reload_cisco_device(
                         "confirm",
                         "proceed",
                     ],
-                    timeout=4,
+                    timeout=12,
                 )
                 if (
                     trigger_retry
@@ -337,6 +337,9 @@ def reload_cisco_device(
                     save_answered = True
                     continue
                 if not trigger:
+                    # Routers may emit a blank line first, then show Save? prompt later.
+                    if not (resp or "").strip():
+                        continue
                     break
 
                 trigger_lower = trigger.lower()
