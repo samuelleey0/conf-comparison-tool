@@ -221,6 +221,17 @@ def reload_cisco_device(
         ser.write(b"reload\n")
         ser.flush()
 
+        def _looks_like_save_prompt(text):
+            lower = (text or "").lower()
+            return (
+                "save?" in lower
+                or "[yes/no]" in lower
+                or "yes/no" in lower
+                or "system configuration has been modified" in lower
+                or "please answer" in lower
+                or "yes' or 'no'" in lower
+            )
+
         if delete_vlan_database:
             # Preserve switch behavior: standard save/confirm handling.
             resp, trigger = _read_until(
@@ -237,12 +248,9 @@ def reload_cisco_device(
                 timeout=15,
             )
 
-            resp_lower = (resp or "").lower()
             if (
-                (trigger and trigger.lower() in ("save?", "yes/no", "modified"))
-                or "please answer" in resp_lower
-                or "yes' or 'no'" in resp_lower
-            ):
+                trigger and trigger.lower() in ("save?", "yes/no", "modified")
+            ) or _looks_like_save_prompt(resp):
                 emit("[INFO] Responding 'no' to save prompt...")
                 ser.write(b"no\n")
                 ser.flush()
@@ -260,11 +268,39 @@ def reload_cisco_device(
                 ser.write(b"\n")
                 ser.flush()
             else:
-                emit(
-                    "[WARNING] No reload prompt detected. Sending Enter just in case..."
+                # Before fallback Enter, do one short second-chance read for the save prompt.
+                resp_retry, trigger_retry = _read_until(
+                    ser,
+                    [
+                        "save?",
+                        "yes/no",
+                        "modified",
+                        "please answer",
+                        "yes' or 'no'",
+                        "confirm",
+                        "proceed",
+                    ],
+                    timeout=4,
                 )
-                ser.write(b"\n")
-                ser.flush()
+                if (
+                    trigger_retry
+                    and trigger_retry.lower() in ("save?", "yes/no", "modified")
+                ) or _looks_like_save_prompt(resp_retry):
+                    emit("[INFO] Responding 'no' to save prompt (second check)...")
+                    ser.write(b"no\n")
+                    ser.flush()
+                elif (resp or "").strip() or (resp_retry or "").strip():
+                    emit(
+                        "[INFO] Reload output received without an explicit prompt match. Sending Enter as a safeguard..."
+                    )
+                    ser.write(b"\n")
+                    ser.flush()
+                else:
+                    emit(
+                        "[WARNING] No reload prompt/output detected. Sending Enter just in case..."
+                    )
+                    ser.write(b"\n")
+                    ser.flush()
         else:
             # Routers can prompt multiple times during reload, e.g.:
             #   1) Save? [yes/no]:
@@ -288,20 +324,27 @@ def reload_cisco_device(
             save_answered = False
             enter_presses = 0
             max_enter_presses = 4
+            saw_reload_output = False
 
             for _ in range(8):
                 resp, trigger = _read_until(ser, reload_triggers, timeout=8)
+                if (resp or "").strip():
+                    saw_reload_output = True
+                if not save_answered and _looks_like_save_prompt(resp):
+                    emit("[INFO] Responding 'no' to save prompt...")
+                    ser.write(b"no\n")
+                    ser.flush()
+                    save_answered = True
+                    continue
                 if not trigger:
                     break
 
                 trigger_lower = trigger.lower()
                 emit(f"[DEBUG] Reload prompt matched: {trigger_lower}")
-                resp_lower = (resp or "").lower()
 
                 if not save_answered and (
                     trigger_lower in ("save?", "yes/no", "modified")
-                    or "please answer" in resp_lower
-                    or "yes' or 'no'" in resp_lower
+                    or _looks_like_save_prompt(resp)
                 ):
                     emit("[INFO] Responding 'no' to save prompt...")
                     ser.write(b"no\n")
@@ -325,9 +368,14 @@ def reload_cisco_device(
                         break
 
             if enter_presses == 0 and not save_answered:
-                emit(
-                    "[WARNING] No reload prompt detected. Sending Enter just in case..."
-                )
+                if saw_reload_output:
+                    emit(
+                        "[INFO] Reload output received without an explicit prompt match. Sending Enter as a safeguard..."
+                    )
+                else:
+                    emit(
+                        "[WARNING] No reload prompt/output detected. Sending Enter just in case..."
+                    )
                 ser.write(b"\n")
                 ser.flush()
 
