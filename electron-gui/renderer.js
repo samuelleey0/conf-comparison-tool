@@ -329,10 +329,6 @@ function setupWelcomePage() {
 
   loadNavbar();
   window.setTimeout(() => goTo("homepage.html"), 2200);
-  const startBtn = document.getElementById("startSetupBtn");
-  if (startBtn) {
-    startBtn.addEventListener("click", () => goTo("device_setup.html"));
-  }
 }
 
 // -----------------------------
