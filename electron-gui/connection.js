@@ -62,15 +62,35 @@ async function resetCiscoDevice({ triggerButton = null } = {}) {
 
   const resetBtn = triggerButton || null;
   const originalBtnText = resetBtn ? resetBtn.textContent : null;
+  const abortBtn = document.getElementById("abortExecutionBtn");
+  const originalAbortText = abortBtn ? abortBtn.textContent : null;
+  const stopReset = () => {
+    if (currentAbortController) {
+      currentAbortController.abort();
+    }
+    try {
+      fetch(`${API_ROOT}/api/abort`, { method: "POST" });
+    } catch (_) {}
+  };
 
   try {
     if (resetBtn) {
       resetBtn.disabled = true;
       resetBtn.textContent = "Resetting...";
     }
+    currentAbortController = new AbortController();
+    if (abortBtn) {
+      abortBtn.textContent = "Stop Reset";
+      abortBtn.style.display = "inline-block";
+      abortBtn.onclick = stopReset;
+    }
 
     appendLogLine(`[${nowTimestamp()}] Starting Cisco reset on ${port}...`);
-    const modal = showStatusModal("Resetting device... Please wait.", "pending");
+    const modal = showStatusModal("Resetting device... Please wait.", "pending", {
+      label: "Stop Reset",
+      className: "danger",
+      onClick: stopReset,
+    });
     const response = await fetch(`${API_ROOT}/api/reset_device`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -80,6 +100,7 @@ async function resetCiscoDevice({ triggerButton = null } = {}) {
         device_type: deviceType,
         serial: { port },
       }),
+      signal: currentAbortController.signal,
     });
 
     let data = {};
@@ -104,12 +125,24 @@ async function resetCiscoDevice({ triggerButton = null } = {}) {
     updateStatusModal(modal, message, "success", true);
     return true;
   } catch (err) {
+    if (err.name === "AbortError") {
+      const message = "Cisco reset stopped by user.";
+      appendLogLine(`[STOPPED] ${message}`);
+      showStatusModal(message, "error");
+      return false;
+    }
     console.error(err);
     const message = err.message || "Cisco reset failed.";
     appendLogLine(`[ERROR] ${message}`);
     showStatusModal(message, "error");
     return false;
   } finally {
+    currentAbortController = null;
+    if (abortBtn) {
+      abortBtn.style.display = "none";
+      abortBtn.onclick = null;
+      abortBtn.textContent = originalAbortText || "Stop Execution";
+    }
     if (resetBtn) {
       resetBtn.disabled = false;
       resetBtn.textContent = originalBtnText || "Reset Cisco Device";

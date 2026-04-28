@@ -46,6 +46,7 @@ let selectedExistingDisplay = null;
 let statusModalOverlay = null;
 let statusModalMessageEl = null;
 let statusModalCloseBtn = null;
+let statusModalActionBtn = null;
 let statusModalHideTimeout = null;
 
 restoreSidebarPreference();
@@ -266,13 +267,35 @@ function ensureStatusModalElements() {
   statusModalCloseBtn.textContent = "Close";
   statusModalCloseBtn.addEventListener("click", () => hideStatusModal());
 
-  box.append(spinner, statusModalMessageEl, statusModalCloseBtn);
+  statusModalActionBtn = document.createElement("button");
+  statusModalActionBtn.type = "button";
+  statusModalActionBtn.className = "status-modal-action danger";
+  statusModalActionBtn.style.display = "none";
+
+  box.append(spinner, statusModalMessageEl, statusModalActionBtn, statusModalCloseBtn);
   statusModalOverlay.appendChild(box);
   document.body.appendChild(statusModalOverlay);
   return statusModalOverlay;
 }
 
-function showStatusModal(message, state = "info") {
+function setStatusModalAction(action = null) {
+  ensureStatusModalElements();
+  if (!statusModalActionBtn) return;
+  statusModalActionBtn.onclick = null;
+
+  if (!action || typeof action !== "object") {
+    statusModalActionBtn.style.display = "none";
+    statusModalActionBtn.textContent = "";
+    return;
+  }
+
+  statusModalActionBtn.textContent = action.label || "Stop";
+  statusModalActionBtn.className = `status-modal-action ${action.className || "danger"}`;
+  statusModalActionBtn.onclick = action.onClick || null;
+  statusModalActionBtn.style.display = "inline-block";
+}
+
+function showStatusModal(message, state = "info", action = null) {
   const overlay = ensureStatusModalElements();
   if (statusModalHideTimeout) {
     clearTimeout(statusModalHideTimeout);
@@ -281,6 +304,7 @@ function showStatusModal(message, state = "info") {
   overlay.dataset.state = state;
   statusModalMessageEl.textContent = message;
   statusModalCloseBtn.style.display = state === "pending" ? "none" : "inline-block";
+  setStatusModalAction(action);
   overlay.classList.add("visible");
   return overlay;
 }
@@ -290,6 +314,9 @@ function updateStatusModal(overlay, message, state = "info", autoHide = false) {
   modal.dataset.state = state;
   statusModalMessageEl.textContent = message;
   statusModalCloseBtn.style.display = state === "pending" ? "none" : "inline-block";
+  if (state !== "pending") {
+    setStatusModalAction(null);
+  }
   if (autoHide) {
     statusModalHideTimeout = setTimeout(() => hideStatusModal(), 1500);
   }
@@ -303,6 +330,7 @@ function hideStatusModal() {
   if (statusModalOverlay) {
     statusModalOverlay.classList.remove("visible");
   }
+  setStatusModalAction(null);
 }
 
 // -----------------------------

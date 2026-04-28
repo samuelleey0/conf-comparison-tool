@@ -1554,6 +1554,11 @@ progress::-moz-progress-bar {
   padding: 8px 18px;
 }
 
+.status-modal-action {
+  margin-right: 10px;
+  padding: 8px 18px;
+}
+
 .status-modal-overlay[data-state="pending"] .status-modal-close {
   display: none;
 }

@@ -3514,6 +3514,7 @@ def api_connect():
 
 @app.route("/api/reset_device", methods=["POST"])
 def api_reset_device():
+    execution_abort.clear()
     data = request.get_json() or {}
     mode = (data.get("mode") or data.get("connection") or "serial").lower()
     device_type = str(data.get("device_type") or "switch").strip().lower()
@@ -3560,9 +3561,25 @@ def api_reset_device():
         port=port,
         baudrate=baudrate,
         delete_vlan_database=(device_type != "router"),
+        abort_event=execution_abort,
     )
     logs = result.get("logs") or []
     message = result.get("message") or "Reset completed."
+    if result.get("aborted"):
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": message,
+                    "logs": logs,
+                    "aborted": True,
+                    "port": port,
+                    "baudrate": baudrate,
+                    "device_type": device_type,
+                }
+            ),
+            499,
+        )
     if result.get("success"):
         return jsonify(
             {
