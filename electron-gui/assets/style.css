@@ -1323,9 +1323,62 @@ button.block {
   flex-direction: column;
   gap: 8px;
   margin-top: 10px;
-  max-height: 200px;
+  max-height: 360px;
   overflow-y: auto;
 }
+
+/* Queue item wrapper keeps row + dropdown visually connected */
+.queue-item-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Command dropdown panel */
+.queue-cmd-dropdown {
+  border: 1px solid var(--color-border);
+  border-top: none;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  background: var(--color-surface, #f8faff);
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.queue-cmd-dropdown__item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.queue-cmd-dropdown__item:last-child {
+  border-bottom: none;
+}
+
+.queue-cmd-dropdown__num {
+  font-size: 0.72rem;
+  color: var(--color-muted);
+  min-width: 20px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.queue-cmd-dropdown__cmd {
+  font-family: "Source Code Pro", "Courier New", monospace;
+  font-size: 0.8rem;
+  color: var(--color-heading);
+  word-break: break-all;
+}
+
+.queue-cmd-dropdown__empty {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  font-style: italic;
+}
+
 
 .connection-mode-group {
   display: flex;

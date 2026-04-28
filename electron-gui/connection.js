@@ -349,6 +349,10 @@ function renderDeviceQueue(devicesMeta, deviceQueueContainer) {
   if (startBtn) startBtn.disabled = false;
 
   executionQueue.forEach((device, index) => {
+    // Wrapper holds row + collapsible dropdown together
+    const wrapper = document.createElement("div");
+    wrapper.className = "queue-item-wrapper";
+
     const row = document.createElement("div");
     row.className = `queue-item ${index === 0 ? "active-queue-item" : ""}`;
     row.id = `q-${device.hostname}`;
@@ -360,14 +364,22 @@ function renderDeviceQueue(devicesMeta, deviceQueueContainer) {
        display: flex;
        justify-content: space-between;
        align-items: center;
+       cursor: pointer;
+       user-select: none;
     `;
 
     row.innerHTML = `
       <div>
         <strong>${device.hostname}</strong>
-        <div style="font-size: 0.8rem; color: var(--color-muted);">${device.commands.length} commands</div>
+        <div style="font-size: 0.8rem; color: var(--color-muted);">
+          ${device.commands.length} command${device.commands.length !== 1 ? "s" : ""}
+          <span class="queue-preview-hint" style="color:var(--color-primary);">- click to preview</span>
+        </div>
       </div>
-      <span class="q-badge" style="font-size: 0.85rem; font-weight: bold; color: var(--color-muted);">WAITING</span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="q-chevron" style="font-size:0.7rem;color:var(--color-muted);transition:transform 0.2s;">▼</span>
+        <span class="q-badge" style="font-size:0.85rem;font-weight:bold;color:var(--color-muted);">WAITING</span>
+      </div>
     `;
 
     if (index === 0) {
@@ -375,21 +387,58 @@ function renderDeviceQueue(devicesMeta, deviceQueueContainer) {
       row.style.backgroundColor = "rgba(31, 59, 115, 0.05)";
     }
 
+    // Build command dropdown (hidden by default)
+    const dropdown = document.createElement("div");
+    dropdown.className = "queue-cmd-dropdown";
+    dropdown.style.display = "none";
+
+    if (!device.commands.length) {
+      dropdown.innerHTML = `<span class="queue-cmd-dropdown__empty">No commands configured for this device.</span>`;
+    } else {
+      dropdown.innerHTML = device.commands.map((cmd, i) =>
+        `<div class="queue-cmd-dropdown__item">
+           <span class="queue-cmd-dropdown__num">${i + 1}</span>
+           <code class="queue-cmd-dropdown__cmd">${cmd}</code>
+         </div>`
+      ).join("");
+    }
+
+    wrapper.appendChild(row);
+    wrapper.appendChild(dropdown);
+    deviceQueueContainer.appendChild(wrapper);
+
     row.addEventListener("click", async () => {
       if (isSequenceRunning) {
+        const proceed = await showConnectionPrompt({
+          title: "Start From Device",
+          message: `Start with ${device.hostname} now?`,
+          confirmText: "Start",
+        });
+        if (!proceed) return;
+        manualNextHostname = device.hostname;
+        document.getElementById("startSequenceBtn")?.click();
         return;
       }
-      const proceed = await showConnectionPrompt({
-        title: "Start From Device",
-        message: `Start with ${device.hostname} now?`,
-        confirmText: "Start",
-      });
-      if (!proceed) return;
-      manualNextHostname = device.hostname;
-      document.getElementById("startSequenceBtn")?.click();
-    });
 
-    deviceQueueContainer.appendChild(row);
+      // Toggle dropdown
+      const isOpen = dropdown.style.display !== "none";
+      const chevron = row.querySelector(".q-chevron");
+      const hint = row.querySelector(".queue-preview-hint");
+
+      if (isOpen) {
+        dropdown.style.display = "none";
+        if (chevron) chevron.style.transform = "";
+        if (hint) hint.textContent = "- click to preview";
+        row.style.borderBottomLeftRadius = "6px";
+        row.style.borderBottomRightRadius = "6px";
+      } else {
+        dropdown.style.display = "block";
+        if (chevron) chevron.style.transform = "rotate(180deg)";
+        if (hint) hint.textContent = "- click to close";
+        row.style.borderBottomLeftRadius = "0";
+        row.style.borderBottomRightRadius = "0";
+      }
+    });
   });
 }
 
