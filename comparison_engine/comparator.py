@@ -2328,17 +2328,33 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
             continue
 
         if not has_student_key:
-            results.append(
-                _make_result(
-                    full_key,
-                    "missing",
-                    t_val,
-                    VALUE_NOT_PRESENT,
-                    _verification_outcome_code_for_path(
-                        full_key, "missing", t_val, None
-                    ),
+            # For password_type fields (console/vty), emit human-readable labels
+            # instead of the raw Cisco type code ("0" = clear-text, "7" = encrypted).
+            if full_key.endswith(".password_type") and (
+                ".console." in full_key or ".vty." in full_key
+            ):
+                _pw_type_labels = {"0": "clear-text", "5": "MD5 secret", "7": "encrypted", "9": "scrypt"}
+                _t_label = _pw_type_labels.get(str(t_val), f"type {t_val}")
+                results.append(
+                    _make_result(
+                        full_key,
+                        "missing",
+                        f"password configured ({_t_label})",
+                        "no password configured",
+                    )
                 )
-            )
+            else:
+                results.append(
+                    _make_result(
+                        full_key,
+                        "missing",
+                        t_val,
+                        VALUE_NOT_PRESENT,
+                        _verification_outcome_code_for_path(
+                            full_key, "missing", t_val, None
+                        ),
+                    )
+                )
         elif full_key.endswith("banner_motd"):
             # Banner content is not graded by exact string; only presence matters.
             if t_val is None and s_val is None:

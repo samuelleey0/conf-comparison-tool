@@ -2464,12 +2464,18 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
         )
         block = _extract_cli_block(lines, idx)
         if block:
+            if "password" in feature and "password" not in block.lower():
+                block += "\n(no 'password' command visible in this capture)"
             return block
 
     if len(parts) >= 3 and parts[1] == "console":
         idx = _find_line_index(lines, lambda line: line.strip().lower() == "line con 0")
         block = _extract_cli_block(lines, idx)
         if block:
+            # If this is a password-related feature but no 'password' line is in the block,
+            # append a note so the user understands why both sides look the same.
+            if "password" in feature and "password" not in block.lower():
+                block += "\n(no 'password' command visible in this capture)"
             return block
 
     if len(parts) >= 3 and parts[1] == "routing":
