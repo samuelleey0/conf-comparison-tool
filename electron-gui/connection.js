@@ -223,8 +223,25 @@ function showConnectionPrompt({
 
 function setupConnectionKeyboardShortcuts() {
   document.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.defaultPrevented) return;
+    if (event.defaultPrevented) return;
     if (document.querySelector(".connection-confirm-modal")) return;
+
+    if (event.key === "Escape") {
+      const abortBtn = document.getElementById("abortExecutionBtn");
+      const abortVisible =
+        abortBtn &&
+        !abortBtn.disabled &&
+        abortBtn.style.display !== "none" &&
+        abortBtn.offsetParent !== null;
+
+      if (abortVisible) {
+        event.preventDefault();
+        abortBtn.click();
+      }
+      return;
+    }
+
+    if (event.key !== "Enter") return;
 
     const tag = (event.target?.tagName || "").toUpperCase();
     if (["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(tag)) return;
