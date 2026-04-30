@@ -278,22 +278,39 @@
             }
 
             .picker-nav-btn {
-                background: none;
+                flex: 0 0 auto;
+                background: var(--color-surface);
                 border: 1px solid var(--color-border);
-                border-radius: 4px;
-                font-size: 1rem;
-                width: 30px;
-                height: 30px;
+                border-radius: 6px !important;
+                width: 42px;
+                height: 42px;
+                padding: 0;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 cursor: pointer;
-                color: var(--color-muted);
-                transition: background 0.15s;
+                color: var(--color-primary);
+                box-shadow: 0 2px 6px rgba(15, 23, 46, 0.08);
+                transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+            }
+
+            .picker-nav-btn svg {
+                width: 22px;
+                height: 22px;
+                stroke-width: 2.4;
             }
 
             .picker-nav-btn:hover {
-                background: var(--color-border);
+                background: #eef3ff;
+                border-color: rgba(31, 59, 115, 0.35);
+                color: white;
+                box-shadow: 0 4px 12px rgba(15, 23, 46, 0.12);
+            }
+
+            .picker-nav-btn:focus-visible {
+                outline: none;
+                border-color: var(--color-primary);
+                box-shadow: 0 0 0 3px rgba(31, 59, 115, 0.16);
             }
 
             .picker-path-input {
@@ -438,7 +455,13 @@
                                     <button type="button" class="close-modal" id="closeFolderPickerBtn">&times;</button>
                                 </div>
                                 <div class="picker-nav">
-                                    <button type="button" id="pickerBackBtn" class="picker-nav-btn" title="Go Up">↑</button>
+                                    <button type="button" id="pickerBackBtn" class="picker-nav-btn" title="Go to parent folder" aria-label="Go to parent folder">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="m12 5 7 7" />
+                                            <path d="m12 5-7 7" />
+                                            <path d="M12 5v14" />
+                                        </svg>
+                                    </button>
                                     <input type="text" id="pickerCurrentPath" class="picker-path-input" placeholder="/path/to/directory" />
                                 </div>
                             </header>
