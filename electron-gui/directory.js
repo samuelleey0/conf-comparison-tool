@@ -39,6 +39,11 @@ function setSelectedExistingDirectory(pathValue, displayValue) {
 let currentFolderTreeData = [];
 let pendingSelectedFolder = null;
 let pendingSelectedStudent = null;
+const WINDOWS_DRIVES_ROOT = "__WINDOWS_DRIVES__";
+
+function displayPickerPath(pathValue) {
+  return pathValue === WINDOWS_DRIVES_ROOT ? "This PC" : (pathValue || "");
+}
 
 function openCustomDirectoryPicker() {
   const overlay = document.getElementById("folderPickerOverlay");
@@ -63,9 +68,15 @@ function openCustomDirectoryPicker() {
 
   const backBtn = document.getElementById("pickerBackBtn");
   backBtn.onclick = () => {
-    if (currentPickerPath && pathModule) {
+    if (currentPickerParentPath) {
+      loadDirectory(currentPickerParentPath);
+    } else if (currentPickerPath && pathModule) {
       const parent = pathModule.dirname(currentPickerPath);
-      loadDirectory(parent);
+      if (parent && parent !== currentPickerPath) {
+        loadDirectory(parent);
+      } else {
+        loadDirectory(WINDOWS_DRIVES_ROOT);
+      }
     }
   };
 
@@ -73,7 +84,10 @@ function openCustomDirectoryPicker() {
   if (pathInput) {
     pathInput.onkeydown = (e) => {
       if (e.key === "Enter") {
-        loadDirectory(pathInput.value);
+        const requestedPath = pathInput.value === "This PC"
+          ? WINDOWS_DRIVES_ROOT
+          : pathInput.value;
+        loadDirectory(requestedPath);
       }
     };
   }
@@ -127,6 +141,7 @@ function openCustomDirectoryPicker() {
 }
 
 let currentPickerPath = null;
+let currentPickerParentPath = null;
 
 async function loadDirectory(pathVal = null) {
   const container = document.getElementById("folderTreeContainer");
@@ -137,7 +152,7 @@ async function loadDirectory(pathVal = null) {
 
   // Optimistic update for better UX
   if (pathLabel && pathVal) {
-    pathLabel.value = pathVal;
+    pathLabel.value = displayPickerPath(pathVal);
   }
 
   try {
@@ -150,8 +165,9 @@ async function loadDirectory(pathVal = null) {
 
     if (data.status === "ok") {
       currentPickerPath = data.current_path;
+      currentPickerParentPath = data.parent_path || null;
       if (pathLabel) {
-        pathLabel.value = currentPickerPath;
+        pathLabel.value = displayPickerPath(currentPickerPath);
       }
 
       // Strategy: If we find Exam/Session/Student structure, show Tree.
@@ -177,6 +193,12 @@ async function loadSubfolders(pathVal, container) {
     const data = await res.json();
 
     if (data.status === "ok") {
+      currentPickerPath = data.current_path || pathVal;
+      currentPickerParentPath = data.parent_path || null;
+      const pathLabel = document.getElementById("pickerCurrentPath");
+      if (pathLabel) {
+        pathLabel.value = displayPickerPath(currentPickerPath);
+      }
       renderSubfolders(container, data.subfolders);
     } else {
       container.innerHTML = `<p class="empty-text">No folders found or access denied.</p>`;
@@ -214,7 +236,7 @@ function renderSubfolders(container, subfolders) {
     const li = document.createElement("li");
     const div = document.createElement("div");
     div.className = "tree-item";
-    div.textContent = `📁 ${f.name}`;
+    div.textContent = `${f.is_drive ? "💽" : "📁"} ${f.name}`;
     div.onclick = () => {
       loadDirectory(f.path);
     };

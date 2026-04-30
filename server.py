@@ -13,6 +13,7 @@ import re
 import glob
 import shutil
 import logging
+import string
 
 # Reuse your helpers
 from file_utils import save_output_to_file, del_partial_logs
@@ -56,6 +57,7 @@ RESULTS_DIR = None
 GRADING_POLICY_PATH = BASE_DIR / "config" / "grading_policy.json"
 RUBRIC_RULES_PATH = BASE_DIR / "config" / "rubric_rules.json"
 DOCS_DIR = (Path.home() / "Documents").resolve()
+WINDOWS_DRIVES_ROOT = "__WINDOWS_DRIVES__"
 SCHEMES_DIR.mkdir(exist_ok=True)
 RUBRICS_DIR.mkdir(exist_ok=True)
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
@@ -3131,18 +3133,45 @@ def _list_existing_exams():
     return sorted(results, key=lambda x: x["display"])
 
 
+def _is_windows_drives_root(path_val):
+    return os.name == "nt" and str(path_val or "") == WINDOWS_DRIVES_ROOT
+
+
+def _list_windows_drive_roots():
+    drives = []
+    if os.name != "nt":
+        return drives
+
+    for letter in string.ascii_uppercase:
+        drive_path = f"{letter}:\\"
+        if os.path.exists(drive_path):
+            drives.append(
+                {
+                    "name": f"{letter}:",
+                    "path": drive_path,
+                    "is_drive": True,
+                }
+            )
+    return drives
+
+
+def _resolve_picker_path(path_val, fallback):
+    if _is_windows_drives_root(path_val):
+        return WINDOWS_DRIVES_ROOT
+    if path_val:
+        return Path(_expand_path(path_val)).resolve()
+    return fallback
+
+
 @app.route("/api/directories", methods=["GET"])
 def api_list_directories():
     path_val = request.args.get("path")
     docs_path = (Path.home() / "Documents").resolve()
 
     # If a path is provided, use it as the "current" one, otherwise default to ~/Documents
-    if path_val:
-        try:
-            current = Path(_expand_path(path_val)).resolve()
-        except Exception:
-            current = docs_path
-    else:
+    try:
+        current = _resolve_picker_path(path_val, docs_path)
+    except Exception:
         current = docs_path
 
     # Only return the managed "directories" list if we are explicitly at the managed root.
@@ -3151,14 +3180,41 @@ def api_list_directories():
     if current == docs_path:
         directories = _list_existing_directories()
 
+    if current == WINDOWS_DRIVES_ROOT:
+        parent_path = WINDOWS_DRIVES_ROOT
+    else:
+        parent_path = str(current.parent)
+        if os.name == "nt" and current.anchor:
+            try:
+                if current.resolve() == Path(current.anchor).resolve():
+                    parent_path = WINDOWS_DRIVES_ROOT
+            except Exception:
+                if str(current) == current.anchor:
+                    parent_path = WINDOWS_DRIVES_ROOT
+
     return jsonify(
-        {"status": "ok", "directories": directories, "current_path": str(current)}
+        {
+            "status": "ok",
+            "directories": directories,
+            "current_path": str(current),
+            "parent_path": parent_path,
+        }
     )
 
 
 @app.route("/api/subfolders", methods=["GET"])
 def api_list_subfolders():
     path_val = request.args.get("path")
+
+    if _is_windows_drives_root(path_val):
+        return jsonify(
+            {
+                "status": "ok",
+                "subfolders": _list_windows_drive_roots(),
+                "current_path": WINDOWS_DRIVES_ROOT,
+                "parent_path": WINDOWS_DRIVES_ROOT,
+            }
+        )
 
     # If path not provided, default to user home so they can see Documents, Downloads etc.
     if not path_val:
@@ -3182,12 +3238,21 @@ def api_list_subfolders():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+    parent_path = str(target.parent)
+    if os.name == "nt" and target.anchor:
+        try:
+            if target.resolve() == Path(target.anchor).resolve():
+                parent_path = WINDOWS_DRIVES_ROOT
+        except Exception:
+            if str(target) == target.anchor:
+                parent_path = WINDOWS_DRIVES_ROOT
+
     return jsonify(
         {
             "status": "ok",
             "subfolders": subfolders,
             "current_path": str(target),
-            "parent_path": str(target.parent),
+            "parent_path": parent_path,
         }
     )
 
