@@ -38,6 +38,7 @@ from comparison_engine.parser import parse_device_logs, normalize_parsed_config
 from comparison_engine.comparator import compare_dicts
 from comparison_engine.student_manager import find_show_run_file
 from cisco_reset import reload_cisco_device
+from generate_results import write_readable_result_from_report
 
 app = Flask(__name__)
 
@@ -1733,6 +1734,25 @@ def _build_session_reports(target_path: str):
         reports.append(report)
 
     return reports
+
+
+def _write_session_readable_results(target_path: str, reports, policy):
+    written = []
+    for report in reports or []:
+        if report.get("status") != "graded":
+            continue
+        student_id = report.get("student_id")
+        if not student_id:
+            continue
+        student_dir = Path(target_path) / student_id
+        try:
+            output_path = write_readable_result_from_report(
+                str(student_dir), report, policy
+            )
+            written.append(output_path)
+        except Exception:
+            traceback.print_exc()
+    return written
 
 
 _MISSING = object()
@@ -5228,9 +5248,12 @@ def api_run_grading():
             "message": message,
             "results": summary_results,
         }
+        reports = _build_session_reports(target_path)
+        policy = load_grading_policy()
+        _write_session_readable_results(target_path, reports, policy)
         if include_reports:
-            payload["reports"] = _build_session_reports(target_path)
-            payload["policy"] = load_grading_policy()
+            payload["reports"] = reports
+            payload["policy"] = policy
 
         return jsonify(payload)
 

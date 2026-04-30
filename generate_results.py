@@ -2,22 +2,60 @@ import os
 import json
 
 SUMMARY_FILE = "summary.json"
+OUTPUT_FILE = "readableResult.txt"
 MAJOR_KEYWORDS = ["ACL", "NAT", "ROUTING", "USER", "PPP"]
 
 
 def is_major_error(outcome_code):
     if not outcome_code:
         return False
+    outcome_code = str(outcome_code).upper()
     return any(k in outcome_code for k in MAJOR_KEYWORDS)
+
+
+def _format_value(value):
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
+
+
+def _humanize_feature(feature):
+    text = str(feature or "Unknown")
+    replacements = {
+        "show_running_config": "Configuration",
+        "verification": "Verification",
+        "interfaces": "Interfaces",
+        "access_lists": "Access lists",
+        "routing": "Routing",
+        "static_routes": "Static routes",
+        "dhcp_pools": "DHCP pools",
+        "switching": "Switching",
+        "switchport_mode": "Switchport mode",
+        "access_groups": "ACL applied to interface",
+        "shutdown": "Interface shutdown setting",
+        "applied": "Applied setting",
+    }
+    parts = [part for part in text.split(".") if part]
+    readable = []
+    for part in parts:
+        if part in replacements:
+            readable.append(replacements[part])
+        elif "/" in part or any(char.isdigit() for char in part):
+            readable.append(part.replace("_", " "))
+        else:
+            readable.append(part.replace("_", " ").title())
+    return " > ".join(readable) if readable else "Unknown"
 
 
 def format_error(device, item, severity):
     feature = item.get("feature", "Unknown")
-    expected = item.get("expected")
-    actual = item.get("actual")
-    outcome = item.get("outcome_code", "UNKNOWN")
+    expected = _format_value(item.get("expected"))
+    actual = _format_value(item.get("actual"))
+    outcome = item.get("rule_code") or item.get("outcome_code") or "UNKNOWN"
 
-    message = f"[{severity}] {device} - {feature}"
+    message = f"[{severity}] {device} - {_humanize_feature(feature)}"
 
     if expected is not None and actual is not None:
         message += f"\n  → Expected: {expected}\n  → Actual: {actual}"
@@ -31,72 +69,110 @@ def format_error(device, item, severity):
     return message
 
 
+def _iter_summary_errors(summary_data):
+    results = summary_data.get("results", {})
+    for device, checks in results.items():
+        for item in checks:
+            status = item.get("status")
+            if status == "correct":
+                continue
+            yield device, item
+
+
 def process_summary(summary_path):
-    with open(summary_path, "r") as f:
+    with open(summary_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     total_minor = 0
     total_major = 0
     errors = []
 
-    results = data.get("results", {})
-
-    for device, checks in results.items():
-        for item in checks:
-            status = item.get("status")
-
-            if status == "correct":
-                continue
-
+    for device, item in _iter_summary_errors(data):
+        severity = str(item.get("severity") or "").upper()
+        if severity not in {"MAJOR", "MINOR"}:
             outcome = item.get("outcome_code", "")
+            severity = "MAJOR" if is_major_error(outcome) else "MINOR"
 
-            if is_major_error(outcome):
-                severity = "MAJOR"
-                total_major += 1
-            else:
-                severity = "MINOR"
-                total_minor += 1
+        if severity == "MAJOR":
+            total_major += 1
+        else:
+            total_minor += 1
 
-            error_msg = format_error(device, item, severity)
-            errors.append(error_msg)
+        error_msg = format_error(device, item, severity)
+        errors.append(error_msg)
 
     return total_minor, total_major, errors
 
 
-def determine_result(minor, major):
-    return "FAIL" if (major >= 1 or minor >= 5) else "PASS"
+def determine_result(minor, major, major_threshold=1, minor_threshold=5):
+    return "FAIL" if (major >= major_threshold or minor >= minor_threshold) else "PASS"
 
 
-def write_results(student_path, result, errors):
+def write_results(student_path, result, errors, minor=0, major=0, output_name=OUTPUT_FILE):
     results_folder_path = os.path.join(student_path, "results")
     os.makedirs(results_folder_path, exist_ok=True)
 
-    output_file = os.path.join(results_folder_path, "results.txt")
+    output_file = os.path.join(results_folder_path, output_name)
 
     minor_errors = [e for e in errors if "[MINOR]" in e]
     major_errors = [e for e in errors if "[MAJOR]" in e]
 
     with open(output_file, "w", encoding="utf-8") as f:
+        f.write(f"Overall result: {result}\n")
+        f.write(f"Major errors: {major}\n")
+        f.write(f"Minor errors: {minor}\n\n")
 
         if result == "PASS":
-            f.write("Congratulations. You have passed the exam!\n")
+            f.write("This student passed based on the current marking rules.\n")
+            if errors:
+                f.write("There are still items listed below that may be useful for feedback.\n\n")
 
         else:
-            f.write("You have committed a series number of errors that have caused you to fail the examination\n\n")
+            f.write(
+                "This student did not meet the pass requirement. "
+                "A major error causes an automatic fail, or five minor errors also cause a fail.\n\n"
+            )
 
-            f.write("List of Minor errors you have occured:\n")
-            if minor_errors:
-                for err in minor_errors:
-                    f.write(f"- {err}\n\n")
-            else:
-                f.write("None\n\n")
+        f.write("Major errors\n")
+        if major_errors:
+            for err in major_errors:
+                f.write(f"- {err}\n\n")
+        else:
+            f.write("None\n\n")
 
-            f.write("List of Major errors you have occured:\n")
-            if major_errors:
-                for err in major_errors:
-                    f.write(f"- {err}\n\n")
-            else:
-                f.write("None\n")
+        f.write("Minor errors\n")
+        if minor_errors:
+            for err in minor_errors:
+                f.write(f"- {err}\n\n")
+        else:
+            f.write("None\n")
+
+    return output_file
+
+
+def write_readable_result_from_report(student_path, report, policy=None):
+    policy = policy or {}
+    summary = report.get("summary") or {}
+    major = int(summary.get("major") or 0)
+    minor = int(summary.get("minor") or 0)
+    major_threshold = int(policy.get("major_threshold") or 1)
+    minor_threshold = int(policy.get("minor_threshold") or 5)
+    if "pass" in report:
+        result = "PASS" if report.get("pass") else "FAIL"
+    else:
+        result = determine_result(minor, major, major_threshold, minor_threshold)
+
+    errors = []
+    for item in report.get("items") or []:
+        if item.get("status") in {"correct", "skipped"}:
+            continue
+        if not item.get("counts_toward_marking", True):
+            continue
+        severity = str(item.get("severity") or "minor").upper()
+        device = item.get("hostname") or "Unknown device"
+        errors.append(format_error(device, item, severity))
+
+    return write_results(student_path, result, errors, minor, major)
 
 
 def choose_session(base_path):
@@ -139,7 +215,7 @@ def process_students(session_path):
         minor, major, errors = process_summary(summary_path)
         result = determine_result(minor, major)
 
-        write_results(student_path, result, errors)
+        write_results(student_path, result, errors, minor, major)
 
         print(f"[RESULT] {student_id}: {result} (Minor={minor}, Major={major})\n")
 
