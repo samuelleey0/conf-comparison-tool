@@ -2899,6 +2899,20 @@ def _save_session_student_names(session_dir: Path, names: dict):
         json.dump(cleaned, handle, indent=2, ensure_ascii=False)
 
 
+def _safe_is_visible_dir(path: Path) -> bool:
+    try:
+        return path.is_dir() and not path.name.startswith(".")
+    except (OSError, PermissionError):
+        return False
+
+
+def _safe_iterdir(path: Path):
+    try:
+        return list(path.iterdir())
+    except (OSError, PermissionError):
+        return []
+
+
 def _save_output_to_engine_students(
     command, output, classroom, tutor_name, time_slot, student_id, hostname
 ):
@@ -3054,18 +3068,18 @@ def _list_existing_directories():
     if not docs_path.exists():
         return results
 
-    for classroom_dir in docs_path.iterdir():
-        if not classroom_dir.is_dir() or classroom_dir.name.startswith("."):
+    for classroom_dir in _safe_iterdir(docs_path):
+        if not _safe_is_visible_dir(classroom_dir):
             continue
-        for tutor_dir in classroom_dir.iterdir():
-            if not tutor_dir.is_dir() or tutor_dir.name.startswith("."):
+        for tutor_dir in _safe_iterdir(classroom_dir):
+            if not _safe_is_visible_dir(tutor_dir):
                 continue
-            for time_dir in tutor_dir.iterdir():
-                if not time_dir.is_dir() or time_dir.name.startswith("."):
+            for time_dir in _safe_iterdir(tutor_dir):
+                if not _safe_is_visible_dir(time_dir):
                     continue
                 student_names = _load_session_student_names(time_dir)
-                for student_dir in time_dir.iterdir():
-                    if not student_dir.is_dir() or student_dir.name.startswith("."):
+                for student_dir in _safe_iterdir(time_dir):
+                    if not _safe_is_visible_dir(student_dir):
                         continue
                     results.append(
                         {
@@ -3093,14 +3107,14 @@ def _list_existing_sessions():
     if not docs_path.exists():
         return results
 
-    for classroom_dir in docs_path.iterdir():
-        if not classroom_dir.is_dir() or classroom_dir.name.startswith("."):
+    for classroom_dir in _safe_iterdir(docs_path):
+        if not _safe_is_visible_dir(classroom_dir):
             continue
-        for tutor_dir in classroom_dir.iterdir():
-            if not tutor_dir.is_dir() or tutor_dir.name.startswith("."):
+        for tutor_dir in _safe_iterdir(classroom_dir):
+            if not _safe_is_visible_dir(tutor_dir):
                 continue
-            for time_dir in tutor_dir.iterdir():
-                if not time_dir.is_dir() or time_dir.name.startswith("."):
+            for time_dir in _safe_iterdir(tutor_dir):
+                if not _safe_is_visible_dir(time_dir):
                     continue
                 results.append(
                     {
@@ -3122,12 +3136,12 @@ def _list_existing_exams():
     if not docs_path.exists():
         return results
 
-    for classroom_dir in docs_path.iterdir():
-        if not classroom_dir.is_dir() or classroom_dir.name.startswith("."):
+    for classroom_dir in _safe_iterdir(docs_path):
+        if not _safe_is_visible_dir(classroom_dir):
             continue
         # Only include dirs that contain at least one tutor/time subdirectory
         has_session = any(
-            d.is_dir() for d in classroom_dir.iterdir() if not d.name.startswith(".")
+            _safe_is_visible_dir(d) for d in _safe_iterdir(classroom_dir)
         )
         if has_session:
             results.append(
@@ -3239,8 +3253,8 @@ def api_list_subfolders():
     subfolders = []
     try:
         # List directories only
-        for item in target.iterdir():
-            if item.is_dir() and not item.name.startswith("."):
+        for item in _safe_iterdir(target):
+            if _safe_is_visible_dir(item):
                 subfolders.append({"name": item.name, "path": str(item)})
         subfolders.sort(key=lambda x: x["name"].lower())
     except Exception as e:
@@ -4848,17 +4862,17 @@ def api_admin_list_results():
     results = []
     docs_path = Path.home() / "Documents"
     if docs_path.exists():
-        for classroom_dir in docs_path.iterdir():
-            if not classroom_dir.is_dir() or classroom_dir.name.startswith("."):
+        for classroom_dir in _safe_iterdir(docs_path):
+            if not _safe_is_visible_dir(classroom_dir):
                 continue
-            for tutor_dir in classroom_dir.iterdir():
-                if not tutor_dir.is_dir() or tutor_dir.name.startswith("."):
+            for tutor_dir in _safe_iterdir(classroom_dir):
+                if not _safe_is_visible_dir(tutor_dir):
                     continue
-                for time_dir in tutor_dir.iterdir():
-                    if not time_dir.is_dir() or time_dir.name.startswith("."):
+                for time_dir in _safe_iterdir(tutor_dir):
+                    if not _safe_is_visible_dir(time_dir):
                         continue
-                    for student_dir in time_dir.iterdir():
-                        if not student_dir.is_dir() or student_dir.name.startswith("."):
+                    for student_dir in _safe_iterdir(time_dir):
+                        if not _safe_is_visible_dir(student_dir):
                             continue
                         results_dir = student_dir / "results"
                         if results_dir.is_dir():
@@ -4890,17 +4904,17 @@ def api_admin_delete_results():
         docs_dir = (Path.home() / "Documents").resolve()
         deleted = 0
         if docs_dir.exists():
-            for classroom_dir in docs_dir.iterdir():
-                if not classroom_dir.is_dir() or classroom_dir.name.startswith("."):
+            for classroom_dir in _safe_iterdir(docs_dir):
+                if not _safe_is_visible_dir(classroom_dir):
                     continue
-                for tutor_dir in classroom_dir.iterdir():
-                    if not tutor_dir.is_dir() or tutor_dir.name.startswith("."):
+                for tutor_dir in _safe_iterdir(classroom_dir):
+                    if not _safe_is_visible_dir(tutor_dir):
                         continue
-                    for time_dir in tutor_dir.iterdir():
-                        if not time_dir.is_dir() or time_dir.name.startswith("."):
+                    for time_dir in _safe_iterdir(tutor_dir):
+                        if not _safe_is_visible_dir(time_dir):
                             continue
-                        for student_dir in time_dir.iterdir():
-                            if not student_dir.is_dir() or student_dir.name.startswith("."):
+                        for student_dir in _safe_iterdir(time_dir):
+                            if not _safe_is_visible_dir(student_dir):
                                 continue
                             results_dir = student_dir / "results"
                             if results_dir.is_dir():
