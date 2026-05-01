@@ -45,6 +45,29 @@ function displayPickerPath(pathValue) {
   return pathValue === WINDOWS_DRIVES_ROOT ? "This PC" : (pathValue || "");
 }
 
+async function fetchPickerJson(url) {
+  let res;
+  try {
+    res = await fetch(url);
+  } catch (err) {
+    throw new Error(
+      "Cannot reach the local backend. Make sure the app server is running on 127.0.0.1:5050."
+    );
+  }
+
+  let data = {};
+  try {
+    data = await res.json();
+  } catch (_) {
+    data = {};
+  }
+
+  if (!res.ok) {
+    throw new Error(data.message || `Request failed (${res.status})`);
+  }
+  return data;
+}
+
 function openCustomDirectoryPicker() {
   const overlay = document.getElementById("folderPickerOverlay");
   const closeBtn = document.getElementById("closeFolderPickerBtn");
@@ -160,8 +183,7 @@ async function loadDirectory(pathVal = null) {
       ? `${API_ROOT}/api/directories?path=${encodeURIComponent(pathVal)}`
       : `${API_ROOT}/api/directories`;
 
-    const res = await fetch(url);
-    const data = await res.json();
+    const data = await fetchPickerJson(url);
 
     if (data.status === "ok") {
       currentPickerPath = data.current_path;
@@ -189,8 +211,7 @@ async function loadDirectory(pathVal = null) {
 
 async function loadSubfolders(pathVal, container) {
   try {
-    const res = await fetch(`${API_ROOT}/api/subfolders?path=${encodeURIComponent(pathVal)}`);
-    const data = await res.json();
+    const data = await fetchPickerJson(`${API_ROOT}/api/subfolders?path=${encodeURIComponent(pathVal)}`);
 
     if (data.status === "ok") {
       currentPickerPath = data.current_path || pathVal;

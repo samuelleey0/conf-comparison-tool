@@ -43,6 +43,14 @@ from generate_results import write_readable_result_from_report
 
 app = Flask(__name__)
 
+
+@app.after_request
+def add_local_app_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    return response
+
 # Base directory for consistent absolute paths
 BASE_DIR = Path(__file__).resolve().parent
 
