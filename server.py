@@ -66,8 +66,6 @@ GRADING_POLICY_PATH = BASE_DIR / "config" / "grading_policy.json"
 RUBRIC_RULES_PATH = BASE_DIR / "config" / "rubric_rules.json"
 DOCS_DIR = (Path.home() / "Documents").resolve()
 WINDOWS_DRIVES_ROOT = "__WINDOWS_DRIVES__"
-SCHEMES_DIR.mkdir(exist_ok=True)
-RUBRICS_DIR.mkdir(exist_ok=True)
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 ENGINE_STUDENTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -4424,6 +4422,7 @@ def _get_yaml_file(directory, file_id):
 
 
 def _save_yaml_file(directory, file_id, data):
+    directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{file_id}.yaml"
     with open(path, "w") as f:
         yaml.dump(data, f)
