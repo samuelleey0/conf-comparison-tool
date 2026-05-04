@@ -1379,6 +1379,55 @@ button.block {
   font-style: italic;
 }
 
+/* ── Start Here button on each queue row ────────────────────────── */
+.queue-start-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f8a83 0%, #1aa39b 55%, #2dbcc0 100%);
+  border: none;
+  border-radius: 999px;      /* pill shape */
+  box-shadow: 0 3px 10px rgba(15, 138, 131, 0.3);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+  white-space: nowrap;
+  /* override global border-radius: 0 !important */
+  border-radius: 999px !important;
+}
+
+.queue-start-btn::before {
+  content: "▶";
+  font-size: 0.6rem;
+  line-height: 1;
+  opacity: 0.9;
+}
+
+.queue-start-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0b716b 0%, #138a83 55%, #1fa6aa 100%);
+  box-shadow: 0 6px 18px rgba(11, 113, 107, 0.38);
+  transform: translateY(-2px);
+}
+
+.queue-start-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(15, 138, 131, 0.25);
+}
+
+.queue-start-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 
 .connection-mode-group {
   display: flex;

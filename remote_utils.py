@@ -152,7 +152,7 @@ def remote_connect(host, username="", password="", port="22", timeout=20):
                 "Detected DH key exchange issue, adjusting algorithms and retrying."
             )
             try:
-                transport = paramiko.Transport((host, 22))
+                transport = paramiko.Transport((host, port))
                 # Append compatible kex algorithms
                 compatible_kex = [
                     "diffie-hellman-group1-sha1",
@@ -210,6 +210,7 @@ def remote_connect(host, username="", password="", port="22", timeout=20):
         try:
             client.connect(
                 hostname=host,
+                port=port,
                 username=username,
                 password=password,
                 timeout=timeout,

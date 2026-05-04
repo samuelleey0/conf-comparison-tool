@@ -30,6 +30,7 @@ function toggleConnectionFields() {
     serialFields.classList.remove("hidden");
     if (resetBtn) resetBtn.disabled = false;
   }
+  localStorage.setItem("connection", conn);
 }
 
 async function resetCiscoDevice({ triggerButton = null } = {}) {
@@ -396,6 +397,7 @@ function renderDeviceQueue(devicesMeta, deviceQueueContainer) {
       <div style="display:flex;align-items:center;gap:10px;">
         <span class="q-chevron" style="font-size:0.7rem;color:var(--color-muted);transition:transform 0.2s;">▼</span>
         <span class="q-badge" style="font-size:0.85rem;font-weight:bold;color:var(--color-muted);">WAITING</span>
+        <button type="button" class="queue-start-btn" data-hostname="${device.hostname}">Start Here</button>
       </div>
     `;
 
@@ -424,17 +426,33 @@ function renderDeviceQueue(devicesMeta, deviceQueueContainer) {
     wrapper.appendChild(dropdown);
     deviceQueueContainer.appendChild(wrapper);
 
+    row.querySelector(".queue-start-btn")?.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      if (isSequenceRunning) {
+        appendLogLine(`[INFO] A sequence is already running. Stop it before starting from ${device.hostname}.`);
+        return;
+      }
+
+      const proceed = await showConnectionPrompt({
+        title: "Start From Device",
+        message: `Start collection from ${device.hostname} and skip earlier queued devices?`,
+        confirmText: "Start Here",
+      });
+      if (!proceed) return;
+
+      manualNextHostname = device.hostname;
+      startQueueFromSelectedDevice();
+    });
+
     row.addEventListener("click", async () => {
       if (isSequenceRunning) {
-        const proceed = await showConnectionPrompt({
-          title: "Start From Device",
-          message: `Start with ${device.hostname} now?`,
-          confirmText: "Start",
-        });
-        if (!proceed) return;
+        if (device.hostname !== executionQueue[currentQueueIndex]?.hostname) {
+          appendLogLine(`[INFO] Preview only. ${executionQueue[currentQueueIndex]?.hostname || "A device"} is currently running.`);
+        }
+      }
+
+      if (!isSequenceRunning) {
         manualNextHostname = device.hostname;
-        document.getElementById("startSequenceBtn")?.click();
-        return;
       }
 
       // Toggle dropdown
@@ -457,6 +475,33 @@ function renderDeviceQueue(devicesMeta, deviceQueueContainer) {
       }
     });
   });
+}
+
+function startQueueFromSelectedDevice() {
+  const startSequenceBtn = document.getElementById("startSequenceBtn");
+  const doneStudentBtn = document.getElementById("doneStudentBtn");
+  const queueStatus = document.getElementById("queueStatus");
+
+  if (isSequenceRunning) return;
+  if (!ensureDirectoryConfigured()) return;
+  if (!executionQueue.length) {
+    alert("No devices found. Return to Device Setup and save the template setup first.");
+    return;
+  }
+
+  isSequenceRunning = true;
+  currentQueueIndex = 0;
+  completedQueueHosts = new Set();
+  if (startSequenceBtn) {
+    startSequenceBtn.disabled = true;
+    startSequenceBtn.textContent = "Sequence Running...";
+  }
+  if (doneStudentBtn) doneStudentBtn.disabled = true;
+  if (queueStatus) {
+    queueStatus.textContent = "Running";
+    queueStatus.style.color = "var(--color-primary)";
+  }
+  runNextDeviceInQueue();
 }
 
 async function setupConnectionPage() {
@@ -543,21 +588,8 @@ async function setupConnectionPage() {
     });
 
   startSequenceBtn?.addEventListener("click", () => {
-     if (isSequenceRunning) return;
-     if (!ensureDirectoryConfigured()) return;
-     if (!executionQueue.length) {
-       alert("No devices found. Return to Device Setup and save the template setup first.");
-       return;
-     }
-     isSequenceRunning = true;
-     currentQueueIndex = 0;
-     completedQueueHosts = new Set();
-     startSequenceBtn.disabled = true;
-     startSequenceBtn.textContent = "Sequence Running...";
-     doneStudentBtn.disabled = true;
-     queueStatus.textContent = "Running";
-     queueStatus.style.color = "var(--color-primary)";
-     runNextDeviceInQueue();
+     manualNextHostname = null;
+     startQueueFromSelectedDevice();
   });
 
   if (deviceQueueContainer) {
@@ -677,6 +709,8 @@ async function runNextDeviceInQueue() {
            }
          }
          const payload = {
+           mode: document.querySelector('input[name="connType"]:checked')?.value || "serial",
+           connection: document.querySelector('input[name="connType"]:checked')?.value || "serial",
            deviceId: currentDevice.hostname,
            commands: currentDevice.commands,
            classroom: classroom || "unknown",
@@ -693,12 +727,33 @@ async function runNextDeviceInQueue() {
          if (directoryMode === "existing" && basePath) {
            payload.log_dir = basePath;
          }
-         const portInput = document.getElementById("serialPort");
-         let currentPort = portInput ? portInput.value.trim() : "";
-         if (!currentPort) {
-           currentPort = localStorage.getItem("serialPort") || SERIAL_PRESETS.linux_usb;
+         if (payload.mode === "ssh") {
+           const sshHost = document.getElementById("sshHost")?.value.trim() || "";
+           const sshUser = document.getElementById("sshUser")?.value.trim() || "";
+           const sshPass = document.getElementById("sshPass")?.value || "";
+           const sshPort = document.getElementById("sshPort")?.value.trim() || "22";
+           if (!sshHost || !sshUser || !sshPass) {
+             throw new Error("Please enter SSH host, username, and password.");
+           }
+           localStorage.setItem("sshHost", sshHost);
+           localStorage.setItem("sshUser", sshUser);
+           localStorage.setItem("sshPass", sshPass);
+           localStorage.setItem("sshPort", sshPort);
+           payload.ssh = {
+             host: sshHost,
+             username: sshUser,
+             password: sshPass,
+             port: sshPort,
+           };
+         } else {
+           const portInput = document.getElementById("serialPort");
+           let currentPort = portInput ? portInput.value.trim() : "";
+           if (!currentPort) {
+             currentPort = localStorage.getItem("serialPort") || SERIAL_PRESETS.linux_usb;
+           }
+           localStorage.setItem("serialPort", currentPort);
+           payload.serial = { port: currentPort };
          }
-         payload.serial = { port: currentPort };
          const res = await fetch(`${API_ROOT}/api/execute`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
