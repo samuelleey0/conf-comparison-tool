@@ -1,29 +1,42 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Welcome | Automated Cisco Configuration & Marking System</title>
+        <link rel="stylesheet" href="assets/style.css" />
+    </head>
 
-<head>
-  <meta charset="UTF-8" />
-  <title>Welcome | Automated Cisco Configuration & Marking System</title>
-  <link rel="stylesheet" href="assets/style.css" />
-</head>
+    <body class="welcome-body" id="welcomePage">
+        <div class="welcome-hero">
+            <div class="welcome-loading">
+                <div class="welcome-logo-row">
+                    <img
+                        src="assets/cisco-logo.svg"
+                        alt="Cisco Logo"
+                        class="logo cisco-logo"
+                    />
+                    <img
+                        src="assets/swinburne-logo.svg"
+                        alt="Swinburne Logo"
+                        class="logo swinburne-logo"
+                    />
+                </div>
+                <div class="welcome-text">
+                    <h1>Automated Cisco Configuration & Marking System</h1>
+                </div>
+                <div
+                    class="welcome-loading-bar"
+                    role="progressbar"
+                    aria-label="Loading application"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    aria-valuenow="100"
+                >
+                    <span class="welcome-loading-bar__fill"></span>
+                </div>
+            </div>
+        </div>
 
-<body class="welcome-body" id="welcomePage">
-  <div class="welcome-hero">
-    <div class="welcome-loading">
-      <div class="welcome-logo-row">
-        <img src="assets/cisco-logo.svg" alt="Cisco Logo" class="logo cisco-logo" />
-        <img src="assets/swinburne-logo.svg" alt="Swinburne Logo" class="logo swinburne-logo" />
-      </div>
-      <div class="welcome-text">
-        <h1>Automated Cisco Marking System</h1>
-      </div>
-      <div class="welcome-loading-bar" role="progressbar" aria-label="Loading application" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
-        <span class="welcome-loading-bar__fill"></span>
-      </div>
-    </div>
-  </div>
-
-  <script src="renderer.js"></script>
-</body>
-
+        <script src="renderer.js"></script>
+    </body>
 </html>
