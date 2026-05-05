@@ -1,7 +1,9 @@
-# Automated Cisco Marking System
+# Automated Cisco Configuration & Marking System
 
 This project is part of the Final Year Project (FYP) to develop a network configuration comparison and marking tool.
 It supports communication with Cisco switches/routers via SSH or Serial (USB-C/USB-A - Serial), log extraction, and automated grading against customizable rubrics for teaching units TNE10006 and TNE20002.
+
+For public users who only want to install and run the system, see [PUBLIC_SETUP.md](PUBLIC_SETUP.md).
 
 ---
 
@@ -109,7 +111,7 @@ python3 -m venv fyp-venv
 source fyp-venv/bin/activate
 ```
 
--   On Windows:
+- On Windows:
 
 ```bash
 fyp-venv\Scripts\activate
@@ -162,7 +164,7 @@ or
 ls /dev/ttyS* /dev/ttyUSB* 2>/dev/null
 ```
 
-Typical outputs: `/dev/ttyS4, /dev/ttyUSB0`
+Typical outputs: `/dev/ttyS0, /dev/ttyUSB0`
 
 If missing, load the driver manually:
 
@@ -199,7 +201,7 @@ Example:
 Use this in Python:
 
 ```bash
-port = "/dev/ttyS4"
+port = "/dev/ttyS0"
 ```
 
 ---
@@ -224,16 +226,16 @@ python3 main.py
 
 ```bash
 sudo apt install minicom
-sudo minicom -D /dev/ttyS4 -b 9600
+sudo minicom -D /dev/ttyS0 -b 9600
 ```
 
 #### Default Cisco settings:
 
--   Baudrate: 9600
--   Data bits: 8
--   Parity: None
--   Stop bits: 1
--   Flow control: None
+- Baudrate: 9600
+- Data bits: 8
+- Parity: None
+- Stop bits: 1
+- Flow control: None
 
 ---
 
@@ -248,7 +250,7 @@ This GUI allows instructors to run configurations, view outputs, and store logs 
 
 1. Install Required Software
 
--   Python 3.10+
+- Python 3.10+
 
 ```bash
 python3 --version
@@ -256,7 +258,7 @@ python3 --version
 
 If missing, install from python.org/downloads
 
--   Node.js + npm
+- Node.js + npm
 
 ```bash
 node -v
@@ -295,6 +297,7 @@ Install Node dependencies:
 
 ```bash
 npm install
+npm instal xlsx (for import excel)
 ```
 
 ---
@@ -320,8 +323,8 @@ Then the Electron window will open automatically.
 
 Notes
 
--   Flask runs automatically inside Electron — no need to start it manually.
--   Outputs are stored in:
-    `~/Documents/<ExamName>/<SessionID>/<StudentID>/<Hostname>`
+- Flask runs automatically inside Electron — no need to start it manually.
+- Outputs are stored in:
+  `~/Documents/<Classroom>/<TutorName>/<ExamSessionDate>/<Hostname>`
 
 ---
