@@ -3,328 +3,288 @@
 This project is part of the Final Year Project (FYP) to develop a network configuration comparison and marking tool.
 It supports communication with Cisco switches/routers via SSH or Serial (USB-C/USB-A - Serial), log extraction, and automated grading against customizable rubrics for teaching units TNE10006 and TNE20002.
 
-For public users who only want to install and run the system, see [PUBLIC_SETUP.md](PUBLIC_SETUP.md).
+## Public Installation and Setup Guide
 
----
+This guide is for users who want to install and run the Automated Cisco Configuration & Marking System from the public repository.
 
-## SSH Setup for GitHub
+The tool provides a desktop GUI for collecting Cisco device command output over Serial or SSH, saving logs into organized folders, comparing configurations against templates, and producing grading results.
 
-This project uses SSH authentication for Git operations. Follow these steps to configure SSH and clone the repository:
+## Platform Support
 
-1. Generate an SSH Key
+This setup guide is based on Linux. The system was developed and tested primarily for Linux-based use, especially for Serial console access to Cisco devices.
 
-Mac / Ubuntu (Linux):
+Windows installation notes are included where useful, but Windows is not the main supported environment. If you install the system on Windows and encounter OS-specific errors, you may need to troubleshoot them yourself.
+
+## Requirements
+
+Install these before starting:
+
+- Python 3.10 or newer
+- Node.js 18 LTS or newer, including npm
+- Git
+- A Cisco router or switch accessible through Serial console or SSH
+
+Check your installed versions:
 
 ```bash
-ssh-keygen -t ed25519 -C "your_email@example.com"
+python3 --version
+node -v
+npm -v
+git --version
 ```
 
-Press `Enter` to accept the default file location (`~/.ssh/id_ed25519`).
-Set a passphrase for extra security (optional).
+On Windows, `python` may be used instead of `python3`.
 
-Windows (PowerShell or Git Bash):
+## 1. Download the Project
 
-```bash
-ssh-keygen -t ed25519 -C "your_email@example.com"
-```
-
-Follow the same steps as above.
-
-2. Start the SSH Agent and Add the Key
-
-Mac / Ubuntu / Windows (Git Bash):
+Clone the public repository with HTTPS:
 
 ```bash
-eval "$(ssh-agent -s)"
-ssh-add ~/.ssh/id_ed25519
-```
-
-Windows (PowerShell):
-
-```bash
-Start-Service ssh-agent
-ssh-add ~\.ssh\id_ed25519
-```
-
-3. Add SSH Key to GitHub
-
-Copy your public key:
-
-```bash
-cat ~/.ssh/id_ed25519.pub
-```
-
-(Windows: type `Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub`)
-
-Go to _GitHub_ → _Settings_ → _SSH and GPG keys_. Click _New SSH key_, paste your public key, and save.
-
-4. Test SSH Connection
-
-```bash
-ssh -T git@github.com
-```
-
-Expected output:
-
-```bash
-Hi ! You’ve successfully authenticated, but GitHub does not provide shell access.
-```
-
-5. Clone the Repository
-
-```bash
-git clone git@github.com:samuelleey0/conf-comparison-tool.git
-```
-
-6. Common Git Commands
-
-Check remote URL:
-
-```bash
-git remote -v
-```
-
-Switch from HTTPS to SSH if already cloned:
-
-```bash
-git remote set-url origin git@github.com:samuelleey0/conf-comparison-tool.git
-```
-
----
-
-## Project Setup
-
-1. Clone the Repository
-
-```bash
-git clone git@github.com:samuelleey0/conf-comparison-tool.git
+git clone https://github.com/samuelleey0/conf-comparison-tool.git
 cd conf-comparison-tool
 ```
 
-2. Create Virtual Environment (per device/OS)
+If you downloaded the project as a ZIP file, extract it and open a terminal in the extracted `conf-comparison-tool` folder.
 
-Each team member should create their own virtual environment locally.
-The venv is not shared or committed to GitHub. For consistency, use the name fyp-venv:
+## 2. Create the Python Environment
+
+The Electron desktop app expects the virtual environment to be named `fyp-venv` in the project root.
+
+macOS / Linux:
 
 ```bash
 python3 -m venv fyp-venv
 source fyp-venv/bin/activate
+pip install -r requirements.txt
 ```
 
-- On Windows:
+Windows PowerShell:
 
-```bash
+```powershell
+python -m venv fyp-venv
+.\fyp-venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+Windows Command Prompt:
+
+```bat
+python -m venv fyp-venv
 fyp-venv\Scripts\activate
-```
-
-Note: The fyp-venv/ folder is listed in .gitignore and will not be tracked by Git.
-
-3. Install Dependencies
-
-```bash
 pip install -r requirements.txt
 ```
 
-4. Verify Installed Packages
+If PowerShell blocks activation, run:
 
-```bash
-pip list
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
----
+Then activate the environment again.
 
-### Setup on Ubuntu with PCIe Serial Port
+## 3. Install the Desktop App Dependencies
 
-This section guides you through preparing an Ubuntu desktop with a PCIe serial interface to run the scripts.
-
-#### Hardware & Driver Setup
-
-1. Install the PCIe Serial Card properly on the desktop.
-2. Confirm the system detects it:
-
-```bash
-lspci | grep -i serial
-```
-
-Example:
-
-```bash
-0000:03:00.0 Serial controller: Oxford Semiconductor Ltd OXPCIe952 Dual Serial Port
-```
-
-3. Check for serial device:
-
-```bash
-dmesg | grep tty
-```
-
-or
-
-```bash
-ls /dev/ttyS* /dev/ttyUSB* 2>/dev/null
-```
-
-Typical outputs: `/dev/ttyS0, /dev/ttyUSB0`
-
-If missing, load the driver manually:
-
-```bash
-sudo modprobe 8250_pci
-```
-
----
-
-### Permissions
-
-Grant serial access to your user:
-
-```bash
-sudo usermod -aG dialout $USER
-```
-
-Then log out and log back in.
-
----
-
-### Identify Serial Port
-
-After reboot or device replug:
-
-```bash
-dmesg | grep tty
-
-Example:
-
-[  5.321877] serial8250: ttyS4 at I/O 0x3020 (irq = 17) is a 16550A
-```
-
-Use this in Python:
-
-```bash
-port = "/dev/ttyS0"
-```
-
----
-
-### Python Environment
-
-Install dependencies again if needed:
-
-```bash
-pip install -r requirements.txt
-```
-
-Run the main CLI version:
-
-```bash
-python3 main.py
-```
-
----
-
-### Test Serial Communication
-
-```bash
-sudo apt install minicom
-sudo minicom -D /dev/ttyS0 -b 9600
-```
-
-#### Default Cisco settings:
-
-- Baudrate: 9600
-- Data bits: 8
-- Parity: None
-- Stop bits: 1
-- Flow control: None
-
----
-
-## Electron GUI Setup (for Visualization & Execution)
-
-The project also includes a graphical interface built with Electron + Flask.
-This GUI allows instructors to run configurations, view outputs, and store logs easily.
-
----
-
-### Setup Guide — Running the Electron GUI
-
-1. Install Required Software
-
-- Python 3.10+
-
-```bash
-python3 --version
-```
-
-If missing, install from python.org/downloads
-
-- Node.js + npm
-
-```bash
-node -v
-npm -v
-```
-
-Install from nodejs.org (v18+ LTS recommended)
-
----
-
-2. Create & Activate Python Virtual Environment
-
-```bash
-python3 -m venv fyp-venv
-source fyp-venv/bin/activate     # macOS/Linux
-# or:
-fyp-venv\Scripts\activate        # Windows
-```
-
-Install Python dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
-3. Set Up the Electron GUI
-   Go inside the GUI folder:
+From the project root:
 
 ```bash
 cd electron-gui
-```
-
-Install Node dependencies:
-
-```bash
 npm install
-npm instal xlsx (for import excel)
+npm install xlsx (install this if you need to import Excel file)
 ```
 
----
+## 4. Start the Application
 
-4. Start the App
-   Launch the GUI and backend together:
+From inside the `electron-gui` folder:
 
 ```bash
 npm start
 ```
 
-You should see:
+The app starts the Flask backend automatically using `../fyp-venv`.
 
-```bash
-[INFO] Spawning Flask using: /path/to/fyp-venv/bin/python
-[INFO] Running server: /path/to/server.py
-Flask server is live at http://127.0.0.1:5050
+Expected terminal output includes:
+
+```text
+[INFO] Spawning Flask using: .../fyp-venv/.../python
+[INFO] Running server: .../server.py
+[READY] Flask server is live at http://127.0.0.1:5050
 ```
 
-Then the Electron window will open automatically.
+An Electron desktop window should open after the backend is ready.
 
----
+## 5. Connect a Cisco Device
 
-Notes
+The app supports two connection types.
 
-- Flask runs automatically inside Electron — no need to start it manually.
-- Outputs are stored in:
-  `~/Documents/<Classroom>/<TutorName>/<ExamSessionDate>/<Hostname>`
+### Option A: Serial Console
 
----
+Use this when connecting through a console cable, USB-to-serial adapter, or PCIe serial card.
+
+Default Cisco console settings:
+
+- Baud rate: `9600`
+- Data bits: `8`
+- Parity: `None`
+- Stop bits: `1`
+- Flow control: `None`
+
+Common serial ports:
+
+- Linux: `/dev/ttyUSB0`, `/dev/ttyS0`, `/dev/ttyS4`, etc.
+- macOS: `/dev/tty.usbserial-*` or `/dev/tty.usbmodem*`
+- Windows: `COM3`, `COM4`, etc.
+
+On Linux, list available serial ports:
+
+```bash
+ls /dev/ttyS* /dev/ttyUSB* 2>/dev/null
+```
+
+If you get permission errors on Linux, add your user to the `dialout` group:
+
+```bash
+sudo usermod -aG dialout $USER
+```
+
+Log out and log back in before trying again.
+
+### Option B: SSH
+
+Use this when the Cisco device already has network access and SSH configured.
+
+You will need:
+
+- Device IP address or hostname
+- SSH username
+- SSH password
+- SSH port, usually `22`
+
+Make sure your computer can reach the device before connecting:
+
+```bash
+ping <device-ip>
+```
+
+## 6. Basic Workflow
+
+1. Open the app with `npm start`.
+2. If no template logs are available yet, go to the Sample Logs tab and collect instructor/sample logs first.
+3. If template logs are already available, proceed to Device Setup.
+4. In Device Setup, set up the device details and choose the commands to run.
+5. Create a new student folder, or select an existing student folder, to store logs for each student.
+6. Choose the connection type: Serial or SSH.
+7. Connect to the Cisco device.
+8. Run all required devices and commands.
+9. Review the saved outputs and grading results.
+
+Collected files are stored under your Documents folder, usually in this structure:
+
+```text
+~/Documents/<Classroom>/<TutorName>/<ExamTime>/<StudentID>/<Hostname>/
+```
+
+Grading results are stored under the matching student/session folders.
+
+## 7. Templates, Commands, and Rubrics
+
+The desktop app includes administration screens for managing:
+
+- Command lists
+- Comparison templates
+- Grading policies
+- Rubric rules
+- Student/result folders
+
+Templates are stored in:
+
+```text
+comparison_engine/templates/
+```
+
+Student comparison copies are stored in:
+
+```text
+comparison_engine/students/
+```
+
+Generated user-facing output is stored in your system `Documents` folder.
+
+## Troubleshooting
+
+### Electron opens but backend features do not work
+
+Make sure the Python virtual environment exists at the project root and is named exactly:
+
+```text
+fyp-venv
+```
+
+Then reinstall dependencies:
+
+```bash
+source fyp-venv/bin/activate
+pip install -r requirements.txt
+cd electron-gui
+npm install
+npm start
+```
+
+On Windows, activate with `.\fyp-venv\Scripts\Activate.ps1`.
+
+### Port 5050 is already in use
+
+The backend uses:
+
+```text
+http://127.0.0.1:5050
+```
+
+Close any existing process using port `5050`, then run `npm start` again.
+
+### Serial device is not detected
+
+Try unplugging and reconnecting the cable, then check the available ports again.
+
+Linux:
+
+```bash
+dmesg | grep tty
+ls /dev/ttyS* /dev/ttyUSB* 2>/dev/null
+```
+
+macOS:
+
+```bash
+ls /dev/tty.*
+```
+
+Windows:
+
+Open Device Manager and check `Ports (COM & LPT)`.
+
+### SSH connection fails
+
+Check that:
+
+- The Cisco device has SSH enabled
+- The username and password are correct
+- The device is reachable from your computer
+- Firewalls or lab network rules are not blocking TCP port `22`
+
+### Python package installation fails
+
+Upgrade pip first:
+
+```bash
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Use `python3` instead of `python` on macOS/Linux if needed.
+
+## Notes for Public Users
+
+- This project currently runs from source. It is not packaged as a one-click installer yet.
+- Keep any real student data, device credentials, and grading records private.
+- Do not commit generated logs, student outputs, credentials, or local virtual environments.
+- The internal SSH-to-GitHub setup from the original README is only needed for project contributors with repository write access.
