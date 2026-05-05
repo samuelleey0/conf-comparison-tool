@@ -1,8 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   loadNavbar();
   
-  const commandsTableBody = document.getElementById("commandsTableBody");
-  const commentsTable = document.getElementById("commentsTable");
+  const commandsGrid = document.getElementById("commandsGrid");
   const loadingIndicator = document.getElementById("loadingIndicator");
   const newCommandInput = document.getElementById("newCommandInput");
   const addCommandBtn = document.getElementById("addCommandBtn");
@@ -116,7 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function fetchCommands() {
     try {
       loadingIndicator.style.display = "block";
-      commentsTable.style.display = "none";
+      commandsGrid.style.display = "none";
       
       const res = await fetch("http://127.0.0.1:5050/api/commands");
       const data = await res.json();
@@ -132,36 +131,40 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("Error fetching commands. Is the backend running?");
     } finally {
       loadingIndicator.style.display = "none";
-      commentsTable.style.display = "grid";
+      commandsGrid.style.display = "grid";
     }
   }
 
   function renderCommands() {
-    commandsTableBody.innerHTML = "";
+    commandsGrid.innerHTML = "";
     countBadge.textContent = `${globalCommands.length} commands`;
     
     if (globalCommands.length === 0) {
-      commandsTableBody.innerHTML = `
-        <div class="command-row-empty">No commands configured. Add one above.</div>
+      commandsGrid.innerHTML = `
+        <div class="commands-container-empty">
+          <p>No commands configured. Add one below.</p>
+        </div>
       `;
       return;
     }
 
     globalCommands.forEach((cmd) => {
-      const row = document.createElement("div");
-      row.className = "command-row";
-
-      row.innerHTML = `
-        <code>${cmd}</code>
-        <div class="command-actions">
+      const card = document.createElement("div");
+      card.className = "command-card";
+      
+      card.innerHTML = `
+        <div class="command-card-content">
+          <code>${cmd}</code>
+        </div>
+        <div class="command-card-actions">
           <button type="button" class="remove-btn" title="Delete Command">Remove</button>
         </div>
       `;
       
-      const deleteBtn = row.querySelector("button");
+      const deleteBtn = card.querySelector("button");
       deleteBtn.addEventListener("click", () => deleteCommand(cmd));
       
-      commandsTableBody.appendChild(row);
+      commandsGrid.appendChild(card);
     });
   }
 
@@ -662,38 +665,86 @@ document.addEventListener("DOMContentLoaded", () => {
         fetchJson("http://127.0.0.1:5050/api/admin/students"),
       ]);
 
-      templateList.innerHTML = (templates.templates || [])
-        .map((name) => `<option value="${name}">${name}</option>`)
-        .join("");
+      fillSelect(
+        templateList,
+        (templates.templates || []).map((name) => ({ value: name, label: name })),
+        "No templates found"
+      );
 
-      resultList.innerHTML = (results.results || [])
-        .map((entry) => `<option value="${entry.path}">${entry.display}</option>`)
-        .join("");
+      fillSelect(
+        resultList,
+        (results.results || []).map((entry) => ({
+          value: entry.path,
+          label: formatCleanupDisplay(entry, "Result"),
+        })),
+        "No results found"
+      );
 
-      examList.innerHTML = (students.exams || [])
-        .map(
-          (e) =>
-            `<option value="${e.path}">${e.exam_name}</option>`
-        )
-        .join("");
+      fillSelect(
+        examList,
+        (students.exams || []).map((entry) => ({
+          value: entry.path,
+          label: formatCleanupDisplay(entry, "Exam"),
+        })),
+        "No exams found"
+      );
 
-      sessionList.innerHTML = (students.sessions || [])
-        .map(
-          (s) =>
-            `<option value="${s.path}">${s.exam_name}/${s.session_id}</option>`
-        )
-        .join("");
+      fillSelect(
+        sessionList,
+        (students.sessions || []).map((entry) => ({
+          value: entry.path,
+          label: formatCleanupDisplay(entry, "Session"),
+        })),
+        "No sessions found"
+      );
 
-      studentList.innerHTML = (students.students || [])
-        .map(
-          (s) =>
-            `<option value="${s.path}">${s.exam_name}/${s.session_id}/${s.student_id}</option>`
-        )
-        .join("");
+      fillSelect(
+        studentList,
+        (students.students || []).map((entry) => ({
+          value: entry.path,
+          label: formatCleanupDisplay(entry, "Student"),
+        })),
+        "No students found"
+      );
     } catch (err) {
       console.error(err);
       alert("Failed to load cleanup lists.");
     }
+  }
+
+  function fillSelect(selectEl, options, emptyLabel) {
+    if (!selectEl) return;
+    selectEl.innerHTML = "";
+
+    if (!options.length) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = emptyLabel;
+      selectEl.appendChild(option);
+      return;
+    }
+
+    options.forEach(({ value, label }) => {
+      const option = document.createElement("option");
+      option.value = value || "";
+      option.textContent = label || value || "";
+      selectEl.appendChild(option);
+    });
+  }
+
+  function formatCleanupDisplay(entry, fallbackLabel) {
+    if (!entry || typeof entry !== "object") return fallbackLabel;
+    if (entry.display) return entry.display;
+
+    const parts = [
+      entry.classroom || entry.exam_name,
+      entry.tutor_name || entry.session_id,
+      entry.time_slot,
+      entry.student_id,
+    ].filter(Boolean);
+
+    if (parts.length) return parts.join("/");
+    return entry.path || fallbackLabel;
   }
 
   async function deleteTemplate() {

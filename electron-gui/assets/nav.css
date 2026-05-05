@@ -1,5 +1,5 @@
 body {
-  transition: padding-left 0.25s ease;
+  transition: padding-left 0.45s ease;
 }
 
 body:not(.welcome-body) {
@@ -7,7 +7,7 @@ body:not(.welcome-body) {
 }
 
 body.sidebar-collapsed:not(.welcome-body) {
-  padding-left: 64px;
+  padding-left: 88px;
 }
 
 .sidebar-toggle {
@@ -26,7 +26,7 @@ body.sidebar-collapsed:not(.welcome-body) {
   justify-content: center;
   box-shadow: 0 10px 24px rgba(15, 23, 46, 0.15);
   z-index: 20;
-  transition: left 0.25s ease, background 0.2s ease, color 0.2s ease;
+  transition: left 0.45s ease, background 0.28s ease, color 0.28s ease, border-color 0.28s ease;
 }
 
 .sidebar-toggle .toggle-icon::before {
@@ -45,7 +45,7 @@ body.sidebar-collapsed:not(.welcome-body) {
 }
 
 body.sidebar-collapsed .sidebar-toggle {
-  left: 20px;
+  left: 104px;
 }
 
 .app-navbar {
@@ -61,12 +61,14 @@ body.sidebar-collapsed .sidebar-toggle {
   box-shadow: 4px 0 20px rgba(0, 0, 0, 0.25);
   padding: 32px 0 24px;
   z-index: 18;
-  transition: transform 0.25s ease;
+  overflow-x: hidden;
+  transition: width 0.45s ease, box-shadow 0.45s ease;
 }
 
 .app-navbar__brand {
   padding: 0 32px;
   margin-bottom: 28px;
+  transition: padding 0.45s ease, margin 0.45s ease;
 }
 
 .app-navbar__title {
@@ -75,6 +77,20 @@ body.sidebar-collapsed .sidebar-toggle {
   font-weight: 700;
   color: #f8fafc;
   line-height: 1.4;
+  transition: opacity 0.28s ease, transform 0.45s ease;
+}
+
+.app-navbar__title-short {
+  display: none;
+  opacity: 0;
+  transform: scale(0.92);
+}
+
+.app-navbar__label {
+  white-space: nowrap;
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 0.28s ease, transform 0.45s ease;
 }
 
 .app-navbar__links {
@@ -83,7 +99,7 @@ body.sidebar-collapsed .sidebar-toggle {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   flex-grow: 1; /* allow spreading list items vertically */
 }
 
@@ -103,18 +119,19 @@ body.sidebar-collapsed .sidebar-toggle {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 24px;
-  margin: 0 12px;
+  min-height: 56px;
+  padding: 14px 24px;
+  margin: 0;
   color: #94a3b8;
   text-decoration: none;
   font-weight: 500;
-  border-radius: 8px;
-  transition: all 0.2s ease;
+  border-radius: 0;
+  transition: background 0.28s ease, color 0.28s ease, padding 0.45s ease, gap 0.45s ease;
 }
 
 .app-navbar__links a svg {
   opacity: 0.8;
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition: transform 0.35s ease, opacity 0.28s ease;
 }
 
 .app-navbar__links a:hover {
@@ -138,7 +155,48 @@ body.sidebar-collapsed .sidebar-toggle {
 }
 
 body.sidebar-collapsed .app-navbar {
-  transform: translateX(-260px);
+  width: 88px;
+}
+
+body.sidebar-collapsed .app-navbar__brand {
+  padding: 0 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+body.sidebar-collapsed .app-navbar__title-full {
+  opacity: 0;
+  transform: translateY(-4px);
+  position: absolute;
+  pointer-events: none;
+}
+
+body.sidebar-collapsed .app-navbar__title-short {
+  display: block;
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  opacity: 1;
+  transform: scale(1);
+}
+
+body.sidebar-collapsed .app-navbar__links a {
+  justify-content: center;
+  gap: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+body.sidebar-collapsed .app-navbar__links a svg {
+  margin: 0;
+}
+
+body.sidebar-collapsed .app-navbar__label {
+  opacity: 0;
+  transform: translateX(-8px);
+  width: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 900px) {
@@ -167,6 +225,7 @@ body.sidebar-collapsed .app-navbar {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     transform: none !important;
     z-index: 100;
+    width: 100%;
   }
 
   .app-navbar__brand {
@@ -181,7 +240,7 @@ body.sidebar-collapsed .app-navbar {
 
   .app-navbar__links {
     flex-direction: row;
-    gap: 4px;
+    gap: 0;
     flex-wrap: nowrap;
     overflow-x: auto;
     padding: 8px 12px;
@@ -199,9 +258,10 @@ body.sidebar-collapsed .app-navbar {
   }
 
   .app-navbar__links a {
-    padding: 8px 14px;
+    min-height: 44px;
+    padding: 10px 14px;
     margin: 0;
-    border-radius: 6px;
+    border-radius: 0;
     justify-content: center;
     white-space: nowrap;
     font-size: 0.82rem;
@@ -246,11 +306,12 @@ body.sidebar-collapsed .app-navbar {
 
   .app-navbar__links {
     padding: 6px 8px;
-    gap: 3px;
+    gap: 0;
   }
 
   .app-navbar__links a {
-    padding: 8px 10px;
+    min-height: 42px;
+    padding: 10px 10px;
     font-size: 0;        /* hide text, show only icons */
     gap: 0;
   }

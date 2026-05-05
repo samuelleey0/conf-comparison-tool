@@ -13,6 +13,7 @@ import re
 import glob
 import shutil
 import logging
+import string
 
 # Reuse your helpers
 from file_utils import save_output_to_file, del_partial_logs
@@ -38,8 +39,17 @@ from comparison_engine.parser import parse_device_logs, normalize_parsed_config
 from comparison_engine.comparator import compare_dicts
 from comparison_engine.student_manager import find_show_run_file
 from cisco_reset import reload_cisco_device
+from generate_results import write_readable_result_from_report
 
 app = Flask(__name__)
+
+
+@app.after_request
+def add_local_app_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    return response
 
 # Base directory for consistent absolute paths
 BASE_DIR = Path(__file__).resolve().parent
@@ -55,8 +65,7 @@ RESULTS_DIR = None
 GRADING_POLICY_PATH = BASE_DIR / "config" / "grading_policy.json"
 RUBRIC_RULES_PATH = BASE_DIR / "config" / "rubric_rules.json"
 DOCS_DIR = (Path.home() / "Documents").resolve()
-SCHEMES_DIR.mkdir(exist_ok=True)
-RUBRICS_DIR.mkdir(exist_ok=True)
+WINDOWS_DRIVES_ROOT = "__WINDOWS_DRIVES__"
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 ENGINE_STUDENTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1735,6 +1744,25 @@ def _build_session_reports(target_path: str):
     return reports
 
 
+def _write_session_readable_results(target_path: str, reports, policy):
+    written = []
+    for report in reports or []:
+        if report.get("status") != "graded":
+            continue
+        student_id = report.get("student_id")
+        if not student_id:
+            continue
+        student_dir = Path(target_path) / student_id
+        try:
+            output_path = write_readable_result_from_report(
+                str(student_dir), report, policy
+            )
+            written.append(output_path)
+        except Exception:
+            traceback.print_exc()
+    return written
+
+
 _MISSING = object()
 
 
@@ -2464,12 +2492,18 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
         )
         block = _extract_cli_block(lines, idx)
         if block:
+            if "password" in feature and "password" not in block.lower():
+                block += "\n(no 'password' command visible in this capture)"
             return block
 
     if len(parts) >= 3 and parts[1] == "console":
         idx = _find_line_index(lines, lambda line: line.strip().lower() == "line con 0")
         block = _extract_cli_block(lines, idx)
         if block:
+            # If this is a password-related feature but no 'password' line is in the block,
+            # append a note so the user understands why both sides look the same.
+            if "password" in feature and "password" not in block.lower():
+                block += "\n(no 'password' command visible in this capture)"
             return block
 
     if len(parts) >= 3 and parts[1] == "routing":
@@ -2863,6 +2897,20 @@ def _save_session_student_names(session_dir: Path, names: dict):
         json.dump(cleaned, handle, indent=2, ensure_ascii=False)
 
 
+def _safe_is_visible_dir(path: Path) -> bool:
+    try:
+        return path.is_dir() and not path.name.startswith(".")
+    except (OSError, PermissionError):
+        return False
+
+
+def _safe_iterdir(path: Path):
+    try:
+        return list(path.iterdir())
+    except (OSError, PermissionError):
+        return []
+
+
 def _save_output_to_engine_students(
     command, output, classroom, tutor_name, time_slot, student_id, hostname
 ):
@@ -3018,18 +3066,18 @@ def _list_existing_directories():
     if not docs_path.exists():
         return results
 
-    for classroom_dir in docs_path.iterdir():
-        if not classroom_dir.is_dir() or classroom_dir.name.startswith("."):
+    for classroom_dir in _safe_iterdir(docs_path):
+        if not _safe_is_visible_dir(classroom_dir):
             continue
-        for tutor_dir in classroom_dir.iterdir():
-            if not tutor_dir.is_dir() or tutor_dir.name.startswith("."):
+        for tutor_dir in _safe_iterdir(classroom_dir):
+            if not _safe_is_visible_dir(tutor_dir):
                 continue
-            for time_dir in tutor_dir.iterdir():
-                if not time_dir.is_dir() or time_dir.name.startswith("."):
+            for time_dir in _safe_iterdir(tutor_dir):
+                if not _safe_is_visible_dir(time_dir):
                     continue
                 student_names = _load_session_student_names(time_dir)
-                for student_dir in time_dir.iterdir():
-                    if not student_dir.is_dir() or student_dir.name.startswith("."):
+                for student_dir in _safe_iterdir(time_dir):
+                    if not _safe_is_visible_dir(student_dir):
                         continue
                     results.append(
                         {
@@ -3057,14 +3105,14 @@ def _list_existing_sessions():
     if not docs_path.exists():
         return results
 
-    for classroom_dir in docs_path.iterdir():
-        if not classroom_dir.is_dir() or classroom_dir.name.startswith("."):
+    for classroom_dir in _safe_iterdir(docs_path):
+        if not _safe_is_visible_dir(classroom_dir):
             continue
-        for tutor_dir in classroom_dir.iterdir():
-            if not tutor_dir.is_dir() or tutor_dir.name.startswith("."):
+        for tutor_dir in _safe_iterdir(classroom_dir):
+            if not _safe_is_visible_dir(tutor_dir):
                 continue
-            for time_dir in tutor_dir.iterdir():
-                if not time_dir.is_dir() or time_dir.name.startswith("."):
+            for time_dir in _safe_iterdir(tutor_dir):
+                if not _safe_is_visible_dir(time_dir):
                     continue
                 results.append(
                     {
@@ -3086,12 +3134,12 @@ def _list_existing_exams():
     if not docs_path.exists():
         return results
 
-    for classroom_dir in docs_path.iterdir():
-        if not classroom_dir.is_dir() or classroom_dir.name.startswith("."):
+    for classroom_dir in _safe_iterdir(docs_path):
+        if not _safe_is_visible_dir(classroom_dir):
             continue
         # Only include dirs that contain at least one tutor/time subdirectory
         has_session = any(
-            d.is_dir() for d in classroom_dir.iterdir() if not d.name.startswith(".")
+            _safe_is_visible_dir(d) for d in _safe_iterdir(classroom_dir)
         )
         if has_session:
             results.append(
@@ -3105,18 +3153,45 @@ def _list_existing_exams():
     return sorted(results, key=lambda x: x["display"])
 
 
+def _is_windows_drives_root(path_val):
+    return os.name == "nt" and str(path_val or "") == WINDOWS_DRIVES_ROOT
+
+
+def _list_windows_drive_roots():
+    drives = []
+    if os.name != "nt":
+        return drives
+
+    for letter in string.ascii_uppercase:
+        drive_path = f"{letter}:\\"
+        if os.path.exists(drive_path):
+            drives.append(
+                {
+                    "name": f"{letter}:",
+                    "path": drive_path,
+                    "is_drive": True,
+                }
+            )
+    return drives
+
+
+def _resolve_picker_path(path_val, fallback):
+    if _is_windows_drives_root(path_val):
+        return WINDOWS_DRIVES_ROOT
+    if path_val:
+        return Path(_expand_path(path_val)).resolve()
+    return fallback
+
+
 @app.route("/api/directories", methods=["GET"])
 def api_list_directories():
     path_val = request.args.get("path")
     docs_path = (Path.home() / "Documents").resolve()
 
     # If a path is provided, use it as the "current" one, otherwise default to ~/Documents
-    if path_val:
-        try:
-            current = Path(_expand_path(path_val)).resolve()
-        except Exception:
-            current = docs_path
-    else:
+    try:
+        current = _resolve_picker_path(path_val, docs_path)
+    except Exception:
         current = docs_path
 
     # Only return the managed "directories" list if we are explicitly at the managed root.
@@ -3125,14 +3200,41 @@ def api_list_directories():
     if current == docs_path:
         directories = _list_existing_directories()
 
+    if current == WINDOWS_DRIVES_ROOT:
+        parent_path = WINDOWS_DRIVES_ROOT
+    else:
+        parent_path = str(current.parent)
+        if os.name == "nt" and current.anchor:
+            try:
+                if current.resolve() == Path(current.anchor).resolve():
+                    parent_path = WINDOWS_DRIVES_ROOT
+            except Exception:
+                if str(current) == current.anchor:
+                    parent_path = WINDOWS_DRIVES_ROOT
+
     return jsonify(
-        {"status": "ok", "directories": directories, "current_path": str(current)}
+        {
+            "status": "ok",
+            "directories": directories,
+            "current_path": str(current),
+            "parent_path": parent_path,
+        }
     )
 
 
 @app.route("/api/subfolders", methods=["GET"])
 def api_list_subfolders():
     path_val = request.args.get("path")
+
+    if _is_windows_drives_root(path_val):
+        return jsonify(
+            {
+                "status": "ok",
+                "subfolders": _list_windows_drive_roots(),
+                "current_path": WINDOWS_DRIVES_ROOT,
+                "parent_path": WINDOWS_DRIVES_ROOT,
+            }
+        )
 
     # If path not provided, default to user home so they can see Documents, Downloads etc.
     if not path_val:
@@ -3149,19 +3251,28 @@ def api_list_subfolders():
     subfolders = []
     try:
         # List directories only
-        for item in target.iterdir():
-            if item.is_dir() and not item.name.startswith("."):
+        for item in _safe_iterdir(target):
+            if _safe_is_visible_dir(item):
                 subfolders.append({"name": item.name, "path": str(item)})
         subfolders.sort(key=lambda x: x["name"].lower())
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+    parent_path = str(target.parent)
+    if os.name == "nt" and target.anchor:
+        try:
+            if target.resolve() == Path(target.anchor).resolve():
+                parent_path = WINDOWS_DRIVES_ROOT
+        except Exception:
+            if str(target) == target.anchor:
+                parent_path = WINDOWS_DRIVES_ROOT
 
     return jsonify(
         {
             "status": "ok",
             "subfolders": subfolders,
             "current_path": str(target),
-            "parent_path": str(target.parent),
+            "parent_path": parent_path,
         }
     )
 
@@ -3514,6 +3625,7 @@ def api_connect():
 
 @app.route("/api/reset_device", methods=["POST"])
 def api_reset_device():
+    execution_abort.clear()
     data = request.get_json() or {}
     mode = (data.get("mode") or data.get("connection") or "serial").lower()
     device_type = str(data.get("device_type") or "switch").strip().lower()
@@ -3560,9 +3672,25 @@ def api_reset_device():
         port=port,
         baudrate=baudrate,
         delete_vlan_database=(device_type != "router"),
+        abort_event=execution_abort,
     )
     logs = result.get("logs") or []
     message = result.get("message") or "Reset completed."
+    if result.get("aborted"):
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": message,
+                    "logs": logs,
+                    "aborted": True,
+                    "port": port,
+                    "baudrate": baudrate,
+                    "device_type": device_type,
+                }
+            ),
+            499,
+        )
     if result.get("success"):
         return jsonify(
             {
@@ -4294,6 +4422,7 @@ def _get_yaml_file(directory, file_id):
 
 
 def _save_yaml_file(directory, file_id, data):
+    directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{file_id}.yaml"
     with open(path, "w") as f:
         yaml.dump(data, f)
@@ -4732,26 +4861,35 @@ def api_admin_list_results():
     results = []
     docs_path = Path.home() / "Documents"
     if docs_path.exists():
-        for exam_dir in docs_path.iterdir():
-            if not exam_dir.is_dir() or exam_dir.name.startswith("."):
+        for classroom_dir in _safe_iterdir(docs_path):
+            if not _safe_is_visible_dir(classroom_dir):
                 continue
-            for session_dir in exam_dir.iterdir():
-                if not session_dir.is_dir():
+            for tutor_dir in _safe_iterdir(classroom_dir):
+                if not _safe_is_visible_dir(tutor_dir):
                     continue
-                for student_dir in session_dir.iterdir():
-                    if not student_dir.is_dir():
+                for time_dir in _safe_iterdir(tutor_dir):
+                    if not _safe_is_visible_dir(time_dir):
                         continue
-                    results_dir = student_dir / "results"
-                    if results_dir.is_dir():
-                        results.append(
-                            {
-                                "path": str(results_dir),
-                                "exam_name": exam_dir.name,
-                                "session_id": session_dir.name,
-                                "student_id": student_dir.name,
-                                "display": f"{exam_dir.name}/{session_dir.name}/{student_dir.name}",
-                            }
-                        )
+                    for student_dir in _safe_iterdir(time_dir):
+                        if not _safe_is_visible_dir(student_dir):
+                            continue
+                        results_dir = student_dir / "results"
+                        if results_dir.is_dir():
+                            results.append(
+                                {
+                                    "path": str(results_dir),
+                                    "classroom": classroom_dir.name,
+                                    "tutor_name": tutor_dir.name,
+                                    "time_slot": time_dir.name,
+                                    "exam_name": classroom_dir.name,
+                                    "session_id": tutor_dir.name,
+                                    "student_id": student_dir.name,
+                                    "display": (
+                                        f"{classroom_dir.name}/{tutor_dir.name}/"
+                                        f"{time_dir.name}/{student_dir.name}"
+                                    ),
+                                }
+                            )
     return jsonify({"status": "ok", "results": results})
 
 
@@ -4765,22 +4903,25 @@ def api_admin_delete_results():
         docs_dir = (Path.home() / "Documents").resolve()
         deleted = 0
         if docs_dir.exists():
-            for exam_dir in docs_dir.iterdir():
-                if not exam_dir.is_dir() or exam_dir.name.startswith("."):
+            for classroom_dir in _safe_iterdir(docs_dir):
+                if not _safe_is_visible_dir(classroom_dir):
                     continue
-                for session_dir in exam_dir.iterdir():
-                    if not session_dir.is_dir():
+                for tutor_dir in _safe_iterdir(classroom_dir):
+                    if not _safe_is_visible_dir(tutor_dir):
                         continue
-                    for student_dir in session_dir.iterdir():
-                        if not student_dir.is_dir():
+                    for time_dir in _safe_iterdir(tutor_dir):
+                        if not _safe_is_visible_dir(time_dir):
                             continue
-                        results_dir = student_dir / "results"
-                        if results_dir.is_dir():
-                            try:
-                                shutil.rmtree(results_dir)
-                                deleted += 1
-                            except Exception:
-                                pass
+                        for student_dir in _safe_iterdir(time_dir):
+                            if not _safe_is_visible_dir(student_dir):
+                                continue
+                            results_dir = student_dir / "results"
+                            if results_dir.is_dir():
+                                try:
+                                    shutil.rmtree(results_dir)
+                                    deleted += 1
+                                except Exception:
+                                    pass
         return jsonify({"status": "ok", "message": f"All results deleted ({deleted})."})
 
     if not path:
@@ -4847,31 +4988,48 @@ def api_admin_sync_mirror():
     if not ENGINE_STUDENTS_DIR.exists():
         return jsonify({"status": "ok", "message": "Nothing to sync.", "removed": []})
 
-    for exam_dir in list(ENGINE_STUDENTS_DIR.iterdir()):
-        if not exam_dir.is_dir():
+    for classroom_dir in list(ENGINE_STUDENTS_DIR.iterdir()):
+        if not classroom_dir.is_dir():
             continue
-        docs_exam = DOCS_DIR / exam_dir.name
-        if not docs_exam.exists():
-            shutil.rmtree(exam_dir)
-            removed.append(exam_dir.name)
+        docs_classroom = DOCS_DIR / classroom_dir.name
+        if not docs_classroom.exists():
+            shutil.rmtree(classroom_dir)
+            removed.append(classroom_dir.name)
             continue
-        for session_dir in list(exam_dir.iterdir()):
-            if not session_dir.is_dir():
+        for tutor_dir in list(classroom_dir.iterdir()):
+            if not tutor_dir.is_dir():
                 continue
-            docs_session = docs_exam / session_dir.name
-            if not docs_session.exists():
-                shutil.rmtree(session_dir)
-                removed.append(f"{exam_dir.name}/{session_dir.name}")
+            docs_tutor = docs_classroom / tutor_dir.name
+            if not docs_tutor.exists():
+                shutil.rmtree(tutor_dir)
+                removed.append(f"{classroom_dir.name}/{tutor_dir.name}")
                 continue
-            for student_dir in list(session_dir.iterdir()):
-                if not student_dir.is_dir():
+            for time_dir in list(tutor_dir.iterdir()):
+                if not time_dir.is_dir():
                     continue
-                docs_student = docs_session / student_dir.name
-                if not docs_student.exists():
-                    shutil.rmtree(student_dir)
+                docs_time = docs_tutor / time_dir.name
+                if not docs_time.exists():
+                    shutil.rmtree(time_dir)
                     removed.append(
-                        f"{exam_dir.name}/{session_dir.name}/{student_dir.name}"
+                        f"{classroom_dir.name}/{tutor_dir.name}/{time_dir.name}"
                     )
+                    continue
+                for student_dir in list(time_dir.iterdir()):
+                    if not student_dir.is_dir():
+                        continue
+                    docs_student = docs_time / student_dir.name
+                    if not docs_student.exists():
+                        shutil.rmtree(student_dir)
+                        removed.append(
+                            f"{classroom_dir.name}/{tutor_dir.name}/{time_dir.name}/{student_dir.name}"
+                        )
+
+                if time_dir.exists() and not any(time_dir.iterdir()):
+                    time_dir.rmdir()
+                if tutor_dir.exists() and not any(tutor_dir.iterdir()):
+                    tutor_dir.rmdir()
+        if classroom_dir.exists() and not any(classroom_dir.iterdir()):
+            classroom_dir.rmdir()
 
     if removed:
         msg = f"Removed {len(removed)} orphaned mirror folder(s):\n" + "\n".join(
@@ -5176,9 +5334,12 @@ def api_run_grading():
             "message": message,
             "results": summary_results,
         }
+        reports = _build_session_reports(target_path)
+        policy = load_grading_policy()
+        _write_session_readable_results(target_path, reports, policy)
         if include_reports:
-            payload["reports"] = _build_session_reports(target_path)
-            payload["policy"] = load_grading_policy()
+            payload["reports"] = reports
+            payload["policy"] = policy
 
         return jsonify(payload)
 

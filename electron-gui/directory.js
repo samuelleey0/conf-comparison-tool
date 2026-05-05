@@ -39,6 +39,34 @@ function setSelectedExistingDirectory(pathValue, displayValue) {
 let currentFolderTreeData = [];
 let pendingSelectedFolder = null;
 let pendingSelectedStudent = null;
+const WINDOWS_DRIVES_ROOT = "__WINDOWS_DRIVES__";
+
+function displayPickerPath(pathValue) {
+  return pathValue === WINDOWS_DRIVES_ROOT ? "This PC" : (pathValue || "");
+}
+
+async function fetchPickerJson(url) {
+  let res;
+  try {
+    res = await fetch(url);
+  } catch (err) {
+    throw new Error(
+      "Cannot reach the local backend. Make sure the app server is running on 127.0.0.1:5050."
+    );
+  }
+
+  let data = {};
+  try {
+    data = await res.json();
+  } catch (_) {
+    data = {};
+  }
+
+  if (!res.ok) {
+    throw new Error(data.message || `Request failed (${res.status})`);
+  }
+  return data;
+}
 
 function openCustomDirectoryPicker() {
   const overlay = document.getElementById("folderPickerOverlay");
@@ -63,9 +91,15 @@ function openCustomDirectoryPicker() {
 
   const backBtn = document.getElementById("pickerBackBtn");
   backBtn.onclick = () => {
-    if (currentPickerPath && pathModule) {
+    if (currentPickerParentPath) {
+      loadDirectory(currentPickerParentPath);
+    } else if (currentPickerPath && pathModule) {
       const parent = pathModule.dirname(currentPickerPath);
-      loadDirectory(parent);
+      if (parent && parent !== currentPickerPath) {
+        loadDirectory(parent);
+      } else {
+        loadDirectory(WINDOWS_DRIVES_ROOT);
+      }
     }
   };
 
@@ -73,24 +107,27 @@ function openCustomDirectoryPicker() {
   if (pathInput) {
     pathInput.onkeydown = (e) => {
       if (e.key === "Enter") {
-        loadDirectory(pathInput.value);
+        const requestedPath = pathInput.value === "This PC"
+          ? WINDOWS_DRIVES_ROOT
+          : pathInput.value;
+        loadDirectory(requestedPath);
       }
     };
   }
 
   confirmBtn.onclick = () => {
     if (pendingSelectedFolder && pendingSelectedFolder.type === 'session') {
-      const { exam, session, students } = pendingSelectedFolder;
+      const { classroom, tutor_name, time_slot, students } = pendingSelectedFolder;
 
       const label = document.getElementById("selectedDirectoryLabel");
       if (label) {
-        label.textContent = `Session: ${exam} / ${session}`;
+        label.textContent = `Session: ${classroom} / ${tutor_name} / ${time_slot}`;
         label.classList.add("has-value");
       }
 
       const infoBox = document.getElementById("existingInfoBox");
       if (infoBox) infoBox.classList.add("hidden");
-      
+
       let sessionPath = "";
       if (students && students.length > 0 && typeof pathModule !== "undefined") {
          sessionPath = pathModule.dirname(students[0].path);
@@ -101,19 +138,20 @@ function openCustomDirectoryPicker() {
       if (!sessionPath && typeof pathModule !== "undefined") {
         try {
           const os = require("os");
-          sessionPath = pathModule.join(os.homedir(), "Documents", exam, session);
+          sessionPath = pathModule.join(os.homedir(), "Documents", classroom, tutor_name, time_slot);
         } catch (_) {
           sessionPath = "";
         }
       }
 
       setDirectoryInfo({
-        exam_name: exam,
-        session_id: session,
-        student_id: "", 
+        classroom,
+        tutor_name,
+        time_slot,
+        student_id: "",
         path: sessionPath,
         mode: "existing",
-        display: `${exam}/${session}`
+        display: `${classroom}/${tutor_name}/${time_slot}`
       });
       if (sessionPath) {
         localStorage.setItem("sessionPath", sessionPath);
@@ -126,6 +164,7 @@ function openCustomDirectoryPicker() {
 }
 
 let currentPickerPath = null;
+let currentPickerParentPath = null;
 
 async function loadDirectory(pathVal = null) {
   const container = document.getElementById("folderTreeContainer");
@@ -136,7 +175,7 @@ async function loadDirectory(pathVal = null) {
 
   // Optimistic update for better UX
   if (pathLabel && pathVal) {
-    pathLabel.value = pathVal;
+    pathLabel.value = displayPickerPath(pathVal);
   }
 
   try {
@@ -144,13 +183,13 @@ async function loadDirectory(pathVal = null) {
       ? `${API_ROOT}/api/directories?path=${encodeURIComponent(pathVal)}`
       : `${API_ROOT}/api/directories`;
 
-    const res = await fetch(url);
-    const data = await res.json();
+    const data = await fetchPickerJson(url);
 
     if (data.status === "ok") {
       currentPickerPath = data.current_path;
+      currentPickerParentPath = data.parent_path || null;
       if (pathLabel) {
-        pathLabel.value = currentPickerPath;
+        pathLabel.value = displayPickerPath(currentPickerPath);
       }
 
       // Strategy: If we find Exam/Session/Student structure, show Tree.
@@ -172,10 +211,15 @@ async function loadDirectory(pathVal = null) {
 
 async function loadSubfolders(pathVal, container) {
   try {
-    const res = await fetch(`${API_ROOT}/api/subfolders?path=${encodeURIComponent(pathVal)}`);
-    const data = await res.json();
+    const data = await fetchPickerJson(`${API_ROOT}/api/subfolders?path=${encodeURIComponent(pathVal)}`);
 
     if (data.status === "ok") {
+      currentPickerPath = data.current_path || pathVal;
+      currentPickerParentPath = data.parent_path || null;
+      const pathLabel = document.getElementById("pickerCurrentPath");
+      if (pathLabel) {
+        pathLabel.value = displayPickerPath(currentPickerPath);
+      }
       renderSubfolders(container, data.subfolders);
     } else {
       container.innerHTML = `<p class="empty-text">No folders found or access denied.</p>`;
@@ -188,9 +232,14 @@ async function loadSubfolders(pathVal, container) {
 function transformToHierarchy(flatDirs) {
   const hierarchy = {};
   flatDirs.forEach(d => {
-    if (!hierarchy[d.exam_name]) hierarchy[d.exam_name] = {};
-    if (!hierarchy[d.exam_name][d.session_id]) hierarchy[d.exam_name][d.session_id] = [];
-    hierarchy[d.exam_name][d.session_id].push(d);
+    const classroom = d.classroom || d.exam_name || "";
+    const tutor = d.tutor_name || d.session_id || "";
+    const time = d.time_slot || "";
+    if (!classroom || !tutor || !time) return;
+    if (!hierarchy[classroom]) hierarchy[classroom] = {};
+    if (!hierarchy[classroom][tutor]) hierarchy[classroom][tutor] = {};
+    if (!hierarchy[classroom][tutor][time]) hierarchy[classroom][tutor][time] = [];
+    hierarchy[classroom][tutor][time].push(d);
   });
   return hierarchy;
 }
@@ -208,7 +257,7 @@ function renderSubfolders(container, subfolders) {
     const li = document.createElement("li");
     const div = document.createElement("div");
     div.className = "tree-item";
-    div.textContent = `📁 ${f.name}`;
+    div.textContent = `${f.is_drive ? "💽" : "📁"} ${f.name}`;
     div.onclick = () => {
       loadDirectory(f.path);
     };
@@ -228,59 +277,72 @@ function renderTree(container, hierarchy) {
   const ul = document.createElement("ul");
   ul.className = "tree-root";
 
-  // Iterate Exams
-  Object.keys(hierarchy).sort().forEach(exam => {
+  // Iterate classrooms
+  Object.keys(hierarchy).sort().forEach(classroom => {
     const examLi = document.createElement("li");
     const examLabel = document.createElement("div");
     examLabel.className = "tree-item exam-item";
-    examLabel.textContent = `📂 ${exam}`;
+    examLabel.textContent = `📂 ${classroom}`;
     examLi.appendChild(examLabel);
 
-    const sessionUl = document.createElement("ul");
-    sessionUl.className = "tree-children hidden";
+    const tutorUl = document.createElement("ul");
+    tutorUl.className = "tree-children hidden";
 
-    // Iterate Sessions
-    Object.keys(hierarchy[exam]).sort().forEach(session => {
-      const sessionLi = document.createElement("li");
-      const sessionLabel = document.createElement("div");
-      sessionLabel.className = "tree-item session-item";
-      sessionLabel.textContent = `📁 ${session}`;
-      sessionLi.appendChild(sessionLabel);
+    Object.keys(hierarchy[classroom]).sort().forEach(tutor_name => {
+      const tutorLi = document.createElement("li");
+      const tutorLabel = document.createElement("div");
+      tutorLabel.className = "tree-item tutor-item";
+      tutorLabel.textContent = `📁 ${tutor_name}`;
+      tutorLi.appendChild(tutorLabel);
 
-      sessionLabel.onclick = (e) => {
+      const timeUl = document.createElement("ul");
+      timeUl.className = "tree-children hidden";
+
+      Object.keys(hierarchy[classroom][tutor_name]).sort().forEach(time_slot => {
+        const timeLi = document.createElement("li");
+        const timeLabel = document.createElement("div");
+        timeLabel.className = "tree-item session-item";
+        timeLabel.textContent = `🕒 ${time_slot}`;
+        timeLi.appendChild(timeLabel);
+
+        timeLabel.onclick = (e) => {
+          e.stopPropagation();
+          document.querySelectorAll(".session-item.selected").forEach(el => el.classList.remove("selected"));
+          timeLabel.classList.add("selected");
+          const students = hierarchy[classroom][tutor_name][time_slot] || [];
+          pendingSelectedFolder = { type: 'session', classroom, tutor_name, time_slot, students };
+          document.getElementById("confirmFolderPickerBtn").disabled = false;
+        };
+
+        timeLabel.ondblclick = () => {
+          const students = hierarchy[classroom][tutor_name][time_slot] || [];
+          pendingSelectedFolder = { type: 'session', classroom, tutor_name, time_slot, students };
+          document.getElementById("confirmFolderPickerBtn").click();
+        };
+
+        timeUl.appendChild(timeLi);
+      });
+
+      tutorLabel.onclick = (e) => {
         e.stopPropagation();
-
-        // Highlight active session
-        document.querySelectorAll(".session-item.selected").forEach(el => el.classList.remove("selected"));
-        sessionLabel.classList.add("selected");
-
-        const students = hierarchy[exam][session] || [];
-
-        pendingSelectedFolder = { type: 'session', exam, session, students };
-        document.getElementById("confirmFolderPickerBtn").disabled = false;
+        timeUl.classList.toggle("hidden");
       };
 
-      sessionLabel.ondblclick = () => {
-        const students = hierarchy[exam][session] || [];
-        pendingSelectedFolder = { type: 'session', exam, session, students };
-        document.getElementById("confirmFolderPickerBtn").click();
-      }
-
-      sessionUl.appendChild(sessionLi);
+      tutorLi.appendChild(timeUl);
+      tutorUl.appendChild(tutorLi);
     });
 
     examLabel.onclick = () => {
-      // Accordion behavior: Close all other exams
       const allSessionUls = container.querySelectorAll(".tree-root > li > ul");
       allSessionUls.forEach(ul => {
-        if (ul !== sessionUl) {
+        if (ul !== tutorUl) {
           ul.classList.add("hidden");
         }
       });
-      sessionUl.classList.toggle("hidden");
+      tutorUl.classList.toggle("hidden");
     };
 
-    examLi.appendChild(sessionUl);
+    examLi.appendChild(tutorUl);
     ul.appendChild(examLi);
   });
 
@@ -526,11 +588,12 @@ function readFileAsArrayBuffer(file) {
 
 async function handleCreateDirectory(event) {
   event.preventDefault();
-  const exam = document.getElementById("createExamName").value.trim();
-  const session = document.getElementById("createSessionId").value.trim();
+  const classroom = document.getElementById("createClassroom").value.trim();
+  const tutorName = document.getElementById("createTutorName").value.trim();
+  const timeSlot = document.getElementById("createTimeSlot").value.trim();
   const student = document.getElementById("createStudentId").value.trim();
   const studentName = (document.getElementById("createStudentName")?.value || "").trim();
-  if (!exam || !session || !student) {
+  if (!classroom || !tutorName || !timeSlot || !student) {
     alert("Please complete all fields for the new directory.");
     return;
   }
@@ -539,19 +602,21 @@ async function handleCreateDirectory(event) {
     const data = await fetchJson("/api/create_directory", {
       method: "POST",
       body: JSON.stringify({
-        examName: exam,
-        sessionId: session,
+        classroom,
+        tutor_name: tutorName,
+        time_slot: timeSlot,
         studentId: student,
         studentName: studentName,
       }),
     });
     setDirectoryInfo({
-      exam_name: data.exam_name,
-      session_id: data.session_id,
+      classroom: data.classroom,
+      tutor_name: data.tutor_name,
+      time_slot: data.time_slot,
       student_id: data.student_id,
       path: data.path,
       mode: "create",
-      display: `${data.exam_name}/${data.session_id}/${data.student_id}`,
+      display: `${data.classroom}/${data.tutor_name}/${data.time_slot}/${data.student_id}`,
     });
     if (pathModule) {
       localStorage.setItem("sessionPath", pathModule.dirname(data.path));
@@ -578,19 +643,20 @@ async function handleUseExistingDirectory() {
       }),
     });
     setDirectoryInfo({
-      exam_name: data.exam_name,
-      session_id: data.session_id,
+      classroom: data.classroom,
+      tutor_name: data.tutor_name,
+      time_slot: data.time_slot,
       student_id: data.student_id,
       path: data.path,
       mode: "existing",
-      display: `${data.exam_name}/${data.session_id}/${data.student_id}`,
+      display: `${data.classroom}/${data.tutor_name}/${data.time_slot}/${data.student_id}`,
     });
     if (pathModule) {
       localStorage.setItem("sessionPath", pathModule.dirname(data.path));
     }
     setSelectedExistingDirectory(
       data.path,
-      `${data.exam_name}/${data.session_id}/${data.student_id}`
+      `${data.classroom}/${data.tutor_name}/${data.time_slot}/${data.student_id}`
     );
     alert(data.message);
     goTo("connection.html");
@@ -602,11 +668,12 @@ async function handleUseExistingDirectory() {
 
 async function handleBulkCreate(event) {
   event.preventDefault();
-  const exam = document.getElementById("bulkExamName").value.trim();
-  const session = document.getElementById("bulkSessionId").value.trim();
+  const classroom = document.getElementById("bulkClassroom").value.trim();
+  const tutorName = document.getElementById("bulkTutorName").value.trim();
+  const timeSlot = document.getElementById("bulkTimeSlot").value.trim();
   const fileInput = document.getElementById("bulkFile");
   const resultsBox = document.getElementById("bulkResults");
-  const hasTitleRow = document.getElementById("bulkHasTitleRow")?.checked || false;
+  const hasTitleRow = document.getElementById("bulkHasTitle")?.checked || false;
   const hasHeader = document.getElementById("bulkHasHeader")?.checked || false;
   const hasNumberColumn = document.getElementById("bulkHasNumber")?.checked || false;
 
@@ -614,8 +681,8 @@ async function handleBulkCreate(event) {
     alert("Please select a file.");
     return;
   }
-  if (!exam || !session) {
-    alert("Please provide exam and session details for bulk creation.");
+  if (!classroom || !tutorName || !timeSlot) {
+    alert("Please provide classroom, tutor name, and time for bulk creation.");
     return;
   }
 
@@ -661,7 +728,7 @@ async function handleBulkCreate(event) {
 
     const data = await fetchJson("/api/directories/bulk", {
       method: "POST",
-      body: JSON.stringify({ examName: exam, sessionId: session, students }),
+      body: JSON.stringify({ classroom, tutor_name: tutorName, time_slot: timeSlot, students }),
     });
 
     const created = data.created || [];
@@ -752,7 +819,7 @@ function setupDirectoryPage() {
   if (createForm) createForm.addEventListener("submit", handleCreateDirectory);
   if (bulkForm) bulkForm.addEventListener("submit", handleBulkCreate);
   if (useBtn) useBtn.addEventListener("click", handleUseExistingDirectory);
-  
+
 
 
   if (chooseBtn) {
@@ -767,17 +834,19 @@ function setupDirectoryPage() {
   );
   if (addStudentBtn) {
     addStudentBtn.addEventListener("click", () => {
-      const exam = localStorage.getItem("examName");
-      const session = localStorage.getItem("sessionId");
-      if (!exam || !session) {
+      const classroom = localStorage.getItem("classroom") || localStorage.getItem("examName");
+      const tutorName = localStorage.getItem("tutorName") || localStorage.getItem("sessionId");
+      const timeSlot = localStorage.getItem("timeSlot");
+      if (!classroom || !tutorName || !timeSlot) {
         alert("Please select a session first.");
         return;
       }
 
       openAddStudentModal(async (studentId, studentName) => {
-        const exam = localStorage.getItem("examName");
-        const session = localStorage.getItem("sessionId");
-        if (!exam || !session) {
+        const classroom = localStorage.getItem("classroom") || localStorage.getItem("examName");
+        const tutorName = localStorage.getItem("tutorName") || localStorage.getItem("sessionId");
+        const timeSlot = localStorage.getItem("timeSlot");
+        if (!classroom || !tutorName || !timeSlot) {
           alert("Please select a session first.");
           return;
         }
@@ -789,7 +858,7 @@ function setupDirectoryPage() {
         if (!sessionPath && typeof pathModule !== "undefined") {
           try {
             const os = require("os");
-            sessionPath = pathModule.join(os.homedir(), "Documents", exam, session);
+            sessionPath = pathModule.join(os.homedir(), "Documents", classroom, tutorName, timeSlot);
           } catch (_) {
             sessionPath = null;
           }
@@ -813,8 +882,9 @@ function setupDirectoryPage() {
           const data = await res.json();
           if (data.status === "ok" && data.directories) {
             const hierarchy = transformToHierarchy(data.directories);
-            if (hierarchy[exam] && hierarchy[exam][session]) {
-              renderMainStudentGrid(hierarchy[exam][session]);
+            const students = hierarchy[classroom]?.[tutorName]?.[timeSlot];
+            if (students) {
+              renderMainStudentGrid(students);
             }
           }
         } catch (err) {
@@ -827,13 +897,13 @@ function setupDirectoryPage() {
 
   const storedMode = localStorage.getItem("directoryMode");
   const storedBasePath = localStorage.getItem("basePath");
-  
+
   if (storedMode === "existing") {
     setSelectedExistingDirectory(
       storedBasePath,
       localStorage.getItem("directoryDisplay")
     );
-    
+
     // Auto-load grid if we have a path
     if (storedBasePath && storedBasePath !== "null") {
        fetch(`${API_ROOT}/api/directories`) // Wait, if we use the backend API, the default fetches subfolders. We can use loadDirectory natively.
@@ -841,11 +911,12 @@ function setupDirectoryPage() {
          .then(data => {
             if (data.status === "ok" && data.directories) {
                const hierarchy = transformToHierarchy(data.directories);
-               const exam = localStorage.getItem("examName");
-               const session = localStorage.getItem("sessionId");
-               
-               if (exam && session && hierarchy[exam] && hierarchy[exam][session]) {
-                  const students = hierarchy[exam][session];
+               const classroom = localStorage.getItem("classroom") || localStorage.getItem("examName");
+               const tutorName = localStorage.getItem("tutorName") || localStorage.getItem("sessionId");
+               const timeSlot = localStorage.getItem("timeSlot");
+
+               const students = hierarchy[classroom]?.[tutorName]?.[timeSlot];
+               if (students) {
                   renderMainStudentGrid(students);
                }
             }

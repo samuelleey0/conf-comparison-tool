@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quick Guide | Automated Cisco Configuration & Marking System</title>
+  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="stylesheet" href="assets/nav.css" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #f5f7fa;
+      min-height: 100vh;
+    }
+
+    .container {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .content {
+      flex: 1;
+      padding: 60px 40px;
+      overflow-y: auto;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .guide-header {
+      margin-bottom: 60px;
+      text-align: center;
+    }
+
+    .guide-title {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: #1a202c;
+      margin-bottom: 12px;
+      letter-spacing: -0.02em;
+    }
+
+    .guide-intro {
+      font-size: 1rem;
+      color: #718096;
+      line-height: 1.6;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .workflow-container {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 40px;
+      margin-bottom: 60px;
+    }
+
+    .workflow-step {
+      display: grid;
+      grid-template-columns: 80px 1fr;
+      gap: 24px;
+      padding: 24px;
+      background: white;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      transition: box-shadow 0.3s ease, transform 0.3s ease;
+    }
+
+    .workflow-step:hover {
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      transform: translateY(-2px);
+    }
+
+    .step-number {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-weight: 800;
+      font-size: 2rem;
+      border-radius: 12px;
+      flex-shrink: 0;
+    }
+
+    .step-content h3 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 8px;
+    }
+
+    .step-content p {
+      font-size: 0.95rem;
+      color: #4a5568;
+      line-height: 1.6;
+      margin-bottom: 12px;
+    }
+
+    .step-checklist {
+      list-style: none;
+      margin: 12px 0 0 0;
+    }
+
+    .step-checklist li {
+      font-size: 0.9rem;
+      color: #718096;
+      padding: 6px 0 6px 24px;
+      position: relative;
+      line-height: 1.5;
+    }
+
+    .step-checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #48bb78;
+      font-weight: 700;
+    }
+
+    .info-section {
+      background: #edf2f7;
+      border-left: 4px solid #667eea;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+    }
+
+    .info-section-title {
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+    }
+
+    .info-section-text {
+      font-size: 0.9rem;
+      color: #4a5568;
+      line-height: 1.6;
+    }
+
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 30px 0;
+    }
+
+    .tool-item {
+      padding: 20px;
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+
+    .tool-item:hover {
+      border-color: #667eea;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+    }
+
+    .tool-item-title {
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+    }
+
+    .tool-item-text {
+      font-size: 0.85rem;
+      color: #718096;
+      line-height: 1.5;
+    }
+
+    .tips-section {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 32px;
+      margin-top: 40px;
+    }
+
+    .tips-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 20px;
+    }
+
+    .tips-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+    }
+
+    .tip-card {
+      padding: 16px;
+      background: #f7fafc;
+      border-left: 3px solid #48bb78;
+      border-radius: 4px;
+    }
+
+    .tip-card strong {
+      color: #1a202c;
+      font-size: 0.95rem;
+    }
+
+    .tip-card p {
+      font-size: 0.9rem;
+      color: #4a5568;
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    .footer-section {
+      text-align: center;
+      margin-top: 60px;
+      padding-top: 30px;
+      border-top: 1px solid #e2e8f0;
+      color: #718096;
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 768px) {
+      .content {
+        padding: 30px 20px;
+      }
+
+      .guide-title {
+        font-size: 1.8rem;
+      }
+
+      .workflow-step {
+        grid-template-columns: 1fr;
+      }
+
+      .step-number {
+        width: 60px;
+        height: 60px;
+        font-size: 1.5rem;
+      }
+
+      .tools-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <nav class="app-navbar"></nav>
+    <div class="content">
+      <div class="guide-header">
+        <h1 class="guide-title">Quick Guide</h1>
+        <p class="guide-intro">Follow these simple steps to get started with the Automated Cisco Configuration & Marking System.</p>
+      </div>
+
+      <div class="workflow-container">
+        <div class="workflow-step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h3>Device Setup</h3>
+            <p>Prepare your Cisco device and establish a baseline configuration.</p>
+            <ul class="step-checklist">
+              <li>Connect via Serial or SSH</li>
+              <li>Verify device responsiveness</li>
+              <li>Create baseline snapshot</li>
+              <li>Confirm setup complete</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="workflow-step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h3>Create Directory</h3>
+            <p>Set up the workspace for storing student files and session data.</p>
+            <ul class="step-checklist">
+              <li>Enter exam name</li>
+              <li>Specify tutor/classroom</li>
+              <li>Set time slot</li>
+              <li>Add student ID</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="workflow-step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h3>Run Connection</h3>
+            <p>Execute the grading workflow and collect student configuration data.</p>
+            <ul class="step-checklist">
+              <li>Select connection method</li>
+              <li>Configure parameters</li>
+              <li>Start execution</li>
+              <li>Monitor progress</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="workflow-step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <h3>Review Results</h3>
+            <p>Examine marks, collected data, and execution logs.</p>
+            <ul class="step-checklist">
+              <li>View overall marks</li>
+              <li>Review config files</li>
+              <li>Check execution logs</li>
+              <li>Download results</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <div class="info-section-title">📁 Data Storage</div>
+        <div class="info-section-text">All student data and results are stored in <strong>D:\Documents</strong> organized by exam, tutor, time slot, and student ID.</div>
+      </div>
+
+      <div class="tips-section">
+        <h2 class="tips-title">Helpful Tips</h2>
+        <div class="tips-grid">
+          <div class="tip-card">
+            <strong>🔌 Connection Stability</strong>
+            <p>Do not disconnect the device while execution is running. Connection interruption may result in incomplete data collection.</p>
+          </div>
+          <div class="tip-card">
+            <strong>⚙️ Device Preparation</strong>
+            <p>Always verify baseline configuration before proceeding. A proper baseline ensures accurate grading results.</p>
+          </div>
+          <div class="tip-card">
+            <strong>✓ Data Verification</strong>
+            <p>Review results immediately after completion to ensure all data was collected successfully before proceeding.</p>
+          </div>
+          <div class="tip-card">
+            <strong>📊 Additional Tools</strong>
+            <p>Use System Admin for configuration and Sample Logs for validation and troubleshooting issues.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-section">
+        <p>For more help or issues, contact your system administrator.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+  <script>
+    // Load navbar
+    fetch('navbar.html')
+      .then(response => response.text())
+      .then(html => {
+        const nav = document.querySelector('.app-navbar');
+        nav.outerHTML = html;
+      });
+  </script>
+</body>
+
+</html>

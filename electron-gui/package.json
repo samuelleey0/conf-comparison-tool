@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
-    "build": "echo 'To build a distributable app, install electron-builder or forge later.'"
+    "build": "electron-builder"
   },
   "keywords": [
     "electron",
@@ -19,9 +19,36 @@
   "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
-    "electron": "^38.2.1"
+    "electron": "^38.2.1",
+    "electron-builder": "^26.8.1"
   },
   "dependencies": {
     "xlsx": "^0.18.5"
+  },
+  "build": {
+    "appId": "com.cisco.config-tool",
+    "productName": "Cisco Config Comparison Tool",
+    "directories": {
+      "buildResources": "assets"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Cisco Config Tool"
+    },
+    "files": [
+      "main.js",
+      "renderer.js",
+      "*.html",
+      "assets/**/*",
+      "node_modules/**/*"
+    ]
   }
 }

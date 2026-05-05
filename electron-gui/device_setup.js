@@ -120,7 +120,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       </div>
       <div class="command-actions">
         <input type="file" class="cmd-file" />
-        <button type="button" class="remove-cmd-btn danger-text">X</button>
+        <button type="button" class="command-remove-btn" title="Remove">✕</button>
       </div>
     `;
 
@@ -135,7 +135,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // Removing from row should also uncheck the dropdown box
-    row.querySelector(".remove-cmd-btn").addEventListener("click", () => {
+    row.querySelector(".command-remove-btn").addEventListener("click", () => {
       row.remove();
       const deviceBlock = row.closest(".device-block");
       if (deviceBlock) {
@@ -171,6 +171,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (dropdown !== exceptDropdown) {
         dropdown.classList.remove("dropdown-open");
         dropdown.querySelector(".dropdown-list")?.classList.add("hidden");
+        const searchInput = dropdown.querySelector(".dropdown-search-input");
+        if (searchInput) searchInput.value = "";
+        dropdown.querySelectorAll(".dropdown-item.hidden").forEach((item) => {
+          item.classList.remove("hidden");
+        });
         dropdown.closest(".device-block")?.classList.remove("dropdown-open");
       }
     });
@@ -198,26 +203,33 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     block.innerHTML = `
       <div class="device-block-header">
-        <label>
-          <strong>Hostname:</strong> 
-          <input type="text" class="hostname-input" placeholder="e.g. R1 or S1" required />
-        </label>
+        <div class="device-block-title">Device ${deviceCount}</div>
         
-        <div class="custom-dropdown" id="dropdown-${deviceId}">
-          <div class="dropdown-header">
-            <span>Select Commands</span>
-            <small>▼</small>
+        <div style="display: flex; gap: 16px; flex: 1; align-items: flex-end;">
+          <div style="flex: 1;">
+            <label style="display: block; font-weight: 600; color: var(--color-heading); margin-bottom: 6px; font-size: 0.9rem;">Hostname</label>
+            <input type="text" class="hostname-input" placeholder="e.g. R1 or S1" required />
           </div>
-          <div class="dropdown-list hidden">
-            <div class="dropdown-search">
-              <input type="text" class="dropdown-search-input" placeholder="Search commands..." />
+          <div style="flex: 1;">
+            <label style="display: block; font-weight: 600; color: var(--color-heading); margin-bottom: 6px; font-size: 0.9rem;">Commands</label>
+            <div class="custom-dropdown" id="dropdown-${deviceId}">
+              <div class="dropdown-header">
+                <span>Select Commands</span>
+                <small>▼</small>
+              </div>
+              <div class="dropdown-list hidden">
+                <div class="dropdown-search">
+                  <input type="text" class="dropdown-search-input" placeholder="Search commands..." />
+                </div>
+                ${dropdownListHtml}
+              </div>
             </div>
-            ${dropdownListHtml}
           </div>
         </div>
 
         <button type="button" class="remove-device-btn">Remove Device</button>
       </div>
+      
       <div class="command-list" id="cmds-${deviceId}">
         <!-- Selected Commands Spawn Here -->
       </div>
@@ -228,8 +240,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     const dropdownHeader = block.querySelector('.dropdown-header');
     const dropdownList = block.querySelector('.dropdown-list');
     const dropdownSearch = block.querySelector('.dropdown-search-input');
+
+    function positionDropdown() {
+      const rect = dropdownHeader.getBoundingClientRect();
+      dropdownList.style.top = `${rect.bottom}px`;
+      dropdownList.style.left = `${rect.left}px`;
+      dropdownList.style.width = `${rect.width}px`;
+    }
     
-    // Toggle dropdown
+    window.addEventListener('scroll', () => {
+      if (!dropdownList.classList.contains("hidden")) {
+        positionDropdown();
+      }
+    });
+    
+    window.addEventListener('resize', () => {
+      if (!dropdownList.classList.contains("hidden")) {
+        positionDropdown();
+      }
+    });
+    
     dropdownHeader.addEventListener("click", (e) => {
       e.stopPropagation();
       const willOpen = dropdownList.classList.contains("hidden");
@@ -238,16 +268,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       dropdownRoot?.classList.toggle("dropdown-open", willOpen);
       block.classList.toggle("dropdown-open", willOpen);
       if (willOpen) {
+        positionDropdown();
         dropdownSearch?.focus();
-      }
-    });
-
-    // Close dropdown on click outside
-    document.addEventListener("click", (e) => {
-      if (!dropdownRoot.contains(e.target)) {
-         dropdownList.classList.add("hidden");
-         dropdownRoot.classList.remove("dropdown-open");
-         block.classList.remove("dropdown-open");
       }
     });
 
@@ -281,6 +303,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     });
 
+    // Prevent dropdown list clicks from closing the dropdown
+    dropdownList.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+
     block.querySelector(".remove-device-btn").addEventListener("click", () => {
       block.remove();
     });
@@ -296,6 +323,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     localStorage.removeItem("templateName");
     localStorage.removeItem("templateDevices");
+    localStorage.removeItem("activeTemplateName");
+    localStorage.removeItem("activeTemplateDevices");
     loadedFromServer = false;
     deviceCount = 0;
     container.innerHTML = "";
@@ -308,9 +337,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   function loadTemplateState() {
     const savedName = localStorage.getItem("templateName");
     const savedDevicesStr = localStorage.getItem("templateDevices");
+    let restoredFromCache = false;
 
     if (savedName) {
       document.getElementById("templateName").value = savedName;
+      selectedTemplateName = savedName;
     }
 
     if (savedDevicesStr) {
@@ -338,21 +369,33 @@ document.addEventListener("DOMContentLoaded", async () => {
             const cmdRows = block.querySelectorAll(".command-item");
             cmdRows.forEach(row => {
                const fileInput = row.querySelector(".cmd-file");
+               const badges = row.querySelector(".command-badges");
                fileInput.required = false; 
                
                const prevUploadedLabel = document.createElement("small");
-               prevUploadedLabel.textContent = "(Previously Uploaded)";
-               prevUploadedLabel.style.color = "var(--color-success, #28a745)";
-               prevUploadedLabel.style.marginLeft = "8px";
-               
-               row.insertBefore(prevUploadedLabel, fileInput);
+               prevUploadedLabel.className = "command-badge command-badge--uploaded";
+               prevUploadedLabel.textContent = "Previously Uploaded";
+               if (badges) {
+                 badges.appendChild(prevUploadedLabel);
+               } else {
+                 row.insertBefore(prevUploadedLabel, fileInput);
+               }
             });
           });
-          return;
+          restoredFromCache = true;
         }
       } catch (err) {
         console.warn("Failed to parse saved devices:", err);
       }
+    }
+
+    if (restoredFromCache) {
+      return;
+    }
+
+    if (savedName) {
+      loadTemplateFromServer(savedName);
+      return;
     }
     
     // Only add an empty one if we didn't restore any
@@ -360,6 +403,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   loadTemplateState();
+
+  // Global click listener to close dropdowns when clicking outside
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".custom-dropdown") && !e.target.closest(".dropdown-list")) {
+      closeCommandDropdowns();
+    }
+  });
 
   async function loadTemplateFromServer(templateName) {
     if (!templateName) return;
@@ -374,6 +424,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       const logsByCommand = data.logs_by_command || {};
       localStorage.setItem("templateName", templateName);
       localStorage.setItem("templateDevices", JSON.stringify(devicesMeta));
+      localStorage.setItem("activeTemplateName", templateName);
+      localStorage.setItem("activeTemplateDevices", JSON.stringify(devicesMeta));
       loadedFromServer = true;
       const nameInput = document.getElementById("templateName");
       if (nameInput) nameInput.value = templateName;
@@ -456,6 +508,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Collect data
     const devicesMeta = {}; // hostname -> array of commands
+    const seenHostnames = new Set();
 
     deviceBlocks.forEach(block => {
       const hostname = block.querySelector(".hostname-input").value.trim();
@@ -464,6 +517,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         hasError = true;
         return;
       }
+      const hostnameKey = hostname.toLowerCase();
+      if (seenHostnames.has(hostnameKey)) {
+        alert(`Duplicate hostname "${hostname}" found. Each device must have a unique hostname.`);
+        hasError = true;
+        return;
+      }
+      seenHostnames.add(hostnameKey);
       
       const commands = [];
       const cmdRows = block.querySelectorAll(".command-item");
@@ -511,6 +571,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       localStorage.setItem("templateName", templateName);
       localStorage.setItem("templateDevices", JSON.stringify(devicesMeta));
+      localStorage.setItem("activeTemplateName", templateName);
+      localStorage.setItem("activeTemplateDevices", JSON.stringify(devicesMeta));
 
       const anyFileSelected = Array.from(document.querySelectorAll(".cmd-file")).some(
         (input) => input.files && input.files.length > 0

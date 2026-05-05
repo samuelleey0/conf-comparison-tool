@@ -324,18 +324,13 @@ function renderReport(report) {
   const items = report.items || [];
   const grouped = groupByHostname(items);
 
-  const configErrorCount = (summary.major || 0) + (summary.minor || 0);
-  const verifyDedupCount = summary.verify_deduplicated || 0;
-  const verifyFailedCount = summary.verify_failed || 0;
-
   panel.innerHTML = `
     <h2>${report.student_id}</h2>
     <p class="hint">Template: ${report.template_name || "Unknown"} • Mode: ${report.grading_mode || "strict"}</p>
     <div class="report-summary">
-      <div class="summary-box" data-filter="all"><strong>Scored Findings</strong><div>${configErrorCount}</div></div>
-      <div class="summary-box" data-filter="major"><strong>Major</strong><div>${summary.major || 0}</div></div>
-      <div class="summary-box" data-filter="minor"><strong>Minor</strong><div>${summary.minor || 0}</div></div>
-      <div class="summary-box" data-filter="verification"><strong>Verification</strong><div>${verifyDedupCount + verifyFailedCount}</div></div>
+      <div class="summary-box" data-filter="all"><strong>All Findings</strong><div>${(summary.major || 0) + (summary.minor || 0)}</div></div>
+      <div class="summary-box" data-filter="major"><strong>Major Errors</strong><div>${summary.major || 0}</div></div>
+      <div class="summary-box" data-filter="minor"><strong>Minor Errors</strong><div>${summary.minor || 0}</div></div>
     </div>
     <div class="report-details" id="reportDetails"></div>
   `;
@@ -360,52 +355,28 @@ function renderReport(report) {
 
   Object.keys(grouped).sort().forEach((hostname) => {
     const hostItems = grouped[hostname];
-
-    // Separate config and verification errors
-    let configErrors = hostItems.filter((i) => i.status !== "correct" && i.layer !== "verification");
-    let verificationErrors = hostItems.filter((i) => i.status !== "correct" && i.layer === "verification");
-
-    // Apply filters
+    let errors = hostItems.filter((i) => i.status !== "correct");
     if (currentFilter === "major") {
-      configErrors = configErrors.filter((i) => i.severity === "major");
-      verificationErrors = [];
+      errors = errors.filter((i) => i.severity === "major");
     } else if (currentFilter === "minor") {
-      configErrors = configErrors.filter((i) => (i.severity || "minor") === "minor");
-      verificationErrors = [];
-    } else if (currentFilter === "verification") {
-      configErrors = [];
-      // show all verification
+      errors = errors.filter((i) => (i.severity || "minor") === "minor");
     }
-
-    if (configErrors.length === 0 && verificationErrors.length === 0) return;
 
     const section = document.createElement("div");
     section.className = "report-section";
     section.innerHTML = `<h3>${hostname}</h3>`;
 
-    // --- Config Errors ---
-    if (configErrors.length > 0) {
-      const configDetails = document.createElement("details");
-      configDetails.open = true;
-      configDetails.innerHTML = `<summary>Config Errors (${configErrors.length})</summary>`;
-      configErrors.forEach((item) => {
-        configDetails.appendChild(_renderErrorItem(report, item, false));
-      });
-      section.appendChild(configDetails);
-    }
+    const errorDetails = document.createElement("details");
+    errorDetails.open = true;
+    errorDetails.innerHTML = `<summary>Errors (${errors.length})</summary>`;
+    errors.forEach((item) => {
+      const isVerification =
+        item.layer === "verification" || String(item.feature || "").startsWith("verification.");
+      const div = _renderErrorItem(report, item, isVerification);
+      errorDetails.appendChild(div);
+    });
 
-    // --- Verification ---
-    if (verificationErrors.length > 0) {
-      const verifyDetails = document.createElement("details");
-      verifyDetails.open = currentFilter === "verification";
-      verifyDetails.innerHTML = `<summary>Verification (${verificationErrors.length})</summary>`;
-      verificationErrors.forEach((item) => {
-        verifyDetails.appendChild(_renderErrorItem(report, item, true));
-      });
-      section.appendChild(verifyDetails);
-    }
-
-    section.appendChild(document.createElement("hr"));
+    section.appendChild(errorDetails);
     details.appendChild(section);
   });
 }
@@ -474,7 +445,6 @@ function _renderErrorItem(report, item, isVerification) {
   div.addEventListener("click", () => openErrorContext(report, item));
   return div;
 }
-
 async function runComparison() {
   const sessionPath = getSessionPath();
   if (!sessionPath) {

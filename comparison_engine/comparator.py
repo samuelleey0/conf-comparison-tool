@@ -415,6 +415,207 @@ def _classify_static_routes(static_routes):
     return default_routes, other_routes
 
 
+def _as_ipv4_address(value):
+    try:
+        return ipaddress.IPv4Address(str(value or "").strip())
+    except Exception:
+        return None
+
+
+def _as_ipv4_network(network, mask):
+    try:
+        return ipaddress.IPv4Network(
+            f"{str(network or '').strip()}/{str(mask or '').strip()}",
+            strict=False,
+        )
+    except Exception:
+        return None
+
+
+def _route_network_key(route):
+    if not isinstance(route, dict):
+        return None
+    network = str(route.get("network") or route.get("destination") or "").strip()
+    mask = str(route.get("mask") or "").strip()
+    if not network:
+        return None
+    if "/" in network:
+        try:
+            return str(ipaddress.IPv4Network(network, strict=False))
+        except Exception:
+            return network
+    if mask:
+        parsed = _as_ipv4_network(network, mask)
+        return str(parsed) if parsed else f"{network}/{mask}"
+    return network
+
+
+def _lookup_interface_config(interface_name, interfaces):
+    if not interface_name or not isinstance(interfaces, dict):
+        return None
+    wanted = str(interface_name).strip().lower()
+    for name, config in interfaces.items():
+        if str(name).strip().lower() == wanted:
+            return config if isinstance(config, dict) else None
+    return None
+
+
+def _interface_connected_network(interface_name, interfaces):
+    config = _lookup_interface_config(interface_name, interfaces)
+    if not config:
+        return None
+    ip = config.get("ip")
+    mask = config.get("mask")
+    if not ip or not mask:
+        return None
+    return _as_ipv4_network(ip, mask)
+
+
+def _static_route_next_hop_equivalent(
+    template_next_hop,
+    student_next_hop,
+    template_interfaces,
+    student_interfaces,
+):
+    """Treat an outgoing-interface static route as equivalent to an IP next hop
+    when the IP is reachable through that interface's connected subnet.
+    """
+    template_next = str(template_next_hop or "").strip()
+    student_next = str(student_next_hop or "").strip()
+    if template_next == student_next:
+        return True
+
+    template_ip = _as_ipv4_address(template_next)
+    student_ip = _as_ipv4_address(student_next)
+
+    if template_ip and student_ip:
+        return template_ip == student_ip
+
+    if not template_ip and student_ip:
+        for interfaces in (template_interfaces, student_interfaces):
+            network = _interface_connected_network(template_next, interfaces)
+            if network and student_ip in network:
+                return True
+
+    if template_ip and not student_ip:
+        for interfaces in (student_interfaces, template_interfaces):
+            network = _interface_connected_network(student_next, interfaces)
+            if network and template_ip in network:
+                return True
+
+    return False
+
+
+def _compare_static_route_lists(
+    template_routes,
+    student_routes,
+    template_interfaces,
+    student_interfaces,
+    full_key,
+):
+    template_routes = [r for r in (template_routes or []) if isinstance(r, dict)]
+    student_routes = [r for r in (student_routes or []) if isinstance(r, dict)]
+
+    if not template_routes and not student_routes:
+        return [_make_result(full_key, "correct")]
+    if template_routes and not student_routes:
+        return [
+            _make_result(
+                full_key,
+                "missing",
+                template_routes,
+                VALUE_NOT_PRESENT,
+                "MISSING_STATIC_ROUTE",
+            )
+        ]
+    if student_routes and not template_routes:
+        return [
+            _make_result(
+                full_key,
+                "extra",
+                None,
+                student_routes,
+                "EXTRA_STATIC_ROUTE",
+            )
+        ]
+
+    used_student_indexes = set()
+    next_hop_mismatches = []
+    missing_routes = []
+
+    for template_route in template_routes:
+        template_key = _route_network_key(template_route)
+        same_network_candidates = []
+        for idx, student_route in enumerate(student_routes):
+            if idx in used_student_indexes:
+                continue
+            if _route_network_key(student_route) == template_key:
+                same_network_candidates.append((idx, student_route))
+
+        matched_idx = None
+        for idx, student_route in same_network_candidates:
+            if _static_route_next_hop_equivalent(
+                template_route.get("next_hop"),
+                student_route.get("next_hop"),
+                template_interfaces,
+                student_interfaces,
+            ):
+                matched_idx = idx
+                break
+
+        if matched_idx is not None:
+            used_student_indexes.add(matched_idx)
+            continue
+
+        if same_network_candidates:
+            idx, student_route = same_network_candidates[0]
+            used_student_indexes.add(idx)
+            next_hop_mismatches.append(
+                {"expected": template_route, "actual": student_route}
+            )
+        else:
+            missing_routes.append(template_route)
+
+    extra_routes = [
+        route for idx, route in enumerate(student_routes) if idx not in used_student_indexes
+    ]
+
+    if not missing_routes and not extra_routes and not next_hop_mismatches:
+        return [_make_result(full_key, "correct")]
+
+    if missing_routes:
+        return [
+            _make_result(
+                full_key,
+                "missing",
+                missing_routes,
+                student_routes,
+                "MISSING_STATIC_ROUTE",
+            )
+        ]
+
+    if extra_routes:
+        return [
+            _make_result(
+                full_key,
+                "extra",
+                template_routes,
+                extra_routes,
+                "EXTRA_STATIC_ROUTE",
+            )
+        ]
+
+    return [
+        _make_result(
+            full_key,
+            "mismatch",
+            [item["expected"] for item in next_hop_mismatches],
+            [item["actual"] for item in next_hop_mismatches],
+            "MISMATCH_STATIC_ROUTE_NEXTHOP",
+        )
+    ]
+
+
 def _check_dhcp_excluded_conflicts(parsed_config):
     """Check if excluded IPs fall outside any configured DHCP pool range."""
     results = []
@@ -2127,17 +2328,33 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
             continue
 
         if not has_student_key:
-            results.append(
-                _make_result(
-                    full_key,
-                    "missing",
-                    t_val,
-                    VALUE_NOT_PRESENT,
-                    _verification_outcome_code_for_path(
-                        full_key, "missing", t_val, None
-                    ),
+            # For password_type fields (console/vty), emit human-readable labels
+            # instead of the raw Cisco type code ("0" = clear-text, "7" = encrypted).
+            if full_key.endswith(".password_type") and (
+                ".console." in full_key or ".vty." in full_key
+            ):
+                _pw_type_labels = {"0": "clear-text", "5": "MD5 secret", "7": "encrypted", "9": "scrypt"}
+                _t_label = _pw_type_labels.get(str(t_val), f"type {t_val}")
+                results.append(
+                    _make_result(
+                        full_key,
+                        "missing",
+                        f"password configured ({_t_label})",
+                        "no password configured",
+                    )
                 )
-            )
+            else:
+                results.append(
+                    _make_result(
+                        full_key,
+                        "missing",
+                        t_val,
+                        VALUE_NOT_PRESENT,
+                        _verification_outcome_code_for_path(
+                            full_key, "missing", t_val, None
+                        ),
+                    )
+                )
         elif full_key.endswith("banner_motd"):
             # Banner content is not graded by exact string; only presence matters.
             if t_val is None and s_val is None:
@@ -2320,6 +2537,22 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
             if full_key.endswith("show_running_config.routing") and isinstance(
                 s_val, dict
             ):
+                t_static_routes = t_val.get("static_routes") or []
+                s_static_routes = s_val.get("static_routes") or []
+                results.extend(
+                    _compare_static_route_lists(
+                        t_static_routes,
+                        s_static_routes,
+                        template.get("interfaces") or {},
+                        student.get("interfaces") or {},
+                        f"{full_key}.static_routes",
+                    )
+                )
+                t_val = dict(t_val)
+                s_val = dict(s_val)
+                t_val.pop("static_routes", None)
+                s_val.pop("static_routes", None)
+
                 t_protocols = {
                     k
                     for k, v in t_val.items()
