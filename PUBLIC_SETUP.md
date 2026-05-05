@@ -5,7 +5,7 @@ It supports communication with Cisco switches/routers via SSH or Serial (USB-C/U
 
 # Public Installation and Setup Guide
 
-This guide is for users who want to install and run the Automated Cisco Marking System from the public repository.
+This guide is for users who want to install and run the Automated Cisco Configuration & Marking System from the public repository.
 
 The tool provides a desktop GUI for collecting Cisco device command output over Serial or SSH, saving logs into organized folders, comparing configurations against templates, and producing grading results.
 
