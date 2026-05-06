@@ -340,8 +340,9 @@
       <div class="page-card-content">
         <p style="margin-bottom: 12px;">After collecting student data, the system can export and format configurations into a structured directory for comparative analysis. This process:</p>
         <ul class="info-list">
-          <li>Organizes all student configuration files into <strong>comparison_engine/students</strong></li>
-          <li>Generates standardized metadata files (options.ini, exam_info.toml, solutions.toml)</li>
+          <li>Organizes each student's configuration files into <strong>comparison_engine/students/studentID</strong></li>
+          <li>Generates metadata files (exam_info.toml, options.ini, solutions.toml) for each student</li>
+          <li>Stores execution logs in <strong>studentID/hostname</strong> subdirectories for organization and traceability</li>
           <li>Prepares data for the comparison engine to analyze configurations</li>
           <li>Enables batch analysis and detailed comparison reports</li>
         </ul>
@@ -351,7 +352,7 @@
     <div class="page-card">
       <div class="page-card-title">📂 Directory Structure Format</div>
       <div class="page-card-content">
-        <div class="code-block">comparison_engine/students/<br/>├── exam_info.toml<br/>├── options.ini<br/>├── solutions.toml<br/>├── student_001/<br/>│   ├── sh_run.txt<br/>│   ├── sh_ip_int_brief.txt<br/>│   └── ... (other config files)<br/>├── student_002/<br/>│   └── ... (config files)<br/>└── ...</div>
+        <div class="code-block">comparison_engine/students/<br/>├── student_001/<br/>│&nbsp;&nbsp;&nbsp;├── exam_info.toml<br/>│&nbsp;&nbsp;&nbsp;├── options.ini<br/>│&nbsp;&nbsp;&nbsp;├── solutions.toml<br/>│&nbsp;&nbsp;&nbsp;└── hostname/<br/>│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── sh_run.txt<br/>│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── sh_ip_int_brief.txt<br/>│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── ... (execution logs files)<br/>├── student_002/<br/>│&nbsp;&nbsp;&nbsp;├── exam_info.toml<br/>│&nbsp;&nbsp;&nbsp;├── options.ini<br/>│&nbsp;&nbsp;&nbsp;├── solutions.toml<br/>│&nbsp;&nbsp;&nbsp;└── hostname/<br/>│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── sh_run.txt<br/>│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── sh_ip_int_brief.txt<br/>│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── ... (execution logs files)<br/>└── ...</div>
       </div>
     </div>
 
@@ -359,18 +360,23 @@
       <div class="page-card-title">📋 Generated Files Explained</div>
       <div class="page-card-content">
         <div class="file-description">
-          <div class="file-description-title">exam_info.toml</div>
-          <div class="file-description-text">Contains exam metadata including exam name, date, tutor information, time slot, and list of all participating students. Used by the comparison engine to validate data integrity.</div>
+          <div class="file-description-title">exam_info.toml (per student)</div>
+          <div class="file-description-text">Contains exam metadata including exam name, rubrics (Major_Minor with maximum points and penalty values), and option scheme. Extracted from exam_config.toml to maintain exam context for each student's grading session.</div>
         </div>
         
         <div class="file-description">
-          <div class="file-description-title">options.ini</div>
-          <div class="file-description-text">Stores configuration options for the comparison process, including comparison rules, enabled features, parsing parameters, and output preferences. Can be customized for different analysis requirements.</div>
+          <div class="file-description-title">options.ini (per student)</div>
+          <div class="file-description-text">Stores the student scheme configuration (e.g., scheme = B). Defines the specific grading scheme and marking rules applied to that student's configuration evaluation.</div>
         </div>
         
         <div class="file-description">
-          <div class="file-description-title">solutions.toml</div>
-          <div class="file-description-text">Contains the reference solution configuration and expected outputs. The comparison engine uses this to evaluate how closely each student's configuration matches the standard solution.</div>
+          <div class="file-description-title">solutions.toml (per student)</div>
+          <div class="file-description-text">Comprehensive reference solution file containing exam details (name, semester, unitcode, shortname), device information (device names, types such as Switch/Router), commands executed on each device, collection settings (data_source, parallel execution, timeout), and rubric definitions. Used as the baseline for marking student configurations.</div>
+        </div>
+        
+        <div class="file-description">
+          <div class="file-description-title">hostname/ (logs directory)</div>
+          <div class="file-description-text">Execution logs are organized by hostname within each student's folder, containing sh_run.txt, sh_ip_int_brief.txt, and other command outputs. Maintains a clear audit trail of execution history and device interactions.</div>
         </div>
       </div>
     </div>
