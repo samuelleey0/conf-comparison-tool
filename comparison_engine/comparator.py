@@ -2176,6 +2176,69 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
             return False  # Don't skip — we compare these
         return False
 
+    def _dhcp_pool_match_key(name):
+        text = re.sub(r"[^a-z0-9]+", "", str(name or "").strip().lower())
+        if text.endswith("s"):
+            text = text[:-1]
+        return text
+
+    if parent_key.endswith("dhcp_pools") and isinstance(template, dict) and isinstance(student, dict):
+        t_by_norm = {_dhcp_pool_match_key(name): name for name in template.keys()}
+        s_by_norm = {_dhcp_pool_match_key(name): name for name in student.keys()}
+        common_pools = sorted(t_by_norm.keys() & s_by_norm.keys())
+
+        for norm_name in common_pools:
+            t_name = t_by_norm[norm_name]
+            s_name = s_by_norm[norm_name]
+            pool_key = f"{parent_key}.{t_name}"
+            t_pool = template.get(t_name)
+            s_pool = student.get(s_name)
+            if isinstance(t_pool, dict) and isinstance(s_pool, dict):
+                results.extend(compare_dicts(t_pool, s_pool, pool_key))
+            elif t_pool == s_pool:
+                results.append(_make_result(pool_key, "correct"))
+            else:
+                results.append(
+                    _make_result(
+                        pool_key,
+                        "mismatch",
+                        t_pool,
+                        s_pool,
+                        "MISMATCH_DHCP_POOL",
+                    )
+                )
+
+        for norm_name in sorted(t_by_norm.keys() - s_by_norm.keys()):
+            t_name = t_by_norm[norm_name]
+            t_pool = template.get(t_name)
+            if _iface_has_config(t_pool):
+                missing_key = f"{parent_key}.{t_name}"
+                results.append(
+                    _make_result(
+                        missing_key,
+                        "missing",
+                        t_pool,
+                        VALUE_NOT_PRESENT,
+                        "MISSING_DHCP_POOL",
+                    )
+                )
+
+        for norm_name in sorted(s_by_norm.keys() - t_by_norm.keys()):
+            s_name = s_by_norm[norm_name]
+            s_pool = student.get(s_name)
+            if _iface_has_config(s_pool):
+                extra_key = f"{parent_key}.{s_name}"
+                results.append(
+                    _make_result(
+                        extra_key,
+                        "extra",
+                        None,
+                        s_pool,
+                        "EXTRA_DHCP_POOL",
+                    )
+                )
+        return results
+
     # ── Top-level intelligent analysis passes ──
     # These only run at the root level (no parent_key)
     if not parent_key:
@@ -2390,6 +2453,63 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                 )
             )
         elif isinstance(t_val, dict):
+            if full_key.endswith("dhcp_pools") and isinstance(s_val, dict):
+                t_by_norm = {_dhcp_pool_match_key(name): name for name in t_val.keys()}
+                s_by_norm = {_dhcp_pool_match_key(name): name for name in s_val.keys()}
+                common_pools = sorted(t_by_norm.keys() & s_by_norm.keys())
+
+                for norm_name in common_pools:
+                    t_name = t_by_norm[norm_name]
+                    s_name = s_by_norm[norm_name]
+                    pool_key = f"{full_key}.{t_name}"
+                    t_pool = t_val.get(t_name)
+                    s_pool = s_val.get(s_name)
+                    if isinstance(t_pool, dict) and isinstance(s_pool, dict):
+                        results.extend(compare_dicts(t_pool, s_pool, pool_key))
+                    elif t_pool == s_pool:
+                        results.append(_make_result(pool_key, "correct"))
+                    else:
+                        results.append(
+                            _make_result(
+                                pool_key,
+                                "mismatch",
+                                t_pool,
+                                s_pool,
+                                "MISMATCH_DHCP_POOL",
+                            )
+                        )
+
+                for norm_name in sorted(t_by_norm.keys() - s_by_norm.keys()):
+                    t_name = t_by_norm[norm_name]
+                    t_pool = t_val.get(t_name)
+                    if _iface_has_config(t_pool):
+                        missing_key = f"{full_key}.{t_name}"
+                        results.append(
+                            _make_result(
+                                missing_key,
+                                "missing",
+                                t_pool,
+                                VALUE_NOT_PRESENT,
+                                "MISSING_DHCP_POOL",
+                            )
+                        )
+
+                for norm_name in sorted(s_by_norm.keys() - t_by_norm.keys()):
+                    s_name = s_by_norm[norm_name]
+                    s_pool = s_val.get(s_name)
+                    if _iface_has_config(s_pool):
+                        extra_key = f"{full_key}.{s_name}"
+                        results.append(
+                            _make_result(
+                                extra_key,
+                                "extra",
+                                None,
+                                s_pool,
+                                "EXTRA_DHCP_POOL",
+                            )
+                        )
+                continue
+
             # Hardware models can expose different interface sets.
             # Compare only interfaces present on both sides.
             if full_key.endswith("interfaces") and isinstance(s_val, dict):
