@@ -658,7 +658,6 @@ async function handleUseExistingDirectory() {
       data.path,
       `${data.classroom}/${data.tutor_name}/${data.time_slot}/${data.student_id}`
     );
-    alert(data.message);
     goTo("connection.html");
   } catch (err) {
     console.error(err);
