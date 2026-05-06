@@ -222,6 +222,112 @@ function showConnectionPrompt({
   });
 }
 
+function getSelectedConnectionMode() {
+  return document.querySelector('input[name="connType"]:checked')?.value || "serial";
+}
+
+function readSshCredentialCache() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("sshDeviceCredentials") || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function showSshDevicePrompt(hostname) {
+  return new Promise((resolve) => {
+    const cache = readSshCredentialCache();
+    const deviceCreds = cache[hostname] || {};
+    const hostValue = deviceCreds.host || localStorage.getItem("sshHost") || "";
+    const userValue = deviceCreds.username || localStorage.getItem("sshUser") || "";
+    const portValue = deviceCreds.port || localStorage.getItem("sshPort") || "22";
+
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay connection-confirm-modal";
+    overlay.innerHTML = `
+      <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="sshPromptTitle">
+        <div class="modal-header">
+          <h3 id="sshPromptTitle">SSH Details For ${escapeConnectionPromptText(hostname)}</h3>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="sshPromptHost">IP Address / Host</label>
+            <input type="text" id="sshPromptHost" value="${escapeConnectionPromptText(hostValue)}" placeholder="192.168.1.1" />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="sshPromptUser">Username</label>
+              <input type="text" id="sshPromptUser" value="${escapeConnectionPromptText(userValue)}" placeholder="admin" />
+            </div>
+            <div class="form-group">
+              <label for="sshPromptPort">Port</label>
+              <input type="text" id="sshPromptPort" value="${escapeConnectionPromptText(portValue)}" placeholder="22" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="sshPromptPass">Password</label>
+            <input type="password" id="sshPromptPass" placeholder="Password" />
+          </div>
+          <p class="hint" id="sshPromptError" style="display:none;color:var(--color-danger);margin:0;"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="secondary" data-action="cancel">Cancel</button>
+          <button type="button" class="primary" data-action="confirm">Start Collection</button>
+        </div>
+      </div>
+    `;
+
+    const finish = (value) => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+      overlay.remove();
+      resolve(value);
+    };
+
+    const confirm = () => {
+      const host = overlay.querySelector("#sshPromptHost")?.value.trim() || "";
+      const username = overlay.querySelector("#sshPromptUser")?.value.trim() || "";
+      const password = overlay.querySelector("#sshPromptPass")?.value || "";
+      const port = overlay.querySelector("#sshPromptPort")?.value.trim() || "22";
+      const error = overlay.querySelector("#sshPromptError");
+      if (!host || !username || !password) {
+        if (error) {
+          error.textContent = "IP address, username, and password are required.";
+          error.style.display = "block";
+        }
+        return;
+      }
+      cache[hostname] = { host, username, port };
+      localStorage.setItem("sshDeviceCredentials", JSON.stringify(cache));
+      localStorage.setItem("sshHost", host);
+      localStorage.setItem("sshUser", username);
+      localStorage.removeItem("sshPass");
+      localStorage.setItem("sshPort", port);
+      finish({ host, username, password, port });
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        confirm();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        finish(null);
+      }
+    };
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) finish(null);
+    });
+    overlay.querySelector('[data-action="cancel"]')?.addEventListener("click", () => finish(null));
+    overlay.querySelector('[data-action="confirm"]')?.addEventListener("click", confirm);
+
+    document.body.appendChild(overlay);
+    document.addEventListener("keydown", handleKeyDown, true);
+    setTimeout(() => overlay.querySelector("#sshPromptHost")?.focus(), 0);
+  });
+}
+
 function setupConnectionKeyboardShortcuts() {
   document.addEventListener("keydown", (event) => {
     if (event.defaultPrevented) return;
@@ -657,8 +763,9 @@ async function runNextDeviceInQueue() {
   const currentDevice = executionQueue[currentQueueIndex];
   const row = document.getElementById(`q-${currentDevice.hostname}`);
   const badge = row.querySelector(".q-badge");
+  const connectionMode = getSelectedConnectionMode();
 
-  badge.textContent = "PLUG IN NOW";
+  badge.textContent = connectionMode === "ssh" ? "SSH DETAILS" : "PLUG IN NOW";
   badge.style.color = "#ff9800"; // Orange attention
   row.style.borderColor = "#ff9800";
   row.style.backgroundColor = "rgba(255, 152, 0, 0.05)";
@@ -667,18 +774,30 @@ async function runNextDeviceInQueue() {
   localStorage.setItem("connectedHostname", currentDevice.hostname);
   setStoredCommandsFromDevice(currentDevice.hostname);
 
-  // Require operator confirmation before running the next device
-  const proceed = await showConnectionPrompt({
-    title: "Ready For Next Device",
-    message: `Plug in ${currentDevice.hostname}, then press Enter to start collecting logs.`,
-    confirmText: "Start Collection",
-  });
-  if (!proceed) {
-    badge.textContent = "WAITING";
-    badge.style.color = "var(--color-muted)";
-    document.getElementById("startSequenceBtn").disabled = false;
-    isSequenceRunning = false;
-    return;
+  let sshDetailsForCurrentRun = null;
+  if (connectionMode === "ssh") {
+    sshDetailsForCurrentRun = await showSshDevicePrompt(currentDevice.hostname);
+    if (!sshDetailsForCurrentRun) {
+      badge.textContent = "WAITING";
+      badge.style.color = "var(--color-muted)";
+      document.getElementById("startSequenceBtn").disabled = false;
+      isSequenceRunning = false;
+      return;
+    }
+  } else {
+    // Require operator confirmation before running the next serial device
+    const proceed = await showConnectionPrompt({
+      title: "Ready For Next Device",
+      message: `Plug in ${currentDevice.hostname}, then press Enter to start collecting logs.`,
+      confirmText: "Start Collection",
+    });
+    if (!proceed) {
+      badge.textContent = "WAITING";
+      badge.style.color = "var(--color-muted)";
+      document.getElementById("startSequenceBtn").disabled = false;
+      isSequenceRunning = false;
+      return;
+    }
   }
 
   // Run commands directly (do not pre-connect; /api/execute manages serial)
@@ -709,8 +828,8 @@ async function runNextDeviceInQueue() {
            }
          }
          const payload = {
-           mode: document.querySelector('input[name="connType"]:checked')?.value || "serial",
-           connection: document.querySelector('input[name="connType"]:checked')?.value || "serial",
+           mode: connectionMode,
+           connection: connectionMode,
            deviceId: currentDevice.hostname,
            commands: currentDevice.commands,
            classroom: classroom || "unknown",
@@ -728,22 +847,11 @@ async function runNextDeviceInQueue() {
            payload.log_dir = basePath;
          }
          if (payload.mode === "ssh") {
-           const sshHost = document.getElementById("sshHost")?.value.trim() || "";
-           const sshUser = document.getElementById("sshUser")?.value.trim() || "";
-           const sshPass = document.getElementById("sshPass")?.value || "";
-           const sshPort = document.getElementById("sshPort")?.value.trim() || "22";
-           if (!sshHost || !sshUser || !sshPass) {
-             throw new Error("Please enter SSH host, username, and password.");
-           }
-           localStorage.setItem("sshHost", sshHost);
-           localStorage.setItem("sshUser", sshUser);
-           localStorage.setItem("sshPass", sshPass);
-           localStorage.setItem("sshPort", sshPort);
            payload.ssh = {
-             host: sshHost,
-             username: sshUser,
-             password: sshPass,
-             port: sshPort,
+             host: sshDetailsForCurrentRun.host,
+             username: sshDetailsForCurrentRun.username,
+             password: sshDetailsForCurrentRun.password,
+             port: sshDetailsForCurrentRun.port,
            };
          } else {
            const portInput = document.getElementById("serialPort");

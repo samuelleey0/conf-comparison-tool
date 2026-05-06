@@ -1,8 +1,0 @@
-
-Extended IP access list NATACLVLAN11
-    10 permit ip 192.168.11.0 0.0.0.255 any (33 matches)
-Extended IP access list NATACLVLAN21
-    10 permit ip 192.168.21.0 0.0.0.127 any (36 matches)
-Extended IP access list NATACLVLAN3
-    10 permit ip 192.168.3.192 0.0.0.15 any (1 match)
-GATE#
