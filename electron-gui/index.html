@@ -528,33 +528,33 @@
                                     <input type="file" id="bulkFile" accept=".csv,.txt,.xlsx,.xls" required />
                                 </div>
                             </div>
-                            <p class="dir-hint">
-                                Enable <strong>Title row</strong> if row 1 is a title such as
-                                <code>Active Student Listing</code>. Enable <strong>Header row</strong>
-                                if the next row contains labels like <code>Student Number</code> and
-                                <code>Student Name</code>. Enable <strong>Number column</strong> if
-                                column 1 is only a row number.
-                            </p>
+                            <div class="dir-hint">
+                                These switches are on by default for exported student-list files that include a title row, column labels, and row numbers.
+                                <ul style="margin:8px 0 0 18px; padding:0;">
+                                    <li><strong>Title row?</strong> Turn on when the first row is only a report title, for example <code>Active Student Listing</code>. That row will be skipped.</li>
+                                    <li><strong>Header row?</strong> Turn on when the next row contains column labels, for example <code>Student Number</code> and <code>Student Name</code>. That row will be skipped.</li>
+                                    <li><strong>Number column?</strong> Turn on when the first column is only row numbering such as <code>1, 2, 3</code>. Student ID will be read from the next column.</li>
+                                </ul>
+                            </div>
                             <div class="dir-toggles">
                                 <label class="toggle-chip">
-                                    <input type="checkbox" id="bulkHasTitle" />
+                                    <input type="checkbox" id="bulkHasTitle" checked />
                                     <span class="toggle-track"></span>
                                     <span class="toggle-text">Title row?</span>
                                 </label>
                                 <label class="toggle-chip">
-                                    <input type="checkbox" id="bulkHasHeader" />
+                                    <input type="checkbox" id="bulkHasHeader" checked />
                                     <span class="toggle-track"></span>
                                     <span class="toggle-text">Header row?</span>
                                 </label>
                                 <label class="toggle-chip">
-                                    <input type="checkbox" id="bulkHasNumber" />
+                                    <input type="checkbox" id="bulkHasNumber" checked />
                                     <span class="toggle-track"></span>
                                     <span class="toggle-text">Number column?</span>
                                 </label>
                             </div>
                             <p class="dir-hint">
-                                Default with all switches off: column 1 = student ID,
-                                column 2 = student name.
+                                If your file already starts with student data, turn these switches off. With all switches off, the importer reads column 1 as Student ID and column 2 as Student Name.
                             </p>
                             <div class="actions justify-end" style="margin-top:20px;">
                                 <button type="submit" id="bulk-create-btn" class="primary">
