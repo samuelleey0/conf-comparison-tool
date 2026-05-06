@@ -197,6 +197,7 @@ body.sidebar-collapsed .app-navbar__label {
   transform: translateX(-8px);
   width: 0;
   overflow: hidden;
+  display: none;
 }
 
 @media (max-width: 900px) {

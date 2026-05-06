@@ -16,104 +16,102 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background: #f5f7fa;
+      background: var(--color-bg, #eef1f7);
       min-height: 100vh;
     }
 
-    .container {
-      display: flex;
-      min-height: 100vh;
-    }
-
-    .content {
-      flex: 1;
-      padding: 60px 40px;
-      overflow-y: auto;
-      max-width: 900px;
+    .page-shell {
+      max-width: 1400px;
       margin: 0 auto;
+      padding: 48px 56px 64px;
     }
 
-    .guide-header {
-      margin-bottom: 60px;
-      text-align: center;
+    .page-header {
+      margin-bottom: 48px;
     }
 
-    .guide-title {
-      font-size: 2.2rem;
+    .page-title {
+      font-size: 2rem;
       font-weight: 800;
-      color: #1a202c;
+      color: var(--color-primary, #1f3b73);
       margin-bottom: 12px;
       letter-spacing: -0.02em;
     }
 
-    .guide-intro {
+    .page-subtitle {
       font-size: 1rem;
       color: #718096;
       line-height: 1.6;
-      max-width: 600px;
-      margin: 0 auto;
     }
 
     .workflow-container {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 40px;
-      margin-bottom: 60px;
+      gap: 20px;
+      margin-bottom: 48px;
     }
 
     .workflow-step {
       display: grid;
-      grid-template-columns: 80px 1fr;
-      gap: 24px;
-      padding: 24px;
+      grid-template-columns: 1fr;
+      padding: 32px 36px;
       background: white;
-      border-radius: 12px;
-      border: 1px solid #e2e8f0;
-      transition: box-shadow 0.3s ease, transform 0.3s ease;
+      border: 1px solid #d7dae3;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      transition: box-shadow 0.3s ease, border-color 0.3s ease;
     }
 
     .workflow-step:hover {
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(31, 59, 115, 0.08);
+      border-color: var(--color-primary, #1f3b73);
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
     }
 
     .step-number {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 80px;
-      height: 80px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      width: 48px;
+      height: 48px;
+      background: var(--color-primary, #1f3b73);
       color: white;
       font-weight: 800;
-      font-size: 2rem;
-      border-radius: 12px;
+      font-size: 1.3rem;
+      border-radius: 4px;
       flex-shrink: 0;
     }
 
-    .step-content h3 {
-      font-size: 1.3rem;
+    .step-title {
+      font-size: 1.1rem;
       font-weight: 700;
-      color: #1a202c;
-      margin-bottom: 8px;
+      color: var(--color-primary, #1f3b73);
     }
 
     .step-content p {
       font-size: 0.95rem;
       color: #4a5568;
       line-height: 1.6;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
     }
 
     .step-checklist {
       list-style: none;
-      margin: 12px 0 0 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
     }
 
     .step-checklist li {
       font-size: 0.9rem;
-      color: #718096;
-      padding: 6px 0 6px 24px;
+      color: #4a5568;
+      padding: 8px 0 8px 24px;
       position: relative;
       line-height: 1.5;
     }
@@ -122,134 +120,129 @@
       content: "✓";
       position: absolute;
       left: 0;
-      color: #48bb78;
+      color: var(--color-accent, #0a5cbb);
       font-weight: 700;
     }
 
-    .info-section {
-      background: #edf2f7;
-      border-left: 4px solid #667eea;
-      padding: 20px;
-      border-radius: 8px;
-      margin-bottom: 30px;
+    .page-card {
+      padding: 32px 36px;
+      background: white;
+      border: 1px solid #d7dae3;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      margin-bottom: 20px;
     }
 
-    .info-section-title {
+    .page-card-title {
+      font-size: 1.1rem;
       font-weight: 700;
-      color: #1a202c;
-      margin-bottom: 8px;
+      color: var(--color-primary, #1f3b73);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .page-card-content {
       font-size: 0.95rem;
-    }
-
-    .info-section-text {
-      font-size: 0.9rem;
       color: #4a5568;
       line-height: 1.6;
     }
 
-    .tools-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-      margin: 30px 0;
+    .info-list {
+      list-style: disc;
+      margin-left: 20px;
+      color: #4a5568;
+      font-size: 0.9rem;
     }
 
-    .tool-item {
-      padding: 20px;
-      background: white;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      text-align: center;
-      transition: all 0.3s ease;
-    }
-
-    .tool-item:hover {
-      border-color: #667eea;
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
-    }
-
-    .tool-item-title {
-      font-weight: 700;
-      color: #1a202c;
+    .info-list li {
       margin-bottom: 8px;
-      font-size: 0.95rem;
-    }
-
-    .tool-item-text {
-      font-size: 0.85rem;
-      color: #718096;
       line-height: 1.5;
     }
 
-    .tips-section {
-      background: white;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 32px;
-      margin-top: 40px;
+    .code-block {
+      background: #f5f7fa;
+      padding: 16px;
+      border-radius: 4px;
+      font-family: "Courier New", monospace;
+      font-size: 0.85rem;
+      overflow-x: auto;
+      color: #1b2646;
+      margin: 16px 0;
+      line-height: 1.6;
     }
 
-    .tips-title {
-      font-size: 1.3rem;
+    .file-description {
+      margin-bottom: 16px;
+    }
+
+    .file-description-title {
       font-weight: 700;
-      color: #1a202c;
-      margin-bottom: 20px;
+      color: var(--color-primary, #1f3b73);
+      margin-bottom: 6px;
+      font-size: 0.95rem;
+    }
+
+    .file-description-text {
+      font-size: 0.9rem;
+      color: #4a5568;
+      line-height: 1.5;
+      margin-left: 12px;
+      border-left: 3px solid #d7dae3;
+      padding-left: 12px;
     }
 
     .tips-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 20px;
+      margin-top: 20px;
     }
 
     .tip-card {
-      padding: 16px;
-      background: #f7fafc;
-      border-left: 3px solid #48bb78;
+      padding: 20px 24px;
+      background: #f5f7fa;
+      border-left: 3px solid var(--color-accent, #0a5cbb);
       border-radius: 4px;
     }
 
-    .tip-card strong {
-      color: #1a202c;
+    .tip-card-title {
+      color: var(--color-primary, #1f3b73);
       font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 8px;
     }
 
-    .tip-card p {
+    .tip-card-text {
       font-size: 0.9rem;
       color: #4a5568;
-      margin-top: 6px;
       line-height: 1.5;
     }
 
     .footer-section {
       text-align: center;
-      margin-top: 60px;
-      padding-top: 30px;
-      border-top: 1px solid #e2e8f0;
+      margin-top: 48px;
+      padding-top: 32px;
+      border-top: 1px solid #d7dae3;
       color: #718096;
       font-size: 0.9rem;
     }
 
     @media (max-width: 768px) {
-      .content {
-        padding: 30px 20px;
+      .page-shell {
+        padding: 32px 20px 48px;
       }
 
-      .guide-title {
-        font-size: 1.8rem;
+      .page-title {
+        font-size: 1.6rem;
       }
 
-      .workflow-step {
+      .step-checklist {
         grid-template-columns: 1fr;
       }
 
-      .step-number {
-        width: 60px;
-        height: 60px;
-        font-size: 1.5rem;
-      }
-
-      .tools-grid {
+      .tips-grid {
         grid-template-columns: 1fr;
       }
     }
@@ -257,102 +250,177 @@
 </head>
 
 <body>
-  <div class="container">
-    <nav class="app-navbar"></nav>
-    <div class="content">
-      <div class="guide-header">
-        <h1 class="guide-title">Quick Guide</h1>
-        <p class="guide-intro">Follow these simple steps to get started with the Automated Cisco Configuration & Marking System.</p>
-      </div>
+  <nav class="app-navbar"></nav>
+  
+  <div class="page-shell">
+    <div class="page-header">
+      <h1 class="page-title">Quick Guide</h1>
+      <p class="page-subtitle">Follow these simple steps to get started with the Automated Cisco Configuration & Marking System.</p>
+    </div>
 
-      <div class="workflow-container">
-        <div class="workflow-step">
+    <div class="workflow-container">
+      <div class="workflow-step">
+        <div class="step-header">
           <div class="step-number">1</div>
-          <div class="step-content">
-            <h3>Device Setup</h3>
-            <p>Prepare your Cisco device and establish a baseline configuration.</p>
-            <ul class="step-checklist">
-              <li>Connect via Serial or SSH</li>
-              <li>Verify device responsiveness</li>
-              <li>Create baseline snapshot</li>
-              <li>Confirm setup complete</li>
-            </ul>
-          </div>
+          <div class="step-title">Device Setup</div>
         </div>
+        <p class="step-content">Prepare your Cisco device and establish a baseline configuration.</p>
+        <ul class="step-checklist">
+          <li>Connect via Serial or SSH</li>
+          <li>Verify device responsiveness</li>
+          <li>Create baseline snapshot</li>
+          <li>Confirm setup complete</li>
+        </ul>
+      </div>
 
-        <div class="workflow-step">
+      <div class="workflow-step">
+        <div class="step-header">
           <div class="step-number">2</div>
-          <div class="step-content">
-            <h3>Create Directory</h3>
-            <p>Set up the workspace for storing student files and session data.</p>
-            <ul class="step-checklist">
-              <li>Enter exam name</li>
-              <li>Specify tutor/classroom</li>
-              <li>Set time slot</li>
-              <li>Add student ID</li>
-            </ul>
-          </div>
+          <div class="step-title">Create Directory</div>
         </div>
+        <p class="step-content">Set up the workspace for storing student files and session data.</p>
+        <ul class="step-checklist">
+          <li>Enter exam name</li>
+          <li>Specify tutor/classroom</li>
+          <li>Set time slot</li>
+          <li>Add student ID</li>
+        </ul>
+      </div>
 
-        <div class="workflow-step">
+      <div class="workflow-step">
+        <div class="step-header">
           <div class="step-number">3</div>
-          <div class="step-content">
-            <h3>Run Connection</h3>
-            <p>Execute the grading workflow and collect student configuration data.</p>
-            <ul class="step-checklist">
-              <li>Select connection method</li>
-              <li>Configure parameters</li>
-              <li>Start execution</li>
-              <li>Monitor progress</li>
-            </ul>
-          </div>
+          <div class="step-title">Run Connection</div>
         </div>
+        <p class="step-content">Execute the grading workflow and collect student configuration data.</p>
+        <ul class="step-checklist">
+          <li>Select connection method</li>
+          <li>Configure parameters</li>
+          <li>Start execution</li>
+          <li>Monitor progress</li>
+        </ul>
+      </div>
 
-        <div class="workflow-step">
+      <div class="workflow-step">
+        <div class="step-header">
           <div class="step-number">4</div>
-          <div class="step-content">
-            <h3>Review Results</h3>
-            <p>Examine marks, collected data, and execution logs.</p>
-            <ul class="step-checklist">
-              <li>View overall marks</li>
-              <li>Review config files</li>
-              <li>Check execution logs</li>
-              <li>Download results</li>
-            </ul>
-          </div>
+          <div class="step-title">Review Results</div>
+        </div>
+        <p class="step-content">Examine marks, collected data, and execution logs.</p>
+        <ul class="step-checklist">
+          <li>View overall marks</li>
+          <li>Review config files</li>
+          <li>Check execution logs</li>
+          <li>Download results</li>
+        </ul>
+      </div>
+
+      <div class="workflow-step">
+        <div class="step-header">
+          <div class="step-number">5</div>
+          <div class="step-title">Export & Format Data</div>
+        </div>
+        <p class="step-content">Prepare and organize student configurations for comparison and analysis.</p>
+        <ul class="step-checklist">
+          <li>Access System Admin panel</li>
+          <li>Run export/format process</li>
+          <li>Verify directory structure</li>
+          <li>Confirm file generation</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="page-card">
+      <div class="page-card-title">📁 Data Storage</div>
+      <div class="page-card-content">All student data and results are stored in <strong>D:\Documents</strong> organized by exam, tutor, time slot, and student ID.</div>
+    </div>
+
+    <div class="page-card">
+      <div class="page-card-title">📊 Understanding the Export & Format Process</div>
+      <div class="page-card-content">
+        <p style="margin-bottom: 12px;">After collecting student data, the system can export and format configurations into a structured directory for comparative analysis. This process:</p>
+        <ul class="info-list">
+          <li>Organizes all student configuration files into <strong>comparison_engine/students</strong></li>
+          <li>Generates standardized metadata files (options.ini, exam_info.toml, solutions.toml)</li>
+          <li>Prepares data for the comparison engine to analyze configurations</li>
+          <li>Enables batch analysis and detailed comparison reports</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="page-card">
+      <div class="page-card-title">📂 Directory Structure Format</div>
+      <div class="page-card-content">
+        <div class="code-block">comparison_engine/students/<br/>├── exam_info.toml<br/>├── options.ini<br/>├── solutions.toml<br/>├── student_001/<br/>│   ├── sh_run.txt<br/>│   ├── sh_ip_int_brief.txt<br/>│   └── ... (other config files)<br/>├── student_002/<br/>│   └── ... (config files)<br/>└── ...</div>
+      </div>
+    </div>
+
+    <div class="page-card">
+      <div class="page-card-title">📋 Generated Files Explained</div>
+      <div class="page-card-content">
+        <div class="file-description">
+          <div class="file-description-title">exam_info.toml</div>
+          <div class="file-description-text">Contains exam metadata including exam name, date, tutor information, time slot, and list of all participating students. Used by the comparison engine to validate data integrity.</div>
+        </div>
+        
+        <div class="file-description">
+          <div class="file-description-title">options.ini</div>
+          <div class="file-description-text">Stores configuration options for the comparison process, including comparison rules, enabled features, parsing parameters, and output preferences. Can be customized for different analysis requirements.</div>
+        </div>
+        
+        <div class="file-description">
+          <div class="file-description-title">solutions.toml</div>
+          <div class="file-description-text">Contains the reference solution configuration and expected outputs. The comparison engine uses this to evaluate how closely each student's configuration matches the standard solution.</div>
         </div>
       </div>
+    </div>
 
-      <div class="info-section">
-        <div class="info-section-title">📁 Data Storage</div>
-        <div class="info-section-text">All student data and results are stored in <strong>D:\Documents</strong> organized by exam, tutor, time slot, and student ID.</div>
+    <div class="page-card">
+      <div class="page-card-title">⏰ When to Run Export & Format</div>
+      <div class="page-card-content">
+        <p style="margin-bottom: 12px;"><strong>Ideal Timing:</strong></p>
+        <ul class="info-list">
+          <li><strong>After all students complete</strong> - Once all student executions are finished and data is collected</li>
+          <li><strong>Before detailed analysis</strong> - When you need comparative insights beyond individual grading</li>
+          <li><strong>Before batch processing</strong> - If you plan to process multiple exams or run advanced reports</li>
+          <li><strong>For archival</strong> - To create a standardized, portable format for record-keeping</li>
+        </ul>
+        <p style="margin-top: 12px; margin-bottom: 0; color: #718096; font-size: 0.85rem;"><strong>Note:</strong> This step is optional for basic grading but essential for comparative analysis and detailed reporting.</p>
       </div>
+    </div>
 
-      <div class="tips-section">
-        <h2 class="tips-title">Helpful Tips</h2>
-        <div class="tips-grid">
-          <div class="tip-card">
-            <strong>🔌 Connection Stability</strong>
-            <p>Do not disconnect the device while execution is running. Connection interruption may result in incomplete data collection.</p>
-          </div>
-          <div class="tip-card">
-            <strong>⚙️ Device Preparation</strong>
-            <p>Always verify baseline configuration before proceeding. A proper baseline ensures accurate grading results.</p>
-          </div>
-          <div class="tip-card">
-            <strong>✓ Data Verification</strong>
-            <p>Review results immediately after completion to ensure all data was collected successfully before proceeding.</p>
-          </div>
-          <div class="tip-card">
-            <strong>📊 Additional Tools</strong>
-            <p>Use System Admin for configuration and Sample Logs for validation and troubleshooting issues.</p>
-          </div>
+    <div class="page-card">
+      <div class="page-card-title">💡 Helpful Tips</div>
+      <div class="tips-grid">
+        <div class="tip-card">
+          <div class="tip-card-title">🔌 Connection Stability</div>
+          <div class="tip-card-text">Do not disconnect the device while execution is running. Connection interruption may result in incomplete data collection.</div>
+        </div>
+        <div class="tip-card">
+          <div class="tip-card-title">⚙️ Device Preparation</div>
+          <div class="tip-card-text">Always verify baseline configuration before proceeding. A proper baseline ensures accurate grading results.</div>
+        </div>
+        <div class="tip-card">
+          <div class="tip-card-title">✓ Data Verification</div>
+          <div class="tip-card-text">Review results immediately after completion to ensure all data was collected successfully before proceeding.</div>
+        </div>
+        <div class="tip-card">
+          <div class="tip-card-title">📊 Export for Analysis</div>
+          <div class="tip-card-text">Use the export & format process to prepare data for comparative analysis. This generates standardized files that the comparison engine uses for detailed reporting.</div>
+        </div>
+        <div class="tip-card">
+          <div class="tip-card-title">🔍 Configuration Inspection</div>
+          <div class="tip-card-text">After exporting, you can inspect individual student configurations in the comparison_engine/students directory to understand configuration variations.</div>
+        </div>
+        <div class="tip-card">
+          <div class="tip-card-title">📋 Additional Tools</div>
+          <div class="tip-card-text">Use System Admin for configuration and Sample Logs for validation and troubleshooting issues.</div>
         </div>
       </div>
+    </div>
 
-      <div class="footer-section">
-        <p>For more help or issues, contact your system administrator.</p>
-      </div>
+    <div class="footer-section">
+      <p>For more help or issues, contact your system administrator.</p>
     </div>
   </div>
 
