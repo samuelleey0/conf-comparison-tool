@@ -123,6 +123,16 @@ textarea:focus {
   color: var(--color-heading);
 }
 
+.app-select-disabled {
+  opacity: 0.58;
+}
+
+.app-select-disabled .app-select-trigger {
+  cursor: not-allowed;
+  background: #eef1f6;
+  color: var(--color-muted);
+}
+
 .app-select.open .app-select-trigger,
 .app-select-trigger:focus {
   border-color: var(--color-primary);

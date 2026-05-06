@@ -73,8 +73,20 @@
     /* ── Template form ───────────────────────────────────────── */
     .ds-form-row {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+
+    .template-mode-note {
+      margin: 0;
+      font-size: 0.86rem;
+      color: var(--color-muted);
+      line-height: 1.45;
+    }
+
+    .template-mode-note strong {
+      color: var(--color-heading);
+      font-weight: 700;
     }
 
     .ds-form-group {
@@ -474,7 +486,6 @@
     /* ── Responsive ──────────────────────────────────────────── */
     @media (max-width: 720px) {
       .ds-form-row {
-        grid-template-columns: 1fr;
         gap: 16px;
       }
 
@@ -528,9 +539,15 @@
           <div class="ds-form-group">
             <label for="templateName">Template Name</label>
             <input type="text" id="templateName" placeholder="e.g. TNE10016" required />
+            <p class="template-mode-note">
+              <strong>Create new:</strong> type a new template name here. Existing-template loading will be disabled while this field has text.
+            </p>
           </div>
           <div class="ds-form-group">
             <label>Load Existing Template</label>
+            <p class="template-mode-note">
+              <strong>Load existing:</strong> leave Template Name empty, choose a saved template below, then click Load.
+            </p>
             <div class="ds-load-row">
               <div id="templateSelect" class="app-select"></div>
               <button type="button" id="loadTemplateBtn" class="btn-accent">Load</button>

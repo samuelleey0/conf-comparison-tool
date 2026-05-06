@@ -9,12 +9,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   const container = document.getElementById("devicesContainer");
   const templateSelect = document.getElementById("templateSelect");
   const loadTemplateBtn = document.getElementById("loadTemplateBtn");
+  const templateNameInput = document.getElementById("templateName");
   
   let deviceCount = 0;
   let systemCommands = [];
   let availableTemplates = [];
   let loadedFromServer = false;
   let selectedTemplateName = "";
+  let templateNameProgrammaticUpdate = false;
+  let templateNameEditedManually = false;
 
   function closeOpenSelects(except = null) {
     document.querySelectorAll(".app-select.open").forEach((node) => {
@@ -47,6 +50,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const menu = root.querySelector(".app-select-menu");
     trigger?.addEventListener("click", (event) => {
       event.stopPropagation();
+      if (root.classList.contains("app-select-disabled")) return;
       const isOpen = root.classList.contains("open");
       closeOpenSelects(root);
       root.classList.toggle("open", !isOpen);
@@ -68,6 +72,35 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     });
   }
+
+  function setExistingTemplateControlsDisabled(disabled) {
+    if (templateSelect) {
+      templateSelect.classList.toggle("app-select-disabled", disabled);
+      templateSelect.querySelector(".app-select-trigger")?.toggleAttribute("disabled", disabled);
+      if (disabled) {
+        templateSelect.classList.remove("open");
+        templateSelect.querySelector(".app-select-menu")?.classList.add("hidden");
+      }
+    }
+    if (loadTemplateBtn) {
+      loadTemplateBtn.disabled = disabled;
+      loadTemplateBtn.title = disabled
+        ? "Clear the Template Name field to load an existing template."
+        : "";
+    }
+  }
+
+  function syncTemplateModeFromName() {
+    const hasManualName = templateNameEditedManually && Boolean(templateNameInput?.value.trim());
+    setExistingTemplateControlsDisabled(hasManualName);
+  }
+
+  templateNameInput?.addEventListener("input", () => {
+    if (templateNameProgrammaticUpdate) return;
+    templateNameEditedManually = Boolean(templateNameInput.value.trim());
+    loadedFromServer = false;
+    syncTemplateModeFromName();
+  });
 
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".app-select")) {
@@ -106,6 +139,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       value: selectedTemplateName,
       placeholder: "Select a template",
     });
+    syncTemplateModeFromName();
   }
 
   function createCommandRow(commandText = "", existingFileName = null) {
@@ -326,10 +360,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     localStorage.removeItem("activeTemplateName");
     localStorage.removeItem("activeTemplateDevices");
     loadedFromServer = false;
+    templateNameEditedManually = false;
     deviceCount = 0;
     container.innerHTML = "";
     const nameInput = document.getElementById("templateName");
     if (nameInput) nameInput.value = "";
+    syncTemplateModeFromName();
     addDeviceBlock();
   });
 
@@ -427,8 +463,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       localStorage.setItem("activeTemplateName", templateName);
       localStorage.setItem("activeTemplateDevices", JSON.stringify(devicesMeta));
       loadedFromServer = true;
-      const nameInput = document.getElementById("templateName");
-      if (nameInput) nameInput.value = templateName;
+      if (templateNameInput) {
+        templateNameProgrammaticUpdate = true;
+        templateNameInput.value = templateName;
+        templateNameProgrammaticUpdate = false;
+      }
+      templateNameEditedManually = false;
+      setExistingTemplateControlsDisabled(false);
 
       // Reset UI
       container.innerHTML = "";
@@ -477,6 +518,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   loadTemplateBtn?.addEventListener("click", () => {
+    if (loadTemplateBtn.disabled) return;
     const selected = templateSelect?.dataset.value || selectedTemplateName;
     if (!selected) {
       alert("Please select a template to load.");
