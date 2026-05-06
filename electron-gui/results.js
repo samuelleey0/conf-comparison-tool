@@ -17,6 +17,39 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+function getPathParts(pathValue) {
+  if (!pathValue || typeof pathModule === "undefined") return [];
+  return String(pathValue).split(pathModule.sep).filter(Boolean);
+}
+
+function getSessionInfo() {
+  const sessionPath = getSessionPath();
+  const basePath = localStorage.getItem("basePath");
+  let classroom = localStorage.getItem("classroom") || localStorage.getItem("examName") || "";
+  let tutorName = localStorage.getItem("tutorName") || localStorage.getItem("sessionId") || "";
+  let timeSlot = localStorage.getItem("timeSlot") || "";
+
+  if ((!classroom || !tutorName || !timeSlot) && sessionPath) {
+    const parts = getPathParts(sessionPath);
+    if (parts.length >= 3) {
+      classroom = classroom || parts[parts.length - 3];
+      tutorName = tutorName || parts[parts.length - 2];
+      timeSlot = timeSlot || parts[parts.length - 1];
+    }
+  }
+
+  if ((!classroom || !tutorName || !timeSlot) && basePath) {
+    const parts = getPathParts(basePath);
+    if (parts.length >= 4) {
+      classroom = classroom || parts[parts.length - 4];
+      tutorName = tutorName || parts[parts.length - 3];
+      timeSlot = timeSlot || parts[parts.length - 2];
+    }
+  }
+
+  return { classroom, tutorName, timeSlot, sessionPath };
+}
+
 function getSessionPath() {
   const storedSession = localStorage.getItem("sessionPath");
   if (storedSession) {
@@ -32,12 +65,22 @@ function getSessionPath() {
     return pathModule.dirname(basePath);
   }
 
-  const exam = localStorage.getItem("examName");
-  const session = localStorage.getItem("sessionId");
-  if (exam && session) {
+  const classroom = localStorage.getItem("classroom") || localStorage.getItem("examName");
+  const tutorName = localStorage.getItem("tutorName") || localStorage.getItem("sessionId");
+  const timeSlot = localStorage.getItem("timeSlot");
+  if (classroom && tutorName && timeSlot) {
     try {
       const os = require("os");
-      return pathModule.join(os.homedir(), "Documents", exam, session);
+      return pathModule.join(os.homedir(), "Documents", classroom, tutorName, timeSlot);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  if (classroom && tutorName) {
+    try {
+      const os = require("os");
+      return pathModule.join(os.homedir(), "Documents", classroom, tutorName);
     } catch (_) {
       return null;
     }
@@ -60,11 +103,12 @@ async function fetchJson(path, options = {}) {
 
 function setSessionLabel() {
   const label = document.getElementById("sessionLabel");
-  const exam = localStorage.getItem("examName");
-  const session = localStorage.getItem("sessionId");
+  const { classroom, tutorName, timeSlot } = getSessionInfo();
   if (!label) return;
-  if (exam && session) {
-    label.textContent = `Session: ${exam} / ${session}`;
+  if (classroom && tutorName && timeSlot) {
+    label.textContent = `Session: ${classroom} / ${tutorName} / ${timeSlot}`;
+  } else if (classroom && tutorName) {
+    label.textContent = `Session: ${classroom} / ${tutorName}`;
   } else {
     label.textContent = "Session not set";
   }
@@ -452,8 +496,7 @@ async function runComparison() {
     return;
   }
 
-  const exam = localStorage.getItem("examName");
-  const session = localStorage.getItem("sessionId");
+  const { classroom, tutorName, timeSlot } = getSessionInfo();
 
   const btn = document.getElementById("runComparisonBtn");
   if (btn) {
@@ -465,8 +508,11 @@ async function runComparison() {
     const data = await fetchJson("/api/grade", {
       method: "POST",
       body: JSON.stringify({
-        exam_name: exam,
-        session_id: session,
+        classroom,
+        tutor_name: tutorName,
+        time_slot: timeSlot,
+        exam_name: classroom,
+        session_id: tutorName,
         target_path: sessionPath,
         template_name: localStorage.getItem("templateName") || null,
         include_reports: true,
