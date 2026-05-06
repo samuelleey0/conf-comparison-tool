@@ -21,7 +21,13 @@
 
     <div class="connection-layout" id="connectionPage">
       <section class="connection-panel page-card">
-        <h2 class="section-title">Connection Setup</h2>
+        <div class="step-heading">
+          <span class="step-heading__num">1</span>
+          <div>
+            <h2 class="section-title">Confirm Device Queue</h2>
+            <p class="step-heading__hint">Check the students/devices that will run.</p>
+          </div>
+        </div>
         <form id="connectionForm">
           <div class="form-group connection-queue">
             <div class="connection-queue__header">
@@ -30,6 +36,13 @@
             </div>
             <div id="deviceQueueContainer" class="connection-queue__list">
                <!-- Populated by JS -->
+            </div>
+          </div>
+          <div class="step-heading step-heading--compact">
+            <span class="step-heading__num">2</span>
+            <div>
+              <h2 class="section-title">Choose Connection</h2>
+              <p class="step-heading__hint">Pick Serial or SSH, then confirm the port or login fields.</p>
             </div>
           </div>
           <div class="form-group connection-mode-group">
@@ -78,7 +91,13 @@
 
       <section class="connection-status">
         <header class="connection-status__header">
-          <h3>Execution Status</h3>
+          <div class="step-heading">
+            <span class="step-heading__num">3</span>
+            <div>
+              <h3>Run & Monitor</h3>
+              <p class="step-heading__hint">Start the sequence and watch the log until it finishes.</p>
+            </div>
+          </div>
           <button type="button" id="clearLogBtn" class="link-btn">Clear Log</button>
         </header>
         <div class="status-panel modern">
@@ -89,19 +108,28 @@
           <progress id="progress" value="0" max="100"></progress>
           <pre id="log" class="log"></pre>
         </div>
-        <div class="actions justify-end connection-reset-row">
-          <label for="resetDeviceType" class="connection-reset-row__label">Reset As</label>
-          <select id="resetDeviceType" class="connection-reset-row__select">
-            <option value="switch" selected>Switch</option>
-            <option value="router">Router</option>
-          </select>
-        </div>
         <div class="actions justify-end connection-action-grid">
-          <button type="button" id="abortExecutionBtn" class="danger connection-action-grid__abort" style="display: none;">⏹ Stop Execution</button>
-          <button type="button" id="resetDeviceBtn" class="danger">Reset Cisco Device</button>
+          <button type="button" id="abortExecutionBtn" class="abort-btn connection-action-grid__abort" style="display: none;">⏹ Stop Execution</button>
           <button type="button" id="startSequenceBtn" class="primary">Start Auto-Execution Sequence</button>
           <button type="button" id="doneStudentBtn" class="primary connection-action-grid__done"
             disabled>Done (Next Student)</button>
+        </div>
+        <div class="danger-zone">
+          <div class="danger-zone__header">
+            <span class="step-heading__num step-heading__num--danger">4</span>
+            <div>
+              <h4 class="danger-zone__title">Danger Zone</h4>
+              <p class="danger-zone__desc">These actions will erase the device's running and startup configuration and reload it. This cannot be undone. Only use after grading is complete.</p>
+            </div>
+          </div>
+          <div class="actions danger-zone__actions">
+            <label for="resetDeviceType" class="connection-reset-row__label">Reset As</label>
+            <select id="resetDeviceType" class="connection-reset-row__select">
+              <option value="switch" selected>Switch</option>
+              <option value="router">Router</option>
+            </select>
+            <button type="button" id="resetDeviceBtn" class="danger">Reset Cisco Device</button>
+          </div>
         </div>
       </section>
     </div>

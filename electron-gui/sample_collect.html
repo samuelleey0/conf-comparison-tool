@@ -20,7 +20,13 @@
 
     <div class="connection-layout" id="sampleCollectPage">
       <section class="connection-panel page-card">
-        <h2 class="section-title">Save Location & Commands</h2>
+        <div class="step-heading">
+          <span class="step-heading__num">1</span>
+          <div>
+            <h2 class="section-title">Choose Save Folder</h2>
+            <p class="step-heading__hint">Select where lecturer sample logs should be stored.</p>
+          </div>
+        </div>
         <div id="sampleStatus" class="status-banner" style="margin-bottom: 12px;">
           <div class="status-banner__icon">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -53,7 +59,13 @@
         </div>
 
         <div class="form-group" style="margin-top: 16px;">
-          <label>Commands to Collect</label>
+          <div class="step-heading step-heading--compact">
+            <span class="step-heading__num">2</span>
+            <div>
+              <h2 class="section-title">Select Commands</h2>
+              <p class="step-heading__hint">Choose the commands to save into the sample log set.</p>
+            </div>
+          </div>
           <input type="text" id="sampleCommandSearch" placeholder="Search commands..." style="margin-bottom: 10px;" />
           <div id="sampleCommandsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card);"></div>
           <div class="actions align-left" style="margin-top: 10px;">
@@ -64,7 +76,13 @@
       </section>
 
       <section class="connection-panel page-card">
-        <h2 class="section-title">Connection</h2>
+        <div class="step-heading">
+          <span class="step-heading__num">3</span>
+          <div>
+            <h2 class="section-title">Connect to Device</h2>
+            <p class="step-heading__hint">Pick Serial or SSH, then confirm the port or login fields.</p>
+          </div>
+        </div>
         <div class="form-group">
           <label class="choice-label"><input type="radio" name="sampleConnType" value="serial" checked /> Serial</label>
           <label class="choice-label"><input type="radio" name="sampleConnType" value="ssh" /> SSH</label>
@@ -96,6 +114,7 @@
         </div>
 
         <div class="actions justify-end" style="margin-top: 16px;">
+          <span class="action-step-label"><span class="step-heading__num">4</span>Collect</span>
           <button type="button" id="runSampleCollectBtn" class="primary">Collect Logs</button>
         </div>
         <pre id="sampleLog" class="log" style="margin-top: 12px; height: 200px;"></pre>
