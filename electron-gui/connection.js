@@ -654,7 +654,7 @@ async function setupConnectionPage() {
           localStorage.setItem("autoRunResults", "true");
           goTo("results.html");
         } else {
-          goTo("index.html");
+          goTo("directory.html");
         }
       });
   }
@@ -683,7 +683,7 @@ async function setupConnectionPage() {
   }
 
   if (backBtn) {
-    backBtn.addEventListener("click", () => goTo("index.html"));
+    backBtn.addEventListener("click", () => goTo("directory.html"));
   }
 
   document

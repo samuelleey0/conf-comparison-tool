@@ -309,7 +309,7 @@ async function startExecution({ commands, initiatedFromConnection = false } = {}
   if (directoryMode === "existing") {
     if (!basePath) {
       alert("Existing directory path not found. Please re-select the directory.");
-      goTo("index.html");
+      goTo("directory.html");
       return;
     }
     payload.log_dir = basePath;

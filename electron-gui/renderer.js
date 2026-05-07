@@ -113,14 +113,14 @@ function initNavbarInteractions() {
 function highlightActiveNavLink() {
   const links = document.querySelectorAll(".app-navbar__links a");
   if (!links.length) return;
-  let current = window.location.pathname.split("/").pop() || "index.html";
+  let current = window.location.pathname.split("/").pop() || "directory.html";
   current = current.toLowerCase();
   links.forEach((link) => {
     const target =
       (link.getAttribute("href") || "")
         .split("/")
         .pop()
-        .toLowerCase() || "index.html";
+        .toLowerCase() || "directory.html";
     const isActive = target === current;
     link.classList.toggle("active", isActive);
   });
@@ -215,7 +215,7 @@ function ensureDirectoryConfigured() {
   const student = localStorage.getItem("studentId");
   if (!classroom || !tutorName || !timeSlot || !student) {
     alert("Please set up a directory before continuing.");
-    goTo("index.html");
+    goTo("directory.html");
     return false;
   }
   return true;
@@ -356,7 +356,7 @@ function setupWelcomePage() {
   keysToClear.forEach(k => localStorage.removeItem(k));
 
   loadNavbar();
-  window.setTimeout(() => goTo("homepage.html"), 2200);
+  window.setTimeout(() => goTo("index.html"), 2200);
 }
 
 // -----------------------------

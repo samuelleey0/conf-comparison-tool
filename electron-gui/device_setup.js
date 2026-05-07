@@ -624,7 +624,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       } else {
         alert("Device and command setup saved. No template baseline uploaded yet.");
       }
-      goTo("index.html");
+      goTo("directory.html");
 
     } catch (err) {
       console.error(err);
