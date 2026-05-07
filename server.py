@@ -69,6 +69,32 @@ WINDOWS_DRIVES_ROOT = "__WINDOWS_DRIVES__"
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 ENGINE_STUDENTS_DIR.mkdir(parents=True, exist_ok=True)
 
+WINDOWS_INVALID_SEGMENT_CHARS = '<>:"/\\|?*'
+WINDOWS_RESERVED_NAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    "COM1",
+    "COM2",
+    "COM3",
+    "COM4",
+    "COM5",
+    "COM6",
+    "COM7",
+    "COM8",
+    "COM9",
+    "LPT1",
+    "LPT2",
+    "LPT3",
+    "LPT4",
+    "LPT5",
+    "LPT6",
+    "LPT7",
+    "LPT8",
+    "LPT9",
+}
+
 connection_lock = threading.Lock()
 
 current_mode = None  # "serial" or "ssh"
@@ -86,6 +112,35 @@ last_used_ssh_credentials = {
 }
 
 execution_abort = threading.Event()
+
+
+def _is_windows_platform():
+    return os.name == "nt"
+
+
+def _validate_directory_segment(value, field_label):
+    segment = str(value or "").strip()
+    if not segment:
+        return f"Missing {field_label}."
+    if segment in {".", ".."}:
+        return f"{field_label} cannot be '.' or '..'."
+    if "/" in segment or "\\" in segment:
+        return f"{field_label} cannot contain path separators."
+    if "\x00" in segment:
+        return f"{field_label} contains an invalid null character."
+    if not _is_windows_platform():
+        return None
+
+    invalid_chars = sorted({ch for ch in segment if ch in WINDOWS_INVALID_SEGMENT_CHARS})
+    if invalid_chars:
+        chars_text = " ".join(invalid_chars)
+        return f"{field_label} contains invalid characters for Windows: {chars_text}"
+    if segment[-1] in {" ", "."}:
+        return f"{field_label} cannot end with a space or period on Windows."
+    reserved_name = segment.split(".")[0].upper()
+    if reserved_name in WINDOWS_RESERVED_NAMES:
+        return f"{field_label} uses a reserved Windows device name: {reserved_name}"
+    return None
 
 
 def _close_serial_connection():
@@ -2962,6 +3017,17 @@ def _validate_directory_payload(data):
             ),
             400,
         )
+
+    for field_value, field_label in (
+        (classroom, "Classroom"),
+        (tutor_name, "Tutor name"),
+        (time_slot, "Time slot"),
+        (student_id, "Student ID"),
+    ):
+        message = _validate_directory_segment(field_value, field_label)
+        if message:
+            return None, jsonify({"status": "error", "message": message}), 400
+
     return (classroom, tutor_name, time_slot, student_id), None, None
 
 
@@ -3304,6 +3370,15 @@ def api_bulk_directories():
             400,
         )
 
+    for field_value, field_label in (
+        (classroom, "Classroom"),
+        (tutor_name, "Tutor name"),
+        (time_slot, "Time slot"),
+    ):
+        message = _validate_directory_segment(field_value, field_label)
+        if message:
+            return jsonify({"status": "error", "message": message}), 400
+
     created = []
     base_docs_path = Path.home() / "Documents"
     session_dir = base_docs_path / classroom / tutor_name / time_slot
@@ -3315,6 +3390,9 @@ def api_bulk_directories():
         student_name = (student.get("name") or "").strip()
         if not student_id:
             continue
+        message = _validate_directory_segment(student_id, "Student ID")
+        if message:
+            return jsonify({"status": "error", "message": message}), 400
         student_dir = session_dir / student_id
         student_dir.mkdir(parents=True, exist_ok=True)
         if student_name:
@@ -3822,6 +3900,16 @@ def _ensure_base_path(data):
         raise ValueError(
             "Missing classroom/tutor/time/student details for directory creation."
         )
+
+    for field_value, field_label in (
+        (classroom, "Classroom"),
+        (tutor_name, "Tutor name"),
+        (time_slot, "Time slot"),
+        (student_id, "Student ID"),
+    ):
+        message = _validate_directory_segment(field_value, field_label)
+        if message:
+            raise ValueError(message)
 
     base_path = os.path.expanduser(
         os.path.join("~/Documents", classroom, tutor_name, time_slot, student_id)
@@ -5054,6 +5142,10 @@ def api_add_student():
             ),
             400,
         )
+
+    message = _validate_directory_segment(student_id, "Student ID")
+    if message:
+        return jsonify({"status": "error", "message": message}), 400
 
     session_dir = Path(session_path)
     if not session_dir.exists() or not session_dir.is_dir():
