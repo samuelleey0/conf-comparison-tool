@@ -118,29 +118,34 @@ def _is_windows_platform():
     return os.name == "nt"
 
 
-def _validate_directory_segment(value, field_label):
+def _normalize_directory_segment(value, field_label):
     segment = str(value or "").strip()
     if not segment:
-        return f"Missing {field_label}."
+        raise ValueError(f"Missing {field_label}.")
     if segment in {".", ".."}:
-        return f"{field_label} cannot be '.' or '..'."
+        raise ValueError(f"{field_label} cannot be '.' or '..'.")
     if "/" in segment or "\\" in segment:
-        return f"{field_label} cannot contain path separators."
+        raise ValueError(f"{field_label} cannot contain path separators.")
     if "\x00" in segment:
-        return f"{field_label} contains an invalid null character."
+        raise ValueError(f"{field_label} contains an invalid null character.")
     if not _is_windows_platform():
-        return None
+        return segment
 
-    invalid_chars = sorted({ch for ch in segment if ch in WINDOWS_INVALID_SEGMENT_CHARS})
-    if invalid_chars:
-        chars_text = " ".join(invalid_chars)
-        return f"{field_label} contains invalid characters for Windows: {chars_text}"
-    if segment[-1] in {" ", "."}:
-        return f"{field_label} cannot end with a space or period on Windows."
-    reserved_name = segment.split(".")[0].upper()
+    cleaned = "".join(
+        "-" if ch in WINDOWS_INVALID_SEGMENT_CHARS else ch for ch in segment
+    )
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    cleaned = cleaned.rstrip(" .")
+    cleaned = re.sub(r"-{2,}", "-", cleaned).strip("-")
+    if not cleaned:
+        raise ValueError(
+            f"{field_label} cannot be empty after Windows-safe cleanup."
+        )
+
+    reserved_name = cleaned.split(".")[0].upper()
     if reserved_name in WINDOWS_RESERVED_NAMES:
-        return f"{field_label} uses a reserved Windows device name: {reserved_name}"
-    return None
+        cleaned = f"{cleaned}_"
+    return cleaned
 
 
 def _close_serial_connection():
@@ -3018,15 +3023,13 @@ def _validate_directory_payload(data):
             400,
         )
 
-    for field_value, field_label in (
-        (classroom, "Classroom"),
-        (tutor_name, "Tutor name"),
-        (time_slot, "Time slot"),
-        (student_id, "Student ID"),
-    ):
-        message = _validate_directory_segment(field_value, field_label)
-        if message:
-            return None, jsonify({"status": "error", "message": message}), 400
+    try:
+        classroom = _normalize_directory_segment(classroom, "Classroom")
+        tutor_name = _normalize_directory_segment(tutor_name, "Tutor name")
+        time_slot = _normalize_directory_segment(time_slot, "Time slot")
+        student_id = _normalize_directory_segment(student_id, "Student ID")
+    except ValueError as exc:
+        return None, jsonify({"status": "error", "message": str(exc)}), 400
 
     return (classroom, tutor_name, time_slot, student_id), None, None
 
@@ -3370,14 +3373,12 @@ def api_bulk_directories():
             400,
         )
 
-    for field_value, field_label in (
-        (classroom, "Classroom"),
-        (tutor_name, "Tutor name"),
-        (time_slot, "Time slot"),
-    ):
-        message = _validate_directory_segment(field_value, field_label)
-        if message:
-            return jsonify({"status": "error", "message": message}), 400
+    try:
+        classroom = _normalize_directory_segment(classroom, "Classroom")
+        tutor_name = _normalize_directory_segment(tutor_name, "Tutor name")
+        time_slot = _normalize_directory_segment(time_slot, "Time slot")
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
 
     created = []
     base_docs_path = Path.home() / "Documents"
@@ -3390,9 +3391,10 @@ def api_bulk_directories():
         student_name = (student.get("name") or "").strip()
         if not student_id:
             continue
-        message = _validate_directory_segment(student_id, "Student ID")
-        if message:
-            return jsonify({"status": "error", "message": message}), 400
+        try:
+            student_id = _normalize_directory_segment(student_id, "Student ID")
+        except ValueError as exc:
+            return jsonify({"status": "error", "message": str(exc)}), 400
         student_dir = session_dir / student_id
         student_dir.mkdir(parents=True, exist_ok=True)
         if student_name:
@@ -3901,15 +3903,10 @@ def _ensure_base_path(data):
             "Missing classroom/tutor/time/student details for directory creation."
         )
 
-    for field_value, field_label in (
-        (classroom, "Classroom"),
-        (tutor_name, "Tutor name"),
-        (time_slot, "Time slot"),
-        (student_id, "Student ID"),
-    ):
-        message = _validate_directory_segment(field_value, field_label)
-        if message:
-            raise ValueError(message)
+    classroom = _normalize_directory_segment(classroom, "Classroom")
+    tutor_name = _normalize_directory_segment(tutor_name, "Tutor name")
+    time_slot = _normalize_directory_segment(time_slot, "Time slot")
+    student_id = _normalize_directory_segment(student_id, "Student ID")
 
     base_path = os.path.expanduser(
         os.path.join("~/Documents", classroom, tutor_name, time_slot, student_id)
@@ -5143,9 +5140,10 @@ def api_add_student():
             400,
         )
 
-    message = _validate_directory_segment(student_id, "Student ID")
-    if message:
-        return jsonify({"status": "error", "message": message}), 400
+    try:
+        student_id = _normalize_directory_segment(student_id, "Student ID")
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
 
     session_dir = Path(session_path)
     if not session_dir.exists() or not session_dir.is_dir():
