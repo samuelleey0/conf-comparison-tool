@@ -1,3 +1,11 @@
+"""
+Readable result generation for comparison reports.
+
+This script turns machine-readable summary/report data into readableResult.txt
+files for student result folders. The current GUI/server path calls
+write_readable_result_from_report(), while the bottom CLI helpers can process
+older summary.json session folders manually.
+"""
 import os
 import json
 
@@ -7,6 +15,7 @@ MAJOR_KEYWORDS = ["ACL", "NAT", "ROUTING", "USER", "PPP"]
 
 
 def is_major_error(outcome_code):
+    """Infer whether an older outcome code should count as a major error."""
     if not outcome_code:
         return False
     outcome_code = str(outcome_code).upper()
@@ -14,6 +23,7 @@ def is_major_error(outcome_code):
 
 
 def _format_value(value):
+    """Convert expected/actual values into readable text for result output."""
     if value is None:
         return None
     if isinstance(value, (dict, list)):
@@ -22,6 +32,7 @@ def _format_value(value):
 
 
 def _humanize_feature(feature):
+    """Convert internal feature paths into labels suitable for student feedback."""
     text = str(feature or "Unknown")
     replacements = {
         "show_running_config": "Configuration",
@@ -50,6 +61,7 @@ def _humanize_feature(feature):
 
 
 def format_error(device, item, severity):
+    """Build one readable error block for a failed comparison item."""
     feature = item.get("feature", "Unknown")
     expected = _format_value(item.get("expected"))
     actual = _format_value(item.get("actual"))
@@ -70,6 +82,7 @@ def format_error(device, item, severity):
 
 
 def _iter_summary_errors(summary_data):
+    """Yield non-correct items from an older summary.json structure."""
     results = summary_data.get("results", {})
     for device, checks in results.items():
         for item in checks:
@@ -80,6 +93,11 @@ def _iter_summary_errors(summary_data):
 
 
 def process_summary(summary_path):
+    """
+    Read an older summary.json file and count major/minor marking errors.
+
+    Used by the manual CLI batch flow below, not by the main Electron path.
+    """
     with open(summary_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -105,10 +123,17 @@ def process_summary(summary_path):
 
 
 def determine_result(minor, major, major_threshold=1, minor_threshold=5):
+    """Return PASS/FAIL from major and minor counts using configurable thresholds."""
     return "FAIL" if (major >= major_threshold or minor >= minor_threshold) else "PASS"
 
 
 def write_results(student_path, result, errors, minor=0, major=0, output_name=OUTPUT_FILE):
+    """
+    Write readableResult.txt under a student's results folder.
+
+    Both the current report-based path and the older summary-based CLI path use
+    this final writer.
+    """
     results_folder_path = os.path.join(student_path, "results")
     os.makedirs(results_folder_path, exist_ok=True)
 
@@ -151,6 +176,11 @@ def write_results(student_path, result, errors, minor=0, major=0, output_name=OU
 
 
 def write_readable_result_from_report(student_path, report, policy=None):
+    """
+    Convert a current comparison report dictionary into readableResult.txt.
+
+    Called by server.py after grading/comparison completes for a student.
+    """
     policy = policy or {}
     summary = report.get("summary") or {}
     major = int(summary.get("major") or 0)
@@ -176,6 +206,7 @@ def write_readable_result_from_report(student_path, report, policy=None):
 
 
 def choose_session(base_path):
+    """Prompt the CLI user to select one session folder under a base path."""
     sessions = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
 
     if not sessions:
@@ -196,6 +227,7 @@ def choose_session(base_path):
 
 
 def process_students(session_path):
+    """Process every student in a CLI-selected session using summary.json files."""
     print(f"\n[INFO] Processing session: {session_path}\n")
 
     for student_id in os.listdir(session_path):
@@ -221,6 +253,7 @@ def process_students(session_path):
 
 
 def main():
+    """CLI helper for manually regenerating readable results from old summaries."""
    
     base_path = os.path.join(os.path.expanduser("~"), "Documents", "B408", "MarkTee")
 

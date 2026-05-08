@@ -1,3 +1,10 @@
+"""
+Cisco command-output parser for the comparison engine.
+
+This module detects Cisco show-command log types, parses show running-config and
+verification command outputs, and normalizes the result into the canonical
+schema consumed by comparator.py and server.py.
+"""
 import os
 import re
 import json
@@ -19,6 +26,7 @@ COMMAND_ERROR_PATTERNS = [
 
 
 def _split_interface_list(value):
+    """Normalize interface collections from strings, lists, or single values."""
     if isinstance(value, list):
         cleaned = [str(item).strip() for item in value if str(item).strip()]
         return sorted(set(cleaned))
@@ -508,6 +516,7 @@ COMMAND_TOKENS = {
 
 
 def _normalize_text(value):
+    """Normalize command/file text for flexible token matching."""
     lowered = value.lower()
     for char in ["_", "-", ".", "(", ")", "[", "]"]:
         lowered = lowered.replace(char, " ")
@@ -515,11 +524,13 @@ def _normalize_text(value):
 
 
 def _is_device_prompt(line):
+    """Return True when a line looks like a Cisco CLI prompt."""
     stripped = line.strip()
     return stripped.endswith("#") or stripped.endswith(">")
 
 
 def _clean_log_lines(file_path):
+    """Read a log file using replacement decoding and return stripped lines."""
     # Some collected logs may contain non-UTF8 bytes.
     # Use replacement decoding so one bad byte does not break grading.
     with open(file_path, "r", encoding="utf-8", errors="replace") as handle:
@@ -528,6 +539,7 @@ def _clean_log_lines(file_path):
 
 
 def detect_command_type(file_path):
+    """Infer which supported Cisco show command a log file contains."""
     name = _normalize_text(os.path.basename(file_path))
     token_candidates = []
     for command, tokens in COMMAND_TOKENS.items():
@@ -1233,6 +1245,7 @@ def parse_showrun(file_path):
 
 
 def parse_show_ip_interface_brief(file_path):
+    """Parse interface IP/status rows from 'show ip interface brief'."""
     result = {"interfaces": {}}
     lines = _clean_log_lines(file_path)
 
@@ -1343,6 +1356,7 @@ def parse_show_ip_route(file_path):
 
 
 def parse_show_access_lists(file_path):
+    """Parse ACL names and rule lines from 'show access-lists'."""
     result = {"acls": {}}
     lines = _clean_log_lines(file_path)
 
@@ -1382,6 +1396,7 @@ def parse_show_access_lists(file_path):
 
 
 def parse_show_ip_nat_statistics(file_path):
+    """Parse stable NAT interface, mapping, and pool details."""
     result = {
         "outside_interfaces": [],
         "inside_interfaces": [],
@@ -1477,6 +1492,7 @@ def parse_show_ip_nat_statistics(file_path):
 
 
 def parse_show_ip_nat_translations(file_path):
+    """Parse NAT translation output as evidence that NAT was exercised."""
     result = {"tested": False}
     lines = _clean_log_lines(file_path)
 
@@ -1501,6 +1517,7 @@ def parse_show_ip_nat_translations(file_path):
 
 
 def parse_show_ip_dhcp_binding(file_path):
+    """Parse DHCP binding output and record assigned client IP addresses."""
     result = {"has_assignments": False, "assigned_ips": []}
     lines = _clean_log_lines(file_path)
 
@@ -1527,6 +1544,7 @@ def parse_show_ip_dhcp_binding(file_path):
 
 
 def parse_show_ip_dhcp_pool(file_path):
+    """Parse DHCP pool output and record pool names that appeared."""
     result = {"tested": False, "pool_names": []}
     lines = _clean_log_lines(file_path)
 
@@ -1558,6 +1576,7 @@ def parse_show_ip_dhcp_pool(file_path):
 
 
 def parse_show_ip_eigrp(file_path):
+    """Parse general EIGRP output into stable verification entries."""
     result = {"entries": []}
     lines = _clean_log_lines(file_path)
 
@@ -1578,6 +1597,7 @@ def parse_show_ip_eigrp(file_path):
 
 
 def parse_show_ip_eigrp_neighbor(file_path):
+    """Parse EIGRP neighbor address/interface pairs."""
     result = {"neighbors": []}
     lines = _clean_log_lines(file_path)
 
@@ -1613,6 +1633,7 @@ def parse_show_ip_eigrp_neighbor(file_path):
 
 
 def parse_show_ip_eigrp_topology(file_path):
+    """Parse EIGRP topology routes, successor counts, and next-hop paths."""
     result = {"routes": []}
     lines = _clean_log_lines(file_path)
     current_route = None
@@ -1662,6 +1683,7 @@ def parse_show_ip_eigrp_topology(file_path):
 
 
 def parse_show_ip_eigrp_interfaces(file_path):
+    """Parse EIGRP-enabled interfaces and peer counts."""
     result = {"interfaces": []}
     lines = _clean_log_lines(file_path)
 
@@ -1692,6 +1714,7 @@ def parse_show_ip_eigrp_interfaces(file_path):
 
 
 def parse_show_ip_ospf(file_path):
+    """Parse general OSPF process and area information."""
     result = {"process_info": [], "areas": []}
     lines = _clean_log_lines(file_path)
 
@@ -1720,6 +1743,7 @@ def parse_show_ip_ospf(file_path):
 
 
 def parse_show_ip_ospf_neighbor(file_path):
+    """Parse OSPF neighbor state, address, and interface data."""
     result = {"neighbors": []}
     lines = _clean_log_lines(file_path)
 
@@ -1761,6 +1785,7 @@ def parse_show_ip_ospf_neighbor(file_path):
 
 
 def parse_show_ip_ospf_database(file_path):
+    """Parse OSPF database sections into LSA-type counts."""
     result = {
         "lsa_types": {
             "router": 0,
@@ -1802,6 +1827,7 @@ def parse_show_ip_ospf_database(file_path):
 
 
 def parse_show_ip_ospf_interface(file_path):
+    """Parse OSPF interface area, network type, and state values."""
     result = {"interfaces": []}
     lines = _clean_log_lines(file_path)
     current = None
@@ -1850,6 +1876,7 @@ def parse_show_ip_ospf_interface(file_path):
 
 
 def parse_show_ip_rip_database(file_path):
+    """Parse RIP database routes and metric evidence."""
     result = {"routes": []}
     lines = _clean_log_lines(file_path)
 
@@ -1880,6 +1907,7 @@ def parse_show_ip_rip_database(file_path):
 
 
 def parse_show_ip_route_static(file_path):
+    """Parse static routes from route output into destination/next-hop rows."""
     result = {"routes": []}
     base = parse_show_ip_route(file_path)
     for route in base.get("routes", []):
@@ -1908,6 +1936,7 @@ def parse_show_ip_route_static(file_path):
 
 
 def parse_show_interfaces_trunk(file_path):
+    """Parse trunk mode, encapsulation, status, and native VLAN per port."""
     result = {"trunks": {}}
     lines = _clean_log_lines(file_path)
 
@@ -1936,6 +1965,7 @@ def parse_show_interfaces_trunk(file_path):
 
 
 def parse_show_vlan_brief(file_path):
+    """Parse VLAN IDs, names, status, and associated ports."""
     result = {"vlans": {}}
     lines = _clean_log_lines(file_path)
     current_vlan_id = None
@@ -1982,6 +2012,7 @@ def parse_show_vlan_brief(file_path):
 
 
 def parse_show_port_security(file_path):
+    """Parse port-security counters and configured violation actions."""
     result = {"interfaces": {}}
     lines = _clean_log_lines(file_path)
 
@@ -2012,6 +2043,7 @@ def parse_show_port_security(file_path):
 
 
 def parse_show_spanning_tree(file_path):
+    """Parse spanning-tree instances and interface role/status evidence."""
     result = {"instances": {}, "interfaces": {}}
     lines = _clean_log_lines(file_path)
 
@@ -2094,6 +2126,7 @@ def parse_show_etherchannel_summary(file_path):
 
 
 def parse_show_pagp_neighbor(file_path):
+    """Parse PAgP neighbor rows used for EtherChannel verification."""
     result = {"neighbors": []}
     lines = _clean_log_lines(file_path)
 
@@ -2124,6 +2157,7 @@ def parse_show_pagp_neighbor(file_path):
 
 
 def parse_show_lacp_neighbor(file_path):
+    """Parse LACP neighbor rows used for EtherChannel verification."""
     result = {"neighbors": []}
     lines = _clean_log_lines(file_path)
 
@@ -2153,6 +2187,7 @@ def parse_show_lacp_neighbor(file_path):
 
 
 def parse_log_by_type(file_path, command_type=None):
+    """Dispatch one log file to the parser for its command type."""
     command_error = detect_command_error(file_path)
     if command_error:
         return None, None

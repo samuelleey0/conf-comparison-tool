@@ -1,3 +1,12 @@
+"""
+Teacher template management for the comparison engine.
+
+This module creates, loads, and inspects template folders under
+comparison_engine/templates. The GUI upload path uses choose_show_run_file()
+through comparison_wrapper.py, while the remaining helpers support older CLI
+template setup and manual engine testing.
+"""
+
 import json
 import os
 

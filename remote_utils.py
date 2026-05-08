@@ -1,108 +1,17 @@
+"""
+SSH helpers for Cisco devices.
+
+This script handles Paramiko SSH sessions used by server.py and the CLI testing
+entry point.
+"""
 import time
 import re
 import logging
 import paramiko
 import socket
 import os
-import subprocess
 
 logger = logging.getLogger("remote_utils")
-
-
-def _get_iface_mac(iface):
-    try:
-        with open(f"/sys/class/net/{iface}/address", "r") as f:
-            return f.read().strip().lower()
-    except Exception:
-        return None
-
-
-def toggle_usb_adapter(iface, wait_timeout=15, wait_interval=0.5):
-    """
-    Simulate unplug/replug of a USB->Ethernet adapter by unbinding and rebinding its driver.
-
-    - iface: network interface name (e.g. /dev/enx.. or eth0)
-    - wait_timeout: max seconds to wait for interface reappearance
-    Returns True on success, False on failure.
-
-    Notes:
-    - Must run as root (sudo).
-    - If NetworkManager manages the interface it may momentarily rename/restore it.
-    - This is equivalent to physical unplug/replug for most USB network adapters.
-    """
-    if os.geteuid() != 0:
-        print("[ERROR] toggle_usb_adapter requires root privileges. Run with sudo.")
-        return False
-
-    # confirm iface exists and get MAC
-    if not os.path.exists(f"/sys/class/net/{iface}"):
-        print(f"[ERROR] Interface {iface} not found.")
-        return False
-
-    mac = _get_iface_mac(iface)
-    if not mac:
-        print(f"[ERROR] Unable to read MAC for {iface}.")
-        return False
-
-    # locate sysfs device path
-    try:
-        dev_path = os.path.realpath(f"/sys/class/net/{iface}/device")
-    except Exception as e:
-        print(f"[ERROR] Could not resolve sysfs device for {iface}: {e}")
-        return False
-
-    # find driver directory (if present)
-    driver_link = os.path.join(dev_path, "driver")
-    if not os.path.islink(driver_link):
-        print(f"[ERROR] No driver symlink found for {iface} at {driver_link}.")
-        return False
-
-    driver_dir = os.path.realpath(driver_link)
-    device_name = os.path.basename(dev_path)  # e.g. "1-9:1.0" or similar
-    unbind_path = os.path.join(driver_dir, "unbind")
-    bind_path = os.path.join(driver_dir, "bind")
-
-    if not (os.path.exists(unbind_path) and os.path.exists(bind_path)):
-        print(f"[ERROR] bind/unbind files not found under driver {driver_dir}.")
-        return False
-
-    print(
-        f"[INFO] Unbinding device {device_name} from driver {os.path.basename(driver_dir)}..."
-    )
-    try:
-        with open(unbind_path, "w") as f:
-            f.write(device_name)
-    except Exception as e:
-        print(f"[ERROR] Failed to unbind device: {e}")
-        return False
-
-    # wait briefly for device removal
-    time.sleep(1.0)
-
-    # rebind
-    print(
-        f"[INFO] Rebinding device {device_name} to driver {os.path.basename(driver_dir)}..."
-    )
-    try:
-        with open(bind_path, "w") as f:
-            f.write(device_name)
-    except Exception as e:
-        print(f"[ERROR] Failed to bind device: {e}")
-        return False
-
-    # wait for interface with same MAC to reappear (may be same name or new)
-    deadline = time.time() + wait_timeout
-    while time.time() < deadline:
-        # check all net interfaces for same MAC
-        for candidate in os.listdir("/sys/class/net"):
-            cand_mac = _get_iface_mac(candidate)
-            if cand_mac == mac:
-                print(f"[INFO] Interface with MAC {mac} reappeared as {candidate}.")
-                return True
-        time.sleep(wait_interval)
-
-    print(f"[WARN] Timed out waiting for adapter with MAC {mac} to reappear.")
-    return False
 
 
 def remote_connect(host, username="", password="", port="22", timeout=20):
@@ -119,6 +28,7 @@ def remote_connect(host, username="", password="", port="22", timeout=20):
     known_hosts_path = os.path.expanduser("~/.ssh/known_hosts")
 
     def remove_host_key(hostname):
+        """Remove a stale known_hosts entry so a lab device can be retried."""
         if not os.path.exists(known_hosts_path):
             return
         try:
@@ -318,12 +228,14 @@ def get_hostname_remote(client, timeout=10):
 
 
 def disable_paging_remote(client, prompt="#", timeout=5):
+    """Disable terminal paging over SSH so show commands return complete output."""
     return send_command_remote(
         client, "terminal length 0", expected_prompt=prompt, timeout=timeout
     )
 
 
 def enter_enable_mode_remote(client, prompt="#", timeout=5):
+    """Enter privileged EXEC mode on an SSH shell and wait for the # prompt."""
     if not client:
         raise ValueError("SSH client is None")
 

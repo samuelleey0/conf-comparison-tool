@@ -4145,7 +4145,7 @@ def api_execute():
                         }
                     )
                 except Exception as exc:
-                    del_partial_logs(base_path, hostname)
+                    del_partial_logs(base_path, target_device or hostname)
                     yield stream_json_line(
                         {
                             "type": "error",
@@ -4406,7 +4406,7 @@ def api_execute():
                         }
                     )
                 except Exception as exc:
-                    del_partial_logs(base_path, hostname)
+                    del_partial_logs(base_path, target_device or hostname)
                     yield stream_json_line(
                         {
                             "type": "error",
@@ -4486,8 +4486,9 @@ def api_execute():
             )
         except Exception as exc:
             tb = traceback.format_exc()
-            if hostname:
-                del_partial_logs(base_path, hostname)
+            cleanup_hostname = target_device or hostname
+            if cleanup_hostname:
+                del_partial_logs(base_path, cleanup_hostname)
             yield stream_json_line({"type": "error", "msg": str(exc), "trace": tb})
 
     return Response(generate(), mimetype="text/plain")
