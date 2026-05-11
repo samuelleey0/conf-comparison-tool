@@ -8,6 +8,11 @@ const fs = require('fs');
 let mainWindow = null;
 let flaskProcess = null;
 
+function broadcastFlaskLog(line) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('flask-log', line);
+}
+
 ipcMain.handle('select-directory', async (event, defaultPath) => {
   let targetPath = defaultPath;
   if (!targetPath || typeof targetPath !== 'string') {
@@ -136,15 +141,25 @@ function startFlask() {
   });
 
   flaskProcess.stdout.on('data', (data) => {
-    console.log(`[Flask stdout] ${data.toString().trim()}`);
+    const text = data.toString().trim();
+    if (!text) return;
+    const line = `[Flask stdout] ${text}`;
+    console.log(line);
+    broadcastFlaskLog(line);
   });
 
   flaskProcess.stderr.on('data', (data) => {
-    console.error(`[Flask stderr] ${data.toString().trim()}`);
+    const text = data.toString().trim();
+    if (!text) return;
+    const line = `[Flask stderr] ${text}`;
+    console.error(line);
+    broadcastFlaskLog(line);
   });
 
   flaskProcess.on('close', (code) => {
-    console.log(`[INFO] Flask exited with code ${code}`);
+    const line = `[INFO] Flask exited with code ${code}`;
+    console.log(line);
+    broadcastFlaskLog(line);
   });
 
   return waitForPort('127.0.0.1', 5050, 15000);
