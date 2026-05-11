@@ -3,6 +3,27 @@
 // -----------------------------
 
 let currentAbortController = null;
+let flaskLogListenerAttached = false;
+
+function appendTerminalLine(message) {
+  const termLog = document.getElementById("terminalLog");
+  if (!termLog) return;
+  termLog.textContent += `${message}\n`;
+  termLog.scrollTop = termLog.scrollHeight;
+}
+
+function clearConnectionTerminalLog() {
+  const termLog = document.getElementById("terminalLog");
+  if (termLog) termLog.textContent = "";
+}
+
+function attachFlaskTerminalListener() {
+  if (!window.ipcRenderer || flaskLogListenerAttached) return;
+  window.ipcRenderer.on("flask-log", (_event, line) => {
+    appendTerminalLine(line);
+  });
+  flaskLogListenerAttached = true;
+}
 
 function applySerialPreset(preset) {
   const portInput = document.getElementById("serialPort");
@@ -612,6 +633,7 @@ function startQueueFromSelectedDevice() {
 
 async function setupConnectionPage() {
   loadNavbar();
+  attachFlaskTerminalListener();
   setupConnectionKeyboardShortcuts();
 
   // Build Execution Queue UI
@@ -691,6 +713,7 @@ async function setupConnectionPage() {
     ?.addEventListener("click", (evt) => {
       evt.preventDefault();
       clearExecutionLog();
+      clearConnectionTerminalLog();
     });
 
   startSequenceBtn?.addEventListener("click", () => {
@@ -804,6 +827,7 @@ async function runNextDeviceInQueue() {
   const abortBtn = document.getElementById("abortExecutionBtn");
 
   const runExecute = async (forceSkipHostname = false) => {
+    if (!forceSkipHostname) clearConnectionTerminalLog();
     badge.textContent = "EXECUTING...";
     badge.style.color = "var(--color-primary)";
 
@@ -900,10 +924,15 @@ async function runNextDeviceInQueue() {
                  }
                } else if (obj.type === "progress") {
                  appendLogLine(`[${nowTimestamp()}] ${obj.msg}`);
+               } else if (obj.type === "raw_output") {
+                 appendTerminalLine(obj.msg);
                } else if (obj.type === "result") {
                  appendLogLine(`[RESULT] ${obj.msg || "Done"}`);
                } else if (obj.type === "done") {
                  appendLogLine(`[DONE] ${obj.msg || "Finished"}`);
+               } else {
+                 const raw = JSON.stringify(obj);
+                 appendLogLine(raw);
                }
              } catch (_) {
                appendLogLine(line.trim());

@@ -18,107 +18,244 @@
       </div>
     </header>
 
-    <div class="connection-layout" id="sampleCollectPage">
-      <section class="connection-panel page-card">
-        <div class="step-heading">
-          <span class="step-heading__num">1</span>
-          <div>
-            <h2 class="section-title">Choose Save Folder</h2>
-            <p class="step-heading__hint">Select where lecturer sample logs should be stored.</p>
-          </div>
-        </div>
-        <div id="sampleStatus" class="status-banner" style="margin-bottom: 12px;">
-          <div class="status-banner__icon">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5"/>
-              <path d="M10 9v5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              <circle cx="10" cy="6.5" r="1" fill="currentColor"/>
-            </svg>
-          </div>
-          <div class="status-banner__body">
-            <span class="status-banner__label">Status</span>
-            <span class="status-banner__msg">Initializing...</span>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Save Directory</label>
-          <div class="existing-picker">
-            <button type="button" class="secondary" id="chooseSampleDirBtn">Choose Folder</button>
-            <span id="sampleDirLabel" class="selected-path">No folder selected</span>
-          </div>
-          <div class="form-row" style="margin-top: 10px; align-items: flex-end;">
-            <div class="form-group" style="flex: 1; min-width: 220px;">
-              <label for="sampleNewFolderName">Create New Folder</label>
-              <input type="text" id="sampleNewFolderName" placeholder="e.g. SampleLogs_Mar19" />
-            </div>
-            <div class="form-group" style="min-width: 160px;">
-              <button type="button" class="secondary" id="sampleCreateFolderBtn">Create Folder</button>
-            </div>
-          </div>
-          <p class="hint">If no folder is selected, new folders are created under Documents. If a folder is selected, the new folder is created inside it.</p>
-        </div>
+    <style>
+      .sample-two-column {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 560px;
+        gap: 20px;
+        align-items: start;
+        max-width: 1520px;
+        margin: 0 auto;
+      }
+      @media (max-width: 1000px) {
+        .sample-two-column {
+          grid-template-columns: 1fr;
+        }
+      }
+      .collected-badge {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(31, 59, 115, 0.08);
+        color: var(--color-primary);
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        border: 1px solid rgba(31, 59, 115, 0.2);
+        animation: fadeIn 0.3s ease-out;
+      }
+      .collected-badge svg {
+        margin-right: 6px;
+        width: 16px;
+        height: 16px;
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    </style>
 
-        <div class="form-group" style="margin-top: 16px;">
-          <div class="step-heading step-heading--compact">
+    <div class="sample-two-column" id="sampleCollectPage">
+      
+      <!-- Left Column: Settings -->
+      <div class="sample-left-col">
+        <section class="page-card">
+          <div class="step-heading">
+            <span class="step-heading__num">1</span>
+            <div>
+              <h2 class="section-title">Save Location</h2>
+              <p class="step-heading__hint">Select where lecturer sample logs should be stored.</p>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 24px;">
+            <label>Save Directory</label>
+            <div class="existing-picker">
+              <button type="button" class="secondary" id="chooseSampleDirBtn">Choose Folder</button>
+              <span id="sampleDirLabel" class="selected-path">No folder selected</span>
+            </div>
+            <div class="form-row" style="margin-top: 10px; align-items: flex-end;">
+              <div class="form-group" style="flex: 1; min-width: 220px;">
+                <label for="sampleNewFolderName">Create New Folder</label>
+                <input type="text" id="sampleNewFolderName" placeholder="e.g. SampleLogs_Mar19" />
+              </div>
+              <div class="form-group" style="min-width: 160px;">
+                <button type="button" class="secondary" id="sampleCreateFolderBtn">Create Folder</button>
+              </div>
+            </div>
+            <p class="hint">If no folder is selected, new folders are created under Documents.</p>
+          </div>
+
+          <div class="step-heading">
             <span class="step-heading__num">2</span>
             <div>
-              <h2 class="section-title">Select Commands</h2>
-              <p class="step-heading__hint">Choose the commands to save into the sample log set.</p>
+              <h2 class="section-title">Template Or Commands</h2>
+              <p class="step-heading__hint">Load a saved template to auto-fill devices, or choose manual commands.</p>
             </div>
           </div>
-          <input type="text" id="sampleCommandSearch" placeholder="Search commands..." style="margin-bottom: 10px;" />
-          <div id="sampleCommandsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card);"></div>
-          <div class="actions align-left" style="margin-top: 10px;">
-            <button type="button" id="selectAllSampleCmds" class="secondary">Select All</button>
-            <button type="button" id="clearSampleCmds" class="secondary">Clear</button>
+          <div class="form-group" style="margin-bottom: 24px;">
+            <div class="form-row" style="align-items: flex-end; margin-bottom: 12px;">
+              <div class="form-group" style="flex: 1; min-width: 220px;">
+                <label>Saved Template</label>
+                <div id="sampleTemplateSelect" class="app-select"></div>
+              </div>
+              <div class="form-group" style="min-width: 160px;">
+                <button type="button" class="btn-accent" id="loadSampleTemplateBtn">Load Template</button>
+              </div>
+              <div class="form-group" style="min-width: 160px;">
+                <button type="button" class="btn-outline" id="clearSampleTemplateBtn">Manual Mode</button>
+              </div>
+            </div>
+            
+            <!-- Template Mode View -->
+            <div id="sampleTemplateView" class="hidden">
+              <div id="sampleTemplateInfo" class="hint" style="margin-bottom: 12px;">Template loaded.</div>
+              <div id="sampleTemplateDevices" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card); margin-bottom: 12px;"></div>
+              <div id="sampleActiveDeviceInfo" class="hint" style="margin-bottom: 12px;"></div>
+            </div>
+
+            <!-- Manual Mode View -->
+            <div id="sampleManualView">
+              <div class="hint" style="margin-bottom: 12px;">No template loaded. Manual command selection is active.</div>
+              <input type="text" id="sampleCommandSearch" placeholder="Search commands..." style="margin-bottom: 10px;" />
+              <div id="sampleCommandsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card);"></div>
+              <div class="actions align-left" style="margin-top: 10px;">
+                <button type="button" id="selectAllSampleCmds" class="btn-outline">Select All</button>
+                <button type="button" id="clearSampleCmds" class="btn-outline">Clear</button>
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
 
-      <section class="connection-panel page-card">
-        <div class="step-heading">
-          <span class="step-heading__num">3</span>
-          <div>
-            <h2 class="section-title">Connect to Device</h2>
-            <p class="step-heading__hint">Pick Serial or SSH, then confirm the port or login fields.</p>
+          <div class="step-heading">
+            <span class="step-heading__num">3</span>
+            <div>
+              <h2 class="section-title">Connect & Collect</h2>
+              <p class="step-heading__hint">Select connection type and begin collection.</p>
+            </div>
           </div>
-        </div>
-        <div class="form-group">
-          <label class="choice-label"><input type="radio" name="sampleConnType" value="serial" checked /> Serial</label>
-          <label class="choice-label"><input type="radio" name="sampleConnType" value="ssh" /> SSH</label>
-        </div>
+          <div class="form-group" style="margin-bottom: 16px;">
+            <div class="radio-card-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 16px;">
+              <label class="radio-card" style="padding: 14px 18px;">
+                <input type="radio" name="sampleConnType" value="serial" checked />
+                <div class="radio-card-header" style="margin-bottom: 0;">
+                  <span class="radio-card-title">Serial Connection</span>
+                  <div class="radio-card-indicator"></div>
+                </div>
+              </label>
+              <label class="radio-card" style="padding: 14px 18px;">
+                <input type="radio" name="sampleConnType" value="ssh" />
+                <div class="radio-card-header" style="margin-bottom: 0;">
+                  <span class="radio-card-title">SSH Connection</span>
+                  <div class="radio-card-indicator"></div>
+                </div>
+              </label>
+            </div>
 
-        <div id="sampleSerialFields">
-          <p class="hint">Choose the preset that matches your system or select custom.</p>
-          <div class="inline-options">
-            <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="linux_usb" checked /> Linux USB-Serial (/dev/ttyUSB0)</label>
-            <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="linux_rs232" /> Linux RS232 (/dev/ttyS0)</label>
-            <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="windows" /> Windows (COM3)</label>
-            <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="mac" /> macOS (/dev/cu.usbserial-10)</label>
-            <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="custom" /> Custom</label>
+            <div id="sampleSerialFields">
+              <div class="inline-options" style="margin-bottom: 10px;">
+                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="linux_usb" checked /> Linux USB-Serial</label>
+                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="linux_rs232" /> Linux RS232</label>
+                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="windows" /> Windows</label>
+                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="mac" /> macOS</label>
+                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="custom" /> Custom</label>
+              </div>
+              <label for="sampleSerialPort">Serial Port</label>
+              <input type="text" id="sampleSerialPort" placeholder="/dev/ttyUSB0" />
+            </div>
+
+            <div id="sampleSshFields" class="hidden">
+              <div class="form-row">
+                <div class="form-group" style="flex:1;">
+                  <label for="sampleSshHost">Host</label>
+                  <input type="text" id="sampleSshHost" placeholder="192.168.1.1" />
+                </div>
+                <div class="form-group" style="flex:1;">
+                  <label for="sampleSshPort">Port</label>
+                  <input type="text" id="sampleSshPort" placeholder="22" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group" style="flex:1;">
+                  <label for="sampleSshUser">Username</label>
+                  <input type="text" id="sampleSshUser" placeholder="admin" />
+                </div>
+                <div class="form-group" style="flex:1;">
+                  <label for="sampleSshPass">Password</label>
+                  <input type="password" id="sampleSshPass" placeholder="Password" />
+                </div>
+              </div>
+            </div>
           </div>
-          <label for="sampleSerialPort">Serial Port</label>
-          <input type="text" id="sampleSerialPort" placeholder="/dev/ttyUSB0" />
-        </div>
 
-        <div id="sampleSshFields" class="hidden">
-          <label for="sampleSshHost">SSH Host</label><br>
-          <input type="text" id="sampleSshHost" placeholder="192.168.1.1" /><br>
-          <label for="sampleSshUser">SSH Username</label><br>
-          <input type="text" id="sampleSshUser" placeholder="admin" /><br>
-          <label for="sampleSshPass">SSH Password</label><br>
-          <input type="password" id="sampleSshPass" placeholder="Password" />
-          <br>
-          <label for="sampleSshPort">SSH Port</label><br>
-          <input type="text" id="sampleSshPort" placeholder="22" />
-        </div>
+          <div class="actions justify-end" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--color-border);">
+            <button type="button" id="runSampleCollectBtn" class="primary" style="font-size: 1.05rem; padding: 12px 24px; width: 100%;">Collect Logs</button>
+          </div>
+        </section>
+      </div>
 
-        <div class="actions justify-end" style="margin-top: 16px;">
-          <span class="action-step-label"><span class="step-heading__num">4</span>Collect</span>
-          <button type="button" id="runSampleCollectBtn" class="primary">Collect Logs</button>
-        </div>
-        <pre id="sampleLog" class="log" style="margin-top: 12px; height: 200px;"></pre>
-      </section>
+      <!-- Right Column: Tracking and Logs -->
+      <div class="sample-right-col">
+        <section class="page-card" style="padding: 24px; position: sticky; top: 20px;">
+          <h3 style="margin: 0 0 16px; font-size: 1.1rem; color: var(--color-heading);">Session Progress</h3>
+          
+          <div id="sampleStatus" class="status-banner" style="margin-bottom: 20px;">
+            <div class="status-banner__icon">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M10 9v5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <circle cx="10" cy="6.5" r="1" fill="currentColor"/>
+              </svg>
+            </div>
+            <div class="status-banner__body">
+              <span class="status-banner__label">Status</span>
+              <span class="status-banner__msg">Initializing...</span>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 24px;">
+            <h4 style="margin: 0 0 10px; font-size: 0.8rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.05em;">Collected So Far</h4>
+            <div id="collectedDevicesList" style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <span class="hint" id="noDevicesHint">No devices collected yet.</span>
+            </div>
+          </div>
+          
+          <h4 style="margin: 0 0 10px; font-size: 0.8rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.05em;">Live Execution Log</h4>
+          <pre id="sampleLog" class="log" style="height: 380px; margin: 0;"></pre>
+
+          <div class="danger-zone" style="margin-top: 24px;">
+            <div class="danger-zone__header">
+              <span class="step-heading__num step-heading__num--danger">!</span>
+              <div>
+                <h4 class="danger-zone__title">Danger Zone</h4>
+                <p class="danger-zone__desc">This will erase the connected Cisco device configuration and reload it. Only use after collection is complete.</p>
+              </div>
+            </div>
+            <div class="actions danger-zone__actions">
+              <label for="sampleResetDeviceType" class="connection-reset-row__label">Reset As</label>
+              <select id="sampleResetDeviceType" class="connection-reset-row__select">
+                <option value="switch" selected>Switch</option>
+                <option value="router">Router</option>
+              </select>
+              <button type="button" id="sampleResetDeviceBtn" class="danger">Reset Cisco Device</button>
+            </div>
+          </div>
+
+          <div class="terminal-monitor" style="margin-top: 24px;">
+            <header class="connection-status__header" style="margin-bottom: 12px;">
+              <div class="step-heading">
+                <span class="step-heading__num" style="background: #334155; border: none; color: #fff;">&gt;_</span>
+                <div>
+                  <h3 style="margin: 0; font-size: 1.05rem;">Terminal Output</h3>
+                  <p class="step-heading__hint" style="margin-top: 4px;">Live Flask stdout and stderr from the backend.</p>
+                </div>
+              </div>
+            </header>
+            <div class="status-panel modern" style="padding: 12px; border-radius: 8px;">
+              <pre id="sampleTerminalLog" class="log" style="height: 260px; background: #0d1117; color: #10b981; margin: 0; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85rem; border: inset 1px rgba(0,0,0,0.5); box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);"></pre>
+            </div>
+          </div>
+        </section>
+      </div>
+
     </div>
   </div>
 

@@ -84,8 +84,25 @@ function loadNavbar() {
       container.outerHTML = html;
       initNavbarInteractions();
       highlightActiveNavLink();
+      updateGlobalTemplateBadge();
     })
     .catch((err) => console.error("Failed to load navbar:", err));
+}
+
+function updateGlobalTemplateBadge() {
+  const badge = document.getElementById("globalTemplateBadge");
+  const nameEl = document.getElementById("globalTemplateName");
+  if (!badge || !nameEl) return;
+  const templateName = localStorage.getItem("templateName");
+  if (templateName) {
+    nameEl.textContent = templateName;
+    badge.classList.remove("hidden");
+  } else {
+    badge.classList.add("hidden");
+  }
+}
+if (typeof window !== "undefined") {
+  window.updateGlobalTemplateBadge = updateGlobalTemplateBadge;
 }
 
 function initNavbarInteractions() {

@@ -1,7 +1,3 @@
-// -----------------------------
-// Sample log collection
-// -----------------------------
-
 function setupSampleCollectPage() {
   loadNavbar();
 
@@ -10,10 +6,25 @@ function setupSampleCollectPage() {
   const log = document.getElementById("sampleLog");
   const dirLabel = document.getElementById("sampleDirLabel");
   const sampleCommandSearch = document.getElementById("sampleCommandSearch");
+  const sampleTemplateSelect = document.getElementById("sampleTemplateSelect");
+  const sampleTemplateInfo = document.getElementById("sampleTemplateInfo");
+  const sampleTemplateDevices = document.getElementById("sampleTemplateDevices");
+  const sampleActiveDeviceInfo = document.getElementById("sampleActiveDeviceInfo");
+  const runSampleCollectBtn = document.getElementById("runSampleCollectBtn");
+  const sampleTerminalLog = document.getElementById("sampleTerminalLog");
+
+  let availableTemplates = [];
+  let selectedTemplateName = "";
+  let activeTemplateName = "";
+  let templateDevicesMeta = {};
+  let activeTemplateDevice = "";
+  let collectedDevices = [];
+  let sampleAbortController = null;
+  let flaskLogListenerAttached = false;
 
   const setStatus = (msg) => {
     if (!statusBox) return;
-    const msgEl = statusBox.querySelector('.status-banner__msg');
+    const msgEl = statusBox.querySelector(".status-banner__msg");
     if (msgEl) msgEl.textContent = msg;
     else statusBox.textContent = msg;
   };
@@ -23,6 +34,24 @@ function setupSampleCollectPage() {
     log.textContent += `${msg}\n`;
     log.scrollTop = log.scrollHeight;
   };
+
+  const appendTerminalLine = (msg) => {
+    if (!sampleTerminalLog) return;
+    sampleTerminalLog.textContent += `${msg}\n`;
+    sampleTerminalLog.scrollTop = sampleTerminalLog.scrollHeight;
+  };
+
+  const clearTerminalLog = () => {
+    if (sampleTerminalLog) sampleTerminalLog.textContent = "";
+  };
+
+  function attachFlaskTerminalListener() {
+    if (!window.ipcRenderer || flaskLogListenerAttached) return;
+    window.ipcRenderer.on("flask-log", (_event, line) => {
+      appendTerminalLine(line);
+    });
+    flaskLogListenerAttached = true;
+  }
 
   const normalizeCommandSearch = (text) =>
     String(text || "")
@@ -39,6 +68,57 @@ function setupSampleCollectPage() {
       row.classList.toggle("hidden", !!term && !text.includes(term));
     });
   };
+
+  function renderSingleSelect(root, { options = [], value = "", placeholder = "Select" } = {}) {
+    if (!root) return;
+    const normalizedOptions = options.map((option) =>
+      typeof option === "string" ? { value: option, label: option } : option
+    );
+    const selected = normalizedOptions.find((option) => option.value === value) || null;
+    root.dataset.value = selected ? selected.value : "";
+    root.innerHTML = `
+      <button type="button" class="app-select-trigger">
+        <span class="app-select-label">${selected ? selected.label : placeholder}</span>
+        <span class="app-select-caret">▼</span>
+      </button>
+      <div class="app-select-menu hidden">
+        ${normalizedOptions.map((option) => `
+          <div class="app-select-option ${option.value === root.dataset.value ? "selected" : ""}" data-value="${option.value}">
+            ${option.label}
+          </div>
+        `).join("")}
+      </div>
+    `;
+
+    const trigger = root.querySelector(".app-select-trigger");
+    const menu = root.querySelector(".app-select-menu");
+    trigger?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const isOpen = root.classList.contains("open");
+      document.querySelectorAll(".app-select.open").forEach((node) => {
+        if (node !== root) {
+          node.classList.remove("open");
+          node.querySelector(".app-select-menu")?.classList.add("hidden");
+        }
+      });
+      root.classList.toggle("open", !isOpen);
+      menu?.classList.toggle("hidden", isOpen);
+    });
+
+    menu?.querySelectorAll(".app-select-option").forEach((optionNode) => {
+      optionNode.addEventListener("click", () => {
+        const nextValue = optionNode.dataset.value || "";
+        root.dataset.value = nextValue;
+        root.querySelector(".app-select-label").textContent = optionNode.textContent || placeholder;
+        menu.querySelectorAll(".app-select-option").forEach((item) => {
+          item.classList.toggle("selected", item === optionNode);
+        });
+        root.classList.remove("open");
+        menu.classList.add("hidden");
+        selectedTemplateName = nextValue;
+      });
+    });
+  }
 
   const toggleSampleConnectionFields = () => {
     const conn = document.querySelector('input[name="sampleConnType"]:checked')?.value || "serial";
@@ -64,6 +144,85 @@ function setupSampleCollectPage() {
       portInput.setAttribute("readonly", "readonly");
     }
   };
+
+  async function resetCiscoDevice() {
+    const conn = document.querySelector('input[name="sampleConnType"]:checked')?.value || "serial";
+    if (conn !== "serial") {
+      alert("Cisco reset is only supported in serial mode.");
+      return false;
+    }
+
+    const resetType = document.getElementById("sampleResetDeviceType")?.value || "switch";
+    const message = resetType === "router"
+      ? "This will reload the connected Cisco router without saving the running configuration. Continue?"
+      : "This will delete vlan.dat and reload the connected Cisco switch without saving the running configuration. Continue?";
+    if (!confirm(message)) return false;
+
+    const port = document.getElementById("sampleSerialPort")?.value.trim() || localStorage.getItem("serialPort") || SERIAL_PRESETS.linux_usb;
+    if (!port) {
+      alert("Please configure the serial port first.");
+      return false;
+    }
+
+    const resetBtn = document.getElementById("sampleResetDeviceBtn");
+    const originalText = resetBtn?.textContent || "Reset Cisco Device";
+    if (resetBtn) {
+      resetBtn.disabled = true;
+      resetBtn.textContent = "Resetting...";
+    }
+
+    appendSampleLog(`[${nowTimestamp()}] Starting Cisco reset on ${port}...`);
+    try {
+      sampleAbortController = new AbortController();
+      const response = await fetch(`${API_ROOT}/api/reset_device`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          connection: "serial",
+          mode: "serial",
+          device_type: resetType,
+          serial: { port },
+        }),
+        signal: sampleAbortController.signal,
+      });
+
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (_) {
+        data = {};
+      }
+
+      const logs = Array.isArray(data.logs) ? data.logs : [];
+      logs.forEach((line) => appendSampleLog(line));
+
+      if (!response.ok || data.status === "error") {
+        const errMsg = data.message || "Cisco reset failed.";
+        appendSampleLog(`[ERROR] ${errMsg}`);
+        alert(errMsg);
+        return false;
+      }
+
+      const okMsg = data.message || "Reset command sent successfully.";
+      appendSampleLog(`[SUCCESS] ${okMsg}`);
+      alert(okMsg);
+      return true;
+    } catch (err) {
+      if (err.name === "AbortError") {
+        appendSampleLog("[STOPPED] Cisco reset stopped by user.");
+        return false;
+      }
+      appendSampleLog(`[ERROR] ${err.message || err}`);
+      alert(err.message || "Cisco reset failed.");
+      return false;
+    } finally {
+      sampleAbortController = null;
+      if (resetBtn) {
+        resetBtn.disabled = false;
+        resetBtn.textContent = originalText;
+      }
+    }
+  }
 
   const loadCommands = async () => {
     if (!list) return;
@@ -91,11 +250,143 @@ function setupSampleCollectPage() {
   };
 
   const getSelectedCommands = () => {
+    if (activeTemplateName && activeTemplateDevice) {
+      return templateDevicesMeta[activeTemplateDevice] || [];
+    }
     const checkboxes = document.querySelectorAll('#sampleCommandsList input[type="checkbox"]');
     return Array.from(checkboxes)
       .filter((cb) => cb.checked)
       .map((cb) => cb.value);
   };
+
+  function updateTemplateModeUI() {
+    const inTemplateMode = Boolean(activeTemplateName);
+    
+    const tplView = document.getElementById("sampleTemplateView");
+    const manualView = document.getElementById("sampleManualView");
+    if (tplView) tplView.classList.toggle("hidden", !inTemplateMode);
+    if (manualView) manualView.classList.toggle("hidden", inTemplateMode);
+
+    if (!inTemplateMode) {
+      if (runSampleCollectBtn) runSampleCollectBtn.textContent = "Collect Logs";
+    } else {
+      const commands = templateDevicesMeta[activeTemplateDevice] || [];
+      if (sampleActiveDeviceInfo) {
+        sampleActiveDeviceInfo.textContent = activeTemplateDevice
+          ? `Active device: ${activeTemplateDevice} (${commands.length} commands)`
+          : "Select a device from the template list.";
+      }
+      if (runSampleCollectBtn) {
+        runSampleCollectBtn.textContent = activeTemplateDevice ? `Collect ${activeTemplateDevice}` : "Collect Logs";
+      }
+    }
+  }
+
+  function renderTemplateDevices() {
+    sampleTemplateDevices.innerHTML = "";
+    const hostnames = Object.keys(templateDevicesMeta);
+    if (!hostnames.length) {
+      sampleTemplateDevices.innerHTML = `<div class="hint">This template has no devices configured.</div>`;
+      updateTemplateModeUI();
+      return;
+    }
+
+    hostnames.forEach((hostname) => {
+      const commands = templateDevicesMeta[hostname] || [];
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "secondary";
+      button.style.textAlign = "left";
+      button.style.display = "block";
+      button.style.width = "100%";
+      button.innerHTML = `
+        <strong>${hostname}</strong><br>
+        <span style="font-size:0.85rem;color:var(--color-muted);">${commands.length} command${commands.length === 1 ? "" : "s"}</span>
+        <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;">
+          ${commands.length
+            ? commands
+                .map(
+                  (cmd) => `<code style="font-size:0.78rem; background:rgba(0,0,0,0.05); padding:3px 6px; border-radius:4px;">${cmd}</code>`
+                )
+                .join("") 
+            : `<span style="font-size:0.8rem;color:var(--color-muted);">No commands</span>`}
+        </div>
+      `;
+      if (hostname === activeTemplateDevice) {
+        button.style.borderColor = "var(--color-primary)";
+        button.style.background = "rgba(31,59,115,0.08)";
+      }
+      button.addEventListener("click", () => {
+        activeTemplateDevice = hostname;
+        renderTemplateDevices();
+        updateTemplateModeUI();
+      });
+      sampleTemplateDevices.appendChild(button);
+    });
+    updateTemplateModeUI();
+  }
+
+  async function loadTemplateList() {
+    try {
+      const res = await fetchJson("/api/admin/templates");
+      availableTemplates = res.templates || [];
+    } catch (err) {
+      console.warn("Could not fetch templates:", err);
+      availableTemplates = [];
+    }
+    renderSingleSelect(sampleTemplateSelect, {
+      options: availableTemplates,
+      value: selectedTemplateName,
+      placeholder: "Select a template",
+    });
+  }
+
+  async function loadTemplateIntoSampleCollect(templateName) {
+    if (!templateName) {
+      alert("Please select a template first.");
+      return;
+    }
+    const data = await fetchJson(`/api/templates/${encodeURIComponent(templateName)}`);
+    templateDevicesMeta = data.devices_meta || {};
+    activeTemplateName = templateName;
+    activeTemplateDevice = Object.keys(templateDevicesMeta)[0] || "";
+    localStorage.setItem("sampleCollectTemplate", templateName);
+    renderTemplateDevices();
+    updateTemplateModeUI();
+  }
+
+  function renderCollectedDevices() {
+    const listEl = document.getElementById("collectedDevicesList");
+    const hint = document.getElementById("noDevicesHint");
+    if (!listEl) return;
+    
+    if (collectedDevices.length > 0) {
+      if (hint) hint.style.display = "none";
+      Array.from(listEl.children).forEach(child => {
+        if (child.id !== "noDevicesHint") child.remove();
+      });
+      collectedDevices.forEach(dev => {
+        const badge = document.createElement("span");
+        badge.className = "collected-badge";
+        badge.innerHTML = `<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>${dev}`;
+        listEl.appendChild(badge);
+      });
+    } else {
+      if (hint) hint.style.display = "block";
+      Array.from(listEl.children).forEach(child => {
+        if (child.id !== "noDevicesHint") child.remove();
+      });
+    }
+  }
+
+  function clearTemplateMode() {
+    activeTemplateName = "";
+    templateDevicesMeta = {};
+    activeTemplateDevice = "";
+    localStorage.removeItem("sampleCollectTemplate");
+    if (sampleTemplateDevices) sampleTemplateDevices.innerHTML = "";
+    updateTemplateModeUI();
+  }
 
   const chooseSampleDirectory = async () => {
     if (ipcRenderer && typeof ipcRenderer.invoke === "function") {
@@ -133,6 +424,12 @@ function setupSampleCollectPage() {
       skip_config: true,
     };
 
+    if (activeTemplateName && activeTemplateDevice) {
+      payload.target_device = activeTemplateDevice;
+      payload.deviceId = activeTemplateDevice;
+      payload.skip_hostname_check = true;
+    }
+
     if (conn === "ssh") {
       payload.ssh = {
         host: document.getElementById("sampleSshHost").value.trim(),
@@ -146,14 +443,12 @@ function setupSampleCollectPage() {
       };
     }
 
-    const btn = document.getElementById("runSampleCollectBtn");
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = "Collecting...";
+    if (runSampleCollectBtn) {
+      runSampleCollectBtn.disabled = true;
     }
 
     if (log) log.textContent = "";
-    appendSampleLog("Starting collection...");
+    appendSampleLog(`Starting collection${activeTemplateDevice ? ` for ${activeTemplateDevice}` : ""}...`);
 
     try {
       const res = await fetch(`${API_ROOT}/api/execute`, {
@@ -170,6 +465,7 @@ function setupSampleCollectPage() {
       const decoder = new TextDecoder();
       let buffer = "";
       let hasError = false;
+      let lastDiscoveredHostname = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -184,6 +480,9 @@ function setupSampleCollectPage() {
             if (payloadObj.type === "error") {
               hasError = true;
               appendSampleLog(`[ERROR] ${payloadObj.msg || "Error"}`);
+            } else if (payloadObj.type === "result") {
+              if (payloadObj.hostname) lastDiscoveredHostname = payloadObj.hostname;
+              if (payloadObj.msg) appendSampleLog(payloadObj.msg);
             } else if (payloadObj.msg) {
               appendSampleLog(payloadObj.msg);
             }
@@ -197,20 +496,34 @@ function setupSampleCollectPage() {
         alert("Collection finished with errors. Check the log.");
       } else {
         alert("Logs collected successfully.");
+        
+        const collectedName = (activeTemplateName && activeTemplateDevice) ? activeTemplateDevice : (lastDiscoveredHostname || "Unknown Device");
+        if (!collectedDevices.includes(collectedName)) {
+          collectedDevices.push(collectedName);
+          renderCollectedDevices();
+        }
+
+        if (activeTemplateName && activeTemplateDevice) {
+          const hostnames = Object.keys(templateDevicesMeta);
+          const currentIndex = hostnames.indexOf(activeTemplateDevice);
+          if (currentIndex >= 0 && currentIndex < hostnames.length - 1) {
+            activeTemplateDevice = hostnames[currentIndex + 1];
+            renderTemplateDevices();
+          }
+        }
       }
     } catch (err) {
       console.error(err);
       alert(err.message || "Collection failed.");
     } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = "Collect Logs";
+      if (runSampleCollectBtn) {
+        runSampleCollectBtn.disabled = false;
       }
     }
   };
 
   setStatus("Sample Collect ready. Loading commands...");
-  loadCommands();
+  attachFlaskTerminalListener();
 
   document.querySelectorAll('input[name="sampleConnType"]').forEach((r) =>
     r.addEventListener("change", toggleSampleConnectionFields)
@@ -248,6 +561,18 @@ function setupSampleCollectPage() {
   document.getElementById("clearSampleCmds")?.addEventListener("click", () => {
     document.querySelectorAll('#sampleCommandsList input[type="checkbox"]').forEach((cb) => (cb.checked = false));
   });
+
+  document.getElementById("loadSampleTemplateBtn")?.addEventListener("click", async () => {
+    try {
+      await loadTemplateIntoSampleCollect(sampleTemplateSelect?.dataset.value || selectedTemplateName);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Failed to load template.");
+    }
+  });
+
+  document.getElementById("clearSampleTemplateBtn")?.addEventListener("click", clearTemplateMode);
+  document.getElementById("sampleResetDeviceBtn")?.addEventListener("click", resetCiscoDevice);
 
   document.getElementById("chooseSampleDirBtn")?.addEventListener("click", async () => {
     setStatus("Opening folder picker...");
@@ -302,15 +627,42 @@ function setupSampleCollectPage() {
     }
   });
 
-  document.getElementById("runSampleCollectBtn")?.addEventListener("click", () => {
+  runSampleCollectBtn?.addEventListener("click", () => {
     setStatus("Starting collection...");
     runSampleCollection();
   });
 
   toggleSampleConnectionFields();
+  updateTemplateModeUI();
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".app-select")) {
+      document.querySelectorAll(".app-select.open").forEach((node) => {
+        node.classList.remove("open");
+        node.querySelector(".app-select-menu")?.classList.add("hidden");
+      });
+    }
+  });
+
+  (async () => {
+    await loadCommands();
+    await loadTemplateList();
+    const savedTemplate = localStorage.getItem("sampleCollectTemplate") || localStorage.getItem("templateName");
+    if (savedTemplate && availableTemplates.includes(savedTemplate)) {
+      selectedTemplateName = savedTemplate;
+      renderSingleSelect(sampleTemplateSelect, {
+        options: availableTemplates,
+        value: selectedTemplateName,
+        placeholder: "Select a template",
+      });
+      try {
+        await loadTemplateIntoSampleCollect(savedTemplate);
+      } catch (err) {
+        console.warn("Could not auto-load sample template:", err);
+      }
+    }
+  })();
 }
-
-
 
 document.addEventListener("DOMContentLoaded", () => {
   if (document.getElementById("sampleCollectPage")) setupSampleCollectPage();

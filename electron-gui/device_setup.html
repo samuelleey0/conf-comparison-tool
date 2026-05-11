@@ -42,10 +42,20 @@
     .ds-card {
       background: var(--color-surface);
       border: 1px solid var(--color-border);
-      border-radius: 6px;
+      border-radius: 8px;
       padding: 24px 28px;
       margin-bottom: 20px;
       overflow: visible;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, z-index 0s;
+      position: relative;
+      z-index: 1;
+    }
+    
+    .ds-card:hover, .ds-card:focus-within {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.08);
+      z-index: 10;
     }
 
     .ds-card-header {
@@ -298,16 +308,28 @@
       border-color: var(--color-accent);
     }
 
+    @keyframes slideInDown {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     .dropdown-list {
       position: fixed;
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 8px;
       max-height: 220px;
       overflow-y: auto;
       z-index: 999999;
-      box-shadow: 0 8px 24px rgba(15, 23, 46, 0.12);
+      box-shadow: 0 12px 32px rgba(10, 30, 40, 0.15);
       min-width: 280px;
+      transform-origin: top;
+    }
+
+    .dropdown-list:not(.hidden) {
+      animation: slideInDown 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
 
     .dropdown-list.hidden {
@@ -556,16 +578,53 @@
         </div>
       </div>
 
-      <!-- Device Configuration -->
       <div class="ds-card">
         <div class="ds-card-header">
+          <span class="ds-card-title">Setup Mode</span>
+          <span class="ds-card-subtitle">Choose whether to build from collected logs or define devices manually</span>
+        </div>
+        <div class="radio-card-grid">
+          <label class="radio-card">
+            <input type="radio" name="templateSetupMode" value="logs" checked />
+            <div class="radio-card-header">
+              <span class="radio-card-title">Logs First</span>
+              <div class="radio-card-indicator"></div>
+            </div>
+            <p class="radio-card-desc">Choose one collected sample-log folder. The system will detect hostnames and commands automatically.</p>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="templateSetupMode" value="manual" />
+            <div class="radio-card-header">
+              <span class="radio-card-title">Manual Setup</span>
+              <div class="radio-card-indicator"></div>
+            </div>
+            <p class="radio-card-desc">Define devices and commands now, then collect the lecturer logs later from Sample Collect.</p>
+          </label>
+        </div>
+        <div id="logsFirstPanel">
+          <div class="ds-form-row">
+            <div class="ds-form-group" style="flex: 1;">
+              <label>Collected Logs Folder</label>
+              <div class="ds-load-row">
+                <button type="button" id="chooseLogsFolderBtn" class="btn-accent">Choose Folder</button>
+                <span id="logsFolderLabel" class="selected-path">No folder selected</span>
+              </div>
+              <p class="template-mode-note">Expected structure: one device folder per hostname, with command output files inside each device folder.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Device Configuration -->
+      <div class="ds-card" id="deviceConfigCard">
+        <div class="ds-card-header">
           <span class="ds-card-title">Devices</span>
-          <span class="ds-card-subtitle">Add and configure network devices</span>
+          <span class="ds-card-subtitle" id="devicesSubtitle">Add and configure network devices</span>
         </div>
 
         <div id="devicesContainer"></div>
 
-        <div class="ds-toolbar">
+        <div class="ds-toolbar" id="manualToolbar">
           <button type="button" id="addDeviceBtn" class="btn-accent">+ Add Device</button>
           <button type="button" id="clearSetupBtn" class="btn-outline">Clear All</button>
         </div>
