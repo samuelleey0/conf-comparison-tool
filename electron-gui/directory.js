@@ -382,16 +382,16 @@ function renderMainStudentGrid(students) {
     studentCard.className = "student-card";
     studentCard.style.cssText = `
         border: 1px solid var(--color-border);
-        border-radius: 6px;
-        padding: 5px 10px;
+        border-radius: 8px;
+        padding: 12px 14px;
         text-align: left;
         cursor: pointer;
-        transition: all 0.2s;
-        background: var(--color-bg-card);
+        background: var(--color-surface);
         display: flex;
         flex-direction: row;
         align-items: center;
-        gap: 8px;
+        gap: 12px;
+        box-shadow: 0 2px 6px rgba(15, 23, 46, 0.05);
     `;
 
     // Check if the student's subfolder exists to mark as "completed"
@@ -463,16 +463,15 @@ function renderMainStudentGrid(students) {
     studentCard.onclick = () => {
       document.querySelectorAll("#mainStudentGridContainer .student-card.selected-student").forEach(el => {
         el.classList.remove("selected-student");
-        // Reset to completed state or default depending
-        if (el.dataset.completed === "true") {
+        if (el.classList.contains("executed-student")) {
+           el.style.borderColor = "var(--color-primary)";
+           el.style.backgroundColor = "rgba(31, 59, 115, 0.1)";
+        } else if (el.dataset.completed === "true") {
            el.style.borderColor = "var(--color-success, #28a745)";
            el.style.backgroundColor = "rgba(40, 167, 69, 0.05)";
         } else if (el.dataset.completed === "partial") {
            el.style.borderColor = "#ff9800";
            el.style.backgroundColor = "rgba(255, 152, 0, 0.08)";
-        } else if (el.classList.contains("executed-student")) {
-           el.style.borderColor = "var(--color-primary)";
-           el.style.backgroundColor = "rgba(31, 59, 115, 0.1)";
         } else {
            el.style.borderColor = "var(--color-border)";
            el.style.backgroundColor = "var(--color-bg-card)";
@@ -482,8 +481,9 @@ function renderMainStudentGrid(students) {
 
       studentCard.classList.add("selected-student");
       studentCard.style.borderColor = "var(--color-primary)";
-      studentCard.style.backgroundColor = "var(--color-primary)";
-      studentCard.style.color = "#ffffff";
+      studentCard.style.borderWidth = "2px";
+      studentCard.style.backgroundColor = "rgba(31, 59, 115, 0.08)";
+      studentCard.style.color = "var(--color-heading)";
 
       pendingSelectedStudent = student;
       if (useBtn) useBtn.disabled = false;
@@ -501,8 +501,6 @@ function renderMainStudentGrid(students) {
 
     gridContainer.appendChild(studentCard);
   });
-
-
 }
 
 // Replaced original openExistingDirectoryDialog

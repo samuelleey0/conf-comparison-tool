@@ -173,6 +173,10 @@ textarea:focus {
   z-index: 3000;
 }
 
+.rubric-rule-body {
+  position: relative;
+}
+
 .app-select-option {
   padding: 10px 12px;
   cursor: pointer;
@@ -348,6 +352,7 @@ button.block {
   flex-direction: column;
   gap: 24px;
   box-sizing: border-box;
+  overflow: visible;
 }
 
 .page-header {
@@ -378,9 +383,9 @@ button.block {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.page-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.08);
+.directory-card:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .page-card.flat {
@@ -764,7 +769,7 @@ button.block {
   padding-left: 12px;
   border-left: 3px solid rgba(31, 59, 115, 0.12);
   margin-left: 8px;
-  overflow: hidden;
+  overflow: visible;
   max-height: 100000px;
   transition: max-height 0.3s ease, opacity 0.3s ease;
   opacity: 1;
