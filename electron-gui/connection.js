@@ -503,7 +503,7 @@ function renderDeviceQueue(devicesMeta, deviceQueueContainer) {
       <div style="display:flex;align-items:center;gap:10px;">
         <span class="q-chevron" style="font-size:0.7rem;color:var(--color-muted);transition:transform 0.2s;">▼</span>
         <span class="q-badge" style="font-size:0.85rem;font-weight:bold;color:var(--color-muted);">WAITING</span>
-        <button type="button" class="queue-start-btn" data-hostname="${device.hostname}">Start Here</button>
+        <button type="button" class="queue-start-btn" data-hostname="${device.hostname}">Collect this</button>
       </div>
     `;
 
@@ -542,7 +542,7 @@ function renderDeviceQueue(devicesMeta, deviceQueueContainer) {
       const proceed = await showConnectionPrompt({
         title: "Start From Device",
         message: `Start collection from ${device.hostname} and skip earlier queued devices?`,
-        confirmText: "Start Here",
+        confirmText: "Collect this",
       });
       if (!proceed) return;
 
