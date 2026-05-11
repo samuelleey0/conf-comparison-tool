@@ -11,6 +11,9 @@ __pycache__/
 *.pyd
 *.pytest_cache/
 *.coverage
+build/
+dist/
+*.egg-info/
 
 # -------------------------
 # Node / Electron
@@ -20,6 +23,8 @@ electron-gui/node_modules/
 electron-gui/dist/
 electron-gui/out/
 electron-gui/.webpack/
+electron-gui/backend-dist/
+electron-gui/backend-build/
 
 # -------------------------
 # Logs and temporary files

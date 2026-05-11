@@ -5382,7 +5382,7 @@ def api_upload_templates():
 # -------------------------------------------------
 # ✅ Run Flask
 # -------------------------------------------------
-if __name__ == "__main__":
+def main():
 
     class _SuppressDevServerWarning(logging.Filter):
         def filter(self, record):
@@ -5395,3 +5395,7 @@ if __name__ == "__main__":
     logging.getLogger("werkzeug").addFilter(_SuppressDevServerWarning())
     print("[*] Running Flask server on http://127.0.0.1:5050")
     app.run(host="127.0.0.1", port=5050, threaded=True)
+
+
+if __name__ == "__main__":
+    main()
