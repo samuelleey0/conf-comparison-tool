@@ -1,3 +1,10 @@
+"""
+CLI testing entry point for Cisco command collection.
+
+This script predates the Electron/Flask workflow and lets a developer manually
+select commands, choose serial or SSH, collect output, and save logs. The GUI
+runtime uses server.py instead.
+"""
 import time
 import os
 import shutil
@@ -17,7 +24,6 @@ from remote_utils import (
     enter_enable_mode_remote,
     send_command_remote,
     get_hostname_remote,
-    toggle_usb_adapter,
 )
 from ui_utils import (
     choose_connection_type,
@@ -31,6 +37,13 @@ from command_manager import command_menu
 
 
 def main():
+    """
+    Run the interactive command-collection workflow for manual CLI testing.
+
+    It prompts for commands and a destination folder, connects by serial or SSH,
+    saves each command's output, and removes partial logs if retries are
+    exhausted.
+    """
 
     # Command checklist to run
     commands = command_menu()

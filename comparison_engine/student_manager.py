@@ -1,3 +1,11 @@
+"""
+Student log discovery and comparison helpers.
+
+This module finds collected student logs, loads or parses per-host config.json
+files, and writes comparison summaries. server.py currently uses find_show_run_file()
+directly; the broader compare_student_hostnames flow is kept for the legacy
+comparison-engine pipeline.
+"""
 import json
 import os
 import ipaddress

@@ -1,3 +1,10 @@
+"""
+Canonical comparison logic for parsed Cisco configs.
+
+This module compares a template device config against a student's parsed config,
+assigns ACCMS outcome codes, and adds higher-level verification checks used by
+server.py grading/report generation.
+"""
 import re
 import json
 import ipaddress
@@ -21,6 +28,7 @@ VALUE_NOT_PRESENT = "__ACCMS_NOT_PRESENT__"
 
 
 def _normalize_interface_list_value(value):
+    """Convert interface list values into sorted unique strings."""
     if isinstance(value, list):
         cleaned = [str(item).strip() for item in value if str(item).strip()]
         return sorted(set(cleaned))
@@ -38,6 +46,7 @@ def _normalize_interface_list_value(value):
 
 
 def _is_nat_stats_path(full_key: str) -> bool:
+    """Return True when a comparison path points at NAT statistics output."""
     return (
         full_key.endswith("verification.show_ip_nat_statistics")
         or ".verification.show_ip_nat_statistics." in full_key
@@ -45,6 +54,7 @@ def _is_nat_stats_path(full_key: str) -> bool:
 
 
 def _normalize_role_name(value: str) -> str:
+    """Convert a scheme role name into a stable token-safe identifier."""
     sanitized = re.sub(r"[^a-zA-Z0-9]+", "_", str(value).strip().lower())
     return sanitized.strip("_") or "unknown"
 
@@ -88,6 +98,7 @@ def _extract_vlan_tokens_from_scheme(scheme: dict) -> dict:
 
 
 def _replace_vlan_ids_in_text(text: str, vlan_token_map: dict) -> str:
+    """Replace VLAN number tokens in text with scheme-normalized VLAN tokens."""
     if not text:
         return text
 
@@ -102,6 +113,7 @@ def _replace_vlan_ids_in_text(text: str, vlan_token_map: dict) -> str:
 def _normalize_value(
     value, vlan_token_map: dict, key_hint: str = "", parent_key: str = ""
 ):
+    """Recursively normalize VLAN IDs inside parsed config values."""
     if isinstance(value, dict):
         normalized = {}
         for key, child in value.items():
@@ -416,6 +428,7 @@ def _classify_static_routes(static_routes):
 
 
 def _as_ipv4_address(value):
+    """Parse a value as IPv4Address, returning None when invalid."""
     try:
         return ipaddress.IPv4Address(str(value or "").strip())
     except Exception:
@@ -423,6 +436,7 @@ def _as_ipv4_address(value):
 
 
 def _as_ipv4_network(network, mask):
+    """Parse network/mask values as IPv4Network, returning None when invalid."""
     try:
         return ipaddress.IPv4Network(
             f"{str(network or '').strip()}/{str(mask or '').strip()}",
@@ -433,6 +447,7 @@ def _as_ipv4_network(network, mask):
 
 
 def _route_network_key(route):
+    """Return a comparable destination key for a static route dict."""
     if not isinstance(route, dict):
         return None
     network = str(route.get("network") or route.get("destination") or "").strip()
@@ -451,6 +466,7 @@ def _route_network_key(route):
 
 
 def _lookup_interface_config(interface_name, interfaces):
+    """Find an interface config by name using case-insensitive matching."""
     if not interface_name or not isinstance(interfaces, dict):
         return None
     wanted = str(interface_name).strip().lower()
@@ -461,6 +477,7 @@ def _lookup_interface_config(interface_name, interfaces):
 
 
 def _interface_connected_network(interface_name, interfaces):
+    """Return the connected IPv4 network for an interface, if configured."""
     config = _lookup_interface_config(interface_name, interfaces)
     if not config:
         return None
@@ -513,6 +530,7 @@ def _compare_static_route_lists(
     student_interfaces,
     full_key,
 ):
+    """Compare static routes with special handling for equivalent next hops."""
     template_routes = [r for r in (template_routes or []) if isinstance(r, dict)]
     student_routes = [r for r in (student_routes or []) if isinstance(r, dict)]
 
@@ -1240,6 +1258,7 @@ def _make_result(feature, status, expected=_UNSET, actual=_UNSET, outcome_code=N
 
 
 def _route_codes(routes):
+    """Return the set of route code tokens present in parsed route entries."""
     codes = set()
     if not isinstance(routes, list):
         return codes
@@ -1253,6 +1272,7 @@ def _route_codes(routes):
 
 
 def _route_destinations(routes):
+    """Return learned/static route destinations, excluding connected/local routes."""
     destinations = set()
     if not isinstance(routes, list):
         return destinations
@@ -1273,6 +1293,7 @@ def _route_destinations(routes):
 
 
 def _verification_outcome_code_for_path(full_key, status, expected=None, actual=None):
+    """Map verification comparison paths to user-facing outcome codes."""
     feature = str(full_key or "")
     if not feature.startswith("verification."):
         return None
@@ -1384,6 +1405,7 @@ def _verification_outcome_code_for_path(full_key, status, expected=None, actual=
 
 
 def _normalize_interface_name(name):
+    """Expand common Cisco interface abbreviations for reliable matching."""
     text = str(name or "").strip()
     replacements = (
         ("Gi", "GigabitEthernet"),
@@ -1402,6 +1424,7 @@ def _normalize_interface_name(name):
 
 
 def _normalized_interface_set(values):
+    """Normalize a list of interface names or dicts into a comparable set."""
     interfaces = set()
     for value in values or []:
         if isinstance(value, dict):
@@ -1425,6 +1448,7 @@ def _make_verification_chain_result(
     chain_stopped=False,
     details=None,
 ):
+    """Create a structured multi-step verification failure result."""
     result = _make_result(feature, "mismatch", expected, actual, outcome_code)
     result["command"] = command
     result["level"] = level
@@ -1435,6 +1459,7 @@ def _make_verification_chain_result(
 
 
 def _filter_route_table(routes, code_prefixes):
+    """Filter route-table entries by route-code prefixes."""
     filtered = []
     prefixes = tuple(code_prefixes)
     for route in routes or []:
@@ -1447,6 +1472,7 @@ def _filter_route_table(routes, code_prefixes):
 
 
 def _extract_route_destinations(routes):
+    """Extract destination values from route-table entries."""
     destinations = set()
     for route in routes or []:
         if not isinstance(route, dict):
@@ -1458,6 +1484,7 @@ def _extract_route_destinations(routes):
 
 
 def _route_table_failure(protocol, expected_routes, actual_routes, expected_codes):
+    """Classify why a verification route table does not contain expected routes."""
     actual_codes = _route_codes(actual_routes)
     expected_destinations = _extract_route_destinations(expected_routes)
     actual_destinations = _extract_route_destinations(actual_routes)
@@ -1481,6 +1508,7 @@ def _route_table_failure(protocol, expected_routes, actual_routes, expected_code
 
 
 def _find_default_static_route(routes):
+    """Return the default static route from parsed show-run routes, if present."""
     for route in routes or []:
         if not isinstance(route, dict):
             continue
@@ -1496,6 +1524,7 @@ def _find_default_static_route(routes):
 
 
 def _check_routing_verification(template, student):
+    """Run chained routing verification checks across neighbor/topology/route data."""
     results = []
     template_show_run = template.get("show_running_config", {}) or {}
     student_show_run = student.get("show_running_config", {}) or {}

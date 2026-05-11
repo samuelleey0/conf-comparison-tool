@@ -3,6 +3,7 @@ const path = require("path");
 const os = require("os");
 
 const ENGINE_STUDENTS_ROOT = path.resolve(__dirname, "..", "comparison_engine", "students");
+const DEVICE_TYPES = ["router", "switch", "asa"];
 
 function readJsonFile(filePath) {
   try {
@@ -10,18 +11,6 @@ function readJsonFile(filePath) {
   } catch (_) {
     return {};
   }
-}
-
-function getSessionStudentNames(classroom, tutorName, timeSlot) {
-  const metaPath = path.join(os.homedir(), "Documents", classroom, tutorName, timeSlot, "students.json");
-  const data = readJsonFile(metaPath);
-  return data && typeof data === "object" ? data : {};
-}
-
-function appendMelbourneLog(message) {
-  const log = document.getElementById("melbourneLog");
-  if (!log) return;
-  log.textContent = `${message}`;
 }
 
 function listDirectoryNames(targetPath) {
@@ -33,38 +22,56 @@ function listDirectoryNames(targetPath) {
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 }
 
+function getSessionStudentNames(classroom, tutorName, timeSlot) {
+  const metaPath = path.join(os.homedir(), "Documents", classroom, tutorName, timeSlot, "students.json");
+  const data = readJsonFile(metaPath);
+  return data && typeof data === "object" ? data : {};
+}
+
 function makeSessionKey(tutorName, timeSlot) {
   return `${tutorName} / ${timeSlot}`;
 }
 
+function parseCsv(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function deriveExamFields(examName) {
+  const words = String(examName || "").trim().split(/\s+/).filter(Boolean);
+  const unitcode = words[0] || "";
+  const shortname = words[1] ? words[1].toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "") : "";
+  return { unitcode, shortname: shortname || "exam" };
+}
+
+function appendMelbourneLog(message) {
+  const log = document.getElementById("melbourneLog");
+  if (!log) return;
+  log.textContent = message;
+}
+
 function buildSessionIndex() {
-  const classroomNames = listDirectoryNames(ENGINE_STUDENTS_ROOT);
   const index = {};
-  classroomNames.forEach((classroom) => {
+  listDirectoryNames(ENGINE_STUDENTS_ROOT).forEach((classroom) => {
     const classroomPath = path.join(ENGINE_STUDENTS_ROOT, classroom);
-    const tutors = listDirectoryNames(classroomPath);
     index[classroom] = {};
-    tutors.forEach((tutorName) => {
+    listDirectoryNames(classroomPath).forEach((tutorName) => {
       const tutorPath = path.join(classroomPath, tutorName);
-      const timeSlots = listDirectoryNames(tutorPath);
-      timeSlots.forEach((timeSlot) => {
+      listDirectoryNames(tutorPath).forEach((timeSlot) => {
         const sessionPath = path.join(tutorPath, timeSlot);
         const studentNames = getSessionStudentNames(classroom, tutorName, timeSlot);
-        const students = listDirectoryNames(sessionPath).map((studentId) => {
-          const studentPath = path.join(sessionPath, studentId);
-          return {
-            student_id: studentId,
-            student_name: studentNames[studentId] || "",
-            path: studentPath,
-          };
-        });
-        const sessionKey = makeSessionKey(tutorName, timeSlot);
-        index[classroom][sessionKey] = {
+        const students = listDirectoryNames(sessionPath).map((studentId) => ({
+          student_id: studentId,
+          student_name: studentNames[studentId] || "",
+          path: path.join(sessionPath, studentId),
+        }));
+        index[classroom][makeSessionKey(tutorName, timeSlot)] = {
           classroom,
           tutor_name: tutorName,
           time_slot: timeSlot,
-          session_id: tutorName,
-          label: sessionKey,
+          label: makeSessionKey(tutorName, timeSlot),
           path: sessionPath,
           students,
         };
@@ -94,188 +101,281 @@ function setSelectOptions(selectEl, options, placeholder) {
   });
 }
 
-function setupSendMelbournePage() {
-  const examSelect = document.getElementById("melbourneExamSelect");
+function inferDeviceType(sessionPath, deviceName) {
+  for (const studentId of listDirectoryNames(sessionPath)) {
+    const devicePath = path.join(sessionPath, studentId, deviceName);
+    if (!fs.existsSync(devicePath)) continue;
+    for (const filename of fs.readdirSync(devicePath)) {
+      const lower = filename.toLowerCase();
+      if (lower.includes("vlan") || lower.includes("trunk") || lower.includes("spanning")) return "switch";
+      if (lower.includes("route")) return "router";
+    }
+  }
+  return "router";
+}
+
+function discoverDevices(sessionPath) {
+  const devices = new Set();
+  listDirectoryNames(sessionPath).forEach((studentId) => {
+    listDirectoryNames(path.join(sessionPath, studentId))
+      .filter((device) => device !== "results")
+      .forEach((device) => devices.add(device));
+  });
+  return Array.from(devices).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+}
+
+function setupExportMelbournePage() {
+  const classroomSelect = document.getElementById("melbourneClassroomSelect");
   const sessionSelect = document.getElementById("melbourneSessionSelect");
-  const studentList = document.getElementById("melbourneStudentList");
-  const selectedLabel = document.getElementById("melbourneSelectedLabel");
-  const sendBtn = document.getElementById("sendMelbourneBtn");
+  const sessionPathEl = document.getElementById("melbourneSessionPath");
+  const examNameInput = document.getElementById("melbourneExamName");
+  const semesterInput = document.getElementById("melbourneSemester");
+  const unitcodeInput = document.getElementById("melbourneUnitcode");
+  const shortnameInput = document.getElementById("melbourneShortname");
+  const timeoutInput = document.getElementById("melbourneTimeout");
+  const schemeValuesInput = document.getElementById("melbourneSchemeValues");
+  const devicesBody = document.getElementById("melbourneDevicesBody");
+  const studentsBody = document.getElementById("melbourneStudentsBody");
+  const applySchemeSelect = document.getElementById("melbourneBulkScheme");
+  const applySchemeBtn = document.getElementById("melbourneApplySchemeBtn");
   const refreshBtn = document.getElementById("refreshMelbourneBtn");
-  const selectAllBtn = document.getElementById("selectAllMelbourneBtn");
-  const clearAllBtn = document.getElementById("clearAllMelbourneBtn");
+  const exportBtn = document.getElementById("exportMelbourneBtn");
+  const selectedLabel = document.getElementById("melbourneSelectedLabel");
+  const maxMarksInput = document.getElementById("melbourneMaxMarks");
+  const minorPenaltiesInput = document.getElementById("melbourneMinorPenalties");
+  const rubricNameInput = document.getElementById("melbourneRubricName");
+  const summaryEl = document.getElementById("melbourneSummary");
 
   let sessionIndex = {};
-  const preferredExam = localStorage.getItem("classroom") || localStorage.getItem("examName") || "";
+  const preferredClassroom = localStorage.getItem("classroom") || localStorage.getItem("examName") || "";
   const preferredTutor = localStorage.getItem("tutorName") || localStorage.getItem("sessionId") || "";
   const preferredTime = localStorage.getItem("timeSlot") || "";
   const preferredSession = preferredTutor && preferredTime ? makeSessionKey(preferredTutor, preferredTime) : "";
 
-  const getCurrentSession = () => {
-    const classroom = examSelect?.value || "";
+  const currentSession = () => {
+    const classroom = classroomSelect?.value || "";
     const sessionKey = sessionSelect?.value || "";
     return sessionIndex?.[classroom]?.[sessionKey] || null;
   };
 
-  const getSelectedStudents = () => {
-    return Array.from(document.querySelectorAll('.melbourne-student-checkbox:checked')).map((input) => ({
-      student_id: input.dataset.studentId,
-      student_name: input.dataset.studentName || "",
-      path: input.dataset.path,
-    }));
+  const getAllowedSchemes = () => parseCsv(schemeValuesInput?.value || "A,B,C,D");
+
+  const syncDerivedFields = () => {
+    const { unitcode, shortname } = deriveExamFields(examNameInput?.value);
+    if (unitcodeInput && !unitcodeInput.dataset.touched) unitcodeInput.value = unitcode;
+    if (shortnameInput && !shortnameInput.dataset.touched) shortnameInput.value = shortname;
   };
 
-  const updateSelectionState = () => {
-    const selected = getSelectedStudents();
-    if (selectedLabel) {
-      selectedLabel.textContent = `${selected.length} selected`;
-    }
-    if (sendBtn) {
-      sendBtn.disabled = selected.length === 0;
-    }
-  };
-
-  const renderStudents = () => {
-    const session = getCurrentSession();
-    if (!studentList) return;
-    if (!session || !Array.isArray(session.students) || !session.students.length) {
-      studentList.innerHTML = `<p class="hint">No student folders found for this session.</p>`;
-      updateSelectionState();
+  const renderDeviceRows = () => {
+    const session = currentSession();
+    if (!devicesBody) return;
+    devicesBody.innerHTML = "";
+    if (!session) {
+      devicesBody.innerHTML = `<tr><td colspan="3" class="muted-cell">No session selected.</td></tr>`;
       return;
     }
-
-    studentList.innerHTML = "";
-
-    session.students.forEach((student) => {
-      const initials = (student.student_name || student.student_id || "?").substring(0, 2).toUpperCase();
-      const displayName = student.student_name
-        ? `${student.student_id} — ${student.student_name}`
-        : student.student_id;
-
-      const row = document.createElement("label");
-      row.className = "melb-student-row";
+    const devices = discoverDevices(session.path);
+    if (!devices.length) {
+      devicesBody.innerHTML = `<tr><td colspan="3" class="muted-cell">No device folders found.</td></tr>`;
+      return;
+    }
+    devices.forEach((device) => {
+      const inferredType = inferDeviceType(session.path, device);
+      const typeOptions = DEVICE_TYPES.map(
+        (type) => `<option value="${type}" ${type === inferredType ? "selected" : ""}>${type}</option>`
+      ).join("");
+      const row = document.createElement("tr");
       row.innerHTML = `
-        <input
-          type="checkbox"
-          class="melbourne-student-checkbox"
-          data-student-id="${student.student_id}"
-          data-student-name="${student.student_name || ""}"
-          data-path="${student.path}"
-        />
-        <div class="melb-student-avatar">${initials}</div>
-        <div class="melb-student-info">
-          <div class="melb-student-name">${displayName}</div>
-          <div class="melb-student-path">${student.path}</div>
-        </div>
+        <td><span class="mono">${device}</span></td>
+        <td><select class="melbourne-device-type" data-device="${device}">${typeOptions}</select></td>
+        <td><input class="melbourne-device-name" data-device="${device}" type="text" value="${device}" /></td>
       `;
-      studentList.appendChild(row);
+      devicesBody.appendChild(row);
     });
+  };
 
-    studentList.querySelectorAll(".melbourne-student-checkbox").forEach((input) => {
-      input.addEventListener("change", () => {
-        const row = input.closest(".melb-student-row");
-        if (row) row.classList.toggle("checked", input.checked);
-        updateSelectionState();
-      });
+  const renderSchemeOptions = () => {
+    const schemes = getAllowedSchemes();
+    const options = schemes.map((scheme) => `<option value="${scheme}">${scheme}</option>`).join("");
+    if (applySchemeSelect) {
+      applySchemeSelect.innerHTML = `<option value="">Bulk scheme</option>${options}`;
+    }
+    document.querySelectorAll(".melbourne-student-scheme").forEach((select) => {
+      const current = select.value;
+      select.innerHTML = `<option value="">Unassigned</option>${options}`;
+      if (schemes.includes(current)) select.value = current;
     });
-    updateSelectionState();
+  };
+
+  const updateStudentState = () => {
+    const rows = Array.from(document.querySelectorAll(".melbourne-student-scheme"));
+    const assigned = rows.filter((select) => select.value).length;
+    if (selectedLabel) selectedLabel.textContent = `${assigned}/${rows.length} assigned`;
+    if (exportBtn) exportBtn.disabled = !rows.length;
+  };
+
+  const renderStudentRows = () => {
+    const session = currentSession();
+    if (!studentsBody) return;
+    studentsBody.innerHTML = "";
+    if (!session || !session.students.length) {
+      studentsBody.innerHTML = `<tr><td colspan="3" class="muted-cell">No student folders found.</td></tr>`;
+      updateStudentState();
+      return;
+    }
+    const schemes = getAllowedSchemes();
+    const options = schemes.map((scheme) => `<option value="${scheme}">${scheme}</option>`).join("");
+    session.students.forEach((student) => {
+      const displayName = student.student_name || "";
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td><strong>${student.student_id}</strong></td>
+        <td>${displayName || "<span class=\"muted-cell\">No name found</span>"}</td>
+        <td>
+          <select class="melbourne-student-scheme" data-student-id="${student.student_id}">
+            <option value="">Unassigned</option>
+            ${options}
+          </select>
+        </td>
+      `;
+      studentsBody.appendChild(row);
+    });
+    studentsBody.querySelectorAll(".melbourne-student-scheme").forEach((select) => {
+      select.addEventListener("change", updateStudentState);
+    });
+    updateStudentState();
+  };
+
+  const renderCurrentSession = () => {
+    const session = currentSession();
+    if (sessionPathEl) sessionPathEl.textContent = session ? session.path : "No mirrored session selected.";
+    if (examNameInput && session && !examNameInput.value) {
+      examNameInput.value = session.classroom;
+      syncDerivedFields();
+    }
+    renderDeviceRows();
+    renderStudentRows();
+    renderSchemeOptions();
   };
 
   const refreshIndex = () => {
     sessionIndex = buildSessionIndex();
-    const examNames = Object.keys(sessionIndex);
-    const previousExam = examSelect?.value;
+    const classroomNames = Object.keys(sessionIndex);
+    const previousClassroom = classroomSelect?.value;
     const previousSession = sessionSelect?.value;
-
-    setSelectOptions(examSelect, examNames, "No exams found");
-    if (examSelect) {
-      if (preferredExam && examNames.includes(preferredExam)) {
-        examSelect.value = preferredExam;
-      } else if (previousExam && examNames.includes(previousExam)) {
-        examSelect.value = previousExam;
-      }
+    setSelectOptions(classroomSelect, classroomNames, "No classrooms found");
+    if (classroomSelect) {
+      if (preferredClassroom && classroomNames.includes(preferredClassroom)) classroomSelect.value = preferredClassroom;
+      else if (previousClassroom && classroomNames.includes(previousClassroom)) classroomSelect.value = previousClassroom;
     }
-
-    const sessionNames = examSelect?.value ? Object.keys(sessionIndex[examSelect.value] || {}) : [];
-    setSelectOptions(sessionSelect, sessionNames, "No sessions found");
+    const sessions = classroomSelect?.value ? Object.keys(sessionIndex[classroomSelect.value] || {}) : [];
+    setSelectOptions(sessionSelect, sessions, "No sessions found");
     if (sessionSelect) {
-      if (
-        examSelect?.value === preferredExam &&
-        preferredSession &&
-        sessionNames.includes(preferredSession)
-      ) {
+      if (classroomSelect?.value === preferredClassroom && preferredSession && sessions.includes(preferredSession)) {
         sessionSelect.value = preferredSession;
-      } else if (previousSession && sessionNames.includes(previousSession)) {
+      } else if (previousSession && sessions.includes(previousSession)) {
         sessionSelect.value = previousSession;
       }
     }
-
-    renderStudents();
-    if (!examNames.length) {
-      appendMelbourneLog(`No mirrored student sessions found under ${ENGINE_STUDENTS_ROOT}`);
-    } else if (
-      preferredExam &&
-      preferredSession &&
-      examSelect?.value === preferredExam &&
-      sessionSelect?.value === preferredSession
-    ) {
-      appendMelbourneLog(`Auto-selected ${preferredExam}/${preferredSession} from the current working session.`);
-    } else {
-      appendMelbourneLog(`Loaded ${examNames.length} exam(s) from ${ENGINE_STUDENTS_ROOT}`);
-    }
+    renderCurrentSession();
+    appendMelbourneLog(
+      classroomNames.length
+        ? `Loaded mirrored sessions from ${ENGINE_STUDENTS_ROOT}`
+        : `No mirrored student sessions found under ${ENGINE_STUDENTS_ROOT}`
+    );
   };
 
-  examSelect?.addEventListener("change", () => {
-    const sessionNames = Object.keys(sessionIndex[examSelect.value] || {});
-    setSelectOptions(sessionSelect, sessionNames, "No sessions found");
-    renderStudents();
+  const collectPayload = () => {
+    const session = currentSession();
+    if (!session) throw new Error("Select a session before exporting.");
+    const schemes = getAllowedSchemes();
+    if (!schemes.length) throw new Error("Enter at least one allowed scheme value.");
+    const examName = String(examNameInput?.value || "").trim();
+    if (!examName) throw new Error("Exam name is required.");
+    const studentSchemes = {};
+    document.querySelectorAll(".melbourne-student-scheme").forEach((select) => {
+      studentSchemes[select.dataset.studentId] = select.value;
+    });
+    const devices = Array.from(document.querySelectorAll(".melbourne-device-type")).map((select) => {
+      const device = select.dataset.device;
+      const nameInput = Array.from(document.querySelectorAll(".melbourne-device-name"))
+        .find((input) => input.dataset.device === device);
+      return {
+        folder: device,
+        type: select.value,
+        exam_name: nameInput?.value || device,
+      };
+    });
+    return {
+      classroom: session.classroom,
+      tutor_name: session.tutor_name,
+      time_slot: session.time_slot,
+      session_path: session.path,
+      exam_name: examName,
+      semester: semesterInput?.value || "2026 S1",
+      unitcode: unitcodeInput?.value || deriveExamFields(examName).unitcode,
+      shortname: shortnameInput?.value || deriveExamFields(examName).shortname,
+      timeout: timeoutInput?.value || 180,
+      scheme_values: schemes.join(","),
+      devices,
+      student_schemes: studentSchemes,
+      maximum_marks: maxMarksInput?.value || 100,
+      minor_penalties: minorPenaltiesInput?.value || "10,20,30,40",
+      rubric_name: rubricNameInput?.value || "Major_Minor",
+    };
+  };
+
+  classroomSelect?.addEventListener("change", () => {
+    const sessions = Object.keys(sessionIndex[classroomSelect.value] || {});
+    setSelectOptions(sessionSelect, sessions, "No sessions found");
+    renderCurrentSession();
   });
-
-  sessionSelect?.addEventListener("change", renderStudents);
-
+  sessionSelect?.addEventListener("change", renderCurrentSession);
   refreshBtn?.addEventListener("click", refreshIndex);
-
-  selectAllBtn?.addEventListener("click", () => {
-    document.querySelectorAll(".melbourne-student-checkbox").forEach((input) => {
-      input.checked = true;
-    });
-    updateSelectionState();
+  examNameInput?.addEventListener("input", syncDerivedFields);
+  unitcodeInput?.addEventListener("input", () => { unitcodeInput.dataset.touched = "1"; });
+  shortnameInput?.addEventListener("input", () => { shortnameInput.dataset.touched = "1"; });
+  schemeValuesInput?.addEventListener("input", () => {
+    renderSchemeOptions();
+    updateStudentState();
   });
-
-  clearAllBtn?.addEventListener("click", () => {
-    document.querySelectorAll(".melbourne-student-checkbox").forEach((input) => {
-      input.checked = false;
+  applySchemeBtn?.addEventListener("click", () => {
+    const value = applySchemeSelect?.value || "";
+    if (!value) return;
+    document.querySelectorAll(".melbourne-student-scheme").forEach((select) => {
+      select.value = value;
     });
-    updateSelectionState();
+    updateStudentState();
   });
-
-  sendBtn?.addEventListener("click", async () => {
-    const session = getCurrentSession();
-    const selected = getSelectedStudents();
-    if (!session || !selected.length) {
-      updateSelectionState();
-      return;
-    }
-
+  exportBtn?.addEventListener("click", async () => {
     try {
-      await fetchJson("/api/melbourne/send", {
+      exportBtn.disabled = true;
+      exportBtn.textContent = "Exporting...";
+      appendMelbourneLog("Preparing Melbourne export...");
+      const data = await fetchJson("/api/melbourne/send", {
         method: "POST",
-        body: JSON.stringify({
-          exam_name: examSelect.value,
-          classroom: session.classroom,
-          tutor_name: session.tutor_name,
-          time_slot: session.time_slot,
-          session_id: session.session_id,
-          session_label: session.label,
-          session_path: session.path,
-          students: selected,
-        }),
+        body: JSON.stringify(collectPayload()),
       });
-      appendMelbourneLog(`Sent ${selected.length} student folder(s) to Melbourne.`);
-    } catch (err) {
+      const missing = data.missing_schemes || [];
       appendMelbourneLog(
-        `Send request prepared for ${selected.length} student(s), but backend send endpoint is not ready.\n\n${err.message}`
+        `Export complete.\nFinalised students: ${data.finalised_count}/${data.student_count}\nZip: ${data.zip_path}\nFolder: ${data.export_folder}`
       );
-      alert(err.message || "Send to Melbourne is not implemented yet.");
+      if (summaryEl) {
+        summaryEl.hidden = false;
+        summaryEl.innerHTML = `
+          <strong>Export complete</strong>
+          <span>${data.finalised_count}/${data.student_count} student folders finalised.</span>
+          <span>Zip saved to <span class="mono">${data.zip_path}</span></span>
+          <span>Working folder saved to <span class="mono">${data.export_folder}</span></span>
+          <span>${missing.length ? `Missing schemes: ${missing.join(", ")}` : "All students have assigned schemes."}</span>
+        `;
+      }
+    } catch (err) {
+      appendMelbourneLog(err.message || "Melbourne export failed.");
+      alert(err.message || "Melbourne export failed.");
+    } finally {
+      exportBtn.textContent = "Export";
+      updateStudentState();
     }
   });
 
@@ -283,8 +383,8 @@ function setupSendMelbournePage() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  if (document.getElementById("sendMelbournePage")) {
+  if (document.getElementById("exportMelbournePage")) {
     if (typeof loadNavbar === "function") loadNavbar();
-    setupSendMelbournePage();
+    setupExportMelbournePage();
   }
 });

@@ -1,3 +1,10 @@
+"""
+Template upload adapter for the comparison engine.
+
+This script receives uploaded baseline logs from the Device Setup screen,
+saves them into comparison_engine/templates, parses them, and writes metadata
+the comparison engine can reuse later.
+"""
 import os
 import json
 import shutil
@@ -6,6 +13,12 @@ from comparison_engine.template_manager import choose_show_run_file
 
 
 def _write_template_manifest(template_dir, template_name, devices_meta, has_baseline):
+    """
+    Write template-level metadata describing uploaded devices and baseline state.
+
+    server.py uses this manifest indirectly through template-management endpoints
+    to know whether a template has parsed baseline configs available.
+    """
     os.makedirs(template_dir, exist_ok=True)
     manifest_path = os.path.join(template_dir, "template_manifest.json")
     payload = {
@@ -21,6 +34,9 @@ def handle_template_upload(files, form_data, base_dir):
     """
     Handles extracting uploaded logs from Device Setup, saving them into the 
     templates directory, and running the parser to generate the baseline config.
+
+    Called by server.py's upload-template endpoint after the Electron GUI sends
+    log files and device metadata. Returns a status payload for the frontend.
     """
     template_name = form_data.get("template_name", "default")
     devices_meta_str = form_data.get("devices_meta", "{}")

@@ -1,3 +1,9 @@
+"""
+Directory and log-file helpers for Cisco collection sessions.
+
+This script supports the older CLI setup flow and the shared save/delete
+helpers used by server.py while collecting command output for each student.
+"""
 import os
 from datetime import datetime
 from os import makedirs
@@ -8,6 +14,10 @@ import csv
 def load_students_from_file():
     """
     Load student IDs from a CSV or text file.
+
+    Used by the CLI bulk-directory flow so a tutor can create many student
+    folders from one input file.
+
     CSV format: student_id,name (optional)
     Text format: one student ID per line
     """
@@ -63,6 +73,9 @@ def load_students_from_file():
 def create_bulk_directories():
     """
     Create directories for multiple students from file input.
+
+    Used by the CLI testing flow to build classroom/tutor/time/student folders
+    for all students in an uploaded CSV or text list.
     """
     try:
         # Get classroom/session details
@@ -149,6 +162,9 @@ def create_bulk_directories():
 def list_existing_directories():
     """
     List existing exam directories and let user select one.
+
+    Used by the CLI directory picker to discover existing folders under
+    ~/Documents in classroom/tutor/time/student format.
     """
     docs_path = Path.home() / "Documents"
 
@@ -218,6 +234,9 @@ def list_existing_directories():
 def build_base_path():
     """
     Ask user to create new directory or select existing one.
+
+    This is the CLI entry point for choosing where collected logs should be
+    stored before main.py starts serial or SSH collection.
     """
     print("\n=== Directory Setup ===")
     print("1. Create new directory structure")
@@ -239,6 +258,9 @@ def build_base_path():
 def create_new_directory():
     """
     Original function to create new directory structure.
+
+    Prompts the CLI user for classroom, tutor, time, and student ID, then
+    creates the matching folder under ~/Documents.
     """
     try:
         while True:
@@ -302,6 +324,9 @@ def create_new_directory():
 def select_existing_directory():
     """
     Select from existing directories.
+
+    Wraps list_existing_directories() with a confirmation prompt and falls
+    back to new-directory creation when nothing is selected.
     """
     path_info = list_existing_directories()
     if path_info:
@@ -335,6 +360,11 @@ def save_output_to_file(
 ):
     """
     Save Cisco device command output to a text file.
+
+    server.py and main.py call this after each command succeeds. The function
+    supports both the current classroom/tutor/time layout and the older
+    exam/session layout for compatibility.
+
     Each command goes into its own file.
     Example path: ~/Documents/B408/Mark Tee/9:00am/102778907/R1/show_running-config.txt
     """
@@ -401,6 +431,9 @@ def del_partial_logs(
 ):
     """
     Delete all log files for the current session if the collection is incomplete.
+
+    Used by server.py and main.py retry paths so partial command output is not
+    mistaken for a complete student submission.
     """
     # Support both signatures:
     # - del_partial_logs(base_path, hostname)

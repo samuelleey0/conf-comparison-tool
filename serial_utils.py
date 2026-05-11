@@ -1,3 +1,10 @@
+"""
+Serial-console helpers for Cisco devices.
+
+This script opens and manages pyserial sessions, detects Cisco prompts, enters
+enable mode, sends commands, disables paging, and performs cleanup. server.py,
+cisco_reset.py, and the CLI testing entry point share these helpers.
+"""
 from asyncio import Timeout
 
 import serial
@@ -17,6 +24,7 @@ logger = logging.getLogger("serial_utils")
 
 
 def dbg(msg):
+    """Print debug messages when DEBUG is enabled."""
     if DEBUG:
         print(f"[DEBUG] {msg}")
 
@@ -53,6 +61,7 @@ def connect_to_serial(
     """
 
     def emit(message):
+        """Print a connection status message and forward it to an optional callback."""
         print(message, flush=True)
         if status_cb:
             try:
@@ -61,6 +70,7 @@ def connect_to_serial(
                 pass
 
     def _aborted():
+        """Return True when the caller requested that connection retries stop."""
         return abort_event and abort_event.is_set()
 
     emit(f"[INFO] Attempting to open serial port: {port} at {baudrate} baud")
