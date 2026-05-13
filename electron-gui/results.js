@@ -565,7 +565,6 @@ document.addEventListener("DOMContentLoaded", () => {
   if (typeof loadNavbar === "function") loadNavbar();
   setSessionLabel();
   document.getElementById("runComparisonBtn")?.addEventListener("click", runComparison);
-  document.getElementById("refreshResultsBtn")?.addEventListener("click", refreshResults);
   document.getElementById("closeErrorContextBtn")?.addEventListener("click", closeErrorContextModal);
   bindContextModalEvents();
   document.getElementById("errorContextModal")?.addEventListener("click", (event) => {

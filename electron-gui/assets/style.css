@@ -173,6 +173,10 @@ textarea:focus {
   z-index: 3000;
 }
 
+.rubric-rule-body {
+  position: relative;
+}
+
 .app-select-option {
   padding: 10px 12px;
   cursor: pointer;
@@ -348,6 +352,7 @@ button.block {
   flex-direction: column;
   gap: 24px;
   box-sizing: border-box;
+  overflow: visible;
 }
 
 .page-header {
@@ -371,10 +376,16 @@ button.block {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 32px 36px;
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
   gap: 20px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.directory-card:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .page-card.flat {
@@ -758,7 +769,7 @@ button.block {
   padding-left: 12px;
   border-left: 3px solid rgba(31, 59, 115, 0.12);
   margin-left: 8px;
-  overflow: hidden;
+  overflow: visible;
   max-height: 100000px;
   transition: max-height 0.3s ease, opacity 0.3s ease;
   opacity: 1;
@@ -1699,18 +1710,38 @@ progress::-moz-progress-bar {
 }
 
 .log {
-  background-color: #0f172a;
-  color: #c7e3ff;
-  padding: 16px;
-  border-radius: 4px;
+  background-color: #0d1117;
+  color: #c9d1d9;
+  padding: 18px;
+  border-radius: 8px;
   height: 360px;
   width: 100%;
   overflow-y: auto;
-  font-family: "Source Code Pro", "Courier New", monospace;
+  font-family: "JetBrains Mono", "Fira Code", "Source Code Pro", "Courier New", monospace;
   font-size: 0.85rem;
-  border: 1px solid #15213b;
+  border: 1px solid #30363d;
   box-sizing: border-box;
   white-space: pre-wrap;
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.4);
+  line-height: 1.5;
+}
+
+.log::-webkit-scrollbar {
+  width: 10px;
+}
+
+.log::-webkit-scrollbar-track {
+  background: rgba(13, 17, 23, 0.5);
+  border-radius: 8px;
+}
+
+.log::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 8px;
+}
+
+.log::-webkit-scrollbar-thumb:hover {
+  background: #8b949e;
 }
 
 /* Status modal */
@@ -2622,4 +2653,101 @@ progress::-moz-progress-bar {
   border-color: var(--color-primary);
   background-color: rgba(31, 59, 115, 0.1);
   color: var(--color-heading);
+}
+
+/* ── Interactive Radio Cards ──────────────────────────────── */
+.radio-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.radio-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 22px;
+  border: 2px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+.radio-card:hover {
+  border-color: rgba(10, 92, 187, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(10, 92, 187, 0.08);
+}
+
+.radio-card input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.radio-card:has(input[type="radio"]:checked) {
+  border-color: var(--color-primary);
+  background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 100%);
+  box-shadow: 0 8px 24px rgba(10, 92, 187, 0.12);
+}
+
+.radio-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.radio-card-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-heading);
+}
+
+.radio-card:has(input[type="radio"]:checked) .radio-card-title {
+  color: var(--color-primary);
+}
+
+.radio-card-indicator {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--color-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.radio-card:has(input[type="radio"]:checked) .radio-card-indicator {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.radio-card-indicator::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0;
+  transform: scale(0);
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.radio-card:has(input[type="radio"]:checked) .radio-card-indicator::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.radio-card-desc {
+  font-size: 0.88rem;
+  color: var(--color-muted);
+  line-height: 1.5;
+  margin: 0;
 }

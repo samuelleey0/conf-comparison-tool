@@ -43,6 +43,7 @@ from comparison_engine.comparator import compare_dicts
 from comparison_engine.student_manager import find_show_run_file
 from cisco_reset import reload_cisco_device
 from generate_results import write_readable_result_from_report
+from comparison_wrapper import import_template_from_logs_dir, save_template_setup
 
 app = Flask(__name__)
 
@@ -4110,6 +4111,12 @@ def api_execute():
                 )
                 try:
                     output = send_command(local_ser, cmd, timeout=30)
+                    yield stream_json_line(
+                        {
+                            "type": "raw_output",
+                            "msg": f"{hostname}# {cmd}\n{output}"
+                        }
+                    )
                     file_path = save_output_to_file(
                         cmd,
                         output,
@@ -4371,6 +4378,12 @@ def api_execute():
                 )
                 try:
                     output = send_command_remote(active, cmd, timeout=30)
+                    yield stream_json_line(
+                        {
+                            "type": "raw_output",
+                            "msg": f"{hostname}# {cmd}\n{output}"
+                        }
+                    )
                     file_path = save_output_to_file(
                         cmd,
                         output,
@@ -4475,6 +4488,7 @@ def api_execute():
                     "msg": "All commands executed successfully.",
                     "files": files_written,
                     "progress_pct": 100,
+                    "hostname": hostname,
                 }
             )
             yield stream_json_line(
@@ -5344,8 +5358,72 @@ def api_get_template_details(template_name):
             "template": template_name,
             "devices_meta": devices_meta,
             "logs_by_command": logs_by_command,
+            "has_baseline": bool(manifest.get("has_baseline")),
         }
     )
+
+
+@app.route("/api/templates/save_setup", methods=["POST"])
+def api_save_template_setup():
+    data = request.get_json() or {}
+    template_name = (data.get("template_name") or "").strip()
+    devices_meta = data.get("devices_meta") or {}
+    source_template_name = (data.get("source_template_name") or "").strip()
+
+    if not template_name:
+        return jsonify({"status": "error", "message": "Missing template name."}), 400
+    if not isinstance(devices_meta, dict) or not devices_meta:
+        return jsonify({"status": "error", "message": "No devices provided."}), 400
+
+    cleaned_devices = {}
+    seen = set()
+    for hostname, commands in devices_meta.items():
+        safe_hostname = str(hostname or "").strip()
+        if not safe_hostname:
+            return jsonify({"status": "error", "message": "All devices must have a hostname."}), 400
+        if safe_hostname.lower() in seen:
+            return jsonify({"status": "error", "message": f'Duplicate hostname "{safe_hostname}".'}), 400
+        seen.add(safe_hostname.lower())
+        if not isinstance(commands, list) or not commands:
+            return jsonify({"status": "error", "message": f'Device "{safe_hostname}" has no commands.'}), 400
+        cleaned_devices[safe_hostname] = [str(cmd).strip() for cmd in commands if str(cmd).strip()]
+
+    try:
+        result = save_template_setup(
+            str(BASE_DIR),
+            template_name,
+            cleaned_devices,
+            source_template_name=source_template_name,
+        )
+        return jsonify({"status": "ok", **result})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 500
+
+
+@app.route("/api/templates/import_logs_folder", methods=["POST"])
+def api_import_template_logs_folder():
+    data = request.get_json() or {}
+    template_name = (data.get("template_name") or "").strip()
+    source_dir = _expand_path(data.get("source_dir"))
+    source_template_name = (data.get("source_template_name") or "").strip()
+
+    if not template_name:
+        return jsonify({"status": "error", "message": "Missing template name."}), 400
+    if not source_dir or not os.path.isdir(source_dir):
+        return jsonify({"status": "error", "message": "Selected logs folder was not found."}), 400
+
+    try:
+        result = import_template_from_logs_dir(
+            str(BASE_DIR),
+            template_name,
+            source_dir,
+            source_template_name=source_template_name,
+        )
+        if result.get("status") == "error":
+            return jsonify(result), 400
+        return jsonify({"status": "ok", **result})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 500
 
 
 @app.route("/api/admin/templates", methods=["DELETE"])
