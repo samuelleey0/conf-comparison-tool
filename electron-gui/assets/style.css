@@ -1859,6 +1859,7 @@ progress::-moz-progress-bar {
   font-size: clamp(2rem, 4.2vw, 3.3rem);
   line-height: 1.04;
   letter-spacing: -0.05em;
+  white-space: nowrap;
   color: var(--color-heading);
   text-align: center;
 }
