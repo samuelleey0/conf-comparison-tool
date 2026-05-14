@@ -21,16 +21,85 @@
     <style>
       .sample-two-column {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 560px;
+        grid-template-columns: minmax(520px, 1fr) minmax(480px, 560px);
         gap: 20px;
         align-items: start;
         max-width: 1520px;
         margin: 0 auto;
       }
-      @media (max-width: 1000px) {
+      .sample-left-col,
+      .sample-right-col {
+        min-width: 0;
+      }
+      @media (max-width: 1380px) {
         .sample-two-column {
           grid-template-columns: 1fr;
         }
+      }
+      body.sidebar-collapsed .sample-two-column {
+        grid-template-columns: minmax(520px, 1fr) minmax(480px, 560px);
+      }
+      @media (max-width: 1240px) {
+        body.sidebar-collapsed .sample-two-column {
+          grid-template-columns: 1fr;
+        }
+      }
+      .sample-left-col {
+        min-width: 0;
+      }
+      .sample-left-col .page-card {
+        overflow: visible;
+      }
+      .sample-left-col input[type="text"],
+      .sample-left-col input[type="password"],
+      .sample-left-col select,
+      .sample-left-col .app-select {
+        max-width: 100%;
+        width: 100%;
+      }
+      .sample-left-col .form-row {
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .sample-left-col .compact-row {
+        display: grid;
+        gap: 12px;
+        align-items: end;
+      }
+      .sample-left-col .compact-row.compact-row--save {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+      .sample-left-col .compact-row.compact-row--template {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+      }
+      .sample-left-col .compact-row > .form-group {
+        margin-bottom: 0;
+        min-width: 0;
+      }
+      .sample-left-col .compact-row > .form-group:not(.sample-action) {
+        width: 100%;
+      }
+      .sample-left-col .compact-row > .form-group.sample-action {
+        width: auto;
+      }
+      .sample-left-col .compact-row > .form-group.sample-action button {
+        min-width: 180px;
+      }
+      @media (max-width: 900px) {
+        .sample-left-col .compact-row.compact-row--save,
+        .sample-left-col .compact-row.compact-row--template {
+          grid-template-columns: 1fr;
+        }
+        .sample-left-col .compact-row > .form-group.sample-action {
+          width: 100%;
+        }
+        .sample-left-col .compact-row > .form-group.sample-action button {
+          width: 100%;
+          min-width: 0;
+        }
+      }
+      .sample-left-col .radio-card-grid {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
       }
       .collected-badge {
         display: inline-flex;
@@ -73,12 +142,12 @@
               <button type="button" class="secondary" id="chooseSampleDirBtn">Choose Folder</button>
               <span id="sampleDirLabel" class="selected-path">No folder selected</span>
             </div>
-            <div class="form-row" style="margin-top: 10px; align-items: flex-end;">
-              <div class="form-group" style="flex: 1; min-width: 220px;">
+            <div class="compact-row compact-row--save" style="margin-top: 10px;">
+              <div class="form-group">
                 <label for="sampleNewFolderName">Create New Folder</label>
                 <input type="text" id="sampleNewFolderName" placeholder="e.g. SampleLogs_Mar19" />
               </div>
-              <div class="form-group" style="min-width: 160px;">
+              <div class="form-group sample-action">
                 <button type="button" class="secondary" id="sampleCreateFolderBtn">Create Folder</button>
               </div>
             </div>
@@ -93,15 +162,15 @@
             </div>
           </div>
           <div class="form-group" style="margin-bottom: 24px;">
-            <div class="form-row" style="align-items: flex-end; margin-bottom: 12px;">
-              <div class="form-group" style="flex: 1; min-width: 220px;">
+            <div class="compact-row compact-row--template" style="margin-bottom: 12px;">
+              <div class="form-group">
                 <label>Saved Template</label>
                 <div id="sampleTemplateSelect" class="app-select"></div>
               </div>
-              <div class="form-group" style="min-width: 160px;">
+              <div class="form-group sample-action">
                 <button type="button" class="btn-accent" id="loadSampleTemplateBtn">Load Template</button>
               </div>
-              <div class="form-group" style="min-width: 160px;">
+              <div class="form-group sample-action">
                 <button type="button" class="btn-outline" id="clearSampleTemplateBtn">Manual Mode</button>
               </div>
             </div>
@@ -163,22 +232,22 @@
             </div>
 
             <div id="sampleSshFields" class="hidden">
-              <div class="form-row">
-                <div class="form-group" style="flex:1;">
+              <div class="form-row" style="flex-wrap: wrap; gap: 12px;">
+                <div class="form-group">
                   <label for="sampleSshHost">Host</label>
                   <input type="text" id="sampleSshHost" placeholder="192.168.1.1" />
                 </div>
-                <div class="form-group" style="flex:1;">
+                <div class="form-group">
                   <label for="sampleSshPort">Port</label>
                   <input type="text" id="sampleSshPort" placeholder="22" />
                 </div>
               </div>
-              <div class="form-row">
-                <div class="form-group" style="flex:1;">
+              <div class="form-row" style="flex-wrap: wrap; gap: 12px;">
+                <div class="form-group">
                   <label for="sampleSshUser">Username</label>
                   <input type="text" id="sampleSshUser" placeholder="admin" />
                 </div>
-                <div class="form-group" style="flex:1;">
+                <div class="form-group">
                   <label for="sampleSshPass">Password</label>
                   <input type="password" id="sampleSshPass" placeholder="Password" />
                 </div>
@@ -187,7 +256,7 @@
           </div>
 
           <div class="actions justify-end" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--color-border);">
-            <button type="button" id="runSampleCollectBtn" class="primary" style="font-size: 1.05rem; padding: 12px 24px; width: 100%;">Collect Logs</button>
+            <button type="button" id="runSampleCollectBtn" class="primary" style="font-size: 1.05rem; padding: 12px 32px;">Collect Logs</button>
           </div>
         </section>
       </div>
