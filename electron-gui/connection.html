@@ -6,6 +6,56 @@
   <title>Connection Setup</title>
   <link rel="stylesheet" href="assets/style.css" />
   <link rel="stylesheet" href="assets/nav.css" />
+  <style>
+    .log-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px;
+      width: 100%;
+      padding: 4px;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      background: var(--color-bg-soft);
+      margin-bottom: 14px;
+    }
+
+    .log-tab {
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--color-muted);
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 10px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .log-tab.active {
+      background: var(--color-surface);
+      color: var(--color-primary);
+      border-color: rgba(31, 59, 115, 0.14);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+
+    .log-tab:hover {
+      color: var(--color-heading);
+    }
+
+    .log-panel.hidden {
+      display: none;
+    }
+
+    .log-surface {
+      padding: 12px;
+      border-radius: 8px;
+    }
+
+    .log-display {
+      height: 380px;
+      margin: 0;
+    }
+  </style>
 </head>
 
 <body class="connection-body">
@@ -100,13 +150,19 @@
           </div>
           <button type="button" id="clearLogBtn" class="link-btn">Clear Log</button>
         </header>
-        <div class="status-panel modern">
-          <div class="progress-row">
-            <label for="progress">Progress</label>
-            <span id="progressValue" class="progress-value">0%</span>
+        <div class="log-tabs" id="connectionLogTabs">
+          <button type="button" class="log-tab active" data-target="connectionActivityPanel">Activity Log</button>
+          <button type="button" class="log-tab" data-target="connectionTerminalPanel">Terminal Output</button>
+        </div>
+        <div id="connectionActivityPanel" class="log-panel">
+          <div class="status-panel modern log-surface">
+            <pre id="log" class="log log-display"></pre>
           </div>
-          <progress id="progress" value="0" max="100"></progress>
-          <pre id="log" class="log"></pre>
+        </div>
+        <div id="connectionTerminalPanel" class="log-panel hidden">
+          <div class="status-panel modern log-surface">
+            <pre id="terminalLog" class="log log-display" style="color: #10b981;"></pre>
+          </div>
         </div>
         <div class="actions justify-end connection-action-grid">
           <button type="button" id="abortExecutionBtn" class="abort-btn connection-action-grid__abort" style="display: none;">⏹ Stop Execution</button>
@@ -129,21 +185,6 @@
               <option value="router">Router</option>
             </select>
             <button type="button" id="resetDeviceBtn" class="danger">Reset Cisco Device</button>
-          </div>
-        </div>
-
-        <div class="terminal-monitor" style="margin-top: 32px;">
-          <header class="connection-status__header" style="margin-bottom: 12px;">
-            <div class="step-heading">
-              <span class="step-heading__num" style="background: #334155; border: none; color: #fff;">&gt;_</span>
-              <div>
-                <h3 style="margin: 0; font-size: 1.05rem;">Terminal Output</h3>
-                <p class="step-heading__hint" style="margin-top: 4px;">Raw real-time responses from the device.</p>
-              </div>
-            </div>
-          </header>
-          <div class="status-panel modern" style="padding: 12px; border-radius: 8px;">
-            <pre id="terminalLog" class="log" style="height: 350px; background: #0d1117; color: #10b981; margin: 0; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85rem; border: inset 1px rgba(0,0,0,0.5); box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);"></pre>
           </div>
         </div>
 

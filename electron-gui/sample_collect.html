@@ -101,6 +101,48 @@
       .sample-left-col .radio-card-grid {
         grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
       }
+      .log-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+        width: 100%;
+        padding: 4px;
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        background: var(--color-bg-soft);
+        margin-bottom: 14px;
+      }
+      .log-tab {
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--color-muted);
+        font-size: 0.85rem;
+        font-weight: 700;
+        padding: 10px 14px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      }
+      .log-tab.active {
+        background: var(--color-surface);
+        color: var(--color-primary);
+        border-color: rgba(31, 59, 115, 0.14);
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+      }
+      .log-tab:hover {
+        color: var(--color-heading);
+      }
+      .log-panel.hidden {
+        display: none;
+      }
+      .log-surface {
+        padding: 12px;
+        border-radius: 8px;
+      }
+      .log-display {
+        height: 380px;
+        margin: 0;
+      }
       .collected-badge {
         display: inline-flex;
         align-items: center;
@@ -287,8 +329,20 @@
             </div>
           </div>
           
-          <h4 style="margin: 0 0 10px; font-size: 0.8rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.05em;">Live Execution Log</h4>
-          <pre id="sampleLog" class="log" style="height: 380px; margin: 0;"></pre>
+          <div class="log-tabs" id="sampleLogTabs">
+            <button type="button" class="log-tab active" data-target="sampleActivityPanel">Activity Log</button>
+            <button type="button" class="log-tab" data-target="sampleTerminalPanel">Terminal Output</button>
+          </div>
+          <div id="sampleActivityPanel" class="log-panel">
+            <div class="status-panel modern log-surface">
+              <pre id="sampleLog" class="log log-display"></pre>
+            </div>
+          </div>
+          <div id="sampleTerminalPanel" class="log-panel hidden">
+            <div class="status-panel modern log-surface">
+              <pre id="sampleTerminalLog" class="log log-display" style="color: #10b981;"></pre>
+            </div>
+          </div>
 
           <div class="danger-zone" style="margin-top: 24px;">
             <div class="danger-zone__header">
@@ -308,20 +362,6 @@
             </div>
           </div>
 
-          <div class="terminal-monitor" style="margin-top: 24px;">
-            <header class="connection-status__header" style="margin-bottom: 12px;">
-              <div class="step-heading">
-                <span class="step-heading__num" style="background: #334155; border: none; color: #fff;">&gt;_</span>
-                <div>
-                  <h3 style="margin: 0; font-size: 1.05rem;">Terminal Output</h3>
-                  <p class="step-heading__hint" style="margin-top: 4px;">Live Flask stdout and stderr from the backend.</p>
-                </div>
-              </div>
-            </header>
-            <div class="status-panel modern" style="padding: 12px; border-radius: 8px;">
-              <pre id="sampleTerminalLog" class="log" style="height: 260px; background: #0d1117; color: #10b981; margin: 0; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85rem; border: inset 1px rgba(0,0,0,0.5); box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);"></pre>
-            </div>
-          </div>
         </section>
       </div>
 
