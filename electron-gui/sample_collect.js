@@ -448,7 +448,7 @@ function setupSampleCollectPage() {
     }
 
     if (log) log.textContent = "";
-    appendSampleLog(`Starting collection${activeTemplateDevice ? ` for ${activeTemplateDevice}` : ""}...`);
+    appendSampleLog(`[${nowTimestamp()}] Starting collection${activeTemplateDevice ? ` for ${activeTemplateDevice}` : ""}...`);
 
     try {
       const res = await fetch(`${API_ROOT}/api/execute`, {
@@ -480,14 +480,20 @@ function setupSampleCollectPage() {
             if (payloadObj.type === "error") {
               hasError = true;
               appendSampleLog(`[ERROR] ${payloadObj.msg || "Error"}`);
+            } else if (payloadObj.type === "progress") {
+              appendSampleLog(`[${nowTimestamp()}] ${payloadObj.msg || "Working..."}`);
+            } else if (payloadObj.type === "raw_output") {
+              appendTerminalLine(payloadObj.msg || "");
             } else if (payloadObj.type === "result") {
               if (payloadObj.hostname) lastDiscoveredHostname = payloadObj.hostname;
-              if (payloadObj.msg) appendSampleLog(payloadObj.msg);
+              if (payloadObj.msg) appendSampleLog(`[RESULT] ${payloadObj.msg}`);
+            } else if (payloadObj.type === "done") {
+              appendSampleLog(`[DONE] ${payloadObj.msg || "Finished"}`);
             } else if (payloadObj.msg) {
-              appendSampleLog(payloadObj.msg);
+              appendSampleLog(JSON.stringify(payloadObj));
             }
           } catch (_) {
-            appendSampleLog(line.trim());
+            appendTerminalLine(line.trim());
           }
         }
       }
