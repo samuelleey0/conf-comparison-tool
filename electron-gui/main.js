@@ -114,30 +114,66 @@ function waitForPort(host, port, timeout = 10000) {
  * Start Flask backend using fyp-venv's Python interpreter
  */
 function startFlask() {
+  const packagedBackendExe = path.join(
+    process.resourcesPath,
+    'backend',
+    'conf-comparison-server.exe',
+  );
+  const packagedBackendLinuxBin = path.join(
+    process.resourcesPath,
+    'backend',
+    'conf-comparison-server',
+  );
   const flaskScript = path.join(__dirname, '..', 'server.py');
 
-  // Path to your venv python
-  // Adjust if needed based on your OS
+  let command;
+  let args;
+  let cwd;
+  let useShell = false;
   let pythonPath;
-  if (process.platform === 'win32') {
-    pythonPath = path.join(__dirname, '..', 'fyp-venv', 'Scripts', 'python.exe');
+
+  if (app.isPackaged && process.platform === 'win32' && fs.existsSync(packagedBackendExe)) {
+    command = packagedBackendExe;
+    args = [];
+    cwd = path.dirname(packagedBackendExe);
+    console.log(`[INFO] Spawning bundled backend executable: ${packagedBackendExe}`);
+  } else if (
+    app.isPackaged &&
+    process.platform === 'linux' &&
+    fs.existsSync(packagedBackendLinuxBin)
+  ) {
+    command = packagedBackendLinuxBin;
+    args = [];
+    cwd = path.dirname(packagedBackendLinuxBin);
+    console.log(`[INFO] Spawning bundled backend executable: ${packagedBackendLinuxBin}`);
   } else {
-    pythonPath = path.join(__dirname, '..', 'fyp-venv', 'bin', 'python');
+    // Prefer the repo-local virtual environment for development. If this app is
+    // running on a machine where the Python backend was installed with pip, fall
+    // back to the console command exposed by pyproject.toml.
+    if (process.platform === 'win32') {
+      pythonPath = path.join(__dirname, '..', 'fyp-venv', 'Scripts', 'python.exe');
+    } else {
+      pythonPath = path.join(__dirname, '..', 'fyp-venv', 'bin', 'python');
+    }
+
+    if (fs.existsSync(pythonPath) && fs.existsSync(flaskScript)) {
+      command = pythonPath;
+      args = [flaskScript];
+      cwd = path.join(__dirname, '..');
+      console.log(`[INFO] Spawning Flask using: ${pythonPath}`);
+      console.log(`[INFO] Running server: ${flaskScript}`);
+    } else {
+      command = 'conf-comparison-server';
+      args = [];
+      cwd = __dirname;
+      useShell = process.platform === 'win32';
+      console.log('[INFO] Repo-local fyp-venv not found; using installed conf-comparison-server command.');
+    }
   }
 
-  // Verify interpreter exists
-  if (!fs.existsSync(pythonPath)) {
-    console.error(`[ERROR] Python interpreter not found at ${pythonPath}`);
-    console.error('Please verify your fyp-venv is set up correctly.');
-    return Promise.reject('Missing Python interpreter');
-  }
-
-  console.log(`[INFO] Spawning Flask using: ${pythonPath}`);
-  console.log(`[INFO] Running server: ${flaskScript}`);
-
-  flaskProcess = spawn(pythonPath, [flaskScript], {
-    cwd: path.join(__dirname, '..'),
-    shell: false,
+  flaskProcess = spawn(command, args, {
+    cwd,
+    shell: useShell,
   });
 
   flaskProcess.stdout.on('data', (data) => {

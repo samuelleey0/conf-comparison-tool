@@ -48,14 +48,14 @@ If you downloaded the project as a ZIP file, extract it and open a terminal in t
 
 ## 2. Create the Python Environment
 
-The Electron desktop app expects the virtual environment to be named `fyp-venv` in the project root.
+For development from the project folder, create a virtual environment named `fyp-venv` in the project root.
 
 macOS / Linux:
 
 ```bash
 python3 -m venv fyp-venv
 source fyp-venv/bin/activate
-pip install -r requirements.txt
+pip install .
 ```
 
 Windows PowerShell:
@@ -63,7 +63,7 @@ Windows PowerShell:
 ```powershell
 python -m venv fyp-venv
 .\fyp-venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install .
 ```
 
 Windows Command Prompt:
@@ -71,7 +71,7 @@ Windows Command Prompt:
 ```bat
 python -m venv fyp-venv
 fyp-venv\Scripts\activate
-pip install -r requirements.txt
+pip install .
 ```
 
 If PowerShell blocks activation, run:
@@ -81,6 +81,31 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
 Then activate the environment again.
+
+You can still install dependencies with `pip install -r requirements.txt`, but `pip install .` is recommended because it also installs the `conf-comparison-server` backend command.
+
+## 2A. Build an Installable Python Package
+
+To move the Python backend to another device, build a wheel:
+
+```bash
+python -m pip install build
+python -m build
+```
+
+Copy the generated `.whl` file from `dist/` to the other device, then install it there:
+
+```bash
+python -m pip install conf_comparison_tool-0.1.0-py3-none-any.whl
+```
+
+After installation, the backend can be started from any terminal:
+
+```bash
+conf-comparison-server
+```
+
+The Electron app first looks for the repo-local `fyp-venv`. If that environment is not present, it falls back to the installed `conf-comparison-server` command.
 
 ## 3. Install the Desktop App Dependencies
 
@@ -111,6 +136,69 @@ Expected terminal output includes:
 ```
 
 An Electron desktop window should open after the backend is ready.
+
+## 4A. Build a Windows Installer (.exe)
+
+You can now build a one-click Windows installer that bundles both:
+
+- The Electron desktop frontend
+- The Flask/Python backend as a packaged executable
+
+From the project root:
+
+```powershell
+cd electron-gui
+npm install
+npm run build:installer
+```
+
+This performs two steps automatically:
+
+1. Builds `server.py` into `electron-gui/backend-dist/conf-comparison-server/conf-comparison-server.exe` using PyInstaller.
+2. Runs Electron Builder to generate an NSIS installer.
+
+Installer outputs are created in:
+
+```text
+electron-gui/dist/
+```
+
+Useful alternatives:
+
+```powershell
+npm run build:portable   # portable .exe
+npm run build:windows    # both NSIS installer and portable
+```
+
+## 4B. Build an Ubuntu 24 Installer
+
+You can also build Linux installers (AppImage + .deb) on Ubuntu 24.
+
+Install required build tools first:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential python3 python3-venv dpkg fakeroot rpm
+```
+
+From the project root:
+
+```bash
+cd electron-gui
+npm install
+npm run build:installer:ubuntu
+```
+
+This command:
+
+1. Builds the Python backend into a Linux executable with PyInstaller.
+2. Builds Electron Linux installers: AppImage and Debian package.
+
+Installer outputs are created in:
+
+```text
+electron-gui/dist/
+```
 
 ## 5. Connect a Cisco Device
 
@@ -284,7 +372,7 @@ Use `python3` instead of `python` on macOS/Linux if needed.
 
 ## Notes for Public Users
 
-- This project currently runs from source. It is not packaged as a one-click installer yet.
+- A Windows one-click installer can be built with `npm run build:installer` inside `electron-gui`.
 - Keep any real student data, device credentials, and grading records private.
 - Do not commit generated logs, student outputs, credentials, or local virtual environments.
 - The internal SSH-to-GitHub setup from the original README is only needed for project contributors with repository write access.
