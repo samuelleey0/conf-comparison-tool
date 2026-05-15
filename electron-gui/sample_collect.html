@@ -101,6 +101,42 @@
       .sample-left-col .radio-card-grid {
         grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
       }
+      .sample-mode-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .sample-mode-panel.hidden {
+        display: none;
+      }
+      .sample-mode-panel {
+        margin-top: 16px;
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        padding: 16px;
+        background: var(--color-surface);
+      }
+      .sample-mode-panel h3 {
+        margin: 0 0 6px;
+        font-size: 1rem;
+        color: var(--color-heading);
+      }
+      .sample-mode-panel .hint {
+        margin-bottom: 12px;
+      }
+      .sample-mode-cancel {
+        margin-top: 12px;
+      }
+      .sample-blocked {
+        opacity: 0.45;
+        pointer-events: none;
+        filter: saturate(0.7);
+      }
+      @media (max-width: 900px) {
+        .sample-mode-grid {
+          grid-template-columns: 1fr;
+        }
+      }
       .log-tabs {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -199,39 +235,64 @@
           <div class="step-heading">
             <span class="step-heading__num">2</span>
             <div>
-              <h2 class="section-title">Template Or Commands</h2>
-              <p class="step-heading__hint">Load a saved template to auto-fill devices, or choose manual commands.</p>
+              <h2 class="section-title">Choose Mode</h2>
+              <p class="step-heading__hint">Pick one collection mode first, then complete only that workflow.</p>
             </div>
           </div>
           <div class="form-group" style="margin-bottom: 24px;">
-            <div class="compact-row compact-row--template" style="margin-bottom: 12px;">
-              <div class="form-group">
-                <label>Saved Template</label>
-                <div id="sampleTemplateSelect" class="app-select"></div>
-              </div>
-              <div class="form-group sample-action">
-                <button type="button" class="btn-accent" id="loadSampleTemplateBtn">Load Template</button>
-              </div>
-              <div class="form-group sample-action">
-                <button type="button" class="btn-outline" id="clearSampleTemplateBtn">Manual Mode</button>
-              </div>
-            </div>
-            
-            <!-- Template Mode View -->
-            <div id="sampleTemplateView" class="hidden">
-              <div id="sampleTemplateInfo" class="hint" style="margin-bottom: 12px;">Template loaded.</div>
-              <div id="sampleTemplateDevices" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card); margin-bottom: 12px;"></div>
-              <div id="sampleActiveDeviceInfo" class="hint" style="margin-bottom: 12px;"></div>
+            <div class="sample-mode-grid" id="sampleModeSelector">
+              <label class="radio-card" style="padding: 14px 18px;">
+                <input type="radio" name="sampleMode" value="template" />
+                <div class="radio-card-header" style="margin-bottom: 0;">
+                  <span class="radio-card-title">Use Template</span>
+                  <div class="radio-card-indicator"></div>
+                </div>
+                <p class="radio-card-desc">Load an existing template and collect one template device at a time.</p>
+              </label>
+              <label class="radio-card" style="padding: 14px 18px;">
+                <input type="radio" name="sampleMode" value="manual" />
+                <div class="radio-card-header" style="margin-bottom: 0;">
+                  <span class="radio-card-title">Manual Commands</span>
+                  <div class="radio-card-indicator"></div>
+                </div>
+                <p class="radio-card-desc">Choose commands directly without using a saved template.</p>
+              </label>
             </div>
 
-            <!-- Manual Mode View -->
-            <div id="sampleManualView">
-              <div class="hint" style="margin-bottom: 12px;">No template loaded. Manual command selection is active.</div>
+            <div id="sampleTemplatePanel" class="sample-mode-panel hidden">
+              <h3>Template Mode</h3>
+              <p class="hint">Load a saved template to auto-fill devices and commands.</p>
+              <div class="compact-row compact-row--template" style="margin-bottom: 12px;">
+                <div class="form-group">
+                  <label>Saved Template</label>
+                  <div id="sampleTemplateSelect" class="app-select"></div>
+                </div>
+                <div class="form-group sample-action">
+                  <button type="button" class="btn-accent" id="loadSampleTemplateBtn">Load Template</button>
+                </div>
+                <div class="form-group sample-action">
+                  <button type="button" class="btn-outline" id="cancelTemplateModeBtn">Cancel Mode</button>
+                </div>
+              </div>
+              
+              <div id="sampleTemplateView" class="hidden">
+                <div id="sampleTemplateInfo" class="hint" style="margin-bottom: 12px;">Template loaded.</div>
+                <div id="sampleTemplateDevices" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card); margin-bottom: 12px;"></div>
+                <div id="sampleActiveDeviceInfo" class="hint" style="margin-bottom: 0;"></div>
+              </div>
+            </div>
+
+            <div id="sampleManualPanel" class="sample-mode-panel hidden">
+              <h3>Manual Mode</h3>
+              <p class="hint">Search and select commands directly for this collection run.</p>
               <input type="text" id="sampleCommandSearch" placeholder="Search commands..." style="margin-bottom: 10px;" />
               <div id="sampleCommandsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card);"></div>
               <div class="actions align-left" style="margin-top: 10px;">
                 <button type="button" id="selectAllSampleCmds" class="btn-outline">Select All</button>
                 <button type="button" id="clearSampleCmds" class="btn-outline">Clear</button>
+              </div>
+              <div class="sample-mode-cancel">
+                <button type="button" class="btn-outline" id="cancelManualModeBtn">Cancel Mode</button>
               </div>
             </div>
           </div>
@@ -298,6 +359,7 @@
           </div>
 
           <div class="actions justify-end" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--color-border);">
+            <button type="button" id="stopSampleCollectBtn" class="abort-btn" style="display: none;">⏹ Stop Execution</button>
             <button type="button" id="runSampleCollectBtn" class="primary" style="font-size: 1.05rem; padding: 12px 32px;">Collect Logs</button>
           </div>
         </section>
