@@ -11,11 +11,27 @@ document.addEventListener("DOMContentLoaded", async () => {
   const templateSelect = document.getElementById("templateSelect");
   const loadTemplateBtn = document.getElementById("loadTemplateBtn");
   const templateNameInput = document.getElementById("templateName");
+  const templateConfigCard = document.getElementById("templateConfigCard");
+  const templateConfigSubtitle = document.getElementById("templateConfigSubtitle");
+  const templateNameHelp = document.getElementById("templateNameHelp");
+  const loadExistingGroup = document.getElementById("loadExistingGroup");
   const manualToolbar = document.getElementById("manualToolbar");
   const logsFirstPanel = document.getElementById("logsFirstPanel");
+  const fullManualPanel = document.getElementById("fullManualPanel");
+  const structureOnlyPanel = document.getElementById("structureOnlyPanel");
+  const strictFolderPanel = document.getElementById("strictFolderPanel");
   const chooseLogsFolderBtn = document.getElementById("chooseLogsFolderBtn");
   const logsFolderLabel = document.getElementById("logsFolderLabel");
+  const chooseStrictFolderBtn = document.getElementById("chooseStrictFolderBtn");
+  const strictFolderLabel = document.getElementById("strictFolderLabel");
   const devicesSubtitle = document.getElementById("devicesSubtitle");
+  const deviceConfigCard = document.getElementById("deviceConfigCard");
+  const setupModeSelector = document.getElementById("setupModeSelector");
+
+  const MODE_FULL_MANUAL = "full_manual";
+  const MODE_STRUCTURE_ONLY = "structure_only";
+  const MODE_LOGS_FIRST = "logs_first";
+  const VALID_MODES = new Set([MODE_FULL_MANUAL, MODE_STRUCTURE_ONLY, MODE_LOGS_FIRST]);
 
   let deviceCount = 0;
   let systemCommands = [];
@@ -24,15 +40,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   let selectedTemplateName = "";
   let templateNameProgrammaticUpdate = false;
   let templateNameEditedManually = false;
-  let currentMode = "logs";
+  let currentMode = "";
   let importedLogsFolder = "";
+  let strictLogsFolder = "";
 
   function getModeRadio(value) {
     return document.querySelector(`input[name="templateSetupMode"][value="${value}"]`);
   }
 
-  function getMode() {
-    return document.querySelector('input[name="templateSetupMode"]:checked')?.value || "logs";
+  function normalizeMode(value) {
+    if (value === "manual") return MODE_STRUCTURE_ONLY;
+    if (value === "logs") return MODE_LOGS_FIRST;
+    return VALID_MODES.has(value) ? value : "";
   }
 
   function closeOpenSelects(except = null) {
@@ -111,7 +130,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     return exact || commandLabelFromFilename(filename);
   }
 
-  function setExistingTemplateControlsDisabled(disabled) {
+  function setExistingTemplateControlsDisabled(disabled, title = "") {
     if (templateSelect) {
       templateSelect.classList.toggle("app-select-disabled", disabled);
       templateSelect.querySelector(".app-select-trigger")?.toggleAttribute("disabled", disabled);
@@ -122,38 +141,172 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (loadTemplateBtn) {
       loadTemplateBtn.disabled = disabled;
-      loadTemplateBtn.title = disabled
+      loadTemplateBtn.title = title;
+    }
+  }
+
+  function syncTemplateControls() {
+    const hasManualName = templateNameEditedManually && Boolean(templateNameInput?.value.trim());
+    const disableLoad =
+      currentMode === MODE_LOGS_FIRST ||
+      hasManualName ||
+      !currentMode;
+    const title = currentMode === MODE_LOGS_FIRST
+      ? "Logs First creates a new template from the selected folder."
+      : hasManualName
         ? "Clear the Template Name field to load an existing template."
         : "";
+    setExistingTemplateControlsDisabled(disableLoad, title);
+    if (loadExistingGroup) {
+      loadExistingGroup.style.display = currentMode === MODE_LOGS_FIRST ? "none" : "";
     }
   }
 
-  function syncTemplateModeFromName() {
-    const hasManualName = templateNameEditedManually && Boolean(templateNameInput?.value.trim());
-    setExistingTemplateControlsDisabled(hasManualName);
+  function setFolderLabel(label, folderPath) {
+    if (!label) return;
+    label.textContent = folderPath || "No folder selected";
+    label.classList.toggle("has-value", Boolean(folderPath));
   }
 
-  function syncSetupModeAvailability() {
-    const logsRadio = getModeRadio("logs");
-    const manualRadio = getModeRadio("manual");
-    if (!logsRadio || !manualRadio) return;
+  function setLogsFolder(folderPath) {
+    importedLogsFolder = folderPath || "";
+    setFolderLabel(logsFolderLabel, importedLogsFolder);
+  }
 
-    const lockLogsFirst = loadedFromServer;
-    logsRadio.disabled = lockLogsFirst;
+  function setStrictFolder(folderPath) {
+    strictLogsFolder = folderPath || "";
+    setFolderLabel(strictFolderLabel, strictLogsFolder);
+  }
 
-    if (lockLogsFirst) {
-      manualRadio.checked = true;
-      currentMode = "manual";
-      localStorage.setItem("deviceSetupMode", "manual");
+  function saveModeToStorage() {
+    if (currentMode) localStorage.setItem("deviceSetupMode", currentMode);
+    else localStorage.removeItem("deviceSetupMode");
+  }
+
+  function updateSaveButtonText() {
+    if (!saveBtn) return;
+    if (currentMode === MODE_FULL_MANUAL) {
+      saveBtn.textContent = "Save Full Template";
+    } else if (currentMode === MODE_STRUCTURE_ONLY) {
+      saveBtn.textContent = "Save Structure Only";
+    } else if (currentMode === MODE_LOGS_FIRST) {
+      saveBtn.textContent = "Import Logs Folder";
+    } else {
+      saveBtn.textContent = "Choose Setup Mode";
     }
+    saveBtn.disabled = !currentMode;
+  }
+
+  function updateModeUI() {
+    document.querySelectorAll('input[name="templateSetupMode"]').forEach((radio) => {
+      radio.checked = radio.value === currentMode;
+    });
+
+    if (setupModeSelector) setupModeSelector.classList.toggle("is-locked", Boolean(currentMode));
+    if (templateConfigCard) templateConfigCard.classList.toggle("hidden", !currentMode);
+    if (deviceConfigCard) deviceConfigCard.classList.toggle("hidden", !currentMode);
+
+    if (fullManualPanel) fullManualPanel.classList.toggle("hidden", currentMode !== MODE_FULL_MANUAL);
+    if (structureOnlyPanel) structureOnlyPanel.classList.toggle("hidden", currentMode !== MODE_STRUCTURE_ONLY);
+    if (logsFirstPanel) logsFirstPanel.classList.toggle("hidden", currentMode !== MODE_LOGS_FIRST);
+    if (strictFolderPanel) strictFolderPanel.classList.toggle("hidden", !(currentMode === MODE_FULL_MANUAL && loadedFromServer));
+
+    if (manualToolbar) manualToolbar.style.display = currentMode === MODE_LOGS_FIRST ? "none" : "";
+    if (templateConfigSubtitle) {
+      templateConfigSubtitle.textContent = currentMode === MODE_LOGS_FIRST
+        ? "Name the template generated from the collected logs folder"
+        : "Create a new template or load an existing one";
+    }
+    if (templateNameHelp) {
+      templateNameHelp.textContent = currentMode === MODE_LOGS_FIRST
+        ? "Enter the new template name that will be created from the selected logs folder."
+        : "Type a new template name, or leave it empty to load an existing template.";
+    }
+    if (devicesSubtitle) {
+      const labels = {
+        [MODE_FULL_MANUAL]: loadedFromServer
+          ? "Loaded template devices; upload logs one by one or by folder"
+          : "Add devices, select commands, and attach logs",
+        [MODE_STRUCTURE_ONLY]: "Add devices and commands without uploading logs",
+        [MODE_LOGS_FIRST]: "Detected from one collected sample-log folder",
+      };
+      devicesSubtitle.textContent = labels[currentMode] || "Add and configure network devices";
+    }
+
+    container.querySelectorAll(".remove-device-btn").forEach((button) => {
+      button.style.display = currentMode === MODE_LOGS_FIRST ? "none" : "";
+    });
+    container.querySelectorAll(".hostname-input").forEach((input) => {
+      input.readOnly = currentMode === MODE_LOGS_FIRST;
+    });
+    container.querySelectorAll(".custom-dropdown").forEach((dropdown) => {
+      const locked = currentMode === MODE_LOGS_FIRST;
+      dropdown.style.pointerEvents = locked ? "none" : "";
+      dropdown.style.opacity = locked ? "0.65" : "";
+    });
+    container.querySelectorAll(".cmd-file-input").forEach((input) => {
+      const showUpload = currentMode === MODE_FULL_MANUAL;
+      input.disabled = !showUpload;
+      input.style.display = showUpload ? "" : "none";
+    });
+    container.querySelectorAll(".command-badge--uploaded").forEach((badge) => {
+      badge.style.display = currentMode === MODE_FULL_MANUAL ? "" : "none";
+    });
+
+    syncTemplateControls();
+    updateSaveButtonText();
+  }
+
+  function setMode(mode) {
+    currentMode = normalizeMode(mode);
+    saveModeToStorage();
+    if (currentMode === MODE_LOGS_FIRST) {
+      loadedFromServer = false;
+      selectedTemplateName = "";
+      setStrictFolder("");
+      templateNameEditedManually = true;
+    }
+    if ((currentMode === MODE_FULL_MANUAL || currentMode === MODE_STRUCTURE_ONLY) && !container.children.length) {
+      addDeviceBlock();
+    }
+    updateModeUI();
+  }
+
+  function clearDeviceSetup({ clearTemplateName = true } = {}) {
+    localStorage.removeItem("templateName");
+    localStorage.removeItem("templateDevices");
+    localStorage.removeItem("activeTemplateName");
+    localStorage.removeItem("activeTemplateDevices");
+    localStorage.removeItem("deviceSetupMode");
+    localStorage.removeItem("deviceSetupLogsFolder");
+    localStorage.removeItem("deviceSetupStrictLogsFolder");
+    loadedFromServer = false;
+    selectedTemplateName = "";
+    templateNameEditedManually = !clearTemplateName && Boolean(templateNameInput?.value.trim());
+    currentMode = "";
+    deviceCount = 0;
+    container.innerHTML = "";
+    setLogsFolder("");
+    setStrictFolder("");
+    if (clearTemplateName && templateNameInput) templateNameInput.value = "";
+    renderSingleSelect(templateSelect, {
+      options: availableTemplates,
+      value: "",
+      placeholder: "Select a template",
+    });
+    updateModeUI();
   }
 
   templateNameInput?.addEventListener("input", () => {
     if (templateNameProgrammaticUpdate) return;
     templateNameEditedManually = Boolean(templateNameInput.value.trim());
-    loadedFromServer = false;
-    syncTemplateModeFromName();
-    syncSetupModeAvailability();
+    if (templateNameEditedManually && loadedFromServer) {
+      loadedFromServer = false;
+      selectedTemplateName = "";
+      setStrictFolder("");
+      localStorage.removeItem("activeTemplateName");
+    }
+    updateModeUI();
   });
 
   document.addEventListener("click", (event) => {
@@ -192,7 +345,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       value: selectedTemplateName,
       placeholder: "Select a template",
     });
-    syncTemplateModeFromName();
+    syncTemplateControls();
   }
 
   function createCommandBadge(commandText) {
@@ -302,14 +455,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     dropdownHeader.addEventListener("click", (event) => {
       event.stopPropagation();
+      if (currentMode === MODE_LOGS_FIRST) return;
       const willOpen = dropdownList.classList.contains("hidden");
       closeCommandDropdowns(willOpen ? dropdownRoot : null);
       dropdownList.classList.toggle("hidden", !willOpen);
       dropdownRoot.classList.toggle("dropdown-open", willOpen);
       block.classList.toggle("dropdown-open", willOpen);
-      if (willOpen) {
-        dropdownSearch?.focus();
-      }
+      if (willOpen) dropdownSearch?.focus();
     });
 
     dropdownSearch?.addEventListener("click", (event) => event.stopPropagation());
@@ -332,6 +484,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           existingRow.remove();
         }
         updateDropdownCount(block);
+        updateModeUI();
       });
     });
 
@@ -345,6 +498,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!existingRow) cmdList.appendChild(createCommandBadge(cmd));
     });
     updateDropdownCount(block);
+    updateModeUI();
 
     return block;
   }
@@ -355,7 +509,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     Object.entries(devicesMeta).forEach(([hostname, commands]) => {
       addDeviceBlock({ hostname, commands });
     });
-    if (!Object.keys(devicesMeta).length) addDeviceBlock();
+    if (!Object.keys(devicesMeta).length && currentMode !== MODE_LOGS_FIRST) addDeviceBlock();
+    updateModeUI();
   }
 
   function collectDevicesMeta() {
@@ -390,6 +545,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     return devicesMeta;
   }
 
+  function collectManualFiles() {
+    const manualFiles = [];
+    container.querySelectorAll(".device-block").forEach((block) => {
+      const hostname = block.querySelector(".hostname-input")?.value.trim() || "";
+      if (!hostname) return;
+      block.querySelectorAll(".command-item").forEach((row) => {
+        const command = row.querySelector(".cmd-input")?.value.trim() || "";
+        const file = row.querySelector(".cmd-file-input")?.files?.[0];
+        if (command && file) {
+          manualFiles.push({ hostname, command, file });
+        }
+      });
+    });
+    return manualFiles;
+  }
+
   function scanLogsFolder(folderPath) {
     const devicesMeta = {};
     const entries = fs.readdirSync(folderPath, { withFileTypes: true });
@@ -409,52 +580,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     return devicesMeta;
   }
 
-  function setLogsFolder(folderPath) {
-    importedLogsFolder = folderPath || "";
-    if (logsFolderLabel) {
-      logsFolderLabel.textContent = importedLogsFolder || "No folder selected";
-      logsFolderLabel.classList.toggle("has-value", Boolean(importedLogsFolder));
+  async function selectFolder() {
+    if (!ipcRenderer?.invoke) {
+      alert("Folder picker is not available.");
+      return "";
     }
-  }
-
-  function updateModeUI() {
-    syncSetupModeAvailability();
-    currentMode = getMode();
-    const isLogsMode = currentMode === "logs";
-    if (logsFirstPanel) logsFirstPanel.style.display = isLogsMode ? "" : "none";
-    if (manualToolbar) manualToolbar.style.display = isLogsMode ? "none" : "";
-    if (devicesSubtitle) {
-      devicesSubtitle.textContent = isLogsMode
-        ? "Detected from one collected sample-log folder"
-        : "Add and configure network devices";
-    }
-    container.querySelectorAll(".remove-device-btn").forEach((button) => {
-      button.style.display = isLogsMode ? "none" : "";
-    });
-    container.querySelectorAll(".hostname-input").forEach((input) => {
-      input.readOnly = isLogsMode;
-    });
-    container.querySelectorAll(".custom-dropdown").forEach((dropdown) => {
-      dropdown.style.pointerEvents = isLogsMode ? "none" : "";
-      dropdown.style.opacity = isLogsMode ? "0.65" : "";
-    });
-    container.querySelectorAll(".cmd-file-input").forEach((input) => {
-      input.disabled = isLogsMode;
-      input.style.opacity = isLogsMode ? "0.65" : "";
-    });
-    if (!container.children.length) addDeviceBlock();
+    return (await ipcRenderer.invoke("select-directory")) || "";
   }
 
   async function chooseLogsFolder() {
-    if (loadedFromServer) {
-      alert("Logs First is disabled while an existing template is loaded.");
-      return;
-    }
-    if (!ipcRenderer?.invoke) {
-      alert("Folder picker is not available.");
-      return;
-    }
-    const selected = await ipcRenderer.invoke("select-directory");
+    const selected = await selectFolder();
     if (!selected) return;
     setLogsFolder(selected);
     try {
@@ -463,36 +598,20 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!Object.keys(devicesMeta).length) {
         alert("No device folders with log files were found in the selected folder.");
       }
-      updateModeUI();
     } catch (err) {
       console.error(err);
       alert(err.message || "Failed to scan the selected logs folder.");
     }
   }
 
-  clearSetupBtn?.addEventListener("click", () => {
-    if (!confirm("Clear all device setup data? This will remove saved template settings from this app.")) {
+  async function chooseStrictFolder() {
+    if (!loadedFromServer) {
+      alert("Load an existing template before using strict folder fill.");
       return;
     }
-    localStorage.removeItem("templateName");
-    localStorage.removeItem("templateDevices");
-    localStorage.removeItem("activeTemplateName");
-    localStorage.removeItem("activeTemplateDevices");
-    localStorage.removeItem("deviceSetupMode");
-    localStorage.removeItem("deviceSetupLogsFolder");
-    loadedFromServer = false;
-    templateNameEditedManually = false;
-    deviceCount = 0;
-    container.innerHTML = "";
-    if (templateNameInput) templateNameInput.value = "";
-    setLogsFolder("");
-    const logsRadio = getModeRadio("logs");
-    if (logsRadio) logsRadio.checked = true;
-    syncTemplateModeFromName();
-    syncSetupModeAvailability();
-    addDeviceBlock();
-    updateModeUI();
-  });
+    const selected = await selectFolder();
+    if (selected) setStrictFolder(selected);
+  }
 
   async function loadTemplateFromServer(templateName) {
     if (!templateName) return;
@@ -510,18 +629,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       localStorage.setItem("activeTemplateName", templateName);
       localStorage.setItem("activeTemplateDevices", JSON.stringify(devicesMeta));
       loadedFromServer = true;
+      selectedTemplateName = templateName;
       if (templateNameInput) {
         templateNameProgrammaticUpdate = true;
         templateNameInput.value = templateName;
         templateNameProgrammaticUpdate = false;
       }
       templateNameEditedManually = false;
-      syncTemplateModeFromName();
-      syncSetupModeAvailability();
       renderImportedDevices(devicesMeta);
       updateModeUI();
       saveBtn.disabled = false;
-      saveBtn.textContent = "Save Template & Continue";
     } catch (err) {
       console.error(err);
       alert(err.message || "Failed to load template.");
@@ -531,25 +648,25 @@ document.addEventListener("DOMContentLoaded", async () => {
   function restoreState() {
     const savedName = localStorage.getItem("templateName");
     const savedDevicesStr = localStorage.getItem("templateDevices");
-    const savedMode = localStorage.getItem("deviceSetupMode") || "logs";
+    const savedMode = normalizeMode(localStorage.getItem("deviceSetupMode") || "");
     const savedLogsFolder = localStorage.getItem("deviceSetupLogsFolder") || "";
+    const savedStrictFolder = localStorage.getItem("deviceSetupStrictLogsFolder") || "";
+
+    if (savedMode) setMode(savedMode);
+    else updateModeUI();
 
     if (savedName && templateNameInput) {
       templateNameInput.value = savedName;
       selectedTemplateName = savedName;
     }
-
-    const modeRadio = getModeRadio(savedMode);
-    if (modeRadio) modeRadio.checked = true;
-    currentMode = savedMode;
     setLogsFolder(savedLogsFolder);
+    setStrictFolder(savedStrictFolder);
 
     if (savedDevicesStr) {
       try {
         const devicesMeta = JSON.parse(savedDevicesStr);
         if (devicesMeta && Object.keys(devicesMeta).length) {
           renderImportedDevices(devicesMeta);
-          updateModeUI();
           return;
         }
       } catch (err) {
@@ -557,17 +674,54 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     }
 
-    if (savedName) {
+    if (savedName && currentMode !== MODE_LOGS_FIRST) {
       loadTemplateFromServer(savedName);
       return;
     }
-
-    addDeviceBlock();
+    if (currentMode && currentMode !== MODE_LOGS_FIRST && !container.children.length) {
+      addDeviceBlock();
+    }
     updateModeUI();
   }
 
+  function persistTemplateState(templateName, devicesMeta, mode) {
+    localStorage.setItem("templateName", templateName);
+    if (typeof window.updateGlobalTemplateBadge === "function") window.updateGlobalTemplateBadge();
+    localStorage.setItem("templateDevices", JSON.stringify(devicesMeta));
+    localStorage.setItem("activeTemplateName", templateName);
+    localStorage.setItem("activeTemplateDevices", JSON.stringify(devicesMeta));
+    localStorage.setItem("deviceSetupMode", mode);
+  }
+
+  document.querySelectorAll('input[name="templateSetupMode"]').forEach((radio) => {
+    radio.addEventListener("change", () => {
+      const selectedMode = normalizeMode(radio.value);
+      clearDeviceSetup({ clearTemplateName: false });
+      setMode(selectedMode);
+    });
+  });
+
+  setupModeSelector?.querySelectorAll(".radio-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      if (currentMode) return;
+      const radio = card.querySelector('input[name="templateSetupMode"]');
+      if (!radio) return;
+      const selectedMode = normalizeMode(radio.value);
+      clearDeviceSetup({ clearTemplateName: false });
+      setMode(selectedMode);
+    });
+  });
+
+  [document.getElementById("cancelFullManualModeBtn"), document.getElementById("cancelStructureModeBtn"), document.getElementById("cancelLogsFirstModeBtn")]
+    .forEach((button) => button?.addEventListener("click", () => clearDeviceSetup({ clearTemplateName: false })));
+
   chooseLogsFolderBtn?.addEventListener("click", chooseLogsFolder);
+  chooseStrictFolderBtn?.addEventListener("click", chooseStrictFolder);
   addDeviceBtn?.addEventListener("click", () => addDeviceBlock());
+  clearSetupBtn?.addEventListener("click", () => {
+    if (!confirm("Clear all device setup data? This will remove saved template settings from this app.")) return;
+    clearDeviceSetup();
+  });
   loadTemplateBtn?.addEventListener("click", () => {
     if (loadTemplateBtn.disabled) return;
     const selected = templateSelect?.dataset.value || selectedTemplateName;
@@ -578,59 +732,62 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadTemplateFromServer(selected);
   });
 
-  document.querySelectorAll('input[name="templateSetupMode"]').forEach((radio) => {
-    radio.addEventListener("change", () => {
-      if (radio.value === "logs" && loadedFromServer) {
-        const manualRadio = getModeRadio("manual");
-        if (manualRadio) manualRadio.checked = true;
-        alert("Logs First is disabled while an existing template is loaded. Clear setup first if you want to import from logs.");
-        localStorage.setItem("deviceSetupMode", "manual");
-        updateModeUI();
-        return;
-      }
-      localStorage.setItem("deviceSetupMode", getMode());
-      updateModeUI();
-    });
-  });
-
   saveBtn?.addEventListener("click", async () => {
-    const templateName = templateNameInput?.value.trim() || "default";
+    const templateName = templateNameInput?.value.trim() || "";
     const sourceTemplateName = loadedFromServer && selectedTemplateName ? selectedTemplateName : "";
+    if (!currentMode) {
+      alert("Choose a setup mode first.");
+      return;
+    }
+    if (!templateName) {
+      alert("Enter a template name first.");
+      return;
+    }
 
     saveBtn.disabled = true;
     saveBtn.textContent = "Saving...";
 
     try {
       let response;
-      if (getMode() === "logs") {
-        if (!importedLogsFolder) {
-          throw new Error("Choose a collected logs folder first.");
-        }
+      if (currentMode === MODE_LOGS_FIRST) {
+        if (!importedLogsFolder) throw new Error("Choose a collected logs folder first.");
         response = await fetchJson("/api/templates/import_logs_folder", {
           method: "POST",
           body: JSON.stringify({
             template_name: templateName,
-            source_template_name: sourceTemplateName,
             source_dir: importedLogsFolder,
           }),
         });
         localStorage.setItem("deviceSetupLogsFolder", importedLogsFolder);
       } else {
         const devicesMeta = collectDevicesMeta();
-        const manualFiles = [];
-        container.querySelectorAll(".device-block").forEach((block) => {
-          const hostname = block.querySelector(".hostname-input")?.value.trim() || "";
-          if (!hostname) return;
-          block.querySelectorAll(".command-item").forEach((row) => {
-            const command = row.querySelector(".cmd-input")?.value.trim() || "";
-            const file = row.querySelector(".cmd-file-input")?.files?.[0];
-            if (command && file) {
-              manualFiles.push({ hostname, command, file });
-            }
-          });
-        });
 
-        if (manualFiles.length) {
+        if (currentMode === MODE_STRUCTURE_ONLY) {
+          response = await fetchJson("/api/templates/save_setup", {
+            method: "POST",
+            body: JSON.stringify({
+              template_name: templateName,
+              source_template_name: sourceTemplateName,
+              devices_meta: devicesMeta,
+            }),
+          });
+        } else if (strictLogsFolder && loadedFromServer) {
+          response = await fetchJson("/api/templates/import_logs_folder", {
+            method: "POST",
+            body: JSON.stringify({
+              template_name: templateName,
+              source_template_name: sourceTemplateName,
+              source_dir: strictLogsFolder,
+              devices_meta: devicesMeta,
+              strict: true,
+            }),
+          });
+          localStorage.setItem("deviceSetupStrictLogsFolder", strictLogsFolder);
+        } else {
+          const manualFiles = collectManualFiles();
+          if (!manualFiles.length) {
+            throw new Error("Attach log files for at least one selected command, or load an existing template and choose a folder fill.");
+          }
           const formData = new FormData();
           formData.append("template_name", templateName);
           formData.append("source_template_name", sourceTemplateName);
@@ -645,15 +802,6 @@ document.addEventListener("DOMContentLoaded", async () => {
           });
           response = await parseJsonResponse(res);
           response.devices_meta = response.results?.devices_meta || devicesMeta;
-        } else {
-          response = await fetchJson("/api/templates/save_setup", {
-            method: "POST",
-            body: JSON.stringify({
-              template_name: templateName,
-              source_template_name: sourceTemplateName,
-              devices_meta: devicesMeta,
-            }),
-          });
         }
       }
 
@@ -661,27 +809,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         response.devices_meta ||
         response.results?.devices_meta ||
         collectDevicesMeta();
-      localStorage.setItem("templateName", templateName);
-      if (typeof window.updateGlobalTemplateBadge === "function") window.updateGlobalTemplateBadge();
-      localStorage.setItem("templateDevices", JSON.stringify(devicesMeta));
-      localStorage.setItem("activeTemplateName", templateName);
-      localStorage.setItem("activeTemplateDevices", JSON.stringify(devicesMeta));
-      localStorage.setItem("deviceSetupMode", getMode());
+      persistTemplateState(templateName, devicesMeta, currentMode);
 
-      if (getMode() === "logs") {
+      if (currentMode === MODE_LOGS_FIRST) {
         alert("Template baseline imported from the collected logs folder.");
-      } else if (response.results?.results) {
-        alert("Template setup saved and uploaded baseline logs were processed.");
+      } else if (currentMode === MODE_STRUCTURE_ONLY) {
+        alert("Template structure saved without baseline logs. You can collect logs later from Sample Collect.");
+      } else if (response.ignored || response.missing) {
+        const ignoredDevices = response.ignored?.devices?.length || 0;
+        const ignoredCommands = response.ignored?.commands?.length || 0;
+        const missingDevices = Object.keys(response.missing || {}).length;
+        alert(`Template filled from folder. Ignored devices: ${ignoredDevices}. Ignored command files: ${ignoredCommands}. Devices with missing logs: ${missingDevices}.`);
       } else {
-        alert("Template setup saved. You can collect lecturer logs later from Sample Collect.");
+        alert("Template setup saved and uploaded baseline logs were processed.");
       }
       goTo("directory.html");
     } catch (err) {
       console.error(err);
       alert(err.message || "Failed to save template.");
     } finally {
-      saveBtn.disabled = false;
-      saveBtn.textContent = "Save Template & Continue";
+      updateSaveButtonText();
     }
   });
 
