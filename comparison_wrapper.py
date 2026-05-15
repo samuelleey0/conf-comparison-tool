@@ -48,6 +48,18 @@ def _safe_command_name_from_file(filename):
     return " ".join(base.replace("_", " ").replace("-", " ").split())
 
 
+def _normalize_command_key(value):
+    return " ".join(
+        str(value or "")
+        .lower()
+        .replace("_", " ")
+        .replace("-", " ")
+        .replace("/", " ")
+        .replace(".", " ")
+        .split()
+    )
+
+
 def _choose_show_run_file_noninteractive(saved_log_paths):
     show_run_candidates = [
         path for path in saved_log_paths if is_show_run_filename(os.path.basename(path))
@@ -182,6 +194,101 @@ def import_template_from_logs_dir(base_dir, template_name, source_dir, source_te
         "template_name": template_name,
         "devices_meta": devices_meta,
         "has_baseline": has_baseline,
+    }
+
+
+def import_logs_folder_strict(base_dir, template_name, source_dir, devices_meta, source_template_name=""):
+    if not source_dir or not os.path.isdir(source_dir):
+        return {"status": "error", "message": "Source logs folder not found."}
+
+    template_dir = os.path.join(base_dir, "comparison_engine", "templates", template_name)
+    _copy_source_template(base_dir, template_name, source_template_name)
+
+    expected_devices = devices_meta or {}
+    source_device_dirs = {
+        entry.name.lower(): entry
+        for entry in os.scandir(source_dir)
+        if entry.is_dir() and not entry.name.startswith(".")
+    }
+    expected_device_keys = {str(hostname).lower() for hostname in expected_devices}
+
+    results = {}
+    ignored = {"devices": [], "commands": []}
+    missing = {}
+    has_baseline = False
+
+    for hostname, commands in expected_devices.items():
+        hostname_dir = os.path.join(template_dir, hostname)
+        hostname_logs_dir = os.path.join(hostname_dir, "logs")
+        os.makedirs(hostname_logs_dir, exist_ok=True)
+
+        source_entry = source_device_dirs.get(str(hostname).lower())
+        if not source_entry:
+            missing[hostname] = list(commands or [])
+            results[hostname] = "No matching device folder found."
+            continue
+
+        files_by_command = {}
+        for child in sorted(os.scandir(source_entry.path), key=lambda item: item.name.lower()):
+            if not child.is_file() or child.name.startswith("."):
+                continue
+            files_by_command[_normalize_command_key(_safe_command_name_from_file(child.name))] = child
+
+        saved_log_paths = []
+        missing_commands = []
+        expected_command_keys = {_normalize_command_key(cmd) for cmd in commands or []}
+
+        for command in commands or []:
+            command_key = _normalize_command_key(command)
+            child = files_by_command.get(command_key)
+            if not child:
+                missing_commands.append(command)
+                continue
+
+            safe_cmd = str(command).replace(" ", "_").replace("/", "_")
+            destination = os.path.join(hostname_logs_dir, f"{safe_cmd}.txt")
+            shutil.copyfile(child.path, destination)
+            saved_log_paths.append(destination)
+
+        for command_key, child in files_by_command.items():
+            if command_key not in expected_command_keys:
+                ignored["commands"].append(f"{hostname}/{child.name}")
+
+        if missing_commands:
+            missing[hostname] = missing_commands
+
+        if not saved_log_paths:
+            results[hostname] = "No matching log files found."
+            continue
+
+        try:
+            _parse_and_write_device_baseline(template_dir, hostname, saved_log_paths)
+            results[hostname] = "Success"
+            has_baseline = True
+        except Exception as exc:
+            results[hostname] = f"Error parsing: {exc}"
+
+    for source_key, source_entry in source_device_dirs.items():
+        if source_key not in expected_device_keys:
+            ignored["devices"].append(source_entry.name)
+
+    if not has_baseline and os.path.isdir(template_dir):
+        for entry in os.scandir(template_dir):
+            if not entry.is_dir():
+                continue
+            if os.path.exists(os.path.join(entry.path, "config.json")):
+                has_baseline = True
+                break
+
+    _write_template_manifest(template_dir, template_name, expected_devices, has_baseline)
+    return {
+        "status": "success",
+        "results": results,
+        "template_name": template_name,
+        "devices_meta": expected_devices,
+        "has_baseline": has_baseline,
+        "ignored": ignored,
+        "missing": missing,
     }
 
 

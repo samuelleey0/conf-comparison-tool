@@ -43,7 +43,7 @@ from comparison_engine.comparator import compare_dicts
 from comparison_engine.student_manager import find_show_run_file
 from cisco_reset import reload_cisco_device
 from generate_results import write_readable_result_from_report
-from comparison_wrapper import import_template_from_logs_dir, save_template_setup
+from comparison_wrapper import import_logs_folder_strict, import_template_from_logs_dir, save_template_setup
 
 app = Flask(__name__)
 
@@ -5406,19 +5406,49 @@ def api_import_template_logs_folder():
     template_name = (data.get("template_name") or "").strip()
     source_dir = _expand_path(data.get("source_dir"))
     source_template_name = (data.get("source_template_name") or "").strip()
+    strict = bool(data.get("strict"))
+    devices_meta = data.get("devices_meta") or {}
 
     if not template_name:
         return jsonify({"status": "error", "message": "Missing template name."}), 400
     if not source_dir or not os.path.isdir(source_dir):
         return jsonify({"status": "error", "message": "Selected logs folder was not found."}), 400
+    if strict and (not isinstance(devices_meta, dict) or not devices_meta):
+        return jsonify({"status": "error", "message": "Strict folder import requires template devices."}), 400
+    if strict:
+        cleaned_devices = {}
+        seen = set()
+        for hostname, commands in devices_meta.items():
+            safe_hostname = str(hostname or "").strip()
+            if not safe_hostname:
+                return jsonify({"status": "error", "message": "All devices must have a hostname."}), 400
+            if safe_hostname.lower() in seen:
+                return jsonify({"status": "error", "message": f'Duplicate hostname "{safe_hostname}".'}), 400
+            seen.add(safe_hostname.lower())
+            if not isinstance(commands, list) or not commands:
+                return jsonify({"status": "error", "message": f'Device "{safe_hostname}" has no commands.'}), 400
+            cleaned_commands = [str(cmd).strip() for cmd in commands if str(cmd).strip()]
+            if not cleaned_commands:
+                return jsonify({"status": "error", "message": f'Device "{safe_hostname}" has no commands.'}), 400
+            cleaned_devices[safe_hostname] = cleaned_commands
+        devices_meta = cleaned_devices
 
     try:
-        result = import_template_from_logs_dir(
-            str(BASE_DIR),
-            template_name,
-            source_dir,
-            source_template_name=source_template_name,
-        )
+        if strict:
+            result = import_logs_folder_strict(
+                str(BASE_DIR),
+                template_name,
+                source_dir,
+                devices_meta,
+                source_template_name=source_template_name,
+            )
+        else:
+            result = import_template_from_logs_dir(
+                str(BASE_DIR),
+                template_name,
+                source_dir,
+                source_template_name=source_template_name,
+            )
         if result.get("status") == "error":
             return jsonify(result), 400
         return jsonify({"status": "ok", **result})
