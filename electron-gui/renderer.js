@@ -361,6 +361,9 @@ function setupWelcomePage() {
     "templateDevices",
     "activeTemplateName",
     "activeTemplateDevices",
+    "deviceSetupMode",
+    "deviceSetupLogsFolder",
+    "deviceSetupStrictLogsFolder",
     "hasRubrics",
     "directoryMode",
     "basePath",
@@ -371,6 +374,8 @@ function setupWelcomePage() {
     "sessionPath"
   ];
   keysToClear.forEach(k => localStorage.removeItem(k));
+  ["deviceSetupMode", "deviceSetupLogsFolder", "deviceSetupStrictLogsFolder"]
+    .forEach(k => sessionStorage.removeItem(k));
 
   loadNavbar();
   window.setTimeout(() => goTo("index.html"), 2200);
