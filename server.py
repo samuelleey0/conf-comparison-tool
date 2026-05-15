@@ -5320,6 +5320,10 @@ def _load_template_manifest(template_name: str):
     }
 
 
+def _template_command_key(command: str) -> str:
+    return _normalize_text(command)
+
+
 @app.route("/api/templates/<template_name>", methods=["GET"])
 def api_get_template_details(template_name):
     if not template_name:
@@ -5329,26 +5333,41 @@ def api_get_template_details(template_name):
     if not target or not target.exists():
         return jsonify({"status": "error", "message": "Template not found."}), 404
 
-    manifest = _load_template_manifest(template_name) or {}
-    devices_meta = dict(manifest.get("devices_meta") or {})
+    template_manifest = _load_template_manifest(template_name) or {}
+    devices_meta = dict(template_manifest.get("devices_meta") or {})
     logs_by_command = {}
+    has_baseline = bool(template_manifest.get("has_baseline"))
     for hostname_dir in sorted(target.iterdir()):
         if not hostname_dir.is_dir():
             continue
         logs_manifest = hostname_dir / "logs.json"
         commands = list(devices_meta.get(hostname_dir.name) or [])
+        command_keys = {_template_command_key(command) for command in commands}
         if logs_manifest.exists():
             try:
                 with open(logs_manifest, "r") as handle:
-                    manifest = json.load(handle) or {}
-                for name in manifest.get("logs", []):
+                    logs_payload = json.load(handle) or {}
+                for name in logs_payload.get("logs", []):
                     base = os.path.splitext(name)[0]
                     cmd = base.replace("_", " ")
-                    if cmd not in commands:
+                    cmd_key = _template_command_key(cmd)
+                    if cmd_key not in command_keys:
                         commands.append(cmd)
+                        command_keys.add(cmd_key)
+                    else:
+                        cmd = next(
+                            (
+                                existing
+                                for existing in commands
+                                if _template_command_key(existing) == cmd_key
+                            ),
+                            cmd,
+                        )
                     logs_by_command.setdefault(hostname_dir.name, {})[cmd] = name
             except Exception:
                 pass
+        if (hostname_dir / "config.json").exists():
+            has_baseline = True
         if commands:
             devices_meta[hostname_dir.name] = commands
 
@@ -5358,7 +5377,7 @@ def api_get_template_details(template_name):
             "template": template_name,
             "devices_meta": devices_meta,
             "logs_by_command": logs_by_command,
-            "has_baseline": bool(manifest.get("has_baseline")),
+            "has_baseline": has_baseline,
         }
     )
 
