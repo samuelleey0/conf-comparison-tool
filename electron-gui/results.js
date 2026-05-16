@@ -229,6 +229,40 @@ function renderContextPane(title, pathText, content) {
   `;
 }
 
+function rawLogAvailability(entry) {
+  const states = [];
+  states.push(entry && entry.template ? "Template log" : "No template log");
+  states.push(entry && entry.student ? "Student log" : "No student log");
+  return states.join(" • ");
+}
+
+function renderRawLogCommandPreview(entry) {
+  if (!entry) {
+    return `
+      <div class="raw-command-empty">
+        Choose a command to preview the matching template and student raw logs.
+      </div>
+    `;
+  }
+
+  const templateItem = entry.template || {};
+  const studentItem = entry.student || {};
+  return `
+    <div class="context-tab-panel active" data-tab="raw">
+      ${renderContextPane(
+        "Template",
+        templateItem.path || "Template raw log not found",
+        templateItem.content || "(none)"
+      )}
+      ${renderContextPane(
+        "Student",
+        studentItem.path || "Student raw log not found",
+        studentItem.content || "(none)"
+      )}
+    </div>
+  `;
+}
+
 function activateContextTab(name) {
   const modal = document.getElementById("errorContextModal");
   if (!modal) return;
@@ -245,6 +279,96 @@ function closeErrorContextModal() {
   if (!modal) return;
   modal.classList.remove("open");
   modal.setAttribute("aria-hidden", "true");
+}
+
+async function openRawLogPreview(report, hostname) {
+  const modal = document.getElementById("errorContextModal");
+  const title = document.getElementById("errorContextTitle");
+  const meta = document.getElementById("errorContextMeta");
+  const body = document.getElementById("errorContextBody");
+  if (!modal || !title || !meta || !body) return;
+
+  title.textContent = `Raw Logs: ${hostname}`;
+  meta.textContent = "Loading full template and student raw logs...";
+  body.innerHTML = `
+    <div class="context-tab-panel active" data-tab="raw">
+      <div class="context-pane"><pre>Loading template raw logs...</pre></div>
+      <div class="context-pane"><pre>Loading student raw logs...</pre></div>
+    </div>
+  `;
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+
+  try {
+    const payload = await fetchJson("/api/raw_log_preview", {
+      method: "POST",
+      body: JSON.stringify({
+        target_path: getSessionPath(),
+        student_id: report.student_id,
+        template_name: report.template_name,
+        hostname,
+      }),
+    });
+
+    title.textContent = `Raw Logs: ${hostname}`;
+    const logs = Array.isArray(payload.logs) ? payload.logs : [];
+    const baseMeta = [
+      `Student: ${payload.student_id}`,
+      `Template: ${payload.template_name}`,
+      `Commands: ${logs.length}`,
+    ];
+    meta.textContent = baseMeta.join(" • ");
+
+    if (!logs.length) {
+      body.innerHTML = `
+        <div class="raw-command-empty">
+          No raw log files were found for this device.
+        </div>
+      `;
+      return;
+    }
+
+    body.innerHTML = `
+      <div class="raw-command-layout">
+        <div class="raw-command-sidebar" aria-label="Raw log commands">
+          <div class="raw-command-label">Choose Command</div>
+          ${logs.map((entry, index) => `
+            <button type="button" class="raw-command-btn" data-index="${index}">
+              <span>${escapeHtml(entry.command || `Command ${index + 1}`)}</span>
+              <small>${escapeHtml(rawLogAvailability(entry))}</small>
+            </button>
+          `).join("")}
+        </div>
+        <div id="rawCommandPreview" class="raw-command-preview">
+          ${renderRawLogCommandPreview(null)}
+        </div>
+      </div>
+    `;
+
+    const preview = body.querySelector("#rawCommandPreview");
+    body.querySelectorAll(".raw-command-btn").forEach((button) => {
+      button.addEventListener("click", () => {
+        const index = Number(button.dataset.index);
+        const entry = logs[index];
+        body.querySelectorAll(".raw-command-btn").forEach((item) => {
+          item.classList.toggle("active", item === button);
+        });
+        if (preview) {
+          preview.innerHTML = renderRawLogCommandPreview(entry);
+        }
+        meta.textContent = [...baseMeta, `Selected: ${entry.command || `Command ${index + 1}`}`].join(" • ");
+      });
+    });
+  } catch (err) {
+    meta.textContent = "Failed to load raw logs.";
+    body.innerHTML = `
+      <div class="context-tab-panel active" data-tab="raw">
+        <div class="context-pane" style="grid-column: 1 / -1;">
+          <pre>${escapeHtml(err.message || "Unable to load raw logs.")}</pre>
+        </div>
+      </div>
+    `;
+  }
 }
 
 async function openErrorContext(report, item) {
@@ -367,6 +491,10 @@ function renderReport(report) {
   const summary = report.summary || {};
   const items = report.items || [];
   const grouped = groupByHostname(items);
+  const hostnames = new Set([
+    ...Object.keys(report.hostnames || {}),
+    ...Object.keys(grouped || {}),
+  ]);
 
   panel.innerHTML = `
     <h2>${report.student_id}</h2>
@@ -397,8 +525,8 @@ function renderReport(report) {
     });
   });
 
-  Object.keys(grouped).sort().forEach((hostname) => {
-    const hostItems = grouped[hostname];
+  Array.from(hostnames).sort().forEach((hostname) => {
+    const hostItems = grouped[hostname] || [];
     let errors = hostItems.filter((i) => i.status !== "correct");
     if (currentFilter === "major") {
       errors = errors.filter((i) => i.severity === "major");
@@ -408,7 +536,18 @@ function renderReport(report) {
 
     const section = document.createElement("div");
     section.className = "report-section";
-    section.innerHTML = `<h3>${hostname}</h3>`;
+    section.innerHTML = `
+      <div class="report-section-header">
+        <h3>${escapeHtml(hostname)}</h3>
+        <button type="button" class="raw-preview-btn" aria-label="Preview raw logs" title="Preview raw logs">
+          <span aria-hidden="true">&gt;_</span>
+        </button>
+      </div>
+    `;
+    section.querySelector(".raw-preview-btn")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openRawLogPreview(report, hostname);
+    });
 
     const errorDetails = document.createElement("details");
     errorDetails.open = true;
