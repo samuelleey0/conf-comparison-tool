@@ -27,8 +27,8 @@ from serial_utils import (
     send_command,
     enter_enable_mode,
     logout_close_connection,
-    get_hostname,
-    wait_for_prompt,
+    detect_hostname_with_prompt_retry,
+    wait_serial_prompt_ready,
 )
 from remote_utils import (
     remote_connect,
@@ -3495,10 +3495,10 @@ def api_connect():
                 enter_enable_mode(ser)
                 queue.put(("progress", "Disabling paging..."))
                 disable_paging(ser)
-                try:
-                    hostname = get_hostname(ser) or "device"
-                except Exception:
-                    hostname = "device"
+                queue.put(("progress", "Waking console and detecting hostname..."))
+                hostname = detect_hostname_with_prompt_retry(
+                    ser, fallback="device", attempts=2
+                )
 
                 _update_serial_state(ser, port, baudrate, hostname)
 
@@ -4055,10 +4055,16 @@ def api_execute():
                     }
                 )
                 disable_paging(ser)
-                try:
-                    hostname = get_hostname(ser) or "device"
-                except Exception:
-                    hostname = "device"
+                yield stream_json_line(
+                    {
+                        "type": "progress",
+                        "msg": "Waking console and detecting hostname...",
+                        "progress_pct": 0,
+                    }
+                )
+                hostname = detect_hostname_with_prompt_retry(
+                    ser, fallback="device", attempts=2
+                )
             except Exception as exc:
                 logout_close_connection(ser)
                 yield stream_json_line(
@@ -4105,6 +4111,21 @@ def api_execute():
 
             completed = 0
             total_commands = len(commands)
+            try:
+                yield stream_json_line(
+                    {
+                        "type": "progress",
+                        "msg": "Waiting for device prompt before command run...",
+                    }
+                )
+                wait_serial_prompt_ready(local_ser, timeout=6)
+            except Exception as exc:
+                yield stream_json_line(
+                    {
+                        "type": "progress",
+                        "msg": f"Prompt wake warning before commands: {exc}. Continuing...",
+                    }
+                )
             for cmd in commands:
                 yield stream_json_line(
                     {"type": "progress", "msg": f"Running '{cmd}'..."}

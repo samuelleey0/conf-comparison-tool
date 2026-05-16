@@ -334,6 +334,43 @@ def get_hostname(ser, timeout=5):
     return "CiscoDevice"
 
 
+def wait_serial_prompt_ready(ser, timeout=6):
+    """
+    Wake the serial console and wait for a clean EXEC prompt before the next
+    command. Fresh console sessions can need one extra CR after paging or enable
+    setup before command output is reliable.
+    """
+    return wait_for_prompt(ser, [">", "#"], timeout=timeout, wake=True)
+
+
+def detect_hostname_with_prompt_retry(ser, fallback="device", attempts=2, timeout=6):
+    """
+    Detect the Cisco hostname with a prompt wake/wait before each attempt.
+
+    Returning a generic fallback too early creates folders named "device"
+    instead of the real hostname, so cold console sessions get a short retry.
+    """
+    for attempt in range(max(1, attempts)):
+        try:
+            wait_serial_prompt_ready(ser, timeout=timeout)
+        except Exception as exc:
+            print(
+                f"[WARNING] Serial prompt wake before hostname attempt {attempt + 1} failed: {exc}",
+                flush=True,
+            )
+        try:
+            hostname = get_hostname(ser)
+            if hostname and hostname not in {"device", "CiscoDevice"}:
+                return hostname
+        except Exception as exc:
+            print(
+                f"[WARNING] Hostname detection attempt {attempt + 1} failed: {exc}",
+                flush=True,
+            )
+        time.sleep(0.6)
+    return fallback
+
+
 def disable_paging(ser, prompt="#", timeout=5):
     """
     Disable paging on Cisco device to get full output.
