@@ -314,7 +314,9 @@
     }
 
     .dropdown-list {
-      position: fixed;
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
       background: rgba(255, 255, 255, 0.85);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
@@ -324,6 +326,7 @@
       overflow-y: auto;
       z-index: 999999;
       box-shadow: 0 12px 32px rgba(10, 30, 40, 0.15);
+      width: 100%;
       min-width: 280px;
       transform-origin: top;
     }
@@ -401,7 +404,7 @@
 
     .command-item {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) minmax(220px, auto);
       align-items: center;
       gap: 10px;
       background: var(--color-bg-soft);
@@ -468,10 +471,12 @@
       align-items: center;
       gap: 8px;
       flex-wrap: nowrap;
+      justify-content: flex-end;
     }
 
     .command-item input[type="file"] {
-      max-width: 240px;
+      max-width: 280px;
+      min-width: 220px;
       padding: 5px 8px;
       font-size: 0.82rem;
     }

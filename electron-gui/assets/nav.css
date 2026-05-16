@@ -257,14 +257,37 @@ body.sidebar-collapsed .app-navbar__label {
     width: 100%;
   }
 
+  body.sidebar-collapsed .app-navbar {
+    width: 100%;
+  }
+
   .app-navbar__brand {
     margin-bottom: 0;
     padding: 12px 20px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }
 
+  body.sidebar-collapsed .app-navbar__brand {
+    padding: 12px 20px;
+    display: block;
+  }
+
   .app-navbar__title {
     font-size: 0.95rem;
+  }
+
+  body.sidebar-collapsed .app-navbar__title-full {
+    opacity: 1;
+    transform: none;
+    position: static;
+    pointer-events: auto;
+    display: block;
+  }
+
+  body.sidebar-collapsed .app-navbar__title-short {
+    display: none;
+    opacity: 0;
+    transform: scale(0.92);
   }
 
   .app-navbar__links {
@@ -298,6 +321,12 @@ body.sidebar-collapsed .app-navbar__label {
     background: rgba(255, 255, 255, 0.05);
   }
 
+  body.sidebar-collapsed .app-navbar__links a {
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 14px;
+  }
+
   .app-navbar__links a:hover {
     background: rgba(255, 255, 255, 0.12);
   }
@@ -312,6 +341,14 @@ body.sidebar-collapsed .app-navbar__label {
   .app-navbar__links a.active {
     background: #2563eb;
     box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+  }
+
+  body.sidebar-collapsed .app-navbar__label {
+    opacity: 1;
+    transform: none;
+    width: auto;
+    overflow: visible;
+    display: inline;
   }
 
   .app-navbar__links li.nav-bottom-item {

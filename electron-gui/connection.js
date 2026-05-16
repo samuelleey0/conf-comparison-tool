@@ -17,6 +17,23 @@ function clearConnectionTerminalLog() {
   if (termLog) termLog.textContent = "";
 }
 
+function setupConnectionLogTabs() {
+  const tabsRoot = document.getElementById("connectionLogTabs");
+  if (!tabsRoot) return;
+  const tabs = Array.from(tabsRoot.querySelectorAll(".log-tab"));
+  const panels = tabs
+    .map((tab) => document.getElementById(tab.dataset.target || ""))
+    .filter(Boolean);
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const targetId = tab.dataset.target || "";
+      tabs.forEach((item) => item.classList.toggle("active", item === tab));
+      panels.forEach((panel) => panel.classList.toggle("hidden", panel.id !== targetId));
+    });
+  });
+}
+
 function attachFlaskTerminalListener() {
   if (!window.ipcRenderer || flaskLogListenerAttached) return;
   window.ipcRenderer.on("flask-log", (_event, line) => {
@@ -35,6 +52,8 @@ function applySerialPreset(preset) {
     portInput.setAttribute("readonly", "readonly");
   }
 }
+
+setupConnectionLogTabs();
 
 function toggleConnectionFields() {
   const conn = document.querySelector('input[name="connType"]:checked')?.value || "serial";

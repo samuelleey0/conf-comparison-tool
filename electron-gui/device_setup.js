@@ -207,9 +207,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         </div>
       </div>
       <div class="command-actions">
+        <input type="file" class="cmd-file-input" accept=".txt,.log,.docx" />
         <button type="button" class="command-remove-btn" title="Remove">✕</button>
       </div>
     `;
+    const fileInput = row.querySelector(".cmd-file-input");
+    const uploadedBadge = row.querySelector(".command-badge--uploaded");
+    fileInput?.addEventListener("change", () => {
+      if (!uploadedBadge) return;
+      uploadedBadge.textContent = fileInput.files?.length ? "File attached" : "Mapped";
+    });
     row.querySelector(".command-remove-btn").addEventListener("click", () => {
       row.remove();
       const block = row.closest(".device-block");
@@ -293,20 +300,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const dropdownList = block.querySelector(".dropdown-list");
     const dropdownSearch = block.querySelector(".dropdown-search-input");
 
-    function positionDropdown() {
-      const rect = dropdownHeader.getBoundingClientRect();
-      dropdownList.style.top = `${rect.bottom}px`;
-      dropdownList.style.left = `${rect.left}px`;
-      dropdownList.style.width = `${rect.width}px`;
-    }
-
-    window.addEventListener("scroll", () => {
-      if (!dropdownList.classList.contains("hidden")) positionDropdown();
-    });
-    window.addEventListener("resize", () => {
-      if (!dropdownList.classList.contains("hidden")) positionDropdown();
-    });
-
     dropdownHeader.addEventListener("click", (event) => {
       event.stopPropagation();
       const willOpen = dropdownList.classList.contains("hidden");
@@ -315,7 +308,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       dropdownRoot.classList.toggle("dropdown-open", willOpen);
       block.classList.toggle("dropdown-open", willOpen);
       if (willOpen) {
-        positionDropdown();
         dropdownSearch?.focus();
       }
     });
@@ -445,6 +437,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     container.querySelectorAll(".custom-dropdown").forEach((dropdown) => {
       dropdown.style.pointerEvents = isLogsMode ? "none" : "";
       dropdown.style.opacity = isLogsMode ? "0.65" : "";
+    });
+    container.querySelectorAll(".cmd-file-input").forEach((input) => {
+      input.disabled = isLogsMode;
+      input.style.opacity = isLogsMode ? "0.65" : "";
     });
     if (!container.children.length) addDeviceBlock();
   }
@@ -621,17 +617,50 @@ document.addEventListener("DOMContentLoaded", async () => {
         localStorage.setItem("deviceSetupLogsFolder", importedLogsFolder);
       } else {
         const devicesMeta = collectDevicesMeta();
-        response = await fetchJson("/api/templates/save_setup", {
-          method: "POST",
-          body: JSON.stringify({
-            template_name: templateName,
-            source_template_name: sourceTemplateName,
-            devices_meta: devicesMeta,
-          }),
+        const manualFiles = [];
+        container.querySelectorAll(".device-block").forEach((block) => {
+          const hostname = block.querySelector(".hostname-input")?.value.trim() || "";
+          if (!hostname) return;
+          block.querySelectorAll(".command-item").forEach((row) => {
+            const command = row.querySelector(".cmd-input")?.value.trim() || "";
+            const file = row.querySelector(".cmd-file-input")?.files?.[0];
+            if (command && file) {
+              manualFiles.push({ hostname, command, file });
+            }
+          });
         });
+
+        if (manualFiles.length) {
+          const formData = new FormData();
+          formData.append("template_name", templateName);
+          formData.append("source_template_name", sourceTemplateName);
+          formData.append("devices_meta", JSON.stringify(devicesMeta));
+          manualFiles.forEach(({ hostname, command, file }) => {
+            formData.append(`file_${hostname}_${command}`, file);
+          });
+
+          const res = await fetch(`${window.API_ROOT}/api/templates/upload`, {
+            method: "POST",
+            body: formData,
+          });
+          response = await parseJsonResponse(res);
+          response.devices_meta = response.results?.devices_meta || devicesMeta;
+        } else {
+          response = await fetchJson("/api/templates/save_setup", {
+            method: "POST",
+            body: JSON.stringify({
+              template_name: templateName,
+              source_template_name: sourceTemplateName,
+              devices_meta: devicesMeta,
+            }),
+          });
+        }
       }
 
-      const devicesMeta = response.devices_meta || collectDevicesMeta();
+      const devicesMeta =
+        response.devices_meta ||
+        response.results?.devices_meta ||
+        collectDevicesMeta();
       localStorage.setItem("templateName", templateName);
       if (typeof window.updateGlobalTemplateBadge === "function") window.updateGlobalTemplateBadge();
       localStorage.setItem("templateDevices", JSON.stringify(devicesMeta));
@@ -641,6 +670,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       if (getMode() === "logs") {
         alert("Template baseline imported from the collected logs folder.");
+      } else if (response.results?.results) {
+        alert("Template setup saved and uploaded baseline logs were processed.");
       } else {
         alert("Template setup saved. You can collect lecturer logs later from Sample Collect.");
       }

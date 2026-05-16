@@ -12,12 +12,16 @@ function setupSampleCollectPage() {
   const sampleActiveDeviceInfo = document.getElementById("sampleActiveDeviceInfo");
   const runSampleCollectBtn = document.getElementById("runSampleCollectBtn");
   const sampleTerminalLog = document.getElementById("sampleTerminalLog");
+  const stopSampleCollectBtn = document.getElementById("stopSampleCollectBtn");
+  const sampleTemplatePanel = document.getElementById("sampleTemplatePanel");
+  const sampleManualPanel = document.getElementById("sampleManualPanel");
 
   let availableTemplates = [];
   let selectedTemplateName = "";
   let activeTemplateName = "";
   let templateDevicesMeta = {};
   let activeTemplateDevice = "";
+  let currentSampleMode = "";
   let collectedDevices = [];
   let sampleAbortController = null;
   let flaskLogListenerAttached = false;
@@ -44,6 +48,60 @@ function setupSampleCollectPage() {
   const clearTerminalLog = () => {
     if (sampleTerminalLog) sampleTerminalLog.textContent = "";
   };
+
+  function setupSampleCollectKeyboardShortcuts() {
+    document.addEventListener("keydown", (event) => {
+      if (event.defaultPrevented) return;
+
+      if (event.key === "Escape") {
+        const stopVisible =
+          stopSampleCollectBtn &&
+          !stopSampleCollectBtn.disabled &&
+          stopSampleCollectBtn.style.display !== "none" &&
+          stopSampleCollectBtn.offsetParent !== null;
+
+        if (stopVisible) {
+          event.preventDefault();
+          stopSampleCollectBtn.click();
+        }
+        return;
+      }
+
+      if (event.key !== "Enter") return;
+
+      const tag = (event.target?.tagName || "").toUpperCase();
+      if (["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(tag)) return;
+
+      if (runSampleCollectBtn && !runSampleCollectBtn.disabled) {
+        event.preventDefault();
+        runSampleCollectBtn.click();
+      }
+    });
+  }
+
+  function stopSampleCollection() {
+    if (sampleAbortController) {
+      sampleAbortController.abort();
+    }
+    fetch(`${API_ROOT}/api/abort`, { method: "POST" }).catch(() => {});
+  }
+
+  function setupSampleLogTabs() {
+    const tabsRoot = document.getElementById("sampleLogTabs");
+    if (!tabsRoot) return;
+    const tabs = Array.from(tabsRoot.querySelectorAll(".log-tab"));
+    const panels = tabs
+      .map((tab) => document.getElementById(tab.dataset.target || ""))
+      .filter(Boolean);
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const targetId = tab.dataset.target || "";
+        tabs.forEach((item) => item.classList.toggle("active", item === tab));
+        panels.forEach((panel) => panel.classList.toggle("hidden", panel.id !== targetId));
+      });
+    });
+  }
 
   function attachFlaskTerminalListener() {
     if (!window.ipcRenderer || flaskLogListenerAttached) return;
@@ -259,18 +317,59 @@ function setupSampleCollectPage() {
       .map((cb) => cb.value);
   };
 
+  function setSampleMode(mode) {
+    currentSampleMode = mode || "";
+    localStorage.setItem("sampleCollectMode", currentSampleMode);
+
+    document.querySelectorAll('input[name="sampleMode"]').forEach((radio) => {
+      radio.checked = radio.value === currentSampleMode;
+    });
+
+    if (sampleTemplatePanel) sampleTemplatePanel.classList.toggle("hidden", currentSampleMode !== "template");
+    if (sampleManualPanel) sampleManualPanel.classList.toggle("hidden", currentSampleMode !== "manual");
+
+    const selector = document.getElementById("sampleModeSelector");
+    if (selector) selector.classList.toggle("sample-blocked", Boolean(currentSampleMode));
+
+    if (runSampleCollectBtn) {
+      runSampleCollectBtn.disabled = !currentSampleMode;
+    }
+
+    updateTemplateModeUI();
+  }
+
+  function resetSampleMode() {
+    currentSampleMode = "";
+    localStorage.removeItem("sampleCollectMode");
+    document.querySelectorAll('input[name="sampleMode"]').forEach((radio) => {
+      radio.checked = false;
+    });
+    if (sampleTemplatePanel) sampleTemplatePanel.classList.add("hidden");
+    if (sampleManualPanel) sampleManualPanel.classList.add("hidden");
+    const selector = document.getElementById("sampleModeSelector");
+    if (selector) selector.classList.remove("sample-blocked");
+    clearTemplateMode({ preserveMode: true });
+    if (runSampleCollectBtn) {
+      runSampleCollectBtn.textContent = "Collect Logs";
+      runSampleCollectBtn.disabled = true;
+    }
+    setStatus("Choose a collection mode.");
+  }
+
   function updateTemplateModeUI() {
-    const inTemplateMode = Boolean(activeTemplateName);
+    const inTemplateMode = currentSampleMode === "template";
+    const hasLoadedTemplate = inTemplateMode && Boolean(activeTemplateName);
     
     const tplView = document.getElementById("sampleTemplateView");
-    const manualView = document.getElementById("sampleManualView");
-    if (tplView) tplView.classList.toggle("hidden", !inTemplateMode);
-    if (manualView) manualView.classList.toggle("hidden", inTemplateMode);
+    if (tplView) tplView.classList.toggle("hidden", !hasLoadedTemplate);
 
     if (!inTemplateMode) {
       if (runSampleCollectBtn) runSampleCollectBtn.textContent = "Collect Logs";
-    } else {
+    } else if (hasLoadedTemplate) {
       const commands = templateDevicesMeta[activeTemplateDevice] || [];
+      if (sampleTemplateInfo) {
+        sampleTemplateInfo.textContent = `Template loaded: ${activeTemplateName}`;
+      }
       if (sampleActiveDeviceInfo) {
         sampleActiveDeviceInfo.textContent = activeTemplateDevice
           ? `Active device: ${activeTemplateDevice} (${commands.length} commands)`
@@ -279,6 +378,8 @@ function setupSampleCollectPage() {
       if (runSampleCollectBtn) {
         runSampleCollectBtn.textContent = activeTemplateDevice ? `Collect ${activeTemplateDevice}` : "Collect Logs";
       }
+    } else if (runSampleCollectBtn) {
+      runSampleCollectBtn.textContent = "Collect Logs";
     }
   }
 
@@ -351,6 +452,7 @@ function setupSampleCollectPage() {
     activeTemplateName = templateName;
     activeTemplateDevice = Object.keys(templateDevicesMeta)[0] || "";
     localStorage.setItem("sampleCollectTemplate", templateName);
+    setSampleMode("template");
     renderTemplateDevices();
     updateTemplateModeUI();
   }
@@ -379,7 +481,7 @@ function setupSampleCollectPage() {
     }
   }
 
-  function clearTemplateMode() {
+  function clearTemplateMode({ preserveMode = false } = {}) {
     activeTemplateName = "";
     templateDevicesMeta = {};
     activeTemplateDevice = "";
@@ -399,6 +501,10 @@ function setupSampleCollectPage() {
   };
 
   const runSampleCollection = async () => {
+    if (!currentSampleMode) {
+      alert("Choose a collection mode first.");
+      return;
+    }
     const dirPath = dirLabel?.dataset?.path;
     if (!dirPath) {
       alert("Please choose a folder first.");
@@ -446,15 +552,21 @@ function setupSampleCollectPage() {
     if (runSampleCollectBtn) {
       runSampleCollectBtn.disabled = true;
     }
+    if (stopSampleCollectBtn) {
+      stopSampleCollectBtn.style.display = "inline-block";
+      stopSampleCollectBtn.disabled = false;
+    }
 
     if (log) log.textContent = "";
-    appendSampleLog(`Starting collection${activeTemplateDevice ? ` for ${activeTemplateDevice}` : ""}...`);
+    appendSampleLog(`[${nowTimestamp()}] Starting collection${activeTemplateDevice ? ` for ${activeTemplateDevice}` : ""}...`);
 
     try {
+      sampleAbortController = new AbortController();
       const res = await fetch(`${API_ROOT}/api/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: sampleAbortController.signal,
       });
 
       if (!res.ok || !res.body) {
@@ -480,14 +592,20 @@ function setupSampleCollectPage() {
             if (payloadObj.type === "error") {
               hasError = true;
               appendSampleLog(`[ERROR] ${payloadObj.msg || "Error"}`);
+            } else if (payloadObj.type === "progress") {
+              appendSampleLog(`[${nowTimestamp()}] ${payloadObj.msg || "Working..."}`);
+            } else if (payloadObj.type === "raw_output") {
+              appendTerminalLine(payloadObj.msg || "");
             } else if (payloadObj.type === "result") {
               if (payloadObj.hostname) lastDiscoveredHostname = payloadObj.hostname;
-              if (payloadObj.msg) appendSampleLog(payloadObj.msg);
+              if (payloadObj.msg) appendSampleLog(`[RESULT] ${payloadObj.msg}`);
+            } else if (payloadObj.type === "done") {
+              appendSampleLog(`[DONE] ${payloadObj.msg || "Finished"}`);
             } else if (payloadObj.msg) {
-              appendSampleLog(payloadObj.msg);
+              appendSampleLog(JSON.stringify(payloadObj));
             }
           } catch (_) {
-            appendSampleLog(line.trim());
+            appendTerminalLine(line.trim());
           }
         }
       }
@@ -513,17 +631,29 @@ function setupSampleCollectPage() {
         }
       }
     } catch (err) {
+      if (err.name === "AbortError") {
+        appendSampleLog("[STOPPED] Collection stopped by user.");
+        setStatus("Collection stopped.");
+        return;
+      }
       console.error(err);
       alert(err.message || "Collection failed.");
     } finally {
+      sampleAbortController = null;
       if (runSampleCollectBtn) {
         runSampleCollectBtn.disabled = false;
+      }
+      if (stopSampleCollectBtn) {
+        stopSampleCollectBtn.style.display = "none";
+        stopSampleCollectBtn.disabled = false;
       }
     }
   };
 
-  setStatus("Sample Collect ready. Loading commands...");
+  setStatus("Loading commands...");
   attachFlaskTerminalListener();
+  setupSampleLogTabs();
+  setupSampleCollectKeyboardShortcuts();
 
   document.querySelectorAll('input[name="sampleConnType"]').forEach((r) =>
     r.addEventListener("change", toggleSampleConnectionFields)
@@ -562,6 +692,16 @@ function setupSampleCollectPage() {
     document.querySelectorAll('#sampleCommandsList input[type="checkbox"]').forEach((cb) => (cb.checked = false));
   });
 
+  document.querySelectorAll('input[name="sampleMode"]').forEach((radio) => {
+    radio.addEventListener("change", () => {
+      setSampleMode(radio.value);
+      if (radio.value === "manual") {
+        clearTemplateMode({ preserveMode: true });
+      }
+      setStatus(radio.value === "template" ? "Template mode selected." : "Manual mode selected.");
+    });
+  });
+
   document.getElementById("loadSampleTemplateBtn")?.addEventListener("click", async () => {
     try {
       await loadTemplateIntoSampleCollect(sampleTemplateSelect?.dataset.value || selectedTemplateName);
@@ -571,8 +711,10 @@ function setupSampleCollectPage() {
     }
   });
 
-  document.getElementById("clearSampleTemplateBtn")?.addEventListener("click", clearTemplateMode);
+  document.getElementById("cancelTemplateModeBtn")?.addEventListener("click", resetSampleMode);
+  document.getElementById("cancelManualModeBtn")?.addEventListener("click", resetSampleMode);
   document.getElementById("sampleResetDeviceBtn")?.addEventListener("click", resetCiscoDevice);
+  stopSampleCollectBtn?.addEventListener("click", stopSampleCollection);
 
   document.getElementById("chooseSampleDirBtn")?.addEventListener("click", async () => {
     setStatus("Opening folder picker...");
@@ -633,7 +775,7 @@ function setupSampleCollectPage() {
   });
 
   toggleSampleConnectionFields();
-  updateTemplateModeUI();
+  resetSampleMode();
 
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".app-select")) {
@@ -647,6 +789,7 @@ function setupSampleCollectPage() {
   (async () => {
     await loadCommands();
     await loadTemplateList();
+    const savedMode = localStorage.getItem("sampleCollectMode") || "";
     const savedTemplate = localStorage.getItem("sampleCollectTemplate") || localStorage.getItem("templateName");
     if (savedTemplate && availableTemplates.includes(savedTemplate)) {
       selectedTemplateName = savedTemplate;
@@ -660,6 +803,11 @@ function setupSampleCollectPage() {
       } catch (err) {
         console.warn("Could not auto-load sample template:", err);
       }
+    } else if (savedMode === "manual") {
+      setSampleMode("manual");
+      setStatus("Manual mode selected.");
+    } else {
+      setStatus("Choose a collection mode.");
     }
   })();
 }

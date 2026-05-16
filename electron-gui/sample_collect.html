@@ -21,16 +21,163 @@
     <style>
       .sample-two-column {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 560px;
+        grid-template-columns: minmax(520px, 1fr) minmax(480px, 560px);
         gap: 20px;
         align-items: start;
         max-width: 1520px;
         margin: 0 auto;
       }
-      @media (max-width: 1000px) {
+      .sample-left-col,
+      .sample-right-col {
+        min-width: 0;
+      }
+      @media (max-width: 1380px) {
         .sample-two-column {
           grid-template-columns: 1fr;
         }
+      }
+      body.sidebar-collapsed .sample-two-column {
+        grid-template-columns: minmax(520px, 1fr) minmax(480px, 560px);
+      }
+      @media (max-width: 1240px) {
+        body.sidebar-collapsed .sample-two-column {
+          grid-template-columns: 1fr;
+        }
+      }
+      .sample-left-col {
+        min-width: 0;
+      }
+      .sample-left-col .page-card {
+        overflow: visible;
+      }
+      .sample-left-col input[type="text"],
+      .sample-left-col input[type="password"],
+      .sample-left-col select,
+      .sample-left-col .app-select {
+        max-width: 100%;
+        width: 100%;
+      }
+      .sample-left-col .form-row {
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .sample-left-col .compact-row {
+        display: grid;
+        gap: 12px;
+        align-items: end;
+      }
+      .sample-left-col .compact-row.compact-row--save {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+      .sample-left-col .compact-row.compact-row--template {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+      }
+      .sample-left-col .compact-row > .form-group {
+        margin-bottom: 0;
+        min-width: 0;
+      }
+      .sample-left-col .compact-row > .form-group:not(.sample-action) {
+        width: 100%;
+      }
+      .sample-left-col .compact-row > .form-group.sample-action {
+        width: auto;
+      }
+      .sample-left-col .compact-row > .form-group.sample-action button {
+        min-width: 180px;
+      }
+      @media (max-width: 900px) {
+        .sample-left-col .compact-row.compact-row--save,
+        .sample-left-col .compact-row.compact-row--template {
+          grid-template-columns: 1fr;
+        }
+        .sample-left-col .compact-row > .form-group.sample-action {
+          width: 100%;
+        }
+        .sample-left-col .compact-row > .form-group.sample-action button {
+          width: 100%;
+          min-width: 0;
+        }
+      }
+      .sample-left-col .radio-card-grid {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+      }
+      .sample-mode-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .sample-mode-panel.hidden {
+        display: none;
+      }
+      .sample-mode-panel {
+        margin-top: 16px;
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        padding: 16px;
+        background: var(--color-surface);
+      }
+      .sample-mode-panel h3 {
+        margin: 0 0 6px;
+        font-size: 1rem;
+        color: var(--color-heading);
+      }
+      .sample-mode-panel .hint {
+        margin-bottom: 12px;
+      }
+      .sample-mode-cancel {
+        margin-top: 12px;
+      }
+      .sample-blocked {
+        opacity: 0.45;
+        pointer-events: none;
+        filter: saturate(0.7);
+      }
+      @media (max-width: 900px) {
+        .sample-mode-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .log-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+        width: 100%;
+        padding: 4px;
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        background: var(--color-bg-soft);
+        margin-bottom: 14px;
+      }
+      .log-tab {
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--color-muted);
+        font-size: 0.85rem;
+        font-weight: 700;
+        padding: 10px 14px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      }
+      .log-tab.active {
+        background: var(--color-surface);
+        color: var(--color-primary);
+        border-color: rgba(31, 59, 115, 0.14);
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+      }
+      .log-tab:hover {
+        color: var(--color-heading);
+      }
+      .log-panel.hidden {
+        display: none;
+      }
+      .log-surface {
+        padding: 12px;
+        border-radius: 8px;
+      }
+      .log-display {
+        height: 380px;
+        margin: 0;
       }
       .collected-badge {
         display: inline-flex;
@@ -73,12 +220,12 @@
               <button type="button" class="secondary" id="chooseSampleDirBtn">Choose Folder</button>
               <span id="sampleDirLabel" class="selected-path">No folder selected</span>
             </div>
-            <div class="form-row" style="margin-top: 10px; align-items: flex-end;">
-              <div class="form-group" style="flex: 1; min-width: 220px;">
+            <div class="compact-row compact-row--save" style="margin-top: 10px;">
+              <div class="form-group">
                 <label for="sampleNewFolderName">Create New Folder</label>
                 <input type="text" id="sampleNewFolderName" placeholder="e.g. SampleLogs_Mar19" />
               </div>
-              <div class="form-group" style="min-width: 160px;">
+              <div class="form-group sample-action">
                 <button type="button" class="secondary" id="sampleCreateFolderBtn">Create Folder</button>
               </div>
             </div>
@@ -88,39 +235,64 @@
           <div class="step-heading">
             <span class="step-heading__num">2</span>
             <div>
-              <h2 class="section-title">Template Or Commands</h2>
-              <p class="step-heading__hint">Load a saved template to auto-fill devices, or choose manual commands.</p>
+              <h2 class="section-title">Choose Mode</h2>
+              <p class="step-heading__hint">Pick one collection mode first, then complete only that workflow.</p>
             </div>
           </div>
           <div class="form-group" style="margin-bottom: 24px;">
-            <div class="form-row" style="align-items: flex-end; margin-bottom: 12px;">
-              <div class="form-group" style="flex: 1; min-width: 220px;">
-                <label>Saved Template</label>
-                <div id="sampleTemplateSelect" class="app-select"></div>
-              </div>
-              <div class="form-group" style="min-width: 160px;">
-                <button type="button" class="btn-accent" id="loadSampleTemplateBtn">Load Template</button>
-              </div>
-              <div class="form-group" style="min-width: 160px;">
-                <button type="button" class="btn-outline" id="clearSampleTemplateBtn">Manual Mode</button>
-              </div>
-            </div>
-            
-            <!-- Template Mode View -->
-            <div id="sampleTemplateView" class="hidden">
-              <div id="sampleTemplateInfo" class="hint" style="margin-bottom: 12px;">Template loaded.</div>
-              <div id="sampleTemplateDevices" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card); margin-bottom: 12px;"></div>
-              <div id="sampleActiveDeviceInfo" class="hint" style="margin-bottom: 12px;"></div>
+            <div class="sample-mode-grid" id="sampleModeSelector">
+              <label class="radio-card" style="padding: 14px 18px;">
+                <input type="radio" name="sampleMode" value="template" />
+                <div class="radio-card-header" style="margin-bottom: 0;">
+                  <span class="radio-card-title">Use Template</span>
+                  <div class="radio-card-indicator"></div>
+                </div>
+                <p class="radio-card-desc">Load an existing template and collect one template device at a time.</p>
+              </label>
+              <label class="radio-card" style="padding: 14px 18px;">
+                <input type="radio" name="sampleMode" value="manual" />
+                <div class="radio-card-header" style="margin-bottom: 0;">
+                  <span class="radio-card-title">Manual Commands</span>
+                  <div class="radio-card-indicator"></div>
+                </div>
+                <p class="radio-card-desc">Choose commands directly without using a saved template.</p>
+              </label>
             </div>
 
-            <!-- Manual Mode View -->
-            <div id="sampleManualView">
-              <div class="hint" style="margin-bottom: 12px;">No template loaded. Manual command selection is active.</div>
+            <div id="sampleTemplatePanel" class="sample-mode-panel hidden">
+              <h3>Template Mode</h3>
+              <p class="hint">Load a saved template to auto-fill devices and commands.</p>
+              <div class="compact-row compact-row--template" style="margin-bottom: 12px;">
+                <div class="form-group">
+                  <label>Saved Template</label>
+                  <div id="sampleTemplateSelect" class="app-select"></div>
+                </div>
+                <div class="form-group sample-action">
+                  <button type="button" class="btn-accent" id="loadSampleTemplateBtn">Load Template</button>
+                </div>
+                <div class="form-group sample-action">
+                  <button type="button" class="btn-outline" id="cancelTemplateModeBtn">Cancel Mode</button>
+                </div>
+              </div>
+              
+              <div id="sampleTemplateView" class="hidden">
+                <div id="sampleTemplateInfo" class="hint" style="margin-bottom: 12px;">Template loaded.</div>
+                <div id="sampleTemplateDevices" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card); margin-bottom: 12px;"></div>
+                <div id="sampleActiveDeviceInfo" class="hint" style="margin-bottom: 0;"></div>
+              </div>
+            </div>
+
+            <div id="sampleManualPanel" class="sample-mode-panel hidden">
+              <h3>Manual Mode</h3>
+              <p class="hint">Search and select commands directly for this collection run.</p>
               <input type="text" id="sampleCommandSearch" placeholder="Search commands..." style="margin-bottom: 10px;" />
               <div id="sampleCommandsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card);"></div>
               <div class="actions align-left" style="margin-top: 10px;">
                 <button type="button" id="selectAllSampleCmds" class="btn-outline">Select All</button>
                 <button type="button" id="clearSampleCmds" class="btn-outline">Clear</button>
+              </div>
+              <div class="sample-mode-cancel">
+                <button type="button" class="btn-outline" id="cancelManualModeBtn">Cancel Mode</button>
               </div>
             </div>
           </div>
@@ -163,22 +335,22 @@
             </div>
 
             <div id="sampleSshFields" class="hidden">
-              <div class="form-row">
-                <div class="form-group" style="flex:1;">
+              <div class="form-row" style="flex-wrap: wrap; gap: 12px;">
+                <div class="form-group">
                   <label for="sampleSshHost">Host</label>
                   <input type="text" id="sampleSshHost" placeholder="192.168.1.1" />
                 </div>
-                <div class="form-group" style="flex:1;">
+                <div class="form-group">
                   <label for="sampleSshPort">Port</label>
                   <input type="text" id="sampleSshPort" placeholder="22" />
                 </div>
               </div>
-              <div class="form-row">
-                <div class="form-group" style="flex:1;">
+              <div class="form-row" style="flex-wrap: wrap; gap: 12px;">
+                <div class="form-group">
                   <label for="sampleSshUser">Username</label>
                   <input type="text" id="sampleSshUser" placeholder="admin" />
                 </div>
-                <div class="form-group" style="flex:1;">
+                <div class="form-group">
                   <label for="sampleSshPass">Password</label>
                   <input type="password" id="sampleSshPass" placeholder="Password" />
                 </div>
@@ -187,7 +359,8 @@
           </div>
 
           <div class="actions justify-end" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--color-border);">
-            <button type="button" id="runSampleCollectBtn" class="primary" style="font-size: 1.05rem; padding: 12px 24px; width: 100%;">Collect Logs</button>
+            <button type="button" id="stopSampleCollectBtn" class="abort-btn" style="display: none;">⏹ Stop Execution</button>
+            <button type="button" id="runSampleCollectBtn" class="primary" style="font-size: 1.05rem; padding: 12px 32px;">Collect Logs</button>
           </div>
         </section>
       </div>
@@ -218,8 +391,20 @@
             </div>
           </div>
           
-          <h4 style="margin: 0 0 10px; font-size: 0.8rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.05em;">Live Execution Log</h4>
-          <pre id="sampleLog" class="log" style="height: 380px; margin: 0;"></pre>
+          <div class="log-tabs" id="sampleLogTabs">
+            <button type="button" class="log-tab active" data-target="sampleActivityPanel">Activity Log</button>
+            <button type="button" class="log-tab" data-target="sampleTerminalPanel">Terminal Output</button>
+          </div>
+          <div id="sampleActivityPanel" class="log-panel">
+            <div class="status-panel modern log-surface">
+              <pre id="sampleLog" class="log log-display"></pre>
+            </div>
+          </div>
+          <div id="sampleTerminalPanel" class="log-panel hidden">
+            <div class="status-panel modern log-surface">
+              <pre id="sampleTerminalLog" class="log log-display" style="color: #10b981;"></pre>
+            </div>
+          </div>
 
           <div class="danger-zone" style="margin-top: 24px;">
             <div class="danger-zone__header">
@@ -239,20 +424,6 @@
             </div>
           </div>
 
-          <div class="terminal-monitor" style="margin-top: 24px;">
-            <header class="connection-status__header" style="margin-bottom: 12px;">
-              <div class="step-heading">
-                <span class="step-heading__num" style="background: #334155; border: none; color: #fff;">&gt;_</span>
-                <div>
-                  <h3 style="margin: 0; font-size: 1.05rem;">Terminal Output</h3>
-                  <p class="step-heading__hint" style="margin-top: 4px;">Live Flask stdout and stderr from the backend.</p>
-                </div>
-              </div>
-            </header>
-            <div class="status-panel modern" style="padding: 12px; border-radius: 8px;">
-              <pre id="sampleTerminalLog" class="log" style="height: 260px; background: #0d1117; color: #10b981; margin: 0; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85rem; border: inset 1px rgba(0,0,0,0.5); box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);"></pre>
-            </div>
-          </div>
         </section>
       </div>
 
