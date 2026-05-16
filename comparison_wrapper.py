@@ -45,7 +45,10 @@ def _copy_source_template(base_dir, template_name, source_template_name):
 
 def _safe_command_name_from_file(filename):
     base = os.path.splitext(os.path.basename(filename))[0]
-    return " ".join(base.replace("_", " ").replace("-", " ").split())
+    command = " ".join(base.replace("_", " ").replace("-", " ").split())
+    if command.lower() == "show running config":
+        return "show running-config"
+    return command
 
 
 def _normalize_command_key(value):

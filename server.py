@@ -2229,6 +2229,13 @@ def _normalize_text(value):
     return " ".join(lowered.split())
 
 
+def _canonical_cli_command(command):
+    text = str(command or "").strip()
+    if _normalize_text(text) == "show running config":
+        return "show running-config"
+    return text
+
+
 def _command_hint_for_feature(feature: str):
     if feature.startswith("show_running_config."):
         return "show running-config"
@@ -2369,6 +2376,56 @@ def _find_log_file(log_dir: Path, command_hint: str):
         return None
     candidates.sort(key=lambda item: (item[0], item[1], item[2].name))
     return candidates[0][2]
+
+
+def _log_command_label(file_path: Path):
+    stem = file_path.stem if file_path else ""
+    return " ".join(stem.replace("_", " ").replace("-", " ").split()) or "raw log"
+
+
+def _iter_raw_log_files(log_dir: Path):
+    if not log_dir or not log_dir.is_dir():
+        return []
+    files = []
+    for entry in sorted(log_dir.iterdir(), key=lambda item: item.name.lower()):
+        if not entry.is_file() or entry.name.startswith("."):
+            continue
+        if entry.name.lower() in {"config.json", "logs.json", "summary.json"}:
+            continue
+        files.append(entry)
+    return files
+
+
+def _read_raw_log_file(path: Path):
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except Exception as exc:
+        return f"[Unable to read {path.name}: {exc}]"
+
+
+def _raw_log_map(log_dir: Path):
+    mapped = {}
+    for file_path in _iter_raw_log_files(log_dir):
+        label = _log_command_label(file_path)
+        key = _normalize_text(label)
+        mapped[key] = {
+            "command": label,
+            "path": str(file_path),
+            "content": _read_raw_log_file(file_path),
+        }
+    return mapped
+
+
+def _render_combined_raw_logs(items, side_label):
+    if not items:
+        return f"({side_label} raw logs not found)"
+    sections = []
+    for item in items:
+        path = item.get("path") or "path not found"
+        command = item.get("command") or "raw log"
+        content = item.get("content") or ""
+        sections.append(f"===== {command} =====\n{path}\n\n{content}".rstrip())
+    return "\n\n".join(sections)
 
 
 def _read_text_lines(path: Path):
@@ -4125,19 +4182,20 @@ def api_execute():
                     }
                 )
             for cmd in commands:
+                cli_cmd = _canonical_cli_command(cmd)
                 yield stream_json_line(
-                    {"type": "progress", "msg": f"Running '{cmd}'..."}
+                    {"type": "progress", "msg": f"Running '{cli_cmd}'..."}
                 )
                 try:
-                    output = send_command(local_ser, cmd, timeout=30)
+                    output = send_command(local_ser, cli_cmd, timeout=30)
                     yield stream_json_line(
                         {
                             "type": "raw_output",
-                            "msg": f"{hostname}# {cmd}\n{output}"
+                            "msg": f"{hostname}# {cli_cmd}\n{output}"
                         }
                     )
                     file_path = save_output_to_file(
-                        cmd,
+                        cli_cmd,
                         output,
                         classroom=classroom,
                         tutor_name=tutor_name,
@@ -4147,7 +4205,7 @@ def api_execute():
                         base_dir=base_path,
                     )
                     _save_output_to_engine_students(
-                        cmd,
+                        cli_cmd,
                         output,
                         classroom,
                         tutor_name,
@@ -4165,7 +4223,7 @@ def api_execute():
                     yield stream_json_line(
                         {
                             "type": "progress",
-                            "msg": f"Completed '{cmd}'.",
+                            "msg": f"Completed '{cli_cmd}'.",
                             "cmd_done": True,
                             "progress_pct": pct,
                         }
@@ -4175,7 +4233,7 @@ def api_execute():
                     yield stream_json_line(
                         {
                             "type": "error",
-                            "msg": f"Command '{cmd}' failed: {exc}",
+                            "msg": f"Command '{cli_cmd}' failed: {exc}",
                         }
                     )
                     _close_serial_connection()
@@ -4392,19 +4450,20 @@ def api_execute():
             completed = 0
             total_commands = len(commands)
             for cmd in commands:
+                cli_cmd = _canonical_cli_command(cmd)
                 yield stream_json_line(
-                    {"type": "progress", "msg": f"Running '{cmd}'..."}
+                    {"type": "progress", "msg": f"Running '{cli_cmd}'..."}
                 )
                 try:
-                    output = send_command_remote(active, cmd, timeout=30)
+                    output = send_command_remote(active, cli_cmd, timeout=30)
                     yield stream_json_line(
                         {
                             "type": "raw_output",
-                            "msg": f"{hostname}# {cmd}\n{output}"
+                            "msg": f"{hostname}# {cli_cmd}\n{output}"
                         }
                     )
                     file_path = save_output_to_file(
-                        cmd,
+                        cli_cmd,
                         output,
                         classroom=classroom,
                         tutor_name=tutor_name,
@@ -4414,7 +4473,7 @@ def api_execute():
                         base_dir=base_path,
                     )
                     _save_output_to_engine_students(
-                        cmd,
+                        cli_cmd,
                         output,
                         classroom,
                         tutor_name,
@@ -4432,7 +4491,7 @@ def api_execute():
                     yield stream_json_line(
                         {
                             "type": "progress",
-                            "msg": f"Completed '{cmd}'.",
+                            "msg": f"Completed '{cli_cmd}'.",
                             "cmd_done": True,
                             "progress_pct": pct,
                         }
@@ -4442,7 +4501,7 @@ def api_execute():
                     yield stream_json_line(
                         {
                             "type": "error",
-                            "msg": f"Command '{cmd}' failed: {exc}",
+                            "msg": f"Command '{cli_cmd}' failed: {exc}",
                         }
                     )
                     return False
@@ -4832,6 +4891,91 @@ def api_error_context():
     )
 
 
+@app.route("/api/raw_log_preview", methods=["POST"])
+def api_raw_log_preview():
+    data = request.get_json() or {}
+    target_path = data.get("target_path")
+    student_id = (data.get("student_id") or "").strip()
+    template_name = (data.get("template_name") or "").strip()
+    hostname = (data.get("hostname") or "").strip()
+
+    if not all([target_path, student_id, template_name, hostname]):
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Missing target_path, student_id, template_name, or hostname.",
+                }
+            ),
+            400,
+        )
+
+    session_dir = Path(target_path).resolve()
+    if not session_dir.is_dir():
+        return jsonify({"status": "error", "message": "Session path not found."}), 404
+
+    safe_session_dir = _safe_resolve_child(DOCS_DIR, session_dir)
+    if not safe_session_dir:
+        return jsonify({"status": "error", "message": "Invalid session path."}), 400
+
+    student_log_dir = _safe_resolve_child(
+        safe_session_dir, safe_session_dir / student_id / hostname
+    )
+    template_log_dir = _safe_resolve_child(
+        TEMPLATES_DIR, TEMPLATES_DIR / template_name / hostname / "logs"
+    )
+
+    template_logs = _raw_log_map(template_log_dir)
+    student_logs = _raw_log_map(student_log_dir)
+    command_keys = sorted(
+        set(template_logs) | set(student_logs),
+        key=lambda key: (
+            template_logs.get(key, student_logs.get(key, {})).get("command") or key
+        ).lower(),
+    )
+
+    paired_logs = []
+    for key in command_keys:
+        template_item = template_logs.get(key)
+        student_item = student_logs.get(key)
+        paired_logs.append(
+            {
+                "command": (
+                    (template_item or {}).get("command")
+                    or (student_item or {}).get("command")
+                    or key
+                ),
+                "template": template_item,
+                "student": student_item,
+            }
+        )
+
+    template_items = [item["template"] for item in paired_logs if item.get("template")]
+    student_items = [item["student"] for item in paired_logs if item.get("student")]
+
+    return jsonify(
+        {
+            "status": "ok",
+            "student_id": student_id,
+            "template_name": template_name,
+            "hostname": hostname,
+            "template_log_dir": (
+                str(template_log_dir)
+                if template_log_dir and template_log_dir.exists()
+                else None
+            ),
+            "student_log_dir": (
+                str(student_log_dir)
+                if student_log_dir and student_log_dir.exists()
+                else None
+            ),
+            "logs": paired_logs,
+            "template_combined": _render_combined_raw_logs(template_items, "Template"),
+            "student_combined": _render_combined_raw_logs(student_items, "Student"),
+        }
+    )
+
+
 @app.route("/api/melbourne/send", methods=["POST"])
 def api_melbourne_send():
     try:
@@ -4929,7 +5073,10 @@ def api_get_template_details(template_name):
         if not hostname_dir.is_dir():
             continue
         logs_manifest = hostname_dir / "logs.json"
-        commands = list(devices_meta.get(hostname_dir.name) or [])
+        commands = [
+            _canonical_cli_command(command)
+            for command in list(devices_meta.get(hostname_dir.name) or [])
+        ]
         command_keys = {_template_command_key(command) for command in commands}
         if logs_manifest.exists():
             try:
@@ -4937,7 +5084,7 @@ def api_get_template_details(template_name):
                     logs_payload = json.load(handle) or {}
                 for name in logs_payload.get("logs", []):
                     base = os.path.splitext(name)[0]
-                    cmd = base.replace("_", " ")
+                    cmd = _canonical_cli_command(base.replace("_", " "))
                     cmd_key = _template_command_key(cmd)
                     if cmd_key not in command_keys:
                         commands.append(cmd)
