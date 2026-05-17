@@ -33,13 +33,17 @@
     }
 
     .admin-tab-btn:hover {
-      background: #dbeafe !important;
-      color: #0f172a !important;
+      background: #8d2a00 !important;
+      color: #00ff55 !important;
     }
 
     .admin-tab-btn.active {
       background: var(--color-primary) !important;
       color: #fff !important;
+    }
+    .admin-tab-btn.active:hover {
+      background: #00ff55 !important;
+      color: #ff0000 !important;
     }
 
     .admin-panel {
@@ -205,6 +209,66 @@
       border-color: #c82333 !important;
     }
 
+    .dedup-admin-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .dedup-admin-field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .dedup-admin-field.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .dedup-admin-field textarea {
+      min-height: 130px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 0.86rem;
+      line-height: 1.45;
+      resize: vertical;
+    }
+
+    .dedup-admin-note {
+      margin: 0;
+      color: var(--color-muted);
+      font-size: 0.88rem;
+    }
+
+    .dedup-options {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 4px;
+    }
+
+    .dedup-option-card {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 12px;
+      border: 1px solid var(--color-border);
+      background: var(--color-bg-soft);
+    }
+
+    .dedup-option-card input {
+      width: auto;
+      margin-top: 3px;
+      flex: 0 0 auto;
+    }
+
+    .dedup-option-title {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--color-heading);
+      font-weight: 700;
+    }
+
     @media (max-width: 900px) {
       .admin-tabs {
         flex-direction: column;
@@ -221,6 +285,11 @@
 
       .add-command-bar {
         flex-direction: column;
+      }
+
+      .dedup-admin-grid,
+      .dedup-options {
+        grid-template-columns: 1fr;
       }
 
       .add-command-bar input,
@@ -245,6 +314,7 @@
         <button type="button" class="admin-tab-btn active" data-target="commandsPanel" role="tab" aria-selected="true">Global Commands</button>
         <button type="button" class="admin-tab-btn" data-target="policyPanel" role="tab" aria-selected="false">Grading Policy</button>
         <button type="button" class="admin-tab-btn" data-target="rubricPanel" role="tab" aria-selected="false">Rubric Rules</button>
+        <button type="button" class="admin-tab-btn" data-target="dedupPanel" role="tab" aria-selected="false">Grouping & Dedup</button>
         <button type="button" class="admin-tab-btn" data-target="cleanupPanel" role="tab" aria-selected="false">System Files</button>
       </div>
 
@@ -320,6 +390,76 @@
         </div>
         <div id="rubricRulesContainer" class="rubric-rules-grid"></div>
       </div>
+      </div>
+      </div>
+
+      <div id="dedupPanel" class="admin-panel" role="tabpanel">
+      <div class="section-card">
+        <h2>Grouping & Deduplication</h2>
+        <p class="hint">Control how verification errors are grouped under config errors. These settings affect whether runtime findings count as new errors or evidence under an existing error.</p>
+        <div class="info-box" style="margin-bottom: 16px;">
+          <div class="dedup-admin-grid">
+            <div class="dedup-admin-field">
+              <label for="dedupInterfaceCommands">Interface Verification Commands</label>
+              <textarea id="dedupInterfaceCommands" spellcheck="false" placeholder="show_ip_interface_brief"></textarea>
+              <p class="dedup-admin-note">One command per line. The fourth path segment is treated as the interface name.</p>
+            </div>
+            <div class="dedup-admin-field">
+              <label for="dedupRoutingMap">Routing Command Parent Map</label>
+              <textarea id="dedupRoutingMap" spellcheck="false" placeholder="show_ip_ospf_neighbor=show_running_config.routing.ospf"></textarea>
+              <p class="dedup-admin-note">Format: command=show_running_config parent path.</p>
+            </div>
+            <div class="dedup-admin-field">
+              <label for="dedupCollectionMap">Collection Parent Map</label>
+              <textarea id="dedupCollectionMap" spellcheck="false" placeholder="show_access_lists|acls|show_running_config.access_lists"></textarea>
+              <p class="dedup-admin-note">Format: command|collection_key|parent_prefix.</p>
+            </div>
+            <div class="dedup-admin-field">
+              <label for="dedupCommandMap">Whole Command Parent Map</label>
+              <textarea id="dedupCommandMap" spellcheck="false" placeholder="show_ip_nat_statistics=show_running_config.nat"></textarea>
+              <p class="dedup-admin-note">Format: command=parent path for whole-command checks.</p>
+            </div>
+            <div class="dedup-admin-field">
+              <label for="dedupRouteProtocols">show ip route Protocol Parents</label>
+              <textarea id="dedupRouteProtocols" spellcheck="false" placeholder="eigrp=show_running_config.routing.eigrp"></textarea>
+              <p class="dedup-admin-note">Format: protocol_key=parent path.</p>
+            </div>
+            <div class="dedup-admin-field">
+              <label for="dedupRoutePrefixes">show ip route Dedup Prefixes</label>
+              <textarea id="dedupRoutePrefixes" spellcheck="false" placeholder="show_running_config.routing"></textarea>
+              <p class="dedup-admin-note">One feature prefix per line. Matching config failures dedup route verification.</p>
+            </div>
+            <div class="dedup-admin-field full-width">
+              <label for="dedupVlanTokens">VLAN Scheme Dedup Tokens</label>
+              <textarea id="dedupVlanTokens" spellcheck="false" placeholder=".access_vlan"></textarea>
+              <p class="dedup-admin-note">One token per line. If a config feature contains a token, show vlan brief findings are deduped under VLAN/switchport config.</p>
+            </div>
+            <div class="dedup-admin-field full-width">
+              <label>Dedup Options</label>
+              <div class="dedup-options">
+                <label class="dedup-option-card">
+                  <input type="checkbox" id="dedupRoutingProtocolFailed" />
+                  <span>
+                    <span class="dedup-option-title">Dedup routing verification when protocol type already failed</span>
+                    <span class="dedup-admin-note">Wrong routing protocol blocks later runtime routing checks from counting again.</span>
+                  </span>
+                </label>
+                <label class="dedup-option-card">
+                  <input type="checkbox" id="dedupNestedParentMatch" />
+                  <span>
+                    <span class="dedup-option-title">Dedup exact or nested parent matches</span>
+                    <span class="dedup-admin-note">Interface, ACL, NAT, DHCP, and EtherChannel verification can count as evidence under matching config parents.</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="actions justify-end" style="margin-top: 16px;">
+            <button type="button" id="resetDedupBtn" class="secondary">Reset Grouping Defaults</button>
+            <button type="button" id="refreshDedupBtn" class="secondary">Refresh</button>
+            <button type="button" id="saveDedupBtn" class="primary">Save Grouping Rules</button>
+          </div>
+        </div>
       </div>
       </div>
 

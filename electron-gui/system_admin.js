@@ -17,6 +17,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const rubricRulesContainer = document.getElementById("rubricRulesContainer");
   const rubricFilterButtons = document.getElementById("rubricFilterButtons");
   const rubricSearchInput = document.getElementById("rubricSearchInput");
+  const dedupInterfaceCommands = document.getElementById("dedupInterfaceCommands");
+  const dedupRoutingMap = document.getElementById("dedupRoutingMap");
+  const dedupCollectionMap = document.getElementById("dedupCollectionMap");
+  const dedupCommandMap = document.getElementById("dedupCommandMap");
+  const dedupRouteProtocols = document.getElementById("dedupRouteProtocols");
+  const dedupRoutePrefixes = document.getElementById("dedupRoutePrefixes");
+  const dedupVlanTokens = document.getElementById("dedupVlanTokens");
+  const dedupRoutingProtocolFailed = document.getElementById("dedupRoutingProtocolFailed");
+  const dedupNestedParentMatch = document.getElementById("dedupNestedParentMatch");
+  const saveDedupBtn = document.getElementById("saveDedupBtn");
+  const refreshDedupBtn = document.getElementById("refreshDedupBtn");
+  const resetDedupBtn = document.getElementById("resetDedupBtn");
   const DEFAULT_RUBRIC_SECTION = "all";
 
   const templateList = document.getElementById("templateList");
@@ -35,6 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let globalCommands = [];
   let rubricRules = [];
+  let dedupConfig = null;
   let selectedRubricCategory = DEFAULT_RUBRIC_SECTION;
   let rubricSearchTerm = "";
   let deletedIndices = new Set();
@@ -681,6 +694,151 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function listToText(list) {
+    return Array.isArray(list) ? list.join("\n") : "";
+  }
+
+  function mapToText(map) {
+    if (!map || typeof map !== "object") return "";
+    return Object.entries(map)
+      .map(([key, value]) => `${key}=${value}`)
+      .join("\n");
+  }
+
+  function collectionMapToText(map) {
+    if (!map || typeof map !== "object") return "";
+    return Object.entries(map)
+      .map(([command, value]) => {
+        const collectionKey = value?.collection_key || "";
+        const parentPrefix = value?.parent_prefix || "";
+        return `${command}|${collectionKey}|${parentPrefix}`;
+      })
+      .join("\n");
+  }
+
+  function textToList(text) {
+    return (text || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+  }
+
+  function textToMap(text, label) {
+    const map = {};
+    textToList(text).forEach((line) => {
+      const separatorIndex = line.indexOf("=");
+      if (separatorIndex === -1) {
+        throw new Error(`${label}: "${line}" must use key=value format.`);
+      }
+      const key = line.slice(0, separatorIndex).trim();
+      const value = line.slice(separatorIndex + 1).trim();
+      if (!key || !value) {
+        throw new Error(`${label}: "${line}" must include both key and value.`);
+      }
+      map[key] = value;
+    });
+    return map;
+  }
+
+  function textToCollectionMap(text) {
+    const map = {};
+    textToList(text).forEach((line) => {
+      const parts = line.split("|").map((part) => part.trim());
+      if (parts.length !== 3 || parts.some((part) => !part)) {
+        throw new Error(`Collection Parent Map: "${line}" must use command|collection_key|parent_prefix format.`);
+      }
+      map[parts[0]] = {
+        collection_key: parts[1],
+        parent_prefix: parts[2],
+      };
+    });
+    return map;
+  }
+
+  function renderDedupConfig() {
+    if (!dedupConfig) return;
+    if (dedupInterfaceCommands) dedupInterfaceCommands.value = listToText(dedupConfig.interface_commands);
+    if (dedupRoutingMap) dedupRoutingMap.value = mapToText(dedupConfig.routing_command_map);
+    if (dedupCollectionMap) dedupCollectionMap.value = collectionMapToText(dedupConfig.collection_parent_map);
+    if (dedupCommandMap) dedupCommandMap.value = mapToText(dedupConfig.command_parent_map);
+    if (dedupRouteProtocols) dedupRouteProtocols.value = mapToText(dedupConfig.show_ip_route?.protocol_parent_map);
+    if (dedupRoutePrefixes) dedupRoutePrefixes.value = listToText(dedupConfig.show_ip_route?.dedup_feature_prefixes);
+    if (dedupVlanTokens) dedupVlanTokens.value = listToText(dedupConfig.vlan_scheme?.dedup_feature_tokens);
+    if (dedupRoutingProtocolFailed) {
+      dedupRoutingProtocolFailed.checked = !!dedupConfig.dedup_options?.dedup_routing_when_protocol_failed;
+    }
+    if (dedupNestedParentMatch) {
+      dedupNestedParentMatch.checked = !!dedupConfig.dedup_options?.dedup_exact_or_nested_parent_match;
+    }
+  }
+
+  async function loadDedupConfig() {
+    try {
+      const data = await fetchJson("http://127.0.0.1:5050/api/grading_dedup");
+      dedupConfig = data.config || {};
+      renderDedupConfig();
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Failed to load grouping and dedup rules.");
+    }
+  }
+
+  function collectDedupConfigFromForm() {
+    const current = dedupConfig || {};
+    return {
+      ...current,
+      interface_commands: textToList(dedupInterfaceCommands?.value || ""),
+      routing_command_map: textToMap(dedupRoutingMap?.value || "", "Routing Command Parent Map"),
+      collection_parent_map: textToCollectionMap(dedupCollectionMap?.value || ""),
+      command_parent_map: textToMap(dedupCommandMap?.value || "", "Whole Command Parent Map"),
+      show_ip_route: {
+        ...(current.show_ip_route || {}),
+        protocol_parent_map: textToMap(dedupRouteProtocols?.value || "", "show ip route Protocol Parents"),
+        dedup_feature_prefixes: textToList(dedupRoutePrefixes?.value || ""),
+      },
+      vlan_scheme: {
+        ...(current.vlan_scheme || {}),
+        dedup_feature_tokens: textToList(dedupVlanTokens?.value || ""),
+      },
+      dedup_options: {
+        ...(current.dedup_options || {}),
+        dedup_routing_when_protocol_failed: !!dedupRoutingProtocolFailed?.checked,
+        dedup_exact_or_nested_parent_match: !!dedupNestedParentMatch?.checked,
+      },
+    };
+  }
+
+  async function saveDedupConfig() {
+    try {
+      const payload = collectDedupConfigFromForm();
+      const data = await fetchJson("http://127.0.0.1:5050/api/grading_dedup", {
+        method: "POST",
+        body: JSON.stringify({ config: payload }),
+      });
+      dedupConfig = data.config || payload;
+      renderDedupConfig();
+      alert("Grouping and dedup rules saved.");
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Failed to save grouping and dedup rules.");
+    }
+  }
+
+  async function resetDedupConfig() {
+    if (!confirm("Reset grouping and dedup rules to defaults?")) return;
+    try {
+      const data = await fetchJson("http://127.0.0.1:5050/api/grading_dedup/reset", {
+        method: "POST",
+      });
+      dedupConfig = data.config || {};
+      renderDedupConfig();
+      alert("Grouping and dedup rules reset to defaults.");
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Failed to reset grouping and dedup rules.");
+    }
+  }
+
   async function loadCleanupLists() {
     try {
       const [templates, results, students] = await Promise.all([
@@ -860,6 +1018,9 @@ document.addEventListener("DOMContentLoaded", () => {
   saveRubricBtn?.addEventListener("click", saveRubricRules);
   addRubricRuleBtn?.addEventListener("click", addRubricRule);
   resetRubricBtn?.addEventListener("click", resetRubricRules);
+  refreshDedupBtn?.addEventListener("click", loadDedupConfig);
+  saveDedupBtn?.addEventListener("click", saveDedupConfig);
+  resetDedupBtn?.addEventListener("click", resetDedupConfig);
   deleteTemplateBtn?.addEventListener("click", deleteTemplate);
   deleteAllTemplatesBtn?.addEventListener("click", deleteAllTemplates);
   deleteResultBtn?.addEventListener("click", deleteResult);
@@ -874,5 +1035,6 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchCommands();
   loadPolicy();
   loadRubricRules();
+  loadDedupConfig();
   loadCleanupLists();
 });

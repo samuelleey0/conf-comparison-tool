@@ -44,6 +44,9 @@ from grading_dedup import (
     config_block_ref,
     empty_phase1_summary,
     is_verification_feature,
+    load_dedup_config,
+    reset_dedup_config,
+    save_dedup_config,
     verification_block_name,
     verification_is_deduplicated,
 )
@@ -4524,6 +4527,33 @@ def api_reset_rubric_rules():
     try:
         rules = reset_rubric_rules()
         return jsonify({"status": "ok", "rules": rules})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+
+
+@app.route("/api/grading_dedup", methods=["GET"])
+def api_get_grading_dedup():
+    return jsonify({"status": "ok", "config": load_dedup_config()})
+
+
+@app.route("/api/grading_dedup", methods=["POST"])
+def api_save_grading_dedup():
+    data = request.get_json() or {}
+    config = data.get("config")
+    if config is None:
+        return jsonify({"status": "error", "message": "Missing dedup config."}), 400
+    try:
+        saved = save_dedup_config(config)
+        return jsonify({"status": "ok", "config": saved})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+
+
+@app.route("/api/grading_dedup/reset", methods=["POST"])
+def api_reset_grading_dedup():
+    try:
+        config = reset_dedup_config()
+        return jsonify({"status": "ok", "config": config})
     except Exception as exc:
         return jsonify({"status": "error", "message": str(exc)}), 400
 
