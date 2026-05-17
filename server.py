@@ -39,6 +39,29 @@ from comparison_engine.parser import parse_device_logs, normalize_parsed_config
 from comparison_engine.comparator import compare_dicts
 from comparison_engine.student_manager import find_show_run_file
 from cisco_reset import reload_cisco_device
+from directory_service import (
+    DOCS_DIR,
+    ENGINE_STUDENTS_DIR,
+    WINDOWS_DRIVES_ROOT,
+    add_student_to_session,
+    create_bulk_directories,
+    create_directory,
+    delete_engine_student_logs_for_docs_target,
+    expand_path,
+    is_windows_drives_root,
+    list_existing_directories,
+    list_existing_exams,
+    list_existing_sessions,
+    list_windows_drive_roots,
+    load_session_student_names,
+    normalize_directory_segment,
+    resolve_picker_path,
+    safe_is_visible_dir,
+    safe_iterdir,
+    save_output_to_engine_students,
+    save_session_student_names,
+    select_directory,
+)
 from grading_dedup import (
     load_dedup_config,
     reset_dedup_config,
@@ -94,40 +117,11 @@ BASE_DIR = Path(__file__).resolve().parent
 SCHEMES_DIR = BASE_DIR / "schemes"
 RUBRICS_DIR = BASE_DIR / "rubrics"
 TEMPLATES_DIR = BASE_DIR / "comparison_engine" / "templates"
-ENGINE_STUDENTS_DIR = BASE_DIR / "comparison_engine" / "students"
 # Results are stored under Documents/<Exam>/<Session>/<Student>/results
 # Results are stored under Documents/<Exam>/<Session>/<Student>/results
 RESULTS_DIR = None
-DOCS_DIR = (Path.home() / "Documents").resolve()
-WINDOWS_DRIVES_ROOT = "__WINDOWS_DRIVES__"
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 ENGINE_STUDENTS_DIR.mkdir(parents=True, exist_ok=True)
-
-WINDOWS_INVALID_SEGMENT_CHARS = '<>:"/\\|?*'
-WINDOWS_RESERVED_NAMES = {
-    "CON",
-    "PRN",
-    "AUX",
-    "NUL",
-    "COM1",
-    "COM2",
-    "COM3",
-    "COM4",
-    "COM5",
-    "COM6",
-    "COM7",
-    "COM8",
-    "COM9",
-    "LPT1",
-    "LPT2",
-    "LPT3",
-    "LPT4",
-    "LPT5",
-    "LPT6",
-    "LPT7",
-    "LPT8",
-    "LPT9",
-}
 
 connection_lock = threading.Lock()
 
@@ -147,39 +141,6 @@ last_used_ssh_credentials = {
 
 execution_abort = threading.Event()
 
-
-def _is_windows_platform():
-    return os.name == "nt"
-
-
-def _normalize_directory_segment(value, field_label):
-    segment = str(value or "").strip()
-    if not segment:
-        raise ValueError(f"Missing {field_label}.")
-    if segment in {".", ".."}:
-        raise ValueError(f"{field_label} cannot be '.' or '..'.")
-    if "/" in segment or "\\" in segment:
-        raise ValueError(f"{field_label} cannot contain path separators.")
-    if "\x00" in segment:
-        raise ValueError(f"{field_label} contains an invalid null character.")
-    if not _is_windows_platform():
-        return segment
-
-    cleaned = "".join(
-        "-" if ch in WINDOWS_INVALID_SEGMENT_CHARS else ch for ch in segment
-    )
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    cleaned = cleaned.rstrip(" .")
-    cleaned = re.sub(r"-{2,}", "-", cleaned).strip("-")
-    if not cleaned:
-        raise ValueError(
-            f"{field_label} cannot be empty after Windows-safe cleanup."
-        )
-
-    reserved_name = cleaned.split(".")[0].upper()
-    if reserved_name in WINDOWS_RESERVED_NAMES:
-        cleaned = f"{cleaned}_"
-    return cleaned
 
 
 def _close_serial_connection():
@@ -274,157 +235,10 @@ def stream_json_line(obj):
     return json.dumps(obj) + "\n"
 
 
-def _expand_path(path):
-    """Expand ~ in user supplied paths."""
-    return os.path.expanduser(path) if path else None
-
-
-def _hostname_matches_target(expected, actual):
-    expected_name = str(expected or "").strip().upper()
-    actual_name = str(actual or "").strip().upper()
-    if not expected_name or not actual_name:
-        return True
-    return expected_name == actual_name
-
-
-def _engine_student_logs_dir(
-    classroom, tutor_name, time_slot, student_id, hostname=None
-):
-    safe_classroom = str(classroom or "").strip()
-    safe_tutor = str(tutor_name or "").strip()
-    safe_time = str(time_slot or "").strip()
-    safe_student = str(student_id or "").strip()
-    if not all([safe_classroom, safe_tutor, safe_time, safe_student]):
-        return None
-    if safe_student.lower() in {"sample", "unknown"}:
-        return None
-    target_dir = (
-        ENGINE_STUDENTS_DIR / safe_classroom / safe_tutor / safe_time / safe_student
-    )
-    if hostname:
-        target_dir = target_dir / str(hostname).strip()
-    return target_dir
-
-
-def _delete_engine_student_logs_for_docs_target(target):
-    try:
-        relative = target.resolve().relative_to(DOCS_DIR)
-    except Exception:
-        return
-
-    if len(relative.parts) < 1:
-        return
-
-    mirror_target = ENGINE_STUDENTS_DIR.joinpath(*relative.parts)
-    if mirror_target.exists():
-        shutil.rmtree(mirror_target)
-
-
-def _session_student_names_path(session_dir: Path) -> Path:
-    return session_dir / "students.json"
-
-
-def _load_session_student_names(session_dir: Path) -> dict:
-    path = _session_student_names_path(session_dir)
-    if not path.exists():
-        return {}
-    try:
-        with open(path, "r", encoding="utf-8") as handle:
-            data = json.load(handle) or {}
-        if isinstance(data, dict):
-            return {str(k): str(v) for k, v in data.items() if str(k).strip()}
-    except Exception:
-        return {}
-    return {}
-
-
-def _save_session_student_names(session_dir: Path, names: dict):
-    path = _session_student_names_path(session_dir)
-    cleaned = {
-        str(k): str(v)
-        for k, v in (names or {}).items()
-        if str(k).strip() and str(v).strip()
-    }
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(cleaned, handle, indent=2, ensure_ascii=False)
-
-
-def _safe_is_visible_dir(path: Path) -> bool:
-    try:
-        return path.is_dir() and not path.name.startswith(".")
-    except (OSError, PermissionError):
-        return False
-
-
-def _safe_iterdir(path: Path):
-    try:
-        return list(path.iterdir())
-    except (OSError, PermissionError):
-        return []
-
-
-def _save_output_to_engine_students(
-    command, output, classroom, tutor_name, time_slot, student_id, hostname
-):
-    """
-    Save command output under
-    comparison_engine/students/<classroom>/<tutor_name>/<time_slot>/<student_id>/<hostname>/.
-    Only stores command logs (no config.json).
-    """
-    if not hostname:
-        return None
-    target_dir = _engine_student_logs_dir(
-        classroom, tutor_name, time_slot, student_id, hostname
-    )
-    if target_dir is None:
-        return None
-    safe_command = command.replace(" ", "_").replace("/", "_")
-    target_dir.mkdir(parents=True, exist_ok=True)
-    file_path = target_dir / f"{safe_command}.txt"
-    with open(file_path, "w", encoding="utf-8") as handle:
-        handle.write(output)
-    return str(file_path)
-
 
 # -------------------------------------------------
 # ✅ Directory Endpoints
 # -------------------------------------------------
-def _validate_directory_payload(data):
-    classroom = (
-        data.get("classroom") or data.get("examName") or data.get("exam_name") or ""
-    ).strip()
-    tutor_name = (
-        data.get("tutor_name")
-        or data.get("tutorName")
-        or data.get("sessionId")
-        or data.get("session_id")
-        or ""
-    ).strip()
-    time_slot = (data.get("time_slot") or data.get("timeSlot") or "").strip()
-    student_id = (data.get("studentId") or data.get("student_id") or "").strip()
-
-    if not all([classroom, tutor_name, time_slot, student_id]):
-        return (
-            None,
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "Missing classroom/tutor_name/time_slot/studentId",
-                }
-            ),
-            400,
-        )
-
-    try:
-        classroom = _normalize_directory_segment(classroom, "Classroom")
-        tutor_name = _normalize_directory_segment(tutor_name, "Tutor name")
-        time_slot = _normalize_directory_segment(time_slot, "Time slot")
-        student_id = _normalize_directory_segment(student_id, "Student ID")
-    except ValueError as exc:
-        return None, jsonify({"status": "error", "message": str(exc)}), 400
-
-    return (classroom, tutor_name, time_slot, student_id), None, None
-
 
 @app.route("/api/create_directory", methods=["POST"])
 def api_create_directory():
@@ -432,36 +246,10 @@ def api_create_directory():
     Create the standard directory hierarchy for a student.
     """
     data = request.get_json() or {}
-    validated, error_resp, status = _validate_directory_payload(data)
-    if error_resp:
-        return error_resp, status
-
-    classroom, tutor_name, time_slot, student_id = validated
-    student_name = (data.get("studentName") or data.get("student_name") or "").strip()
-    base_path = os.path.expanduser(
-        os.path.join("~/Documents", classroom, tutor_name, time_slot, student_id)
-    )
-    os.makedirs(base_path, exist_ok=True)
-    if student_name:
-        session_dir = Path.home() / "Documents" / classroom / tutor_name / time_slot
-        names = _load_session_student_names(session_dir)
-        names[student_id] = student_name
-        _save_session_student_names(session_dir, names)
-    return jsonify(
-        {
-            "status": "ok",
-            "message": f"Directory ready: {base_path}",
-            "path": base_path,
-            "classroom": classroom,
-            "tutor_name": tutor_name,
-            "time_slot": time_slot,
-            # Backward-compatible response keys
-            "exam_name": classroom,
-            "session_id": tutor_name,
-            "student_id": student_id,
-            "student_name": student_name,
-        }
-    )
+    try:
+        return jsonify({"status": "ok", **create_directory(data)})
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
 
 
 @app.route("/api/select_directory", methods=["POST"])
@@ -470,178 +258,13 @@ def api_select_directory():
     Reuse an existing directory path provided by the user.
     """
     data = request.get_json() or {}
-    existing_path = _expand_path(data.get("existingPath"))
-    if not existing_path:
-        return (
-            jsonify(
-                {"status": "error", "message": "Missing existingPath for selection"}
-            ),
-            400,
-        )
+    try:
+        return jsonify({"status": "ok", **select_directory(data)})
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+    except FileNotFoundError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 404
 
-    if os.path.exists(existing_path):
-        parts = Path(existing_path).parts
-        if len(parts) >= 4:
-            classroom, tutor_name, time_slot, student_id = (
-                parts[-4],
-                parts[-3],
-                parts[-2],
-                parts[-1],
-            )
-        else:
-            classroom = (
-                data.get("classroom") or data.get("examName") or data.get("exam_name")
-            )
-            tutor_name = (
-                data.get("tutor_name")
-                or data.get("tutorName")
-                or data.get("sessionId")
-                or data.get("session_id")
-            )
-            time_slot = data.get("time_slot") or data.get("timeSlot")
-            student_id = data.get("studentId") or data.get("student_id")
-        return jsonify(
-            {
-                "status": "ok",
-                "message": f"Using existing directory: {existing_path}",
-                "path": existing_path,
-                "classroom": classroom,
-                "tutor_name": tutor_name,
-                "time_slot": time_slot,
-                # Backward-compatible response keys
-                "exam_name": classroom,
-                "session_id": tutor_name,
-                "student_id": student_id,
-            }
-        )
-
-    return (
-        jsonify({"status": "error", "message": f"Path not found: {existing_path}"}),
-        404,
-    )
-
-
-def _list_existing_directories():
-    docs_path = Path.home() / "Documents"
-    results = []
-    if not docs_path.exists():
-        return results
-
-    for classroom_dir in _safe_iterdir(docs_path):
-        if not _safe_is_visible_dir(classroom_dir):
-            continue
-        for tutor_dir in _safe_iterdir(classroom_dir):
-            if not _safe_is_visible_dir(tutor_dir):
-                continue
-            for time_dir in _safe_iterdir(tutor_dir):
-                if not _safe_is_visible_dir(time_dir):
-                    continue
-                student_names = _load_session_student_names(time_dir)
-                for student_dir in _safe_iterdir(time_dir):
-                    if not _safe_is_visible_dir(student_dir):
-                        continue
-                    results.append(
-                        {
-                            "path": str(student_dir),
-                            "classroom": classroom_dir.name,
-                            "tutor_name": tutor_dir.name,
-                            "time_slot": time_dir.name,
-                            # Backward-compatible keys
-                            "exam_name": classroom_dir.name,
-                            "session_id": tutor_dir.name,
-                            "student_id": student_dir.name,
-                            "student_name": student_names.get(student_dir.name, ""),
-                            "display": (
-                                f"{classroom_dir.name}/{tutor_dir.name}/"
-                                f"{time_dir.name}/{student_dir.name}"
-                            ),
-                        }
-                    )
-    return sorted(results, key=lambda x: x["display"])
-
-
-def _list_existing_sessions():
-    docs_path = Path.home() / "Documents"
-    results = []
-    if not docs_path.exists():
-        return results
-
-    for classroom_dir in _safe_iterdir(docs_path):
-        if not _safe_is_visible_dir(classroom_dir):
-            continue
-        for tutor_dir in _safe_iterdir(classroom_dir):
-            if not _safe_is_visible_dir(tutor_dir):
-                continue
-            for time_dir in _safe_iterdir(tutor_dir):
-                if not _safe_is_visible_dir(time_dir):
-                    continue
-                results.append(
-                    {
-                        "path": str(time_dir),
-                        "classroom": classroom_dir.name,
-                        "tutor_name": tutor_dir.name,
-                        "time_slot": time_dir.name,
-                        "exam_name": classroom_dir.name,
-                        "session_id": tutor_dir.name,
-                        "display": f"{classroom_dir.name}/{tutor_dir.name}/{time_dir.name}",
-                    }
-                )
-    return sorted(results, key=lambda x: x["display"])
-
-
-def _list_existing_exams():
-    docs_path = Path.home() / "Documents"
-    results = []
-    if not docs_path.exists():
-        return results
-
-    for classroom_dir in _safe_iterdir(docs_path):
-        if not _safe_is_visible_dir(classroom_dir):
-            continue
-        # Only include dirs that contain at least one tutor/time subdirectory
-        has_session = any(
-            _safe_is_visible_dir(d) for d in _safe_iterdir(classroom_dir)
-        )
-        if has_session:
-            results.append(
-                {
-                    "path": str(classroom_dir),
-                    "classroom": classroom_dir.name,
-                    "exam_name": classroom_dir.name,
-                    "display": classroom_dir.name,
-                }
-            )
-    return sorted(results, key=lambda x: x["display"])
-
-
-def _is_windows_drives_root(path_val):
-    return os.name == "nt" and str(path_val or "") == WINDOWS_DRIVES_ROOT
-
-
-def _list_windows_drive_roots():
-    drives = []
-    if os.name != "nt":
-        return drives
-
-    for letter in string.ascii_uppercase:
-        drive_path = f"{letter}:\\"
-        if os.path.exists(drive_path):
-            drives.append(
-                {
-                    "name": f"{letter}:",
-                    "path": drive_path,
-                    "is_drive": True,
-                }
-            )
-    return drives
-
-
-def _resolve_picker_path(path_val, fallback):
-    if _is_windows_drives_root(path_val):
-        return WINDOWS_DRIVES_ROOT
-    if path_val:
-        return Path(_expand_path(path_val)).resolve()
-    return fallback
 
 
 @app.route("/api/directories", methods=["GET"])
@@ -651,7 +274,7 @@ def api_list_directories():
 
     # If a path is provided, use it as the "current" one, otherwise default to ~/Documents
     try:
-        current = _resolve_picker_path(path_val, docs_path)
+        current = resolve_picker_path(path_val, docs_path)
     except Exception:
         current = docs_path
 
@@ -659,7 +282,7 @@ def api_list_directories():
     # Otherwise, we want the frontend to fall back to 'loadSubfolders' to show the actual directory contents.
     directories = []
     if current == docs_path:
-        directories = _list_existing_directories()
+        directories = list_existing_directories()
 
     if current == WINDOWS_DRIVES_ROOT:
         parent_path = WINDOWS_DRIVES_ROOT
@@ -687,11 +310,11 @@ def api_list_directories():
 def api_list_subfolders():
     path_val = request.args.get("path")
 
-    if _is_windows_drives_root(path_val):
+    if is_windows_drives_root(path_val):
         return jsonify(
             {
                 "status": "ok",
-                "subfolders": _list_windows_drive_roots(),
+                "subfolders": list_windows_drive_roots(),
                 "current_path": WINDOWS_DRIVES_ROOT,
                 "parent_path": WINDOWS_DRIVES_ROOT,
             }
@@ -702,7 +325,7 @@ def api_list_subfolders():
         target = Path.home()
     else:
         try:
-            target = Path(_expand_path(path_val)).resolve()
+            target = Path(expand_path(path_val)).resolve()
         except:
             return jsonify({"status": "error", "message": "Invalid path"}), 400
 
@@ -712,8 +335,8 @@ def api_list_subfolders():
     subfolders = []
     try:
         # List directories only
-        for item in _safe_iterdir(target):
-            if _safe_is_visible_dir(item):
+        for item in safe_iterdir(target):
+            if safe_is_visible_dir(item):
                 subfolders.append({"name": item.name, "path": str(item)})
         subfolders.sort(key=lambda x: x["name"].lower())
     except Exception as e:
@@ -741,72 +364,10 @@ def api_list_subfolders():
 @app.route("/api/directories/bulk", methods=["POST"])
 def api_bulk_directories():
     data = request.get_json() or {}
-    classroom = (
-        data.get("classroom") or data.get("examName") or data.get("exam_name") or ""
-    ).strip()
-    tutor_name = (
-        data.get("tutor_name")
-        or data.get("tutorName")
-        or data.get("sessionId")
-        or data.get("session_id")
-        or ""
-    ).strip()
-    time_slot = (data.get("time_slot") or data.get("timeSlot") or "").strip()
-    students = data.get("students") or []
-
-    if not classroom or not tutor_name or not time_slot or not students:
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "Missing classroom/tutor_name/time_slot/students for bulk creation.",
-                }
-            ),
-            400,
-        )
-
     try:
-        classroom = _normalize_directory_segment(classroom, "Classroom")
-        tutor_name = _normalize_directory_segment(tutor_name, "Tutor name")
-        time_slot = _normalize_directory_segment(time_slot, "Time slot")
+        created = create_bulk_directories(data)
     except ValueError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 400
-
-    created = []
-    base_docs_path = Path.home() / "Documents"
-    session_dir = base_docs_path / classroom / tutor_name / time_slot
-    session_dir.mkdir(parents=True, exist_ok=True)
-    student_names = _load_session_student_names(session_dir)
-
-    for student in students:
-        student_id = (student.get("id") or "").strip()
-        student_name = (student.get("name") or "").strip()
-        if not student_id:
-            continue
-        try:
-            student_id = _normalize_directory_segment(student_id, "Student ID")
-        except ValueError as exc:
-            return jsonify({"status": "error", "message": str(exc)}), 400
-        student_dir = session_dir / student_id
-        student_dir.mkdir(parents=True, exist_ok=True)
-        if student_name:
-            student_names[student_id] = student_name
-        created.append(
-            {
-                "path": str(student_dir),
-                "classroom": classroom,
-                "tutor_name": tutor_name,
-                "time_slot": time_slot,
-                "exam_name": classroom,
-                "session_id": tutor_name,
-                "student_id": student_id,
-                "student_name": student_name,
-                "display": f"{classroom}/{tutor_name}/{time_slot}/{student_id}",
-            }
-        )
-
-    _save_session_student_names(session_dir, student_names)
-
     return jsonify({"status": "ok", "created": created})
 
 
@@ -1285,7 +846,7 @@ def _ensure_base_path(data):
     if mode == "existing":
         if not log_dir:
             raise ValueError("Missing log_dir for existing directory mode.")
-        expanded = _expand_path(log_dir)
+        expanded = expand_path(log_dir)
         if not expanded or not os.path.exists(expanded):
             raise FileNotFoundError(f"Existing directory not found: {log_dir}")
         return expanded, classroom, tutor_name, time_slot, student_id
@@ -1295,10 +856,10 @@ def _ensure_base_path(data):
             "Missing classroom/tutor/time/student details for directory creation."
         )
 
-    classroom = _normalize_directory_segment(classroom, "Classroom")
-    tutor_name = _normalize_directory_segment(tutor_name, "Tutor name")
-    time_slot = _normalize_directory_segment(time_slot, "Time slot")
-    student_id = _normalize_directory_segment(student_id, "Student ID")
+    classroom = normalize_directory_segment(classroom, "Classroom")
+    tutor_name = normalize_directory_segment(tutor_name, "Tutor name")
+    time_slot = normalize_directory_segment(time_slot, "Time slot")
+    student_id = normalize_directory_segment(student_id, "Student ID")
 
     base_path = os.path.expanduser(
         os.path.join("~/Documents", classroom, tutor_name, time_slot, student_id)
@@ -1537,7 +1098,7 @@ def api_execute():
                         hostname=target_device or hostname,
                         base_dir=base_path,
                     )
-                    _save_output_to_engine_students(
+                    save_output_to_engine_students(
                         cli_cmd,
                         output,
                         classroom,
@@ -1805,7 +1366,7 @@ def api_execute():
                         hostname=target_device or hostname,
                         base_dir=base_path,
                     )
-                    _save_output_to_engine_students(
+                    save_output_to_engine_students(
                         cli_cmd,
                         output,
                         classroom,
@@ -2387,7 +1948,7 @@ def api_save_template_setup():
 def api_import_template_logs_folder():
     data = request.get_json() or {}
     template_name = (data.get("template_name") or "").strip()
-    source_dir = _expand_path(data.get("source_dir"))
+    source_dir = expand_path(data.get("source_dir"))
     source_template_name = (data.get("source_template_name") or "").strip()
     strict = bool(data.get("strict"))
     devices_meta = data.get("devices_meta") or {}
@@ -2436,17 +1997,17 @@ def api_admin_list_results():
     results = []
     docs_path = Path.home() / "Documents"
     if docs_path.exists():
-        for classroom_dir in _safe_iterdir(docs_path):
-            if not _safe_is_visible_dir(classroom_dir):
+        for classroom_dir in safe_iterdir(docs_path):
+            if not safe_is_visible_dir(classroom_dir):
                 continue
-            for tutor_dir in _safe_iterdir(classroom_dir):
-                if not _safe_is_visible_dir(tutor_dir):
+            for tutor_dir in safe_iterdir(classroom_dir):
+                if not safe_is_visible_dir(tutor_dir):
                     continue
-                for time_dir in _safe_iterdir(tutor_dir):
-                    if not _safe_is_visible_dir(time_dir):
+                for time_dir in safe_iterdir(tutor_dir):
+                    if not safe_is_visible_dir(time_dir):
                         continue
-                    for student_dir in _safe_iterdir(time_dir):
-                        if not _safe_is_visible_dir(student_dir):
+                    for student_dir in safe_iterdir(time_dir):
+                        if not safe_is_visible_dir(student_dir):
                             continue
                         results_dir = student_dir / "results"
                         if results_dir.is_dir():
@@ -2478,17 +2039,17 @@ def api_admin_delete_results():
         docs_dir = (Path.home() / "Documents").resolve()
         deleted = 0
         if docs_dir.exists():
-            for classroom_dir in _safe_iterdir(docs_dir):
-                if not _safe_is_visible_dir(classroom_dir):
+            for classroom_dir in safe_iterdir(docs_dir):
+                if not safe_is_visible_dir(classroom_dir):
                     continue
-                for tutor_dir in _safe_iterdir(classroom_dir):
-                    if not _safe_is_visible_dir(tutor_dir):
+                for tutor_dir in safe_iterdir(classroom_dir):
+                    if not safe_is_visible_dir(tutor_dir):
                         continue
-                    for time_dir in _safe_iterdir(tutor_dir):
-                        if not _safe_is_visible_dir(time_dir):
+                    for time_dir in safe_iterdir(tutor_dir):
+                        if not safe_is_visible_dir(time_dir):
                             continue
-                        for student_dir in _safe_iterdir(time_dir):
-                            if not _safe_is_visible_dir(student_dir):
+                        for student_dir in safe_iterdir(time_dir):
+                            if not safe_is_visible_dir(student_dir):
                                 continue
                             results_dir = student_dir / "results"
                             if results_dir.is_dir():
@@ -2516,9 +2077,9 @@ def api_admin_list_students():
     return jsonify(
         {
             "status": "ok",
-            "exams": _list_existing_exams(),
-            "students": _list_existing_directories(),
-            "sessions": _list_existing_sessions(),
+            "exams": list_existing_exams(),
+            "students": list_existing_directories(),
+            "sessions": list_existing_sessions(),
         }
     )
 
@@ -2546,12 +2107,12 @@ def api_admin_delete_students():
         relative = target.relative_to(DOCS_DIR)
         if len(relative.parts) == 3:
             session_dir = DOCS_DIR / relative.parts[0] / relative.parts[1]
-            names = _load_session_student_names(session_dir)
+            names = load_session_student_names(session_dir)
             if relative.parts[2] in names:
                 names.pop(relative.parts[2], None)
-                _save_session_student_names(session_dir, names)
+                save_session_student_names(session_dir, names)
 
-    _delete_engine_student_logs_for_docs_target(target)
+    delete_engine_student_logs_for_docs_target(target)
     shutil.rmtree(target)
     return jsonify({"status": "ok", "message": f"Deleted {target}"})
 
@@ -2618,58 +2179,12 @@ def api_admin_sync_mirror():
 @app.route("/api/add_student", methods=["POST"])
 def api_add_student():
     data = request.get_json() or {}
-    session_path = _expand_path(data.get("session_path"))
-    student_id = (data.get("student_id") or "").strip()
-    student_name = (data.get("student_name") or "").strip()
-
-    if not session_path or not student_id:
-        return (
-            jsonify(
-                {"status": "error", "message": "Missing session_path or student_id."}
-            ),
-            400,
-        )
-
     try:
-        student_id = _normalize_directory_segment(student_id, "Student ID")
+        return jsonify({"status": "ok", **add_student_to_session(data)})
     except ValueError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 400
-
-    session_dir = Path(session_path)
-    if not session_dir.exists() or not session_dir.is_dir():
-        return jsonify({"status": "error", "message": "Session path not found."}), 404
-
-    docs_dir = (Path.home() / "Documents").resolve()
-    target = _safe_resolve_child(docs_dir, session_dir)
-    if not target:
-        return jsonify({"status": "error", "message": "Invalid session path."}), 400
-
-    student_dir = session_dir / student_id
-    student_dir.mkdir(parents=True, exist_ok=True)
-    names = _load_session_student_names(session_dir)
-    if student_name:
-        names[student_id] = student_name
-    existing_name = names.get(student_id, "")
-    _save_session_student_names(session_dir, names)
-
-    parts = student_dir.parts
-    classroom = parts[-4] if len(parts) >= 4 else ""
-    tutor_name = parts[-3] if len(parts) >= 3 else ""
-    time_slot = parts[-2] if len(parts) >= 2 else ""
-    return jsonify(
-        {
-            "status": "ok",
-            "message": f"Student directory created: {student_dir}",
-            "path": str(student_dir),
-            "classroom": classroom,
-            "tutor_name": tutor_name,
-            "time_slot": time_slot,
-            "exam_name": classroom,
-            "session_id": tutor_name,
-            "student_id": student_id,
-            "student_name": student_name or existing_name,
-        }
-    )
+    except FileNotFoundError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 404
 
 
 # --- Grading Logic ---
