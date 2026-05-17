@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const newCommandInput = document.getElementById("newCommandInput");
   const addCommandBtn = document.getElementById("addCommandBtn");
   const countBadge = document.getElementById("commandCountBadge");
+  const adminTabsRoot = document.getElementById("systemAdminTabs");
   const majorThresholdInput = document.getElementById("majorThreshold");
   const minorThresholdInput = document.getElementById("minorThreshold");
   const savePolicyBtn = document.getElementById("savePolicyBtn");
@@ -16,7 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const rubricRulesContainer = document.getElementById("rubricRulesContainer");
   const rubricFilterButtons = document.getElementById("rubricFilterButtons");
   const rubricSearchInput = document.getElementById("rubricSearchInput");
-  const DEFAULT_RUBRIC_SECTION = "3.2.1 Hostname & Banner";
+  const DEFAULT_RUBRIC_SECTION = "all";
 
   const templateList = document.getElementById("templateList");
   const resultList = document.getElementById("resultList");
@@ -37,6 +38,29 @@ document.addEventListener("DOMContentLoaded", () => {
   let selectedRubricCategory = DEFAULT_RUBRIC_SECTION;
   let rubricSearchTerm = "";
   let deletedIndices = new Set();
+
+  function initAdminTabs() {
+    if (!adminTabsRoot) return;
+    const tabs = Array.from(adminTabsRoot.querySelectorAll(".admin-tab-btn"));
+    const panels = tabs
+      .map((tab) => document.getElementById(tab.dataset.target || ""))
+      .filter(Boolean);
+
+    const activateTab = (targetId) => {
+      tabs.forEach((tab) => {
+        const isActive = tab.dataset.target === targetId;
+        tab.classList.toggle("active", isActive);
+        tab.setAttribute("aria-selected", isActive ? "true" : "false");
+      });
+      panels.forEach((panel) => {
+        panel.classList.toggle("active", panel.id === targetId);
+      });
+    };
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => activateTab(tab.dataset.target || ""));
+    });
+  }
 
   function closeOpenSelects(except = null) {
     document.querySelectorAll(".app-select.open").forEach((node) => {
@@ -846,6 +870,7 @@ document.addEventListener("DOMContentLoaded", () => {
   syncMirrorBtn?.addEventListener("click", syncMirror);
 
   // Init
+  initAdminTabs();
   fetchCommands();
   loadPolicy();
   loadRubricRules();
