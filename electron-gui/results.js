@@ -575,6 +575,42 @@ function _renderErrorItem(report, item, isVerification) {
     ? `<div class="result-code">Code: ${item.rule_code}</div>`
     : "";
 
+  const shortDedupRef = (ref) => String(ref || "").replace(/^show_running_config\./, "");
+
+  const resolveVlanSchemeParent = () => {
+    const vlanTokens = [
+      ".access_vlan",
+      ".switchport_mode",
+      ".trunk_native_vlan",
+      ".trunk_allowed_vlans",
+      ".Vlan.interface",
+      ".subinterface",
+    ];
+    const items = Array.isArray(report?.items) ? report.items : [];
+    const hostname = item.hostname || "";
+    const candidates = items.filter((candidate) => {
+      if (!candidate || candidate === item) return false;
+      if (candidate.status === "correct" || candidate.status === "skipped") return false;
+      if (candidate.counts_toward_marking === false) return false;
+      const feature = String(candidate.feature || "");
+      return vlanTokens.some((token) => feature.includes(token));
+    });
+
+    const sameHost = candidates.find((candidate) => hostname && candidate.hostname === hostname);
+    const parent = sameHost || candidates[0];
+    if (parent?.feature) {
+      return shortDedupRef(parent.feature);
+    }
+    return "related VLAN or switchport configuration error";
+  };
+
+  const displayDedupRef = (ref, fallback = "config error") => {
+    if (ref === "show_running_config.__vlan_scheme__") {
+      return resolveVlanSchemeParent();
+    }
+    return shortDedupRef(ref) || fallback;
+  };
+
   let severityClass, statusLabel;
   if (isSkipped) {
     severityClass = "severity-skipped";
@@ -602,11 +638,10 @@ function _renderErrorItem(report, item, isVerification) {
   let dedupInfo = "";
   if (isVerification && isVerificationRuleDedup) {
     const ref = item.block_name || item.layer1_ref || "";
-    dedupInfo = `<div class="dedup-ref">↳ Same verification rule already scored for <strong>${escapeHtml(ref || "this block")}</strong></div>`;
+    dedupInfo = `<div class="dedup-ref">↳ Same verification rule already scored for <strong>${escapeHtml(displayDedupRef(ref, "this block"))}</strong></div>`;
   } else if (isVerification && isDeduplicated) {
     const ref = item.layer1_ref || item.block_name || "";
-    const shortRef = ref.replace(/^show_running_config\./, "");
-    dedupInfo = `<div class="dedup-ref">↳ Counted under: <strong>${escapeHtml(shortRef || "config error")}</strong></div>`;
+    dedupInfo = `<div class="dedup-ref">↳ Counted under: <strong>${escapeHtml(displayDedupRef(ref))}</strong></div>`;
   } else if (!isVerification && isRuleDedup) {
     const ruleCode = item.rule_code || item.rule_id || "";
     dedupInfo = `<div class="dedup-ref">↳ Same rule <strong>${escapeHtml(ruleCode)}</strong> already scored on another device</div>`;
