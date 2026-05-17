@@ -1090,12 +1090,15 @@ button.block {
   border-bottom-color: var(--color-primary);
 }
 
+.directory-options button.active:hover {
+  color: #ffffff;
+}
+
 .directory-section {
   border: none;
   border-radius: 0;
-  padding: 24px 0;
+  padding: none;
   background-color: transparent;
-  margin-top: 24px;
   gap: 18px;
   display: flex;
   flex-direction: column;

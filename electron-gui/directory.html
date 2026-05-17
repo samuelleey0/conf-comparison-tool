@@ -39,12 +39,12 @@
                 gap: 0;
                 border: 1px solid var(--color-border);
                 border-radius: 6px;
-                overflow: hidden;
-                margin-bottom: 20px;
+                margin-bottom: 10px;
                 background: var(--color-bg-soft);
             }
 
             .dir-tab-btn {
+                position: relative;
                 flex: 1;
                 padding: 10px 14px;
                 font-size: 0.875rem;
@@ -62,6 +62,34 @@
                 border-right: none;
             }
 
+            .dir-tab-tooltip {
+                position: absolute;
+                left: 12px;
+                right: 12px;
+                top: calc(100% + 10px);
+                z-index: 30;
+                display: block;
+                padding: 10px 12px;
+                border: 1px solid rgba(15, 23, 42, 0.14);
+                border-radius: 6px;
+                background: #ffffff;
+                color: var(--color-muted);
+                font-size: 0.8rem;
+                font-weight: 500;
+                line-height: 1.45;
+                text-align: left;
+                box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
+                opacity: 0;
+                pointer-events: none;
+                transform: translateY(-4px);
+                transition: opacity 0.16s ease, transform 0.16s ease;
+            }
+
+            .dir-tab-btn:hover .dir-tab-tooltip {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
             .dir-tab-btn:hover:not(.active) {
                 background: var(--color-border);
                 color: var(--color-heading);
@@ -73,26 +101,9 @@
                 box-shadow: inset 0 -2px 0 var(--color-accent);
             }
 
-            .dir-tabs-desc {
-                display: grid;
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 10px 18px;
-                margin: -6px 0 10px;
-                padding: 0;
-                background: transparent;
-                border: none;
-                font-size: 0.81rem;
-                color: var(--color-muted);
-                line-height: 1.45;
-            }
-
-            .dir-tabs-desc strong {
-                color: var(--color-heading);
-            }
-
-            .dir-tabs-desc span {
-                display: block;
-                min-width: 0;
+            .dir-tab-btn.active:hover {
+                background: var(--color-accent);
+                color: #ffffff;
             }
 
             /* ── Section card ────────────────────────────────── */
@@ -207,9 +218,27 @@
             /* ── Bulk section ────────────────────────────────── */
             .dir-toggles {
                 display: flex;
-                gap: 10px;
-                flex-wrap: wrap;
-                margin-top: 4px;
+                flex-direction: column;
+                gap: 14px;
+                margin-top: 8px;
+                max-width: 760px;
+            }
+
+            .dir-toggle-option {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .dir-toggle-option .toggle-chip {
+                width: fit-content;
+            }
+
+            .dir-toggle-help {
+                margin: 0;
+                font-size: 0.82rem;
+                line-height: 1.45;
+                color: var(--color-muted);
             }
 
             .dir-hint {
@@ -373,10 +402,8 @@
                     max-width: 100%;
                 }
 
-                .dir-tabs-desc {
-                    grid-template-columns: 1fr;
-                    gap: 8px;
-                    margin: 0 0 10px;
+                .dir-toggle-help {
+                    padding-left: 0;
                 }
             }
         </style>
@@ -399,19 +426,16 @@
                 <div class="dir-tabs">
                     <button type="button" id="showCreateBtn" class="dir-tab-btn">
                         Create New
+                        <span class="dir-tab-tooltip" role="tooltip">Manually add a single student folder.</span>
                     </button>
                     <button type="button" id="showExistingBtn" class="dir-tab-btn">
                         Use Existing
+                        <span class="dir-tab-tooltip" role="tooltip">Select a session and pick a student from already created folders.</span>
                     </button>
                     <button type="button" id="showBulkBtn" class="dir-tab-btn">
                         Bulk Create from File
+                        <span class="dir-tab-tooltip" role="tooltip">Import students from a CSV/TXT/XLSX file to create multiple folders at once.</span>
                     </button>
-                </div>
-
-                <div class="dir-tabs-desc">
-                    <span><strong>Create New:</strong> Manually add a single student folder.</span>
-                    <span><strong>Use Existing:</strong> Select a session and pick a student from already created folders.</span>
-                    <span><strong>Bulk Create:</strong> Import students from a CSV/TXT/XLSX file to create multiple folders at once.</span>
                 </div>
 
                 <!-- ── Create Section ─────────────────────────── -->
@@ -562,34 +586,37 @@
                                     <input type="file" id="bulkFile" accept=".csv,.txt,.xlsx,.xls" required />
                                 </div>
                             </div>
-                            <div class="dir-hint">
-                                These switches are on by default for exported student-list files that include a title row, column labels, and row numbers.
-                                <ul style="margin:8px 0 0 18px; padding:0;">
-                                    <li><strong>Title row?</strong> Turn on when the first row is only a report title, for example <code>Active Student Listing</code>. That row will be skipped.</li>
-                                    <li><strong>Header row?</strong> Turn on when the next row contains column labels, for example <code>Student Number</code> and <code>Student Name</code>. That row will be skipped.</li>
-                                    <li><strong>Number column?</strong> Turn on when the first column is only row numbering such as <code>1, 2, 3</code>. Student ID will be read from the next column.</li>
-                                </ul>
-                            </div>
                             <div class="dir-toggles">
-                                <label class="toggle-chip">
-                                    <input type="checkbox" id="bulkHasTitle" checked />
-                                    <span class="toggle-track"></span>
-                                    <span class="toggle-text">Title row?</span>
-                                </label>
-                                <label class="toggle-chip">
-                                    <input type="checkbox" id="bulkHasHeader" checked />
-                                    <span class="toggle-track"></span>
-                                    <span class="toggle-text">Header row?</span>
-                                </label>
-                                <label class="toggle-chip">
-                                    <input type="checkbox" id="bulkHasNumber" checked />
-                                    <span class="toggle-track"></span>
-                                    <span class="toggle-text">Number column?</span>
-                                </label>
+                                <div class="dir-toggle-option">
+                                    <label class="toggle-chip">
+                                        <input type="checkbox" id="bulkHasTitle" checked />
+                                        <span class="toggle-track"></span>
+                                        <span class="toggle-text">Title row?</span>
+                                    </label>
+                                    <p class="dir-toggle-help">Turn on when the first row is only a report title, for example <code>Active Student Listing</code>. That row will be skipped.</p>
+                                </div>
+                                <div class="dir-toggle-option">
+                                    <label class="toggle-chip">
+                                        <input type="checkbox" id="bulkHasHeader" checked />
+                                        <span class="toggle-track"></span>
+                                        <span class="toggle-text">Header row?</span>
+                                    </label>
+                                    <p class="dir-toggle-help">Turn on when the next row contains column labels, for example <code>Student Number</code> and <code>Student Name</code>. That row will be skipped.</p>
+                                </div>
+                                <div class="dir-toggle-option">
+                                    <label class="toggle-chip">
+                                        <input type="checkbox" id="bulkHasNumber" checked />
+                                        <span class="toggle-track"></span>
+                                        <span class="toggle-text">Number column?</span>
+                                    </label>
+                                    <p class="dir-toggle-help">Turn on when the first column is only row numbering such as <code>1, 2, 3</code>. Student ID will be read from the next column.</p>
+                                </div>
                             </div>
-                            <p class="dir-hint">
-                                If your file already starts with student data, turn these switches off. With all switches off, the importer reads column 1 as Student ID and column 2 as Student Name.
-                            </p>
+                            <br>
+                            <div class="dir-hint">
+                                These switches are on by default for exported student-list files that include a title row, column labels, and row numbers. If your file already starts with student data, turn these switches off. With all switches off, the importer reads column 1 as Student ID and column 2 as Student Name.
+                            </div>
+                            
                             <div class="actions justify-end" style="margin-top:20px;">
                                 <button type="submit" id="bulk-create-btn" class="primary">
                                     Create Directories

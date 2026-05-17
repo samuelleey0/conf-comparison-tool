@@ -5,274 +5,41 @@
   <title>Export To Melbourne</title>
   <link rel="stylesheet" href="assets/style.css" />
   <link rel="stylesheet" href="assets/nav.css" />
-  <style>
-    .export-shell {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-
-    .export-header {
-      background: var(--color-primary);
-      color: white;
-      padding: 36px 40px;
-      border: 1px solid var(--color-border);
-    }
-
-    .export-header h1 {
-      margin: 0;
-      color: white;
-      font-size: 1.8rem;
-      letter-spacing: 0;
-    }
-
-    .export-header p {
-      margin: 8px 0 0;
-      color: rgba(255, 255, 255, 0.9);
-    }
-
-    .export-grid {
-      display: grid;
-      grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
-      gap: 20px;
-      align-items: start;
-    }
-
-    .export-panel {
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      box-shadow: var(--shadow-card);
-    }
-
-    .export-panel-header {
-      padding: 14px 18px;
-      border-bottom: 2px solid var(--color-border);
-      background: var(--color-bg-soft);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      font-weight: 700;
-      color: var(--color-heading);
-    }
-
-    .export-panel-body {
-      padding: 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-
-    .form-field {
-      display: flex;
-      flex-direction: column;
-      gap: 7px;
-      min-width: 0;
-    }
-
-    .form-field label {
-      font-weight: 700;
-      color: var(--color-heading);
-      font-size: 0.84rem;
-    }
-
-    .form-field input,
-    .form-field select,
-    .bulk-select {
-      width: 100%;
-      border: 1px solid var(--color-border);
-      background: var(--color-surface);
-      color: var(--color-heading);
-      padding: 10px 11px;
-      min-height: 40px;
-      font-size: 0.92rem;
-      border-radius: 0;
-      box-sizing: border-box;
-    }
-
-    .form-field input:focus,
-    .form-field select:focus,
-    .bulk-select:focus {
-      outline: 2px solid rgba(10, 92, 187, 0.18);
-      border-color: var(--color-accent);
-    }
-
-    .path-readout {
-      padding: 10px 12px;
-      border-left: 4px solid var(--color-accent);
-      background: var(--color-bg-soft);
-      color: var(--color-muted);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.78rem;
-      overflow-wrap: anywhere;
-      line-height: 1.5;
-    }
-
-    .export-table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    .export-table th,
-    .export-table td {
-      border-bottom: 1px solid var(--color-border);
-      padding: 10px 12px;
-      text-align: left;
-      vertical-align: middle;
-      font-size: 0.88rem;
-    }
-
-    .export-table th {
-      color: var(--color-heading);
-      background: var(--color-bg-soft);
-      font-weight: 700;
-    }
-
-    .export-table td select,
-    .export-table td input {
-      width: 100%;
-      border: 1px solid var(--color-border);
-      padding: 8px 9px;
-      min-height: 36px;
-      border-radius: 0;
-      background: white;
-      box-sizing: border-box;
-    }
-
-    .table-scroll {
-      max-height: 420px;
-      overflow: auto;
-      border: 1px solid var(--color-border);
-    }
-
-    .actions-row {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .button,
-    .export-button {
-      border: 1px solid var(--color-border);
-      background: var(--color-bg-soft);
-      color: var(--color-heading);
-      min-height: 40px;
-      padding: 10px 14px;
-      cursor: pointer;
-      font-weight: 700;
-      border-radius: 0;
-    }
-
-    .button:hover {
-      border-color: var(--color-accent);
-    }
-
-    .export-button {
-      background: var(--color-accent);
-      color: white;
-      border-color: var(--color-accent);
-      min-width: 140px;
-    }
-
-    .export-button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .assigned-badge {
-      background: var(--color-accent);
-      color: white;
-      padding: 6px 10px;
-      font-size: 0.8rem;
-      font-weight: 700;
-      white-space: nowrap;
-    }
-
-    .advanced-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    details summary {
-      cursor: pointer;
-      color: var(--color-heading);
-      font-weight: 700;
-    }
-
-    .summary-box {
-      border-left: 4px solid #2f855a;
-      background: #f0fff4;
-      color: #1f3b2c;
-      padding: 12px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      font-size: 0.88rem;
-      overflow-wrap: anywhere;
-    }
-
-    .log-box {
-      border: 1px solid var(--color-border);
-      background: #1e2d3d;
-      color: #b4d4f8;
-      padding: 14px;
-      min-height: 92px;
-      max-height: 180px;
-      overflow: auto;
-      white-space: pre-wrap;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.82rem;
-      line-height: 1.5;
-    }
-
-    .mono {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    }
-
-    .muted-cell {
-      color: var(--color-muted);
-    }
-
-    @media (max-width: 1100px) {
-      .export-grid,
-      .advanced-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 720px) {
-      .export-header {
-        padding: 24px 18px;
-      }
-
-      .form-row {
-        grid-template-columns: 1fr;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="assets/send_melbourne.css" />
 </head>
 <body class="directory-body">
   <div id="navbarContainer"></div>
 
-  <div class="page-shell">
-    <main class="export-shell" id="exportMelbournePage">
-      <header class="export-header">
+  <div id="exportMelbournePage" class="page-shell export-shell">
+    <header class="export-hero">
+      <div class="export-hero__copy">
+        <p class="export-eyebrow">Melbourne export</p>
         <h1>Export To Melbourne</h1>
-        <p>Prepare a mirrored raw-log session for Melbourne marking and save the export zip to Downloads.</p>
-      </header>
+        <p class="export-hero__text">
+          Prepare a mirrored raw-log session, check the device map, assign schemes, and save the export zip to Downloads.
+        </p>
+      </div>
+      <div class="export-hero__meta">
+        <div class="export-metric">
+          <span class="export-metric__label">Flow</span>
+          <strong>Session to zip</strong>
+        </div>
+        <div class="export-metric">
+          <span class="export-metric__label">Review</span>
+          <strong>Devices and schemes</strong>
+        </div>
+        <div class="export-metric">
+          <span class="export-metric__label">Output</span>
+          <strong>Downloads folder</strong>
+        </div>
+      </div>
+    </header>
 
-      <section class="export-grid">
-        <div class="export-panel">
-          <div class="export-panel-header">Session</div>
-          <div class="export-panel-body">
+    <section class="export-layout">
+      <aside class="export-sidebar">
+        <section class="export-panel">
+          <div class="export-panel__header">Session</div>
+          <div class="export-panel__body">
             <div class="form-field">
               <label for="melbourneClassroomSelect">Classroom / Exam</label>
               <select id="melbourneClassroomSelect"></select>
@@ -282,18 +49,18 @@
               <select id="melbourneSessionSelect"></select>
             </div>
             <div class="path-readout" id="melbourneSessionPath">No mirrored session selected.</div>
-            <button type="button" class="button" id="refreshMelbourneBtn">Refresh Sessions</button>
+            <button type="button" class="button button--secondary" id="refreshMelbourneBtn">Refresh Sessions</button>
           </div>
-        </div>
+        </section>
 
-        <div class="export-panel">
-          <div class="export-panel-header">Exam Details</div>
-          <div class="export-panel-body">
+        <section class="export-panel">
+          <div class="export-panel__header">Exam Details</div>
+          <div class="export-panel__body">
             <div class="form-field">
               <label for="melbourneExamName">Exam name</label>
               <input id="melbourneExamName" type="text" placeholder="TNE20002 Mid Skills Exam Session 1" />
             </div>
-            <div class="form-row">
+            <div class="form-grid form-grid--split">
               <div class="form-field">
                 <label for="melbourneSemester">Semester</label>
                 <input id="melbourneSemester" type="text" value="2026 S1" />
@@ -303,7 +70,7 @@
                 <input id="melbourneTimeout" type="number" min="1" value="180" />
               </div>
             </div>
-            <div class="form-row">
+            <div class="form-grid form-grid--split">
               <div class="form-field">
                 <label for="melbourneUnitcode">Unit code</label>
                 <input id="melbourneUnitcode" type="text" />
@@ -318,82 +85,89 @@
               <input id="melbourneSchemeValues" type="text" value="A,B,C,D" />
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="export-panel">
-        <div class="export-panel-header">Devices</div>
-        <div class="table-scroll">
-          <table class="export-table">
-            <thead>
-              <tr>
-                <th>Folder</th>
-                <th>Type</th>
-                <th>Exam device name</th>
-              </tr>
-            </thead>
-            <tbody id="melbourneDevicesBody">
-              <tr><td colspan="3" class="muted-cell">Loading devices...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+        <section class="export-panel">
+          <div class="export-panel__header">Export Settings</div>
+          <div class="export-panel__body export-panel__body--compact">
+            <details class="export-details">
+              <summary>Advanced rubric settings</summary>
+              <div class="advanced-grid">
+                <div class="form-field">
+                  <label for="melbourneMaxMarks">Maximum marks</label>
+                  <input id="melbourneMaxMarks" type="number" min="1" value="100" />
+                </div>
+                <div class="form-field">
+                  <label for="melbourneMinorPenalties">Minor penalties</label>
+                  <input id="melbourneMinorPenalties" type="text" value="10,20,30,40" />
+                </div>
+                <div class="form-field">
+                  <label for="melbourneRubricName">Rubric name</label>
+                  <input id="melbourneRubricName" type="text" value="Major_Minor" />
+                </div>
+              </div>
+            </details>
 
-      <section class="export-panel">
-        <div class="export-panel-header">
-          <span>Scheme Assignment</span>
-          <span class="assigned-badge" id="melbourneSelectedLabel">0/0 assigned</span>
-        </div>
-        <div class="export-panel-body">
-          <div class="actions-row">
-            <select id="melbourneBulkScheme" class="bulk-select"></select>
-            <button type="button" class="button" id="melbourneApplySchemeBtn">Apply To All</button>
+            <button type="button" id="exportMelbourneBtn" class="export-button" disabled>Export</button>
+            <div id="melbourneSummary" class="summary-box" hidden></div>
           </div>
+        </section>
+      </aside>
+
+      <div class="export-main">
+        <section class="export-panel">
+          <div class="export-panel__header">Devices</div>
           <div class="table-scroll">
             <table class="export-table">
               <thead>
                 <tr>
-                  <th>Student ID</th>
-                  <th>Name</th>
-                  <th>Scheme</th>
+                  <th>Folder</th>
+                  <th>Type</th>
+                  <th>Exam device name</th>
                 </tr>
               </thead>
-              <tbody id="melbourneStudentsBody">
-                <tr><td colspan="3" class="muted-cell">Loading students...</td></tr>
+              <tbody id="melbourneDevicesBody">
+                <tr><td colspan="3" class="muted-cell">Loading devices...</td></tr>
               </tbody>
             </table>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="export-panel">
-        <div class="export-panel-header">Export</div>
-        <div class="export-panel-body">
-          <details>
-            <summary>Advanced rubric settings</summary>
-            <div class="advanced-grid" style="margin-top: 14px;">
-              <div class="form-field">
-                <label for="melbourneMaxMarks">Maximum marks</label>
-                <input id="melbourneMaxMarks" type="number" min="1" value="100" />
-              </div>
-              <div class="form-field">
-                <label for="melbourneMinorPenalties">Minor penalties</label>
-                <input id="melbourneMinorPenalties" type="text" value="10,20,30,40" />
-              </div>
-              <div class="form-field">
-                <label for="melbourneRubricName">Rubric name</label>
-                <input id="melbourneRubricName" type="text" value="Major_Minor" />
-              </div>
-            </div>
-          </details>
-          <div class="actions-row">
-            <button type="button" id="exportMelbourneBtn" class="export-button" disabled>Export</button>
+        <section class="export-panel">
+          <div class="export-panel__header export-panel__header--split">
+            <span>Scheme Assignment</span>
+            <span class="assigned-badge" id="melbourneSelectedLabel">0/0 assigned</span>
           </div>
-          <div id="melbourneSummary" class="summary-box" hidden></div>
-          <div id="melbourneLog" class="log-box">Waiting for session data...</div>
-        </div>
-      </section>
-    </main>
+          <div class="export-panel__body">
+            <div class="actions-row">
+              <select id="melbourneBulkScheme" class="bulk-select"></select>
+              <button type="button" class="button" id="melbourneApplySchemeBtn">Apply To All</button>
+            </div>
+            <div class="table-scroll">
+              <table class="export-table">
+                <thead>
+                  <tr>
+                    <th>Student ID</th>
+                    <th>Name</th>
+                    <th>Scheme</th>
+                  </tr>
+                </thead>
+                <tbody id="melbourneStudentsBody">
+                  <tr><td colspan="3" class="muted-cell">Loading students...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="export-panel">
+          <div class="export-panel__header">Export Log</div>
+          <div class="export-panel__body">
+            <div id="melbourneLog" class="log-box">Waiting for session data...</div>
+          </div>
+        </section>
+      </div>
+    </section>
   </div>
 
   <script src="renderer.js"></script>

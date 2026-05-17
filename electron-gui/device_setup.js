@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const addDeviceBtn = document.getElementById("addDeviceBtn");
   const clearSetupBtn = document.getElementById("clearSetupBtn");
   const saveBtn = document.getElementById("saveTemplateBtn");
+  const saveBar = saveBtn?.closest(".ds-save-bar");
   const container = document.getElementById("devicesContainer");
   const templateSelect = document.getElementById("templateSelect");
   const loadTemplateBtn = document.getElementById("loadTemplateBtn");
@@ -27,12 +28,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const devicesSubtitle = document.getElementById("devicesSubtitle");
   const deviceConfigCard = document.getElementById("deviceConfigCard");
   const setupModeSelector = document.getElementById("setupModeSelector");
-  const setupModeResetRow = document.getElementById("setupModeResetRow");
-  const cancelSetupModeBtn = document.getElementById("cancelSetupModeBtn");
-  const modeSummaryCard = document.getElementById("modeSummaryCard");
-  const fullManualSummaryPanel = document.getElementById("fullManualSummaryPanel");
-  const structureOnlySummaryPanel = document.getElementById("structureOnlySummaryPanel");
-  const logsFirstSummaryPanel = document.getElementById("logsFirstSummaryPanel");
+  const clearSetupModeBtn = document.getElementById("clearSetupModeBtn");
 
   const MODE_FULL_MANUAL = "full_manual";
   const MODE_STRUCTURE_ONLY = "structure_only";
@@ -204,7 +200,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     } else if (currentMode === MODE_LOGS_FIRST) {
       saveBtn.textContent = "Create Template From Logs Folder";
     } else {
-      saveBtn.textContent = "Choose Setup Mode";
+      saveBtn.textContent = "";
     }
     saveBtn.disabled = !currentMode;
   }
@@ -214,15 +210,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       radio.checked = radio.value === currentMode;
     });
 
-    if (setupModeSelector) setupModeSelector.classList.toggle("is-locked", Boolean(currentMode));
-    if (setupModeResetRow) setupModeResetRow.classList.toggle("is-visible", Boolean(currentMode));
-    if (modeSummaryCard) modeSummaryCard.classList.toggle("hidden", !currentMode);
     if (templateConfigCard) templateConfigCard.classList.toggle("hidden", !currentMode);
     if (deviceConfigCard) deviceConfigCard.classList.toggle("hidden", !currentMode);
+    if (saveBar) saveBar.style.display = currentMode ? "" : "none";
+    if (clearSetupModeBtn) clearSetupModeBtn.classList.toggle("is-visible", Boolean(currentMode));
 
-    if (fullManualSummaryPanel) fullManualSummaryPanel.classList.toggle("hidden", currentMode !== MODE_FULL_MANUAL);
-    if (structureOnlySummaryPanel) structureOnlySummaryPanel.classList.toggle("hidden", currentMode !== MODE_STRUCTURE_ONLY);
-    if (logsFirstSummaryPanel) logsFirstSummaryPanel.classList.toggle("hidden", currentMode !== MODE_LOGS_FIRST);
     if (fullManualPanel) fullManualPanel.classList.toggle("hidden", !(currentMode === MODE_FULL_MANUAL && loadedFromServer));
     if (structureOnlyPanel) structureOnlyPanel.classList.add("hidden");
     if (logsFirstPanel) logsFirstPanel.classList.toggle("hidden", currentMode !== MODE_LOGS_FIRST);
@@ -741,6 +733,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.querySelectorAll('input[name="templateSetupMode"]').forEach((radio) => {
     radio.addEventListener("change", () => {
       const selectedMode = normalizeMode(radio.value);
+      if (selectedMode === currentMode) return;
       clearDeviceSetup({ clearTemplateName: false });
       setMode(selectedMode);
     });
@@ -748,16 +741,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   setupModeSelector?.querySelectorAll(".radio-card").forEach((card) => {
     card.addEventListener("click", () => {
-      if (currentMode) return;
       const radio = card.querySelector('input[name="templateSetupMode"]');
       if (!radio) return;
       const selectedMode = normalizeMode(radio.value);
+      if (selectedMode === currentMode) return;
       clearDeviceSetup({ clearTemplateName: false });
       setMode(selectedMode);
     });
   });
 
-  cancelSetupModeBtn?.addEventListener("click", () => clearDeviceSetup());
+  clearSetupModeBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    clearDeviceSetup();
+  });
 
   chooseLogsFolderBtn?.addEventListener("click", chooseLogsFolder);
   chooseStrictFolderBtn?.addEventListener("click", chooseStrictFolder);

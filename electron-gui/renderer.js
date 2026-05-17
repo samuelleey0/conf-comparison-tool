@@ -130,14 +130,16 @@ function initNavbarInteractions() {
 function highlightActiveNavLink() {
   const links = document.querySelectorAll(".app-navbar__links a");
   if (!links.length) return;
-  let current = window.location.pathname.split("/").pop() || "directory.html";
-  current = current.toLowerCase();
+  const normalizeNavPath = (value) =>
+    (value || "")
+      .split("?")[0]
+      .split("#")[0]
+      .split("/")
+      .pop()
+      .toLowerCase() || "directory.html";
+  const current = normalizeNavPath(window.location.pathname);
   links.forEach((link) => {
-    const target =
-      (link.getAttribute("href") || "")
-        .split("/")
-        .pop()
-        .toLowerCase() || "directory.html";
+    const target = normalizeNavPath(link.getAttribute("href"));
     const isActive = target === current;
     link.classList.toggle("active", isActive);
   });

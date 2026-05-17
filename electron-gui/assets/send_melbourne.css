@@ -1,391 +1,401 @@
-.page-card.send-card {
-      position: relative;
-      overflow: hidden;
-      border-radius: 18px;
-      border: 1px solid rgba(19, 43, 79, 0.12);
-      background:
-        radial-gradient(circle at top right, rgba(186, 214, 255, 0.35), transparent 28%),
-        linear-gradient(180deg, #fcfdff 0%, #f5f8fc 100%);
-      box-shadow: 0 18px 38px rgba(16, 34, 64, 0.08);
-    }
+.export-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
 
-    .page-card.send-card::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        linear-gradient(90deg, rgba(11, 79, 145, 0.04) 1px, transparent 1px),
-        linear-gradient(rgba(11, 79, 145, 0.04) 1px, transparent 1px);
-      background-size: 24px 24px;
-      opacity: 0.35;
-      pointer-events: none;
-    }
+.export-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: stretch;
+  padding: 26px 28px;
+  border: 1px solid rgba(31, 59, 115, 0.14);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(18, 49, 92, 0.98) 0%, rgba(12, 89, 167, 0.95) 100%);
+  color: #f4f8ff;
+  box-shadow: 0 14px 30px rgba(16, 34, 64, 0.14);
+}
 
-    .send-stage {
-      position: relative;
-      z-index: 1;
-    }
+.export-eyebrow {
+  margin: 0 0 10px;
+  color: rgba(235, 243, 255, 0.78);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
 
-    .melb-hero {
-      display: flex;
-      align-items: stretch;
-      justify-content: space-between;
-      gap: 22px;
-      margin-bottom: 8px;
-      padding: 18px 20px;
-      border-radius: 16px;
-      background:
-        linear-gradient(135deg, rgba(15, 48, 92, 0.96) 0%, rgba(12, 89, 167, 0.94) 100%);
-      color: #f7fbff;
-      box-shadow: 0 14px 34px rgba(17, 53, 103, 0.22);
-    }
+.export-hero h1 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 1.9rem;
+  line-height: 1.15;
+}
 
-    .melb-hero-main {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      min-width: 0;
-    }
+.export-hero__text {
+  margin-top: 12px;
+  max-width: 760px;
+  color: rgba(235, 243, 255, 0.88);
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
 
-    .melb-hero-icon {
-      width: 54px;
-      height: 54px;
-      border-radius: 16px;
-      background: rgba(255, 255, 255, 0.14);
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #fff;
-      flex-shrink: 0;
-      backdrop-filter: blur(6px);
-    }
+.export-hero__meta {
+  display: grid;
+  gap: 10px;
+  align-content: center;
+}
 
-    .melb-hero-text h1 {
-      font-size: 1.55rem;
-      margin: 0 0 4px;
-      color: #fff;
-    }
+.export-metric {
+  padding: 14px 15px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
 
-    .melb-hero-text p {
-      max-width: 680px;
-      font-size: 0.9rem;
-      line-height: 1.55;
-      color: rgba(236, 244, 255, 0.88);
-    }
+.export-metric__label {
+  display: block;
+  margin-bottom: 4px;
+  color: rgba(235, 243, 255, 0.74);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
 
-    .melb-grid {
-      display: grid;
-      grid-template-columns: 340px minmax(0, 1fr);
-      gap: 22px;
-      margin-top: 24px;
-      align-items: start;
-    }
+.export-metric strong {
+  color: #ffffff;
+  font-size: 0.96rem;
+  font-weight: 700;
+}
 
-    @media (max-width: 920px) {
-      .melb-hero {
-        flex-direction: column;
-      }
+.export-layout {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
 
-      .melb-grid {
-        grid-template-columns: 1fr;
-      }
-    }
+.export-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 16px;
+}
 
-    .melb-controls {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      position: sticky;
-      top: 16px;
-    }
+.export-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
 
-    .melb-card {
-      border: 1px solid rgba(17, 54, 105, 0.12);
-      border-radius: 16px;
-      background: rgba(255, 255, 255, 0.86);
-      backdrop-filter: blur(10px);
-      overflow: hidden;
-      box-shadow: 0 10px 26px rgba(17, 54, 105, 0.07);
-    }
+.export-panel {
+  border: 1px solid rgba(31, 59, 115, 0.12);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--shadow-card);
+}
 
-    .melb-card-header {
-      padding: 15px 18px 13px;
-      border-bottom: 1px solid rgba(17, 54, 105, 0.1);
-      font-weight: 700;
-      font-size: 0.88rem;
-      color: var(--color-heading);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: linear-gradient(180deg, rgba(240, 246, 255, 0.95) 0%, rgba(252, 253, 255, 0.94) 100%);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
+.export-panel__header {
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(31, 59, 115, 0.1);
+  background: linear-gradient(180deg, rgba(243, 246, 252, 0.95) 0%, rgba(255, 255, 255, 0.98) 100%);
+  color: var(--color-heading);
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
 
-    .melb-card-header .icon {
-      width: 22px;
-      height: 22px;
-      border-radius: 999px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(11, 79, 145, 0.12);
-      color: #0b4f91;
-      font-size: 0.78rem;
-      font-style: normal;
-    }
+.export-panel__header--split {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
 
-    .melb-card-body {
-      padding: 18px;
-    }
+.export-panel__body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
 
-    .melb-card-body.spacious {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
+.export-panel__body--compact {
+  gap: 12px;
+}
 
-    .melb-form-group {
-      margin-bottom: 16px;
-    }
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
 
-    .melb-form-group:last-child {
-      margin-bottom: 0;
-    }
+.form-grid {
+  display: grid;
+  gap: 12px;
+}
 
-    .melb-form-group label {
-      display: block;
-      font-weight: 600;
-      font-size: 0.78rem;
-      margin-bottom: 6px;
-      color: var(--color-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
+.form-grid--split {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 
-    .melb-form-group select {
-      width: 100%;
-      padding: 12px 13px;
-      border-radius: 10px;
-      border: 1px solid rgba(20, 62, 121, 0.15);
-      background: #fff;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
-    }
+.form-field label {
+  margin: 0;
+  font-size: 0.79rem;
+  font-weight: 700;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
 
-    .melb-toolbar {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin: 0;
-    }
+.form-field input,
+.form-field select,
+.bulk-select {
+  min-width: 0;
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(31, 59, 115, 0.16);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--color-heading);
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
 
-    .melb-toolbar button {
-      flex: 1;
-      min-width: 0;
-      padding: 10px 10px;
-      font-size: 0.82rem;
-      border-radius: 10px !important;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 5px;
-    }
+.form-field input:focus,
+.form-field select:focus,
+.bulk-select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(31, 59, 115, 0.12);
+}
 
-    .melb-send-btn {
-      width: 100%;
-      padding: 14px 20px !important;
-      font-size: 0.95rem !important;
-      border-radius: 14px !important;
-      background: linear-gradient(135deg, #0e4f97 0%, #16335c 100%) !important;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: opacity 0.2s ease, transform 0.15s ease !important;
-      box-shadow: 0 12px 24px rgba(17, 54, 105, 0.22);
-      margin-top: 2px;
-    }
+.path-readout {
+  padding: 12px 13px;
+  border-radius: 6px;
+  border-left: 4px solid var(--color-primary);
+  background: var(--color-bg-soft);
+  color: var(--color-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
 
-    .melb-send-btn:hover:not(:disabled) {
-      opacity: 0.92;
-      transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(10, 92, 187, 0.3);
-    }
+.button,
+.export-button {
+  min-height: 42px;
+  border-radius: 6px;
+}
 
-    .melb-send-btn:disabled {
-      background: linear-gradient(135deg, #9aa9c5 0%, #8795ad 100%) !important;
-      box-shadow: none;
-    }
+.button--secondary {
+  background: #edf1f7;
+  color: var(--color-heading);
+  border-color: rgba(31, 59, 115, 0.12);
+}
 
-    .melb-student-panel {
-      border: 1px solid rgba(17, 54, 105, 0.12);
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.92);
-      backdrop-filter: blur(10px);
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      min-height: 480px;
-      box-shadow: 0 12px 28px rgba(17, 54, 105, 0.08);
-    }
+.button--secondary:hover:not(:disabled) {
+  background: #e3e8f1;
+  border-color: rgba(31, 59, 115, 0.18);
+}
 
-    .melb-student-header {
-      padding: 16px 18px;
-      border-bottom: 1px solid rgba(17, 54, 105, 0.08);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      background: linear-gradient(180deg, rgba(241, 246, 253, 0.95) 0%, rgba(255, 255, 255, 0.96) 100%);
-    }
+.export-button {
+  background: linear-gradient(135deg, #1f3b73 0%, #0a5cbb 100%);
+  border-color: #1f3b73;
+  color: #ffffff;
+  font-weight: 700;
+}
 
-    .melb-student-header strong {
-      font-size: 0.96rem;
-      color: var(--color-heading);
-    }
+.export-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #18315f 0%, #0950a3 100%);
+}
 
-    .melb-student-count {
-      font-size: 0.82rem;
-      color: var(--color-muted);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+.export-button:disabled {
+  background: #94a3ba;
+  border-color: #94a3ba;
+}
 
-    .melb-selected-badge {
-      padding: 5px 10px;
-      border-radius: 99px;
-      background: linear-gradient(135deg, #16335c, #0e4f97);
-      color: #fff;
-      font-weight: 600;
-      font-size: 0.78rem;
-      letter-spacing: 0.3px;
-    }
+.assigned-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(31, 59, 115, 0.1);
+  color: var(--color-primary);
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+}
 
-    .melb-student-list {
-      padding: 10px;
-      overflow-y: auto;
-      max-height: 65vh;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex: 1;
-      background:
-        linear-gradient(180deg, rgba(252, 253, 255, 0.82) 0%, rgba(247, 250, 255, 0.92) 100%);
-    }
+.actions-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 
-    .melb-student-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 13px 14px;
-      border-radius: 14px;
-      cursor: pointer;
-      transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
-      border: 1px solid rgba(17, 54, 105, 0.08);
-      user-select: none;
-      background: rgba(255, 255, 255, 0.95);
-    }
+.actions-row .bulk-select {
+  flex: 1 1 180px;
+}
 
-    .melb-student-row:hover {
-      background: #fff;
-      border-color: rgba(17, 54, 105, 0.14);
-      box-shadow: 0 8px 20px rgba(17, 54, 105, 0.08);
-      transform: translateY(-1px);
-    }
+.table-scroll {
+  max-height: 440px;
+  overflow: auto;
+  border-top: 1px solid rgba(31, 59, 115, 0.08);
+}
 
-    .melb-student-row.checked {
-      background: linear-gradient(135deg, rgba(232, 240, 255, 0.92) 0%, rgba(246, 249, 255, 0.96) 100%);
-      border-color: rgba(17, 54, 105, 0.22);
-      box-shadow: 0 10px 22px rgba(17, 54, 105, 0.09);
-    }
+.export-table {
+  width: 100%;
+  border-collapse: collapse;
+}
 
-    .melb-student-row input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
-      flex-shrink: 0;
-      accent-color: var(--color-primary);
-      cursor: pointer;
-    }
+.export-table th,
+.export-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid rgba(31, 59, 115, 0.1);
+  text-align: left;
+  vertical-align: middle;
+  font-size: 0.88rem;
+}
 
-    .melb-student-info {
-      flex: 1;
-      min-width: 0;
-    }
+.export-table th {
+  position: sticky;
+  top: 0;
+  background: #f7f9fd;
+  color: var(--color-heading);
+  font-weight: 700;
+  z-index: 1;
+}
 
-    .melb-student-name {
-      font-weight: 600;
-      font-size: 0.94rem;
-      color: var(--color-heading);
-      word-break: break-word;
-    }
+.export-table td select,
+.export-table td input {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 9px;
+  border-radius: 6px;
+  border: 1px solid rgba(31, 59, 115, 0.14);
+  background: #ffffff;
+}
 
-    .melb-student-path {
-      margin-top: 4px;
-      font-size: 0.78rem;
-      color: var(--color-muted);
-      word-break: break-all;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    }
+.export-table td strong {
+  color: var(--color-heading);
+}
 
-    .melb-student-avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, #edf3ff, #d7e2f7);
-      border: 1px solid rgba(17, 54, 105, 0.08);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 0.82rem;
-      color: var(--color-primary);
-      flex-shrink: 0;
-      text-transform: uppercase;
-    }
+.muted-cell {
+  color: var(--color-muted);
+}
 
-    .melb-log-section {
-      margin-top: 20px;
-    }
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
 
-    .melb-log-label {
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: var(--color-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 8px;
-    }
+.export-details {
+  border: 1px solid rgba(31, 59, 115, 0.1);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #f8faff;
+}
 
-    .melb-log {
-      border: 1px solid rgba(17, 54, 105, 0.18);
-      border-radius: 16px;
-      background:
-        linear-gradient(180deg, #14213d 0%, #10203c 100%);
-      color: #c2d4f1;
-      padding: 15px 16px;
-      min-height: 72px;
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.82rem;
-      line-height: 1.6;
-    }
+.export-details summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--color-heading);
+}
 
-    .melb-info {
-      padding: 14px 15px;
-      border-radius: 14px;
-      font-size: 0.84rem;
-      background: linear-gradient(135deg, #fff8e7, #fff0c8);
-      border: 1px solid #e9ce7e;
-      color: #664d08;
-      line-height: 1.5;
-      margin-top: 2px;
-    }
+.advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
 
-    @media (max-width: 920px) {
-      .melb-controls {
-        position: static;
-      }
-    }
+.summary-box {
+  border-radius: 8px;
+  border-left: 4px solid #2f855a;
+  background: #f0fff4;
+  color: #1f3b2c;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.log-box {
+  border: 1px solid rgba(31, 59, 115, 0.14);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #13213b 0%, #0f1c31 100%);
+  color: #c8d8f3;
+  padding: 14px 15px;
+  min-height: 120px;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.bulk-select,
+.log-box,
+.summary-box,
+.path-readout,
+.export-details,
+.export-panel,
+.export-hero {
+  box-sizing: border-box;
+}
+
+@media (max-width: 1120px) {
+  .export-layout,
+  .export-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .export-sidebar {
+    position: static;
+  }
+
+  .advanced-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .export-hero,
+  .export-panel__body {
+    padding: 18px;
+  }
+
+  .export-hero h1 {
+    font-size: 1.55rem;
+  }
+
+  .form-grid--split {
+    grid-template-columns: 1fr;
+  }
+
+  .actions-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions-row .bulk-select,
+  .actions-row button {
+    width: 100%;
+  }
+
+  .export-panel__header--split {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
