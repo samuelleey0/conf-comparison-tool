@@ -330,14 +330,16 @@ async function openRawLogPreview(report, hostname) {
 
     body.innerHTML = `
       <div class="raw-command-layout">
-        <div class="raw-command-sidebar" aria-label="Raw log commands">
+        <div class="raw-command-toolbar" aria-label="Raw log commands">
           <div class="raw-command-label">Choose Command</div>
-          ${logs.map((entry, index) => `
-            <button type="button" class="raw-command-btn" data-index="${index}">
-              <span>${escapeHtml(entry.command || `Command ${index + 1}`)}</span>
-              <small>${escapeHtml(rawLogAvailability(entry))}</small>
-            </button>
-          `).join("")}
+          <div class="raw-command-list">
+            ${logs.map((entry, index) => `
+              <button type="button" class="raw-command-btn" data-index="${index}">
+                <span>${escapeHtml(entry.command || `Command ${index + 1}`)}</span>
+                <small>${escapeHtml(rawLogAvailability(entry))}</small>
+              </button>
+            `).join("")}
+          </div>
         </div>
         <div id="rawCommandPreview" class="raw-command-preview">
           ${renderRawLogCommandPreview(null)}

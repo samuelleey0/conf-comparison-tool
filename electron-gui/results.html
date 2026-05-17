@@ -173,20 +173,20 @@
     }
 
     .raw-command-layout {
-      display: grid;
-      grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+      display: flex;
+      flex-direction: column;
       gap: 16px;
-      align-items: stretch;
       min-height: 0;
     }
 
-    .raw-command-sidebar {
+    .raw-command-toolbar {
       border: 1px solid var(--color-border);
       border-radius: 10px;
       background: var(--color-bg-soft);
       padding: 10px;
-      max-height: 64vh;
-      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
 
     .raw-command-label {
@@ -194,12 +194,20 @@
       font-size: 0.72rem;
       font-weight: 800;
       letter-spacing: 0.08em;
-      margin: 2px 2px 10px;
+      margin: 2px 2px 0;
       text-transform: uppercase;
     }
 
+    .raw-command-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      max-height: 168px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
     .raw-command-btn {
-      width: 100%;
       border: 1px solid transparent;
       border-radius: 8px;
       background: #fff;
@@ -208,10 +216,12 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
-      margin-bottom: 8px;
       padding: 10px 11px;
       text-align: left;
       transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+      flex: 1 1 280px;
+      min-width: min(320px, 100%);
+      max-width: 100%;
     }
 
     .raw-command-btn:hover {
@@ -528,11 +538,15 @@
       .context-tab-panel {
         grid-template-columns: 1fr;
       }
-      .raw-command-layout {
-        grid-template-columns: 1fr;
-      }
-      .raw-command-sidebar {
+      .raw-command-list {
+        flex-direction: column;
+        flex-wrap: nowrap;
         max-height: 220px;
+      }
+      .raw-command-btn {
+        min-width: 0;
+        width: 100%;
+        flex-basis: auto;
       }
       .context-pane pre {
         max-height: none;
