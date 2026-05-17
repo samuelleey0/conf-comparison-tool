@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,6 +8,7 @@
   <link rel="stylesheet" href="assets/style.css" />
   <link rel="stylesheet" href="assets/nav.css" />
 </head>
+
 <body class="connection-body">
   <div id="navbarContainer"></div>
 
@@ -27,29 +29,36 @@
         max-width: 1520px;
         margin: 0 auto;
       }
+
       .sample-left-col,
       .sample-right-col {
         min-width: 0;
       }
+
       @media (max-width: 1380px) {
         .sample-two-column {
           grid-template-columns: 1fr;
         }
       }
+
       body.sidebar-collapsed .sample-two-column {
         grid-template-columns: minmax(520px, 1fr) minmax(480px, 560px);
       }
+
       @media (max-width: 1240px) {
         body.sidebar-collapsed .sample-two-column {
           grid-template-columns: 1fr;
         }
       }
+
       .sample-left-col {
         min-width: 0;
       }
+
       .sample-left-col .page-card {
         overflow: visible;
       }
+
       .sample-left-col input[type="text"],
       .sample-left-col input[type="password"],
       .sample-left-col select,
@@ -57,58 +66,74 @@
         max-width: 100%;
         width: 100%;
       }
+
       .sample-left-col .form-row {
         flex-wrap: wrap;
         gap: 12px;
       }
+
       .sample-left-col .compact-row {
         display: grid;
         gap: 12px;
         align-items: end;
       }
+
       .sample-left-col .compact-row.compact-row--save {
         grid-template-columns: minmax(0, 1fr) auto;
       }
+
       .sample-left-col .compact-row.compact-row--template {
         grid-template-columns: minmax(0, 1fr) auto auto;
       }
-      .sample-left-col .compact-row > .form-group {
+
+      .sample-left-col .compact-row>.form-group {
         margin-bottom: 0;
         min-width: 0;
       }
-      .sample-left-col .compact-row > .form-group:not(.sample-action) {
+
+      .sample-left-col .compact-row>.form-group:not(.sample-action) {
         width: 100%;
       }
-      .sample-left-col .compact-row > .form-group.sample-action {
+
+      .sample-left-col .compact-row>.form-group.sample-action {
         width: auto;
       }
-      .sample-left-col .compact-row > .form-group.sample-action button {
+
+      .sample-left-col .compact-row>.form-group.sample-action button {
         min-width: 180px;
       }
+
       @media (max-width: 900px) {
+
         .sample-left-col .compact-row.compact-row--save,
         .sample-left-col .compact-row.compact-row--template {
           grid-template-columns: 1fr;
         }
-        .sample-left-col .compact-row > .form-group.sample-action {
+
+        .sample-left-col .compact-row>.form-group.sample-action {
           width: 100%;
         }
-        .sample-left-col .compact-row > .form-group.sample-action button {
+
+        .sample-left-col .compact-row>.form-group.sample-action button {
           width: 100%;
           min-width: 0;
         }
       }
+
       .sample-left-col .radio-card-grid {
         grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
       }
+
       .sample-mode-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 12px;
       }
+
       .sample-mode-panel.hidden {
         display: none;
       }
+
       .sample-mode-panel {
         margin-top: 16px;
         border: 1px solid var(--color-border);
@@ -116,27 +141,33 @@
         padding: 16px;
         background: var(--color-surface);
       }
+
       .sample-mode-panel h3 {
         margin: 0 0 6px;
         font-size: 1rem;
         color: var(--color-heading);
       }
+
       .sample-mode-panel .hint {
         margin-bottom: 12px;
       }
+
       .sample-mode-cancel {
         margin-top: 12px;
       }
+
       .sample-blocked {
         opacity: 0.45;
         pointer-events: none;
         filter: saturate(0.7);
       }
+
       @media (max-width: 900px) {
         .sample-mode-grid {
           grid-template-columns: 1fr;
         }
       }
+
       .log-tabs {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -148,7 +179,12 @@
         background: var(--color-bg-soft);
         margin-bottom: 14px;
       }
+
       .log-tab {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
         border: 1px solid transparent;
         background: transparent;
         color: var(--color-muted);
@@ -159,26 +195,77 @@
         cursor: pointer;
         transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
       }
+
+      .log-tab-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 5px;
+        font-size: 0.78rem;
+        font-weight: 900;
+        line-height: 1;
+        background: rgba(100, 116, 139, 0.12);
+        color: currentColor;
+      }
+
       .log-tab.active {
-        background: var(--color-surface);
-        color: var(--color-primary);
-        border-color: rgba(31, 59, 115, 0.14);
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
       }
-      .log-tab:hover {
-        color: var(--color-heading);
+
+      .log-tab--activity.active {
+        background: #1f3b73;
+        color: #fff;
+        border-color: #1f3b73;
       }
+
+      .log-tab--terminal.active {
+        background: #111827;
+        color: #10b981;
+        border-color: #111827;
+      }
+
+      .log-tab.active .log-tab-icon {
+        background: rgba(255, 255, 255, 0.16);
+      }
+
+      .log-tab--activity:hover {
+        color: #facc15 !important;
+        background: rgba(46, 3, 54, 0.584) !important;
+        border-color: rgba(59, 130, 246, 0.35) !important;
+      }
+
+      .log-tab--terminal:hover {
+        color: #f87171 !important;
+        background: rgba(32, 229, 206, 0.811) !important;
+        border-color: rgba(20, 184, 166, 0.35) !important;
+      }
+
+      .log-tab--activity.active:hover {
+        background: #2a4d99 !important;
+        color: #facc15 !important;
+      }
+
+      .log-tab--terminal.active:hover {
+        background: #1e2d40 !important;
+        color: #f87171 !important;
+      }
+
       .log-panel.hidden {
         display: none;
       }
+
       .log-surface {
         padding: 12px;
         border-radius: 8px;
       }
+
       .log-display {
         height: 380px;
         margin: 0;
       }
+
       .collected-badge {
         display: inline-flex;
         align-items: center;
@@ -191,19 +278,28 @@
         border: 1px solid rgba(31, 59, 115, 0.2);
         animation: fadeIn 0.3s ease-out;
       }
+
       .collected-badge svg {
         margin-right: 6px;
         width: 16px;
         height: 16px;
       }
+
       @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(4px); }
-        to { opacity: 1; transform: translateY(0); }
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
       }
     </style>
 
     <div class="sample-two-column" id="sampleCollectPage">
-      
+
       <!-- Left Column: Settings -->
       <div class="sample-left-col">
         <section class="page-card">
@@ -274,10 +370,12 @@
                   <button type="button" class="btn-outline" id="cancelTemplateModeBtn">Cancel Mode</button>
                 </div>
               </div>
-              
+
               <div id="sampleTemplateView" class="hidden">
                 <div id="sampleTemplateInfo" class="hint" style="margin-bottom: 12px;">Template loaded.</div>
-                <div id="sampleTemplateDevices" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card); margin-bottom: 12px;"></div>
+                <div id="sampleTemplateDevices"
+                  style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card); margin-bottom: 12px;">
+                </div>
                 <div id="sampleActiveDeviceInfo" class="hint" style="margin-bottom: 0;"></div>
               </div>
             </div>
@@ -285,8 +383,11 @@
             <div id="sampleManualPanel" class="sample-mode-panel hidden">
               <h3>Manual Mode</h3>
               <p class="hint">Search and select commands directly for this collection run.</p>
-              <input type="text" id="sampleCommandSearch" placeholder="Search commands..." style="margin-bottom: 10px;" />
-              <div id="sampleCommandsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card);"></div>
+              <input type="text" id="sampleCommandSearch" placeholder="Search commands..."
+                style="margin-bottom: 10px;" />
+              <div id="sampleCommandsList"
+                style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card);">
+              </div>
               <div class="actions align-left" style="margin-top: 10px;">
                 <button type="button" id="selectAllSampleCmds" class="btn-outline">Select All</button>
                 <button type="button" id="clearSampleCmds" class="btn-outline">Clear</button>
@@ -305,7 +406,8 @@
             </div>
           </div>
           <div class="form-group" style="margin-bottom: 16px;">
-            <div class="radio-card-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 16px;">
+            <div class="radio-card-grid"
+              style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 16px;">
               <label class="radio-card" style="padding: 14px 18px;">
                 <input type="radio" name="sampleConnType" value="serial" checked />
                 <div class="radio-card-header" style="margin-bottom: 0;">
@@ -324,11 +426,15 @@
 
             <div id="sampleSerialFields">
               <div class="inline-options" style="margin-bottom: 10px;">
-                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="linux_usb" checked /> Linux USB-Serial</label>
-                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="linux_rs232" /> Linux RS232</label>
-                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="windows" /> Windows</label>
+                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="linux_usb" checked />
+                  Linux USB-Serial</label>
+                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="linux_rs232" /> Linux
+                  RS232</label>
+                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="windows" />
+                  Windows</label>
                 <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="mac" /> macOS</label>
-                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="custom" /> Custom</label>
+                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="custom" />
+                  Custom</label>
               </div>
               <label for="sampleSerialPort">Serial Port</label>
               <input type="text" id="sampleSerialPort" placeholder="/dev/ttyUSB0" />
@@ -358,9 +464,12 @@
             </div>
           </div>
 
-          <div class="actions justify-end" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--color-border);">
-            <button type="button" id="stopSampleCollectBtn" class="abort-btn" style="display: none;">⏹ Stop Execution</button>
-            <button type="button" id="runSampleCollectBtn" class="primary" style="font-size: 1.05rem; padding: 12px 32px;">Collect Logs</button>
+          <div class="actions justify-end"
+            style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--color-border);">
+            <button type="button" id="stopSampleCollectBtn" class="abort-btn" style="display: none;">⏹ Stop
+              Execution</button>
+            <button type="button" id="runSampleCollectBtn" class="primary"
+              style="font-size: 1.05rem; padding: 12px 32px;">Collect Logs</button>
           </div>
         </section>
       </div>
@@ -369,13 +478,13 @@
       <div class="sample-right-col">
         <section class="page-card" style="padding: 24px; position: sticky; top: 20px;">
           <h3 style="margin: 0 0 16px; font-size: 1.1rem; color: var(--color-heading);">Session Progress</h3>
-          
+
           <div id="sampleStatus" class="status-banner" style="margin-bottom: 20px;">
             <div class="status-banner__icon">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5"/>
-                <path d="M10 9v5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                <circle cx="10" cy="6.5" r="1" fill="currentColor"/>
+                <circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5" />
+                <path d="M10 9v5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                <circle cx="10" cy="6.5" r="1" fill="currentColor" />
               </svg>
             </div>
             <div class="status-banner__body">
@@ -385,15 +494,23 @@
           </div>
 
           <div style="margin-bottom: 24px;">
-            <h4 style="margin: 0 0 10px; font-size: 0.8rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.05em;">Collected So Far</h4>
+            <h4
+              style="margin: 0 0 10px; font-size: 0.8rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.05em;">
+              Collected So Far</h4>
             <div id="collectedDevicesList" style="display: flex; flex-wrap: wrap; gap: 8px;">
               <span class="hint" id="noDevicesHint">No devices collected yet.</span>
             </div>
           </div>
-          
+
           <div class="log-tabs" id="sampleLogTabs">
-            <button type="button" class="log-tab active" data-target="sampleActivityPanel">Activity Log</button>
-            <button type="button" class="log-tab" data-target="sampleTerminalPanel">Terminal Output</button>
+            <button type="button" class="log-tab log-tab--activity active" data-target="sampleActivityPanel">
+              <span class="log-tab-icon" aria-hidden="true">☰</span>
+              <span>Activity Log</span>
+            </button>
+            <button type="button" class="log-tab log-tab--terminal" data-target="sampleTerminalPanel">
+              <span class="log-tab-icon" aria-hidden="true">&gt;_</span>
+              <span>Terminal Output</span>
+            </button>
           </div>
           <div id="sampleActivityPanel" class="log-panel">
             <div class="status-panel modern log-surface">
@@ -411,7 +528,8 @@
               <span class="step-heading__num step-heading__num--danger">!</span>
               <div>
                 <h4 class="danger-zone__title">Danger Zone</h4>
-                <p class="danger-zone__desc">This will erase the connected Cisco device configuration and reload it. Only use after collection is complete.</p>
+                <p class="danger-zone__desc">This will erase the connected Cisco device configuration and reload it.
+                  Only use after collection is complete.</p>
               </div>
             </div>
             <div class="actions danger-zone__actions">
@@ -433,4 +551,5 @@
   <script src="renderer.js"></script>
   <script src="sample_collect.js"></script>
 </body>
+
 </html>

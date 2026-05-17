@@ -20,6 +20,10 @@
     }
 
     .log-tab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
       border: 1px solid transparent;
       background: transparent;
       color: var(--color-muted);
@@ -31,15 +35,60 @@
       transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     }
 
+    .log-tab-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      font-size: 0.78rem;
+      font-weight: 900;
+      line-height: 1;
+      background: rgba(100, 116, 139, 0.12);
+      color: currentColor;
+    }
+
     .log-tab.active {
-      background: var(--color-surface);
-      color: var(--color-primary);
-      border-color: rgba(31, 59, 115, 0.14);
       box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
     }
 
-    .log-tab:hover {
-      color: var(--color-heading);
+    .log-tab--activity.active {
+      background: #1f3b73;
+      color: #fff;
+      border-color: #1f3b73;
+    }
+
+    .log-tab--terminal.active {
+      background: #111827;
+      color: #10b981;
+      border-color: #111827;
+    }
+
+    .log-tab.active .log-tab-icon {
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    .log-tab--activity:hover {
+      color: #facc15 !important;
+      background: rgba(46, 3, 54, 0.584) !important;
+      border-color: rgba(59, 130, 246, 0.35) !important;
+    }
+
+    .log-tab--terminal:hover {
+      color: #f87171 !important;
+      background: rgba(32, 229, 206, 0.811) !important;
+      border-color: rgba(20, 184, 166, 0.35) !important;
+    }
+
+    .log-tab--activity.active:hover {
+      background: #2a4d99 !important;
+      color: #facc15 !important;
+    }
+
+    .log-tab--terminal.active:hover {
+      background: #1e2d40 !important;
+      color: #f87171 !important;
     }
 
     .log-panel.hidden {
@@ -75,17 +124,18 @@
           <span class="step-heading__num">1</span>
           <div>
             <h2 class="section-title">Confirm Device Queue</h2>
-            <p class="step-heading__hint">Check the students/devices that will run. If you want to skip the queue and collect a specific device first, click "Collect this".</p>
+            <p class="step-heading__hint">Check the students/devices that will run. If you want to skip the queue and
+              collect a specific device first, click "Collect this".</p>
           </div>
         </div>
         <form id="connectionForm">
           <div class="form-group connection-queue">
             <div class="connection-queue__header">
-               <label>Device Queue</label>
-               <span id="queueStatus" class="connection-queue__status">Idle</span>
+              <label>Device Queue</label>
+              <span id="queueStatus" class="connection-queue__status">Idle</span>
             </div>
             <div id="deviceQueueContainer" class="connection-queue__list">
-               <!-- Populated by JS -->
+              <!-- Populated by JS -->
             </div>
           </div>
           <div class="step-heading step-heading--compact">
@@ -103,15 +153,20 @@
           <div id="serialFields">
             <p class="hint">Choose the preset that matches your system or select custom.</p>
             <div class="inline-options connection-preset-grid">
-              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset" value="linux_usb" checked /> Linux USB-Serial
+              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset"
+                  value="linux_usb" checked /> Linux USB-Serial
                 (/dev/ttyUSB0)</label>
-              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset" value="linux_rs232" /> Linux
+              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset"
+                  value="linux_rs232" /> Linux
                 RS232 (/dev/ttyS0)</label>
-              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset" value="windows" /> Windows
+              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset"
+                  value="windows" /> Windows
                 (COM3)</label>
-              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset" value="mac" /> macOS
+              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset"
+                  value="mac" /> macOS
                 (/dev/cu.usbserial-10)</label>
-              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset" value="custom" /> Custom</label>
+              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset"
+                  value="custom" /> Custom</label>
             </div>
             <label for="serialPort">Serial Port</label>
             <input type="text" id="serialPort" placeholder="/dev/ttyUSB0" />
@@ -151,8 +206,14 @@
           <button type="button" id="clearLogBtn" class="link-btn">Clear Log</button>
         </header>
         <div class="log-tabs" id="connectionLogTabs">
-          <button type="button" class="log-tab active" data-target="connectionActivityPanel">Activity Log</button>
-          <button type="button" class="log-tab" data-target="connectionTerminalPanel">Terminal Output</button>
+          <button type="button" class="log-tab log-tab--activity active" data-target="connectionActivityPanel">
+            <span class="log-tab-icon" aria-hidden="true">☰</span>
+            <span>Activity Log</span>
+          </button>
+          <button type="button" class="log-tab log-tab--terminal" data-target="connectionTerminalPanel">
+            <span class="log-tab-icon" aria-hidden="true">&gt;_</span>
+            <span>Terminal Output</span>
+          </button>
         </div>
         <div id="connectionActivityPanel" class="log-panel">
           <div class="status-panel modern log-surface">
@@ -165,17 +226,19 @@
           </div>
         </div>
         <div class="actions justify-end connection-action-grid">
-          <button type="button" id="abortExecutionBtn" class="abort-btn connection-action-grid__abort" style="display: none;">⏹ Stop Execution</button>
+          <button type="button" id="abortExecutionBtn" class="abort-btn connection-action-grid__abort"
+            style="display: none;">⏹ Stop Execution</button>
           <button type="button" id="startSequenceBtn" class="primary">Start Auto-Execution Sequence</button>
-          <button type="button" id="doneStudentBtn" class="primary connection-action-grid__done"
-            disabled>Done (Next Student)</button>
+          <button type="button" id="doneStudentBtn" class="primary connection-action-grid__done" disabled>Done (Next
+            Student)</button>
         </div>
         <div class="danger-zone">
           <div class="danger-zone__header">
             <span class="step-heading__num step-heading__num--danger">4</span>
             <div>
               <h4 class="danger-zone__title">Danger Zone</h4>
-              <p class="danger-zone__desc">These actions will erase the device's running and startup configuration and reload it. This cannot be undone. Only use after grading is complete.</p>
+              <p class="danger-zone__desc">These actions will erase the device's running and startup configuration and
+                reload it. This cannot be undone. Only use after grading is complete.</p>
             </div>
           </div>
           <div class="actions danger-zone__actions">

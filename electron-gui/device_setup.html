@@ -10,7 +10,7 @@
   <style>
     /* ── Page container ──────────────────────────────────────── */
     #deviceSetupPage {
-      max-width: 860px;
+      max-width: 1180px;
       margin: 0 auto;
       overflow: visible;
     }
@@ -145,6 +145,147 @@
       margin-top: 4px;
     }
 
+    .ds-mode-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .ds-mode-grid .radio-card {
+      border-width: 2px;
+    }
+
+    .ds-mode-grid .radio-card[data-mode-card="full"] {
+      border-color: rgba(10, 92, 187, 0.28);
+      background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 100%);
+    }
+
+    .ds-mode-grid .radio-card[data-mode-card="structure"] {
+      border-color: rgba(36, 126, 85, 0.28);
+      background: linear-gradient(180deg, #ffffff 0%, #f1fbf6 100%);
+    }
+
+    .ds-mode-grid .radio-card[data-mode-card="logs"] {
+      border-color: rgba(146, 95, 27, 0.3);
+      background: linear-gradient(180deg, #ffffff 0%, #fff8ed 100%);
+    }
+
+    .ds-mode-grid .radio-card[data-mode-card="full"]:hover,
+    .ds-mode-grid .radio-card[data-mode-card="full"]:has(input[type="radio"]:checked) {
+      border-color: #0a5cbb;
+      box-shadow: 0 8px 24px rgba(10, 92, 187, 0.14);
+    }
+
+    .ds-mode-grid .radio-card[data-mode-card="structure"]:hover,
+    .ds-mode-grid .radio-card[data-mode-card="structure"]:has(input[type="radio"]:checked) {
+      border-color: #247e55;
+      box-shadow: 0 8px 24px rgba(36, 126, 85, 0.14);
+    }
+
+    .ds-mode-grid .radio-card[data-mode-card="logs"]:hover,
+    .ds-mode-grid .radio-card[data-mode-card="logs"]:has(input[type="radio"]:checked) {
+      border-color: #925f1b;
+      box-shadow: 0 8px 24px rgba(146, 95, 27, 0.14);
+    }
+
+    .mode-pill {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      margin-bottom: 10px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .mode-pill--blue {
+      background: rgba(10, 92, 187, 0.1);
+      color: #0a4f9d;
+    }
+
+    .mode-pill--green {
+      background: rgba(36, 126, 85, 0.12);
+      color: #1f6b48;
+    }
+
+    .mode-pill--amber {
+      background: rgba(146, 95, 27, 0.12);
+      color: #7a4f16;
+    }
+
+    .ds-mode-grid.is-locked {
+      opacity: 0.48;
+      pointer-events: none;
+      filter: saturate(0.75);
+    }
+
+    .ds-mode-panel.hidden,
+    .ds-card.hidden {
+      display: none;
+    }
+
+    .ds-mode-panel {
+      margin-top: 16px;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      padding: 16px;
+      background: var(--color-bg-soft);
+    }
+
+    .ds-card-header + .ds-mode-panel {
+      margin-top: 0;
+      margin-bottom: 18px;
+    }
+
+    .ds-mode-panel h3 {
+      margin: 0 0 6px;
+      font-size: 1rem;
+      color: var(--color-heading);
+    }
+
+    .ds-mode-panel .template-mode-note {
+      margin-bottom: 12px;
+    }
+
+    .ds-mode-panel-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .ds-mode-reset-row {
+      display: none;
+      justify-content: flex-end;
+      margin-top: 12px;
+    }
+
+    .ds-mode-reset-row.is-visible {
+      display: flex;
+    }
+
+    .mode-cancel-btn {
+      background: rgba(197, 62, 62, 0.08);
+      border: 1px solid rgba(197, 62, 62, 0.45);
+      color: var(--color-danger);
+      padding: 9px 18px;
+      font-size: 0.9rem;
+      font-weight: 800;
+      border-radius: 0 !important;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+    }
+
+    .mode-cancel-btn:hover {
+      background: rgb(255, 0, 0) !important;
+      border-color: rgb(255, 0, 0) !important;
+      color: #fff !important;
+      box-shadow: 0 4px 12px rgba(255, 0, 0, 0.12);
+    }
+
     .btn-outline {
       background: transparent;
       border: 1px solid var(--color-border);
@@ -158,14 +299,14 @@
     }
 
     .btn-outline:hover {
-      border-color: var(--color-muted);
-      color: var(--color-heading);
-      background: var(--color-bg-soft);
+      border-color: #334155 !important;
+      color: #fff !important;
+      background: #334155 !important;
     }
 
     .btn-accent {
       background: var(--color-accent);
-      border: none;
+      border: 1px solid var(--color-accent);
       color: #fff;
       padding: 8px 16px;
       font-size: 0.875rem;
@@ -176,7 +317,9 @@
     }
 
     .btn-accent:hover {
-      background: var(--color-primary);
+      background: #173b78;
+      border-color: #173b78;
+      color: #fff;
     }
 
     /* ── Save bar ────────────────────────────────────────────── */
@@ -271,9 +414,9 @@
     }
 
     .remove-device-btn:hover {
-      background: rgba(197, 62, 62, 0.08);
-      border-color: rgba(197, 62, 62, 0.3);
-      color: var(--color-danger);
+      background: rgb(255, 0, 0) !important;
+      border-color: rgba(255, 133, 133, 0.3);
+      color: rgb(255, 255, 255);
     }
 
     /* ── Custom Dropdown ─────────────────────────────────────── */
@@ -512,6 +655,10 @@
 
     /* ── Responsive ──────────────────────────────────────────── */
     @media (max-width: 720px) {
+      .ds-mode-grid {
+        grid-template-columns: 1fr;
+      }
+
       .ds-form-row {
         gap: 16px;
       }
@@ -556,24 +703,93 @@
       </header>
       <hr class="ds-divider" />
 
-      <!-- Template Configuration -->
       <div class="ds-card">
         <div class="ds-card-header">
-          <span class="ds-card-title">Template</span>
-          <span class="ds-card-subtitle">Create a new template or load an existing one</span>
+          <span class="ds-card-title">Setup Mode</span>
+          <span class="ds-card-subtitle">Choose one workflow first</span>
         </div>
+        <div class="ds-mode-grid" id="setupModeSelector">
+          <label class="radio-card" data-mode-card="full">
+            <input type="radio" name="templateSetupMode" value="full_manual" />
+            <span class="mode-pill mode-pill--blue">Upload logs now</span>
+            <div class="radio-card-header">
+              <span class="radio-card-title">Build Full Template Manually</span>
+              <div class="radio-card-indicator"></div>
+            </div>
+            <p class="radio-card-desc">Add or load devices, choose commands, then attach the raw log file for each command. Use this when your logs are ready now.</p>
+          </label>
+          <label class="radio-card" data-mode-card="structure">
+            <input type="radio" name="templateSetupMode" value="structure_only" />
+            <span class="mode-pill mode-pill--green">Collect logs later</span>
+            <div class="radio-card-header">
+              <span class="radio-card-title">Create Device List Only</span>
+              <div class="radio-card-indicator"></div>
+            </div>
+            <p class="radio-card-desc">Set up device names and required commands without uploading logs. Use this before collecting sample logs from the Sample Logs page.</p>
+          </label>
+          <label class="radio-card" data-mode-card="logs">
+            <input type="radio" name="templateSetupMode" value="logs_first" />
+            <span class="mode-pill mode-pill--amber">Folder import</span>
+            <div class="radio-card-header">
+              <span class="radio-card-title">Build From Logs Folder</span>
+              <div class="radio-card-indicator"></div>
+            </div>
+            <p class="radio-card-desc">Choose one collected folder that already contains device folders and command logs. The app creates the full template automatically.</p>
+          </label>
+        </div>
+        <div class="ds-mode-reset-row" id="setupModeResetRow">
+          <button type="button" id="cancelSetupModeBtn" class="mode-cancel-btn">Cancel Selected Mode</button>
+        </div>
+      </div>
+
+      <div class="ds-card hidden" id="modeSummaryCard">
+        <div id="fullManualSummaryPanel" class="ds-mode-panel hidden">
+          <h3>Build Full Template Manually</h3>
+          <p class="template-mode-note">Use the Devices section below to select commands. Each selected command shows a file picker so you can attach its matching raw log.</p>
+        </div>
+
+        <div id="structureOnlySummaryPanel" class="ds-mode-panel hidden">
+          <h3>Create Device List Only</h3>
+          <p class="template-mode-note">Use the Devices section below to define device names and required commands. No log files are required in this mode.</p>
+        </div>
+
+        <div id="logsFirstSummaryPanel" class="ds-mode-panel hidden">
+          <h3>Build From Logs Folder</h3>
+          <p class="template-mode-note">Use this when you already have a collected logs folder. Device folders become template devices and log filenames become commands.</p>
+        </div>
+      </div>
+
+      <!-- Template Configuration -->
+      <div class="ds-card hidden" id="templateConfigCard">
+        <div class="ds-card-header">
+          <span class="ds-card-title">Template</span>
+          <span class="ds-card-subtitle" id="templateConfigSubtitle">Create a new template or load an existing one</span>
+        </div>
+        <div id="logsFirstPanel" class="ds-mode-panel hidden">
+          <div class="ds-form-row">
+            <div class="ds-form-group">
+              <label>Collected Logs Folder</label>
+              <div class="ds-load-row">
+                <button type="button" id="chooseLogsFolderBtn" class="btn-accent">Choose Logs Folder</button>
+                <span id="logsFolderLabel" class="selected-path">No folder selected</span>
+              </div>
+              <p class="template-mode-note">Expected folder shape: one folder per hostname, with raw command output files inside each hostname folder.</p>
+            </div>
+          </div>
+        </div>
+
         <div class="ds-form-row">
           <div class="ds-form-group">
             <label for="templateName">Template Name</label>
             <input type="text" id="templateName" placeholder="e.g. TNE10016" required />
-            <p class="template-mode-note">
-              <strong>Create new:</strong> type a new template name here. Existing-template loading will be disabled while this field has text.
+            <p class="template-mode-note" id="templateNameHelp">
+              Type a new template name, or load an existing template when the selected mode allows it.
             </p>
           </div>
-          <div class="ds-form-group">
+          <div class="ds-form-group" id="loadExistingGroup">
             <label>Load Existing Template</label>
             <p class="template-mode-note">
-              <strong>Load existing:</strong> leave Template Name empty, choose a saved template below, then click Load.
+              Select a saved template to edit, fill with logs, or save as a new template.
             </p>
             <div class="ds-load-row">
               <div id="templateSelect" class="app-select"></div>
@@ -583,55 +799,33 @@
         </div>
       </div>
 
-      <div class="ds-card">
-        <div class="ds-card-header">
-          <span class="ds-card-title">Setup Mode</span>
-          <span class="ds-card-subtitle">Choose whether to build from collected logs or define devices manually</span>
-        </div>
-        <div class="radio-card-grid">
-          <label class="radio-card">
-            <input type="radio" name="templateSetupMode" value="logs" checked />
-            <div class="radio-card-header">
-              <span class="radio-card-title">Logs First</span>
-              <div class="radio-card-indicator"></div>
-            </div>
-            <p class="radio-card-desc">Choose one collected sample-log folder. The system will detect hostnames and commands automatically.</p>
-          </label>
-          <label class="radio-card">
-            <input type="radio" name="templateSetupMode" value="manual" />
-            <div class="radio-card-header">
-              <span class="radio-card-title">Manual Setup</span>
-              <div class="radio-card-indicator"></div>
-            </div>
-            <p class="radio-card-desc">Define devices and commands now, then collect the lecturer logs later from Sample Collect.</p>
-          </label>
-        </div>
-        <div id="logsFirstPanel">
-          <div class="ds-form-row">
-            <div class="ds-form-group" style="flex: 1;">
-              <label>Collected Logs Folder</label>
-              <div class="ds-load-row">
-                <button type="button" id="chooseLogsFolderBtn" class="btn-accent">Choose Folder</button>
-                <span id="logsFolderLabel" class="selected-path">No folder selected</span>
-              </div>
-              <p class="template-mode-note">Expected structure: one device folder per hostname, with command output files inside each device folder.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Device Configuration -->
-      <div class="ds-card" id="deviceConfigCard">
+      <div class="ds-card hidden" id="deviceConfigCard">
         <div class="ds-card-header">
           <span class="ds-card-title">Devices</span>
           <span class="ds-card-subtitle" id="devicesSubtitle">Add and configure network devices</span>
         </div>
 
+        <div id="fullManualPanel" class="ds-mode-panel hidden">
+          <div id="strictFolderPanel" class="hidden">
+            <div class="ds-form-group">
+              <label>Optional: Fill Loaded Template From Folder</label>
+              <div class="ds-load-row">
+                <button type="button" id="chooseStrictFolderBtn" class="btn-accent">Choose Logs Folder</button>
+                <span id="strictFolderLabel" class="selected-path">No folder selected</span>
+              </div>
+              <p class="template-mode-note">Use this after loading an existing device-list template. Only matching devices and commands are copied; extra files are ignored.</p>
+            </div>
+          </div>
+        </div>
+
+        <div id="structureOnlyPanel" class="ds-mode-panel hidden"></div>
+
         <div id="devicesContainer"></div>
 
         <div class="ds-toolbar" id="manualToolbar">
-          <button type="button" id="addDeviceBtn" class="btn-accent">+ Add Device</button>
-          <button type="button" id="clearSetupBtn" class="btn-outline">Clear All</button>
+          <button type="button" id="addDeviceBtn" class="btn-accent">Add Another Device</button>
+          <button type="button" id="clearSetupBtn" class="btn-outline">Clear Device List</button>
         </div>
       </div>
 

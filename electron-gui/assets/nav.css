@@ -87,7 +87,7 @@ body.sidebar-collapsed .sidebar-toggle {
 }
 
 .global-template-badge {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
   margin-top: 10px;
@@ -99,11 +99,23 @@ body.sidebar-collapsed .sidebar-toggle {
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.03em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   transition: opacity 0.3s ease;
+}
+
+.global-template-badge svg {
+  flex: 0 0 auto;
+}
+
+#globalTemplateName {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.25;
+  max-height: 2.5em;
+  overflow: hidden;
 }
 
 .global-template-badge.hidden {
