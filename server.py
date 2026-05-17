@@ -51,7 +51,6 @@ from grading_rules import (
     save_grading_policy,
     save_rubric_rules,
 )
-from comparison_wrapper import import_logs_folder_strict, import_template_from_logs_dir, save_template_setup
 from export_melbourne import export_to_melbourne
 from results_service import (
     _build_session_reports,
@@ -66,6 +65,16 @@ from results_service import (
     _render_combined_raw_logs,
     _safe_resolve_child,
     _write_session_readable_results,
+)
+from template_service import (
+    delete_templates,
+    get_template_details,
+    handle_upload,
+    import_template_logs_folder,
+    list_templates,
+    load_template_configs,
+    save_template_structure,
+    template_has_baseline,
 )
 
 app = Flask(__name__)
@@ -2343,129 +2352,17 @@ def api_melbourne_send():
 # -------------------------------------------------
 @app.route("/api/admin/templates", methods=["GET"])
 def api_admin_list_templates():
-    templates = []
-    if TEMPLATES_DIR.is_dir():
-        for entry in sorted(TEMPLATES_DIR.iterdir()):
-            if entry.is_dir():
-                templates.append(entry.name)
-    return jsonify({"status": "ok", "templates": templates})
-
-
-def _template_manifest_path(template_name: str) -> Path:
-    return TEMPLATES_DIR / template_name / "template_manifest.json"
-
-
-def _load_template_manifest(template_name: str):
-    target = _safe_resolve_child(TEMPLATES_DIR, TEMPLATES_DIR / template_name)
-    if not target or not target.exists():
-        return None
-
-    manifest_path = target / "template_manifest.json"
-    if manifest_path.exists():
-        try:
-            with open(manifest_path, "r") as handle:
-                manifest = json.load(handle) or {}
-            manifest.setdefault("template_name", template_name)
-            manifest.setdefault("devices_meta", {})
-            manifest["has_baseline"] = bool(manifest.get("has_baseline"))
-            return manifest
-        except Exception:
-            pass
-
-    devices_meta = {}
-    for hostname_dir in sorted(target.iterdir()):
-        if not hostname_dir.is_dir():
-            continue
-        logs_manifest = hostname_dir / "logs.json"
-        commands = []
-        if logs_manifest.exists():
-            try:
-                with open(logs_manifest, "r") as handle:
-                    manifest = json.load(handle) or {}
-                for name in manifest.get("logs", []):
-                    base = os.path.splitext(name)[0]
-                    commands.append(base.replace("_", " "))
-            except Exception:
-                commands = []
-        if commands:
-            devices_meta[hostname_dir.name] = commands
-
-    has_baseline = False
-    for hostname_dir in sorted(target.iterdir()):
-        if hostname_dir.is_dir() and (hostname_dir / "config.json").exists():
-            has_baseline = True
-            break
-
-    return {
-        "template_name": template_name,
-        "devices_meta": devices_meta,
-        "has_baseline": has_baseline,
-    }
-
-
-def _template_command_key(command: str) -> str:
-    return _normalize_text(command)
+    return jsonify({"status": "ok", "templates": list_templates()})
 
 
 @app.route("/api/templates/<template_name>", methods=["GET"])
 def api_get_template_details(template_name):
-    if not template_name:
-        return jsonify({"status": "error", "message": "Missing template name."}), 400
-
-    target = _safe_resolve_child(TEMPLATES_DIR, TEMPLATES_DIR / template_name)
-    if not target or not target.exists():
-        return jsonify({"status": "error", "message": "Template not found."}), 404
-
-    template_manifest = _load_template_manifest(template_name) or {}
-    devices_meta = dict(template_manifest.get("devices_meta") or {})
-    logs_by_command = {}
-    has_baseline = bool(template_manifest.get("has_baseline"))
-    for hostname_dir in sorted(target.iterdir()):
-        if not hostname_dir.is_dir():
-            continue
-        logs_manifest = hostname_dir / "logs.json"
-        commands = [
-            _canonical_cli_command(command)
-            for command in list(devices_meta.get(hostname_dir.name) or [])
-        ]
-        command_keys = {_template_command_key(command) for command in commands}
-        if logs_manifest.exists():
-            try:
-                with open(logs_manifest, "r") as handle:
-                    logs_payload = json.load(handle) or {}
-                for name in logs_payload.get("logs", []):
-                    base = os.path.splitext(name)[0]
-                    cmd = _canonical_cli_command(base.replace("_", " "))
-                    cmd_key = _template_command_key(cmd)
-                    if cmd_key not in command_keys:
-                        commands.append(cmd)
-                        command_keys.add(cmd_key)
-                    else:
-                        cmd = next(
-                            (
-                                existing
-                                for existing in commands
-                                if _template_command_key(existing) == cmd_key
-                            ),
-                            cmd,
-                        )
-                    logs_by_command.setdefault(hostname_dir.name, {})[cmd] = name
-            except Exception:
-                pass
-        if (hostname_dir / "config.json").exists():
-            has_baseline = True
-        if commands:
-            devices_meta[hostname_dir.name] = commands
-
-    return jsonify(
-        {
-            "status": "ok",
-            "template": template_name,
-            "devices_meta": devices_meta,
-            "logs_by_command": logs_by_command,
-            "has_baseline": has_baseline,
-        }
-    )
+    try:
+        return jsonify({"status": "ok", **get_template_details(template_name)})
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+    except FileNotFoundError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 404
 
 
 @app.route("/api/templates/save_setup", methods=["POST"])
@@ -2475,32 +2372,13 @@ def api_save_template_setup():
     devices_meta = data.get("devices_meta") or {}
     source_template_name = (data.get("source_template_name") or "").strip()
 
-    if not template_name:
-        return jsonify({"status": "error", "message": "Missing template name."}), 400
-    if not isinstance(devices_meta, dict) or not devices_meta:
-        return jsonify({"status": "error", "message": "No devices provided."}), 400
-
-    cleaned_devices = {}
-    seen = set()
-    for hostname, commands in devices_meta.items():
-        safe_hostname = str(hostname or "").strip()
-        if not safe_hostname:
-            return jsonify({"status": "error", "message": "All devices must have a hostname."}), 400
-        if safe_hostname.lower() in seen:
-            return jsonify({"status": "error", "message": f'Duplicate hostname "{safe_hostname}".'}), 400
-        seen.add(safe_hostname.lower())
-        if not isinstance(commands, list) or not commands:
-            return jsonify({"status": "error", "message": f'Device "{safe_hostname}" has no commands.'}), 400
-        cleaned_devices[safe_hostname] = [str(cmd).strip() for cmd in commands if str(cmd).strip()]
-
     try:
-        result = save_template_setup(
-            str(BASE_DIR),
-            template_name,
-            cleaned_devices,
-            source_template_name=source_template_name,
+        result = save_template_structure(
+            template_name, devices_meta, source_template_name=source_template_name
         )
         return jsonify({"status": "ok", **result})
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
     except Exception as exc:
         return jsonify({"status": "error", "message": str(exc)}), 500
 
@@ -2520,43 +2398,20 @@ def api_import_template_logs_folder():
         return jsonify({"status": "error", "message": "Selected logs folder was not found."}), 400
     if strict and (not isinstance(devices_meta, dict) or not devices_meta):
         return jsonify({"status": "error", "message": "Strict folder import requires template devices."}), 400
-    if strict:
-        cleaned_devices = {}
-        seen = set()
-        for hostname, commands in devices_meta.items():
-            safe_hostname = str(hostname or "").strip()
-            if not safe_hostname:
-                return jsonify({"status": "error", "message": "All devices must have a hostname."}), 400
-            if safe_hostname.lower() in seen:
-                return jsonify({"status": "error", "message": f'Duplicate hostname "{safe_hostname}".'}), 400
-            seen.add(safe_hostname.lower())
-            if not isinstance(commands, list) or not commands:
-                return jsonify({"status": "error", "message": f'Device "{safe_hostname}" has no commands.'}), 400
-            cleaned_commands = [str(cmd).strip() for cmd in commands if str(cmd).strip()]
-            if not cleaned_commands:
-                return jsonify({"status": "error", "message": f'Device "{safe_hostname}" has no commands.'}), 400
-            cleaned_devices[safe_hostname] = cleaned_commands
-        devices_meta = cleaned_devices
 
     try:
-        if strict:
-            result = import_logs_folder_strict(
-                str(BASE_DIR),
-                template_name,
-                source_dir,
-                devices_meta,
-                source_template_name=source_template_name,
-            )
-        else:
-            result = import_template_from_logs_dir(
-                str(BASE_DIR),
-                template_name,
-                source_dir,
-                source_template_name=source_template_name,
-            )
+        result = import_template_logs_folder(
+            template_name,
+            source_dir,
+            source_template_name=source_template_name,
+            strict=strict,
+            devices_meta=devices_meta,
+        )
         if result.get("status") == "error":
             return jsonify(result), 400
         return jsonify({"status": "ok", **result})
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
     except Exception as exc:
         return jsonify({"status": "error", "message": str(exc)}), 500
 
@@ -2567,24 +2422,13 @@ def api_admin_delete_templates():
     name = data.get("name")
     delete_all = bool(data.get("all"))
 
-    if delete_all:
-        for entry in TEMPLATES_DIR.iterdir():
-            if entry.is_dir():
-                try:
-                    shutil.rmtree(entry)
-                except Exception:
-                    pass
-        return jsonify({"status": "ok", "message": "All templates deleted"})
-
-    if not name:
-        return jsonify({"status": "error", "message": "Missing template name."}), 400
-
-    target = _safe_resolve_child(TEMPLATES_DIR, TEMPLATES_DIR / name)
-    if not target or not target.exists():
-        return jsonify({"status": "error", "message": "Template not found."}), 404
-
-    shutil.rmtree(target)
-    return jsonify({"status": "ok", "message": f"Template '{name}' deleted"})
+    try:
+        message = delete_templates(name=name, delete_all=delete_all)
+        return jsonify({"status": "ok", "message": message})
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+    except FileNotFoundError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 404
 
 
 @app.route("/api/admin/results", methods=["GET"])
@@ -2866,44 +2710,14 @@ def _check_criteria(content, criteria, variables):
 from comparison_engine.compare_main import grading_pipeline
 
 
-def _load_template_configs(template_name: str):
-    template_dir = _safe_resolve_child(TEMPLATES_DIR, TEMPLATES_DIR / template_name)
-    if not template_dir or not template_dir.is_dir():
-        return None
-
-    template_configs = {}
-    for host_dir in sorted(template_dir.iterdir()):
-        if not host_dir.is_dir():
-            continue
-        config_path = host_dir / "config.json"
-        if not config_path.exists():
-            continue
-        try:
-            with open(config_path, "r") as handle:
-                data = json.load(handle) or {}
-            template_configs[host_dir.name] = normalize_parsed_config(data)
-        except Exception:
-            continue
-
-    return template_configs
-
-
-def _template_has_baseline(template_name: str) -> bool:
-    manifest = _load_template_manifest(template_name) or {}
-    if manifest.get("has_baseline"):
-        return True
-    template_configs = _load_template_configs(template_name) or {}
-    return bool(template_configs)
-
-
 def _grade_session_from_config(target_path: str, template_name: str):
-    if not _template_has_baseline(template_name):
+    if not template_has_baseline(template_name):
         return [], (
             f"Template '{template_name}' has device/command setup only. "
             "Upload template baseline logs before grading."
         )
 
-    template_configs = _load_template_configs(template_name)
+    template_configs = load_template_configs(template_name)
     if not template_configs:
         return [], f"No template configs found for '{template_name}'."
 
@@ -3036,11 +2850,7 @@ def api_run_grading():
 
     try:
         # Determine template to use
-        available_templates = []
-        if TEMPLATES_DIR.is_dir():
-            available_templates = [
-                p.name for p in TEMPLATES_DIR.iterdir() if p.is_dir()
-            ]
+        available_templates = list_templates()
 
         chosen_template = template_name
         if not chosen_template:
@@ -3095,17 +2905,13 @@ def api_upload_templates():
     Handles form-data upload from device_setup.html.
     Creates template config.json using parsing logic.
     """
-    from comparison_wrapper import handle_template_upload
-
     form_data = request.form
     files = request.files
 
     print(f"\n[API][templates/upload] Uploading new template...")
-    # Base dir for templates
-    base_dir = os.path.dirname(os.path.abspath(__file__))
 
     try:
-        results = handle_template_upload(files, form_data, base_dir)
+        results = handle_upload(files, form_data)
         if results.get("status") == "error":
             return jsonify(results), 400
         print(f"[API][templates/upload] Extraction successful: {results}")
