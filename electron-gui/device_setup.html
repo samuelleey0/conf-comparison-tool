@@ -232,9 +232,9 @@
 
     .mode-clear-btn {
       display: none;
-      background: transparent;
-      border: 1px solid var(--color-border);
-      color: var(--color-muted);
+      background: var(--color-danger);
+      border: 1px solid var(--color-danger);
+      color: #ffffff;
       padding: 6px 10px;
       font-size: 0.78rem;
       font-weight: 700;
@@ -248,9 +248,9 @@
     }
 
     .mode-clear-btn:hover {
-      background: rgba(197, 62, 62, 0.08);
-      border-color: rgba(197, 62, 62, 0.45);
-      color: var(--color-danger);
+      background: #a92f2f !important;
+      border-color: #a92f2f !important;
+      color: #ffffff !important;
     }
 
     .mode-tooltip {
@@ -352,7 +352,7 @@
 
     /* ── Save bar ────────────────────────────────────────────── */
     .ds-save-bar {
-      margin-top: 4px;
+      margin-top: 18px;
     }
 
     .ds-save-bar button {
@@ -430,9 +430,9 @@
 
     .remove-device-btn {
       margin-left: auto;
-      background: none;
-      border: 1px solid transparent;
-      color: var(--color-muted);
+      background: var(--color-danger);
+      border: 1px solid var(--color-danger);
+      color: #ffffff;
       cursor: pointer;
       font-size: 0.8rem;
       font-weight: 600;
@@ -442,9 +442,9 @@
     }
 
     .remove-device-btn:hover {
-      background: rgb(255, 0, 0) !important;
-      border-color: rgba(255, 133, 133, 0.3);
-      color: rgb(255, 255, 255);
+      background: #a92f2f !important;
+      border-color: #a92f2f !important;
+      color: #ffffff !important;
     }
 
     /* ── Custom Dropdown ─────────────────────────────────────── */
@@ -653,9 +653,9 @@
     }
 
     .command-remove-btn {
-      background: none;
-      border: none;
-      color: var(--color-muted);
+      background: var(--color-danger);
+      border: 1px solid var(--color-danger);
+      color: #ffffff;
       cursor: pointer;
       font-size: 1rem;
       padding: 3px 7px;
@@ -667,8 +667,9 @@
     }
 
     .command-remove-btn:hover {
-      background: rgba(197, 62, 62, 0.08);
-      color: var(--color-danger);
+      background: #a92f2f !important;
+      border-color: #a92f2f !important;
+      color: #ffffff !important;
     }
 
     /* ── Device Footer ───────────────────────────────────────── */
@@ -787,7 +788,7 @@
 
     .ds-workflow-grid {
       display: grid;
-      grid-template-columns: minmax(300px, 0.78fr) minmax(0, 1.45fr);
+      grid-template-columns: minmax(0, 1fr);
       gap: 18px;
       align-items: start;
     }
@@ -798,6 +799,16 @@
 
     .ds-workflow-grid #deviceConfigCard {
       min-width: 0;
+    }
+
+    .ds-workflow-grid #templateConfigCard {
+      position: relative;
+      z-index: 30;
+    }
+
+    .ds-workflow-grid #deviceConfigCard {
+      position: relative;
+      z-index: 10;
     }
 
     .ds-mode-panel {
@@ -822,9 +833,8 @@
     }
 
     .ds-save-bar {
-      position: sticky;
-      bottom: 18px;
-      z-index: 40;
+      position: relative;
+      z-index: 1;
       margin-top: 18px;
       padding: 10px;
       background: rgba(255, 255, 255, 0.9);

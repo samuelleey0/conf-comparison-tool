@@ -597,7 +597,7 @@ document.addEventListener("DOMContentLoaded", () => {
         </select>
         <input type="text" id="newRuleSectionInput" placeholder="Enter custom section name" style="display:none;" />
         <div class="rubric-modal-actions">
-          <button type="button" id="newRuleCancelBtn" class="secondary">Cancel</button>
+          <button type="button" id="newRuleCancelBtn" class="danger">Cancel</button>
           <button type="button" id="newRuleConfirmBtn" class="primary">Create Rule</button>
         </div>
       </div>

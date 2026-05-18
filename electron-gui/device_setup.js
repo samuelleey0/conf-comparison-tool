@@ -59,7 +59,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function closeOpenSelects(except = null) {
     document.querySelectorAll(".app-select.open").forEach((node) => {
-      if (node !== except) node.classList.remove("open");
+      if (node !== except) {
+        node.classList.remove("open");
+        node.querySelector(".app-select-menu")?.classList.add("hidden");
+      }
     });
   }
 

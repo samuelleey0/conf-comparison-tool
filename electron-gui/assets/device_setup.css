@@ -23,9 +23,9 @@
     }
 
     .remove-device-btn {
-      background: none;
-      border: none;
-      color: var(--color-danger, #e74c3c);
+      background: var(--color-danger, #e74c3c);
+      border: 1px solid var(--color-danger, #e74c3c);
+      color: #ffffff;
       cursor: pointer;
       font-size: 0.9rem;
       font-weight: bold;

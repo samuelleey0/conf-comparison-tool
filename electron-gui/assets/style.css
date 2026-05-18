@@ -243,7 +243,33 @@ button.danger {
 }
 
 button.danger:hover:not(:disabled) {
-  filter: brightness(0.95);
+  background: #a92f2f;
+  border-color: #a92f2f;
+  color: #ffffff;
+  filter: none;
+}
+
+button[id*="cancel" i],
+button[id*="delete" i],
+button[data-action="cancel"],
+.delete-btn,
+.rubric-delete-btn,
+.remove-btn {
+  background: var(--color-danger) !important;
+  border-color: var(--color-danger) !important;
+  color: #ffffff !important;
+}
+
+button[id*="cancel" i]:hover:not(:disabled),
+button[id*="delete" i]:hover:not(:disabled),
+button[data-action="cancel"]:hover:not(:disabled),
+.delete-btn:hover:not(:disabled),
+.rubric-delete-btn:hover:not(:disabled),
+.remove-btn:hover:not(:disabled) {
+  background: #a92f2f !important;
+  border-color: #a92f2f !important;
+  color: #ffffff !important;
+  filter: none;
 }
 
 button.sync-accent {
@@ -877,9 +903,9 @@ button.block {
   height: 28px;
   min-width: 28px;
   border-radius: 50%;
-  border: 1px solid #e0e0e0;
-  background: #fff;
-  color: #999;
+  border: 1px solid var(--color-danger);
+  background: var(--color-danger);
+  color: #ffffff;
   font-size: 0.85rem;
   cursor: pointer;
   display: flex;
@@ -891,9 +917,9 @@ button.block {
 }
 
 .rubric-delete-btn:hover {
-  background: #fff5f5;
-  border-color: #f3b1b1;
-  color: var(--color-danger, #c0392b);
+  background: #a92f2f;
+  border-color: #a92f2f;
+  color: #ffffff;
   box-shadow: 0 2px 6px rgba(192, 57, 43, 0.15);
 }
 
@@ -1336,9 +1362,9 @@ button.block {
 }
 
 .remove-btn {
-  background: #fff5f5;
-  color: var(--color-danger);
-  border: 1px solid #f3b1b1;
+  background: var(--color-danger);
+  color: #ffffff;
+  border: 1px solid var(--color-danger);
   padding: 6px 12px;
   font-size: 0.85rem;
   border-radius: 0;
@@ -1346,8 +1372,9 @@ button.block {
 }
 
 .remove-btn:hover {
-  background: #ffe7e7;
-  border-color: #e48c8c;
+  background: #a92f2f;
+  border-color: #a92f2f;
+  color: #ffffff;
 }
 
 /* Connection page */
