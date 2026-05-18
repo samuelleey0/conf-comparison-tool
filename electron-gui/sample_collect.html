@@ -24,10 +24,10 @@
     <style>
       .sample-two-column {
         display: grid;
-        grid-template-columns: minmax(520px, 1fr) minmax(480px, 560px);
+        grid-template-columns: minmax(460px, 0.86fr) minmax(640px, 1.14fr);
         gap: 20px;
         align-items: start;
-        max-width: 1520px;
+        max-width: 1740px;
         margin: 0 auto;
       }
 
@@ -43,7 +43,7 @@
       }
 
       body.sidebar-collapsed .sample-two-column {
-        grid-template-columns: minmax(520px, 1fr) minmax(480px, 560px);
+        grid-template-columns: minmax(460px, 0.86fr) minmax(640px, 1.14fr);
       }
 
       @media (max-width: 1240px) {
@@ -84,7 +84,20 @@
       }
 
       .sample-left-col .compact-row.compact-row--template {
-        grid-template-columns: minmax(0, 1fr) auto auto;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .sample-left-col .compact-row.compact-row--template>.form-group:not(.sample-action) {
+        grid-column: 1 / -1;
+      }
+
+      .sample-left-col .compact-row.compact-row--template>.form-group.sample-action {
+        width: 100%;
+      }
+
+      .sample-left-col .compact-row.compact-row--template>.form-group.sample-action button {
+        width: 100%;
+        min-width: 0;
       }
 
       .sample-left-col .compact-row>.form-group {
@@ -336,7 +349,7 @@
 
       .sample-two-column {
         max-width: none;
-        grid-template-columns: minmax(520px, 1fr) minmax(440px, 0.52fr);
+        grid-template-columns: minmax(460px, 0.78fr) minmax(680px, 1.22fr);
         gap: 18px;
       }
 

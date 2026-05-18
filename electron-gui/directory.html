@@ -221,7 +221,7 @@
                 flex-direction: column;
                 gap: 14px;
                 margin-top: 8px;
-                width: 100%;
+                max-width: 760px;
             }
 
             .dir-toggle-option {
@@ -406,241 +406,6 @@
                     padding-left: 0;
                 }
             }
-
-            .directory-body {
-                background:
-                    linear-gradient(180deg, rgba(232, 239, 248, 0.92) 0%, rgba(248, 250, 252, 0.95) 360px),
-                    #f7f9fc;
-            }
-
-            .directory-shell,
-            #directoryPage {
-                max-width: 1320px;
-            }
-
-            #directoryPage {
-                margin: 0 auto;
-                padding-bottom: 32px;
-                background: transparent;
-                border: none;
-                box-shadow: none;
-            }
-
-            .dir-header {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 20px;
-                margin-bottom: 18px;
-                padding: 22px 24px;
-                background: #ffffff;
-                border: 1px solid rgba(148, 163, 184, 0.24);
-                border-radius: 8px;
-                box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
-            }
-
-            .dir-header h1 {
-                margin-bottom: 7px;
-                font-size: 1.55rem;
-                letter-spacing: 0;
-            }
-
-            .dir-header p {
-                max-width: 680px;
-                line-height: 1.45;
-            }
-
-            .dir-divider {
-                display: none;
-            }
-
-            .dir-tabs {
-                position: relative;
-                gap: 14px;
-                margin-bottom: 18px;
-                padding: 0;
-                border: none;
-                border-radius: 0;
-                background: transparent;
-                overflow: visible;
-            }
-
-            .dir-tab-btn {
-                min-height: 74px;
-                padding: 16px 18px;
-                border: 1px solid rgba(148, 163, 184, 0.28);
-                border-radius: 8px !important;
-                background: #ffffff;
-                color: #526173;
-                text-align: left;
-                box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
-            }
-
-            .dir-tab-btn:last-child {
-                border-right: 1px solid rgba(148, 163, 184, 0.28);
-            }
-
-            .dir-tab-btn:hover:not(.active) {
-                background: #ffffff;
-                border-color: #cbd5e1;
-                color: #172033;
-                box-shadow: 0 16px 34px rgba(15, 23, 42, 0.09);
-            }
-
-            .dir-tab-btn.active {
-                background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 100%);
-                border-color: #0a5cbb;
-                color: #0a4f9d;
-                box-shadow: 0 8px 24px rgba(10, 92, 187, 0.14);
-            }
-
-            .dir-tab-btn.active:hover {
-                background: #0a5cbb;
-                color: #ffffff;
-            }
-
-            .dir-tabs {
-                display: grid;
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 10px;
-                padding: 6px;
-                background: #ffffff;
-                border: 1px solid rgba(148, 163, 184, 0.24);
-                border-radius: 8px;
-                box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
-            }
-
-            .dir-tab-btn {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                min-height: 56px;
-                padding: 10px 14px;
-                border: 1px solid rgba(148, 163, 184, 0.38);
-                border-radius: 6px !important;
-                background: transparent;
-                color: #526173;
-                box-shadow: none;
-                text-align: left;
-            }
-
-            .dir-tab-btn:last-child {
-                border-right: 1px solid rgba(148, 163, 184, 0.38);
-            }
-
-            .dir-tab-btn:hover:not(.active) {
-                background: #f8fafc;
-                border-color: rgba(148, 163, 184, 0.22);
-                color: #172033;
-                box-shadow: none;
-            }
-
-            .dir-tab-btn.active {
-                background: #0a5cbb;
-                border-color: #0a5cbb;
-                color: #ffffff;
-                box-shadow: 0 10px 22px rgba(10, 92, 187, 0.22);
-            }
-
-            .dir-tab-btn.active:hover {
-                background: #0a5cbb;
-                color: #ffffff;
-            }
-
-            .dir-tab-tooltip {
-                left: 8px;
-                right: 8px;
-                top: calc(100% + 12px);
-            }
-
-            .dir-tab-tooltip {
-                top: calc(100% + 10px);
-                left: 14px;
-                right: 14px;
-                border-radius: 8px;
-                color: #334155;
-                box-shadow: 0 18px 42px rgba(15, 23, 42, 0.22);
-            }
-
-            .dir-card {
-                padding: 22px;
-                border-color: rgba(148, 163, 184, 0.28);
-                border-radius: 8px;
-                box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
-            }
-
-            .dir-card-header {
-                align-items: center;
-                gap: 10px;
-                margin-bottom: 18px;
-                padding-bottom: 12px;
-                border-bottom-color: rgba(148, 163, 184, 0.25);
-            }
-
-            .dir-card-title {
-                color: #173b78;
-                letter-spacing: 0.05em;
-            }
-
-            .dir-card-sub {
-                line-height: 1.35;
-            }
-
-            .dir-form-grid {
-                gap: 18px 20px;
-            }
-
-            .dir-student-grid {
-                background: #f8fafc;
-                border-color: rgba(148, 163, 184, 0.28);
-            }
-
-            .dir-toggles {
-                padding: 16px;
-                border: 1px solid rgba(148, 163, 184, 0.28);
-                border-radius: 8px;
-                background: #f8fafc;
-            }
-
-            .dir-toggle-option {
-                padding-bottom: 14px;
-                border-bottom: 1px solid rgba(148, 163, 184, 0.22);
-            }
-
-            .dir-toggle-option:last-child {
-                padding-bottom: 0;
-                border-bottom: none;
-            }
-
-            .dir-action-row,
-            .actions.justify-end {
-                padding-top: 14px;
-                border-top: 1px solid rgba(148, 163, 184, 0.24);
-            }
-
-            @media (max-width: 760px) {
-                .dir-tabs {
-                    display: grid;
-                    grid-template-columns: 1fr;
-                }
-            }
-
-            @media (max-width: 640px) {
-                #directoryPage {
-                    padding-bottom: 20px;
-                }
-
-                .dir-header {
-                    align-items: flex-start;
-                    padding: 18px;
-                }
-
-                .dir-tab-btn {
-                    min-height: 64px;
-                    border-right: 1px solid rgba(148, 163, 184, 0.28);
-                    border-bottom: 1px solid rgba(148, 163, 184, 0.28);
-                }
-            }
         </style>
     </head>
 
@@ -651,12 +416,9 @@
             <section class="page-card directory-card" id="directoryPage" style="border-radius:0;">
 
                 <!-- Page Header -->
-                <header class="dir-header page-header--with-action">
-                    <div>
-                        <h1>Directory Setup</h1>
-                        <p>Choose how you would like to prepare the student workspace.</p>
-                    </div>
-                    <a class="tutorial-page-link" href="quick_guide.html#directoryGuidePanel">Tutorial</a>
+                <header class="dir-header">
+                    <h1>Directory Setup</h1>
+                    <p>Choose how you would like to prepare the student workspace.</p>
                 </header>
                 <hr class="dir-divider" />
 
@@ -767,7 +529,7 @@
                                 </div>
                             </div>
                             <footer class="modal-footer">
-                                <button type="button" class="danger" id="cancelFolderPickerBtn">Cancel</button>
+                                <button type="button" class="secondary" id="cancelFolderPickerBtn">Cancel</button>
                                 <button type="button" class="primary" id="confirmFolderPickerBtn" disabled>Select Session</button>
                             </footer>
                         </div>
@@ -791,7 +553,7 @@
                                 </div>
                             </div>
                             <footer class="modal-footer">
-                                <button type="button" class="danger" id="cancelAddStudentBtn">Cancel</button>
+                                <button type="button" class="secondary" id="cancelAddStudentBtn">Cancel</button>
                                 <button type="button" class="primary" id="confirmAddStudentBtn">Add</button>
                             </footer>
                         </div>
