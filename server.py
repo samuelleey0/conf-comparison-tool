@@ -235,6 +235,14 @@ def stream_json_line(obj):
     return json.dumps(obj) + "\n"
 
 
+def _hostname_matches_target(expected, actual):
+    expected_name = str(expected or "").strip().upper()
+    actual_name = str(actual or "").strip().upper()
+    if not expected_name or not actual_name:
+        return True
+    return expected_name == actual_name
+
+
 
 # -------------------------------------------------
 # ✅ Directory Endpoints
