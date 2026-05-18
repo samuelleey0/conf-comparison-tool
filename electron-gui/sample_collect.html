@@ -13,20 +13,21 @@
   <div id="navbarContainer"></div>
 
   <div class="page-shell connection-shell">
-    <header class="page-header">
+    <header class="page-header page-header--with-action">
       <div>
         <h1 class="page-title">Collect Sample Logs</h1>
         <p class="page-subtitle">Save lecturer logs to a chosen folder for rubric creation. (v2)</p>
       </div>
+      <a class="tutorial-page-link" href="quick_guide.html#sampleLogsGuidePanel">Tutorial</a>
     </header>
 
     <style>
       .sample-two-column {
         display: grid;
-        grid-template-columns: minmax(520px, 1fr) minmax(480px, 560px);
+        grid-template-columns: minmax(460px, 0.86fr) minmax(640px, 1.14fr);
         gap: 20px;
         align-items: start;
-        max-width: 1520px;
+        max-width: 1740px;
         margin: 0 auto;
       }
 
@@ -42,7 +43,7 @@
       }
 
       body.sidebar-collapsed .sample-two-column {
-        grid-template-columns: minmax(520px, 1fr) minmax(480px, 560px);
+        grid-template-columns: minmax(460px, 0.86fr) minmax(640px, 1.14fr);
       }
 
       @media (max-width: 1240px) {
@@ -83,7 +84,20 @@
       }
 
       .sample-left-col .compact-row.compact-row--template {
-        grid-template-columns: minmax(0, 1fr) auto auto;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .sample-left-col .compact-row.compact-row--template>.form-group:not(.sample-action) {
+        grid-column: 1 / -1;
+      }
+
+      .sample-left-col .compact-row.compact-row--template>.form-group.sample-action {
+        width: 100%;
+      }
+
+      .sample-left-col .compact-row.compact-row--template>.form-group.sample-action button {
+        width: 100%;
+        min-width: 0;
       }
 
       .sample-left-col .compact-row>.form-group {
@@ -128,6 +142,15 @@
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 12px;
+      }
+
+      .sample-connection-mode-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        margin-bottom: 16px;
+      }
+
+      .sample-connection-mode-grid .radio-card {
+        padding: 14px 18px;
       }
 
       .sample-mode-panel.hidden {
@@ -296,6 +319,231 @@
           transform: translateY(0);
         }
       }
+
+      .connection-body {
+        background:
+          linear-gradient(180deg, rgba(232, 239, 248, 0.92) 0%, rgba(248, 250, 252, 0.95) 360px),
+          #f7f9fc;
+      }
+
+      .connection-shell {
+        max-width: none;
+        width: 100%;
+        margin: 0 auto;
+        padding: 28px 42px 56px;
+      }
+
+      .connection-shell .page-header {
+        align-items: center;
+        margin-bottom: 10px;
+        padding: 18px 22px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 8px;
+        background: #ffffff;
+        box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+      }
+
+      .connection-shell .page-title {
+        font-size: 1.55rem;
+        color: var(--color-heading);
+        letter-spacing: 0;
+      }
+
+      .connection-shell .page-subtitle {
+        margin-top: 6px;
+        max-width: 680px;
+        color: var(--color-muted);
+        line-height: 1.45;
+      }
+
+      .sample-two-column {
+        max-width: none;
+        grid-template-columns: minmax(460px, 0.78fr) minmax(680px, 1.22fr);
+        gap: 18px;
+      }
+
+      .sample-left-col .page-card,
+      .sample-right-col .page-card {
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 8px;
+        background: #ffffff;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+      }
+
+      .sample-left-col .page-card {
+        padding: 18px 22px;
+      }
+
+      .sample-right-col .page-card {
+        top: 18px !important;
+        padding: 22px !important;
+      }
+
+      .step-heading {
+        align-items: center;
+        gap: 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+      }
+
+      .step-heading:not(:first-child) {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(148, 163, 184, 0.24);
+      }
+
+      .step-heading__num {
+        background: #e8f0ff;
+        color: #0a5cbb;
+        box-shadow: inset 0 0 0 1px rgba(10, 92, 187, 0.12);
+      }
+
+      .section-title {
+        color: var(--color-heading);
+      }
+
+      .sample-mode-panel,
+      #sampleSerialFields,
+      #sampleSshFields {
+        padding: 16px;
+        border-color: rgba(148, 163, 184, 0.28);
+        border-radius: 8px;
+        background: #f8fafc;
+      }
+
+      #sampleSerialFields>label {
+        margin-top: 10px;
+      }
+
+      #sampleSshFields .form-row+.form-row {
+        margin-top: 12px;
+      }
+
+      .sample-step-body {
+        margin-bottom: 10px !important;
+      }
+
+      .sample-step-body--connect {
+        margin-bottom: 8px !important;
+      }
+
+      .sample-step-body > .hint:last-child {
+        margin-top: 4px;
+        margin-bottom: 0;
+      }
+
+      .sample-mode-grid .radio-card,
+      .radio-card-grid .radio-card,
+      .inline-options .choice-label {
+        border-color: rgba(148, 163, 184, 0.34);
+        background: #ffffff;
+      }
+
+      .sample-mode-grid .radio-card:hover,
+      .radio-card-grid .radio-card:hover,
+      .inline-options .choice-label:hover {
+        border-color: var(--color-primary) !important;
+        background: #eef5ff !important;
+        color: var(--color-primary-dark) !important;
+      }
+
+      .sample-mode-grid .radio-card:has(input:checked),
+      .radio-card-grid .radio-card:has(input:checked),
+      .inline-options .choice-label:has(input:checked) {
+        border-color: #0a5cbb;
+        background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 100%);
+        color: #0a4f9d;
+        box-shadow: 0 8px 24px rgba(10, 92, 187, 0.12);
+      }
+
+      .sample-mode-grid .radio-card:has(input:checked):hover,
+      .radio-card-grid .radio-card:has(input:checked):hover,
+      .inline-options .choice-label:has(input:checked):hover {
+        border-color: #063f88 !important;
+        background: #dbeafe !important;
+        color: var(--color-primary-dark) !important;
+      }
+
+      .log-tabs {
+        gap: 10px;
+        padding: 6px;
+        border-color: rgba(148, 163, 184, 0.24);
+        background: #ffffff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+      }
+
+      .log-tab {
+        min-height: 44px;
+        border-color: rgba(148, 163, 184, 0.34);
+        background: #ffffff;
+        color: #526173;
+      }
+
+      .log-tab--activity.active,
+      .log-tab--terminal.active {
+        background: #0a5cbb;
+        border-color: #0a5cbb;
+        color: #ffffff;
+        box-shadow: 0 10px 22px rgba(10, 92, 187, 0.22);
+      }
+
+      .log-tab--activity:hover,
+      .log-tab--terminal:hover {
+        background: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+        color: #172033 !important;
+      }
+
+      .log-tab--activity.active:hover,
+      .log-tab--terminal.active:hover {
+        background: #063f88 !important;
+        border-color: #063f88 !important;
+        color: #ffffff !important;
+      }
+
+      .log-surface {
+        padding: 0;
+        border: none;
+        background: transparent;
+      }
+
+      .log-display {
+        margin-top: 14px;
+        min-height: 320px;
+        height: min(42vh, 420px);
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 8px;
+      }
+
+      .status-banner {
+        border-color: rgba(148, 163, 184, 0.28);
+        background: #f8fafc;
+      }
+
+      .danger-zone {
+        border: 1px solid rgba(197, 62, 62, 0.18);
+        border-radius: 8px;
+        background: #fff7f7;
+      }
+
+      @media (max-width: 1380px) {
+        .sample-two-column,
+        body.sidebar-collapsed .sample-two-column {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .connection-shell {
+          padding: 20px 14px 32px;
+        }
+
+        .connection-shell .page-header,
+        .sample-left-col .page-card,
+        .sample-right-col .page-card {
+          padding: 18px !important;
+        }
+      }
     </style>
 
     <div class="sample-two-column" id="sampleCollectPage">
@@ -310,7 +558,7 @@
               <p class="step-heading__hint">Select where lecturer sample logs should be stored.</p>
             </div>
           </div>
-          <div class="form-group" style="margin-bottom: 24px;">
+          <div class="form-group sample-step-body">
             <label>Save Directory</label>
             <div class="existing-picker">
               <button type="button" class="secondary" id="chooseSampleDirBtn">Choose Folder</button>
@@ -335,7 +583,7 @@
               <p class="step-heading__hint">Pick one collection mode first, then complete only that workflow.</p>
             </div>
           </div>
-          <div class="form-group" style="margin-bottom: 24px;">
+          <div class="form-group sample-step-body">
             <div class="sample-mode-grid" id="sampleModeSelector">
               <label class="radio-card" style="padding: 14px 18px;">
                 <input type="radio" name="sampleMode" value="template" />
@@ -367,7 +615,7 @@
                   <button type="button" class="btn-accent" id="loadSampleTemplateBtn">Load Template</button>
                 </div>
                 <div class="form-group sample-action">
-                  <button type="button" class="btn-outline" id="cancelTemplateModeBtn">Cancel Mode</button>
+                  <button type="button" class="danger" id="cancelTemplateModeBtn">Cancel Mode</button>
                 </div>
               </div>
 
@@ -393,7 +641,7 @@
                 <button type="button" id="clearSampleCmds" class="btn-outline">Clear</button>
               </div>
               <div class="sample-mode-cancel">
-                <button type="button" class="btn-outline" id="cancelManualModeBtn">Cancel Mode</button>
+                <button type="button" class="danger" id="cancelManualModeBtn">Cancel Mode</button>
               </div>
             </div>
           </div>
@@ -405,17 +653,16 @@
               <p class="step-heading__hint">Select connection type and begin collection.</p>
             </div>
           </div>
-          <div class="form-group" style="margin-bottom: 16px;">
-            <div class="radio-card-grid"
-              style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 16px;">
-              <label class="radio-card" style="padding: 14px 18px;">
+          <div class="form-group sample-step-body sample-step-body--connect">
+            <div class="radio-card-grid sample-connection-mode-grid">
+              <label class="radio-card">
                 <input type="radio" name="sampleConnType" value="serial" checked />
                 <div class="radio-card-header" style="margin-bottom: 0;">
                   <span class="radio-card-title">Serial Connection</span>
                   <div class="radio-card-indicator"></div>
                 </div>
               </label>
-              <label class="radio-card" style="padding: 14px 18px;">
+              <label class="radio-card">
                 <input type="radio" name="sampleConnType" value="ssh" />
                 <div class="radio-card-header" style="margin-bottom: 0;">
                   <span class="radio-card-title">SSH Connection</span>

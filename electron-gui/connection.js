@@ -228,7 +228,7 @@ function showConnectionPrompt({
           <p class="hint" style="margin-top: 12px;">Press Enter to continue, or Esc to cancel.</p>
         </div>
         <div class="modal-footer">
-          <button type="button" class="secondary" data-action="cancel">${escapeConnectionPromptText(cancelText)}</button>
+          <button type="button" class="danger" data-action="cancel">${escapeConnectionPromptText(cancelText)}</button>
           <button type="button" class="${escapeConnectionPromptText(confirmClass)}" data-action="confirm">${escapeConnectionPromptText(confirmText)}</button>
         </div>
       </div>
@@ -312,7 +312,7 @@ function showSshDevicePrompt(hostname) {
           <p class="hint" id="sshPromptError" style="display:none;color:var(--color-danger);margin:0;"></p>
         </div>
         <div class="modal-footer">
-          <button type="button" class="secondary" data-action="cancel">Cancel</button>
+          <button type="button" class="danger" data-action="cancel">Cancel</button>
           <button type="button" class="primary" data-action="confirm">Start Collection</button>
         </div>
       </div>

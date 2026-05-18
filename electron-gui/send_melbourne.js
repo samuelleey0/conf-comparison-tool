@@ -141,6 +141,7 @@ function setupExportMelbournePage() {
   const refreshBtn = document.getElementById("refreshMelbourneBtn");
   const exportBtn = document.getElementById("exportMelbourneBtn");
   const selectedLabel = document.getElementById("melbourneSelectedLabel");
+  const schemeValidationEl = document.getElementById("melbourneSchemeValidation");
   const maxMarksInput = document.getElementById("melbourneMaxMarks");
   const minorPenaltiesInput = document.getElementById("melbourneMinorPenalties");
   const rubricNameInput = document.getElementById("melbourneRubricName");
@@ -207,11 +208,41 @@ function setupExportMelbournePage() {
     });
   };
 
-  const updateStudentState = () => {
+  const validateSchemeAssignment = () => {
     const rows = Array.from(document.querySelectorAll(".melbourne-student-scheme"));
+    const allowed = getAllowedSchemes();
+    const missing = [];
+    const invalid = [];
+
+    rows.forEach((select) => {
+      const studentId = select.dataset.studentId || "";
+      const value = select.value;
+      const isMissing = !value;
+      const isInvalid = Boolean(value) && !allowed.includes(value);
+      select.classList.toggle("is-invalid", isMissing || isInvalid);
+      select.closest("tr")?.classList.toggle("has-validation-error", isMissing || isInvalid);
+      if (isMissing) missing.push(studentId);
+      if (isInvalid) invalid.push(studentId);
+    });
+
+    if (schemeValidationEl) {
+      const messages = [];
+      if (!allowed.length) messages.push("Enter at least one allowed scheme value before assigning students.");
+      if (missing.length) messages.push(`Missing scheme: ${missing.join(", ")}`);
+      if (invalid.length) messages.push(`Invalid scheme value: ${invalid.join(", ")}`);
+      schemeValidationEl.hidden = !messages.length;
+      schemeValidationEl.textContent = messages.join("\n");
+    }
+
+    return { rows, allowed, missing, invalid, valid: Boolean(rows.length && allowed.length && !missing.length && !invalid.length) };
+  };
+
+  const updateStudentState = () => {
+    const { rows, missing, invalid, valid } = validateSchemeAssignment();
     const assigned = rows.filter((select) => select.value).length;
     if (selectedLabel) selectedLabel.textContent = `${assigned}/${rows.length} assigned`;
-    if (exportBtn) exportBtn.disabled = !rows.length;
+    if (exportBtn) exportBtn.disabled = !valid;
+    return { missing, invalid, valid };
   };
 
   const renderStudentRows = () => {
@@ -296,6 +327,13 @@ function setupExportMelbournePage() {
     document.querySelectorAll(".melbourne-student-scheme").forEach((select) => {
       studentSchemes[select.dataset.studentId] = select.value;
     });
+    const schemeState = updateStudentState();
+    if (schemeState.missing.length) {
+      throw new Error(`Assign a scheme for every student before exporting. Missing: ${schemeState.missing.join(", ")}`);
+    }
+    if (schemeState.invalid.length) {
+      throw new Error(`Some students have a scheme that is not in the allowed values: ${schemeState.invalid.join(", ")}`);
+    }
     const devices = Array.from(document.querySelectorAll(".melbourne-device-type")).map((select) => {
       const device = select.dataset.device;
       const nameInput = Array.from(document.querySelectorAll(".melbourne-device-name"))

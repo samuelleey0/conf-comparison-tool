@@ -56,18 +56,60 @@
     }
 
     .status-pass {
-      background: linear-gradient(135deg, #dff6e6 0%, #ccefd7 100%);
-      color: #13361f;
+      background: #dcfce7 !important;
+      border-color: #22c55e !important;
+      color: #14532d !important;
     }
 
     .status-fail {
-      background: linear-gradient(135deg, #fde2e2 0%, #f6c9c9 100%);
-      color: #5b1f1f;
+      background: #fee2e2 !important;
+      border-color: #dc2626 !important;
+      color: #7f1d1d !important;
     }
 
     .status-missing {
-      background: linear-gradient(135deg, #eef1f5 0%, #e0e6ee 100%);
-      color: var(--color-text-muted);
+      background: #e2e8f0 !important;
+      border-color: #64748b !important;
+      color: #334155 !important;
+    }
+
+    .student-result-item.status-pass:hover {
+      background: #bbf7d0 !important;
+      border-color: #15803d !important;
+      color: #052e16 !important;
+    }
+
+    .student-result-item.status-fail:hover {
+      background: #fecaca !important;
+      border-color: #b91c1c !important;
+      color: #450a0a !important;
+    }
+
+    .student-result-item.status-missing:hover {
+      background: #cbd5e1 !important;
+      border-color: #475569 !important;
+      color: #0f172a !important;
+    }
+
+    .student-result-item.status-pass.selected,
+    .student-result-item.status-pass.selected:hover {
+      background: #86efac !important;
+      border-color: #166534 !important;
+      color: #052e16 !important;
+    }
+
+    .student-result-item.status-fail.selected,
+    .student-result-item.status-fail.selected:hover {
+      background: #fca5a5 !important;
+      border-color: #991b1b !important;
+      color: #450a0a !important;
+    }
+
+    .student-result-item.status-missing.selected,
+    .student-result-item.status-missing.selected:hover {
+      background: #94a3b8 !important;
+      border-color: #334155 !important;
+      color: #0f172a !important;
     }
 
     .student-result-top {
@@ -80,6 +122,7 @@
     .student-breakdown {
       font-size: 0.82rem;
       opacity: 0.85;
+      color: inherit !important;
     }
 
     .report-card {
@@ -558,19 +601,289 @@
         white-space: pre-wrap;
       }
     }
+
+    .results-body {
+      background:
+        linear-gradient(180deg, rgba(232, 239, 248, 0.92) 0%, rgba(248, 250, 252, 0.95) 360px),
+        #f7f9fc;
+    }
+
+    .results-shell,
+    .results-page {
+      max-width: none;
+    }
+
+    .results-page {
+      margin: 0 auto;
+      width: 100%;
+      padding-bottom: 32px;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+
+    .results-page .page-header {
+      align-items: center;
+      margin-bottom: 18px;
+      padding: 22px 24px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+    }
+
+    .results-page .page-title {
+      font-size: 1.55rem;
+      letter-spacing: 0;
+      color: var(--color-heading);
+    }
+
+    .results-page .page-subtitle {
+      margin-top: 6px;
+      max-width: 680px;
+      color: var(--color-muted);
+      line-height: 1.45;
+    }
+
+    .results-action-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 18px;
+      padding: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+    }
+
+    .results-action-bar .hint {
+      margin: 0;
+      color: #526173;
+    }
+
+    .results-layout {
+      grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+      gap: 18px;
+      margin-top: 0;
+    }
+
+    .results-list,
+    .report-card {
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+    }
+
+    .results-list {
+      top: 18px;
+      max-height: calc(100vh - 120px);
+    }
+
+    .results-list-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+      color: #173b78;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .results-list-body {
+      padding: 10px;
+      background: #f8fafc;
+    }
+
+    .student-result-item {
+      margin-bottom: 8px;
+      padding: 12px 13px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      background: #ffffff;
+      color: #172033;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+    }
+
+    .student-result-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .student-result-item:hover {
+      border-color: #cbd5e1;
+      transform: translateY(-1px);
+      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .student-result-item.selected {
+      border-color: #0a5cbb;
+      background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 100%);
+      color: #0a4f9d;
+      box-shadow: 0 8px 24px rgba(10, 92, 187, 0.14);
+    }
+
+    .status-pass,
+    .status-fail,
+    .status-missing {
+      color: inherit !important;
+    }
+
+    .status-pass {
+      background: #dcfce7 !important;
+      border-color: #22c55e !important;
+      color: #14532d !important;
+    }
+
+    .status-fail {
+      background: #fee2e2 !important;
+      border-color: #dc2626 !important;
+      color: #7f1d1d !important;
+    }
+
+    .status-missing {
+      background: #e2e8f0 !important;
+      border-color: #64748b !important;
+      color: #334155 !important;
+    }
+
+    .student-breakdown {
+      color: inherit !important;
+      opacity: 1;
+    }
+
+    .report-card {
+      top: 18px;
+      padding: 22px;
+    }
+
+    .report-card > h2,
+    .report-card > p.hint {
+      margin-top: 0;
+    }
+
+    .report-summary {
+      gap: 12px;
+      margin: 18px 0;
+    }
+
+    .summary-box {
+      border-color: rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      background: #f8fafc;
+      cursor: pointer;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+
+    .summary-box:hover {
+      border-color: #0a5cbb;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(10, 92, 187, 0.12);
+    }
+
+    .summary-pass {
+      background: #f0fdf4;
+      color: #14532d;
+    }
+
+    .summary-fail {
+      background: #fff1f2;
+      color: #7f1d1d;
+    }
+
+    .report-details {
+      padding-right: 6px;
+    }
+
+    .report-section {
+      margin-top: 18px;
+    }
+
+    .report-section-header {
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.24);
+    }
+
+    .result-item {
+      margin-bottom: 10px;
+      padding: 12px;
+      border-color: rgba(148, 163, 184, 0.3);
+      border-radius: 8px;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+    }
+
+    .result-item:hover {
+      border-color: #cbd5e1;
+    }
+
+    .result-values pre {
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      background: #f8fafc;
+    }
+
+    .raw-preview-btn {
+      border-color: rgba(148, 163, 184, 0.34);
+      background: #ffffff;
+      color: #526173;
+    }
+
+    .raw-preview-btn:hover {
+      background: #0a5cbb !important;
+      border-color: #0a5cbb !important;
+      color: #ffffff !important;
+    }
+
+    .context-modal-card {
+      border-radius: 8px;
+      box-shadow: 0 24px 58px rgba(15, 23, 42, 0.24);
+    }
+
+    .context-modal-header {
+      background: #ffffff;
+      border-bottom-color: rgba(148, 163, 184, 0.24);
+    }
+
+    .context-close,
+    .context-tab {
+      border-color: rgba(148, 163, 184, 0.34);
+      color: #526173;
+    }
+
+    .context-close:hover,
+    .context-tab.active {
+      background: #0a5cbb;
+      border-color: #0a5cbb;
+      color: #ffffff;
+    }
+
+    @media (max-width: 900px) {
+      .results-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .results-list,
+      .report-card {
+        position: static;
+        max-height: none;
+      }
+    }
   </style>
 </head>
-<body class="directory-body">
+<body class="results-body">
   <div id="navbarContainer"></div>
 
-  <div class="page-shell">
-    <section class="page-card">
-      <header class="page-header">
-        <h1 class="page-title">Comparison Results</h1>
-        <p class="page-subtitle">Run the comparison engine and review pass/fail status per student.</p>
+  <div class="page-shell results-shell">
+    <section class="page-card results-page">
+      <header class="page-header page-header--with-action">
+        <div>
+          <h1 class="page-title">Comparison Results</h1>
+          <p class="page-subtitle">Run the comparison engine and review pass/fail status per student.</p>
+        </div>
+        <a class="tutorial-page-link" href="quick_guide.html#resultsGuidePanel">Tutorial</a>
       </header>
 
-      <div class="actions align-left" style="gap: 10px; margin-bottom: 12px;">
+      <div class="actions align-left results-action-bar">
         <button type="button" id="runComparisonBtn" class="primary">Run Comparison</button>
         <span id="sessionLabel" class="hint"></span>
       </div>

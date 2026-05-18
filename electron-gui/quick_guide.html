@@ -75,11 +75,22 @@
       transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
     }
 
-    .guide-tab-btn:hover,
+    .guide-tab-btn:hover {
+      background: #1d4ed8 !important;
+      border-color: #1d4ed8 !important;
+      color: #ffffff !important;
+    }
+
     .guide-tab-btn.active {
       background: #2563eb;
       border-color: #2563eb;
       color: #ffffff;
+    }
+
+    .guide-tab-btn.active:hover {
+      background: #0f2f68 !important;
+      border-color: #0f2f68 !important;
+      color: #ffffff !important;
     }
 
     .guide-panel {
@@ -426,13 +437,224 @@
       }
 
     }
+
+    .tutorial-body {
+      background:
+        linear-gradient(180deg, rgba(232, 239, 248, 0.92) 0%, rgba(248, 250, 252, 0.95) 360px),
+        #f7f9fc;
+    }
+
+    .tutorial-shell {
+      max-width: none;
+      width: 100%;
+      padding: 36px 42px 56px;
+    }
+
+    .tutorial-shell .page-header {
+      margin-bottom: 18px;
+      padding: 22px 24px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+    }
+
+    .tutorial-shell .page-title {
+      margin-bottom: 7px;
+      color: var(--color-heading);
+      font-size: 1.55rem;
+      letter-spacing: 0;
+    }
+
+    .tutorial-shell .page-subtitle {
+      max-width: 760px;
+      color: var(--color-muted);
+      line-height: 1.45;
+    }
+
+    .guide-tabs {
+      gap: 10px;
+      margin-bottom: 18px;
+      padding: 6px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+    }
+
+    .guide-tab-btn {
+      min-height: 52px;
+      padding: 9px 10px;
+      border: 1px solid rgba(148, 163, 184, 0.38);
+      border-radius: 6px;
+      background: #ffffff;
+      color: #526173;
+      font-size: 0.76rem;
+      line-height: 1.18;
+    }
+
+    .guide-tab-btn:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+      color: #172033;
+    }
+
+    .guide-tab-btn.active {
+      background: #0a5cbb;
+      border-color: #0a5cbb;
+      color: #ffffff;
+      box-shadow: 0 10px 22px rgba(10, 92, 187, 0.22);
+    }
+
+    .guide-tab-btn.active:hover {
+      background: #063f88 !important;
+      border-color: #063f88 !important;
+      color: #ffffff !important;
+      box-shadow: 0 12px 26px rgba(6, 63, 136, 0.28);
+    }
+
+    .workflow-container {
+      gap: 18px;
+    }
+
+    .workflow-step,
+    .page-card,
+    .tutorial-main,
+    .tutorial-side {
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+    }
+
+    .workflow-step {
+      padding: 22px;
+    }
+
+    .workflow-step:hover {
+      border-color: rgba(10, 92, 187, 0.45);
+      box-shadow: 0 16px 38px rgba(15, 23, 42, 0.09);
+    }
+
+    .step-header {
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .step-number,
+    .tutorial-steps--cards li::before {
+      background: #0a5cbb;
+      border-radius: 50%;
+      box-shadow: inset 0 0 0 1px rgba(10, 92, 187, 0.12);
+    }
+
+    .step-title,
+    .page-card-title,
+    .tutorial-title,
+    .tutorial-side-title,
+    .tip-card-title,
+    .file-description-title {
+      color: var(--color-heading);
+    }
+
+    .step-content,
+    .step-content p,
+    .step-checklist li,
+    .page-card-content,
+    .info-list,
+    .tutorial-intro,
+    .tutorial-side-list,
+    .tip-card-text,
+    .file-description-text {
+      color: #526173;
+    }
+
+    .page-card,
+    .tutorial-main,
+    .tutorial-side {
+      padding: 22px;
+    }
+
+    .guide-note,
+    .tip-card,
+    .tutorial-steps--cards li,
+    .raw-command-toolbar,
+    .code-block {
+      border-color: rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .guide-note,
+    .tip-card {
+      border-left-color: #0a5cbb;
+    }
+
+    .tutorial-layout {
+      grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+      gap: 18px;
+    }
+
+    .tutorial-kicker {
+      color: #0a5cbb;
+    }
+
+    .tutorial-steps--cards {
+      gap: 10px;
+    }
+
+    .tutorial-steps--cards li {
+      border-color: rgba(148, 163, 184, 0.28);
+      background: #f8fafc;
+    }
+
+    .code-block {
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      color: #172033;
+    }
+
+    .footer-section {
+      margin-top: 32px;
+      border-top-color: rgba(148, 163, 184, 0.28);
+      color: var(--color-muted);
+    }
+
+    @media (max-width: 1180px) {
+      .guide-tabs {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 768px) {
+      .tutorial-shell {
+        padding: 20px 14px 32px;
+      }
+
+      .tutorial-shell .page-header,
+      .workflow-step,
+      .page-card,
+      .tutorial-main,
+      .tutorial-side {
+        padding: 18px;
+      }
+
+      .guide-tabs {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 520px) {
+      .guide-tabs {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 
-<body>
+<body class="tutorial-body">
   <div id="navbarContainer"></div>
   
-  <div class="page-shell">
+  <div class="page-shell tutorial-shell">
     <div class="page-header">
       <h1 class="page-title">Tutorials</h1>
       <p class="page-subtitle">Follow the current app workflow: build a template, prepare student folders, collect device output, review results, and export when ready.</p>
@@ -825,19 +1047,29 @@
         .map((tab) => document.getElementById(tab.dataset.target || ""))
         .filter(Boolean);
 
+      const activateGuideTab = (targetId, { updateHash = false } = {}) => {
+        const targetTab = tabs.find((tab) => tab.dataset.target === targetId) || tabs[0];
+        const resolvedTargetId = targetTab?.dataset.target || "";
+        tabs.forEach((item) => {
+          const isActive = item === targetTab;
+          item.classList.toggle("active", isActive);
+          item.setAttribute("aria-selected", isActive ? "true" : "false");
+        });
+        panels.forEach((panel) => {
+          panel.classList.toggle("active", panel.id === resolvedTargetId);
+        });
+        if (updateHash && resolvedTargetId) {
+          history.replaceState(null, "", `#${resolvedTargetId}`);
+        }
+      };
+
       tabs.forEach((tab) => {
         tab.addEventListener("click", () => {
-          const targetId = tab.dataset.target || "";
-          tabs.forEach((item) => {
-            const isActive = item === tab;
-            item.classList.toggle("active", isActive);
-            item.setAttribute("aria-selected", isActive ? "true" : "false");
-          });
-          panels.forEach((panel) => {
-            panel.classList.toggle("active", panel.id === targetId);
-          });
+          activateGuideTab(tab.dataset.target || "", { updateHash: true });
         });
       });
+
+      activateGuideTab(window.location.hash.slice(1) || "quickGuidesPanel");
     });
   </script>
 </body>

@@ -119,7 +119,7 @@
     }
 
     .connection-layout {
-      grid-template-columns: minmax(360px, 440px) minmax(0, 1fr);
+      grid-template-columns: minmax(320px, 400px) minmax(620px, 1fr);
       gap: 24px;
       border-top: none;
       padding-top: 24px;
@@ -243,41 +243,13 @@
       border-bottom-right-radius: 8px;
     }
 
-    .connection-mode-group {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
+    .connection-mode-grid {
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      margin-bottom: 16px;
     }
 
-    .connection-mode-group .choice-label,
-    .connection-preset-option {
-      border-radius: 8px;
-      border: 1px solid rgba(15, 23, 42, 0.1);
-      background: #ffffff;
-    }
-
-    .connection-mode-group .choice-label {
-      padding: 12px 14px;
-      justify-content: flex-start;
-    }
-
-    .connection-mode-group .choice-label:has(input:checked),
-    .connection-preset-option:has(input:checked) {
-      border-color: rgba(37, 99, 235, 0.55);
-      background: #f0f6ff;
-      color: var(--color-primary);
-    }
-
-    .connection-preset-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-
-    .connection-preset-option {
-      min-height: 62px;
-      align-items: center;
-      font-size: 0.86rem;
+    .connection-mode-grid .radio-card {
+      padding: 14px 18px;
     }
 
     #serialFields,
@@ -292,8 +264,8 @@
       margin-top: 10px;
     }
 
-    .connection-ssh-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    #sshFields .form-row + .form-row {
+      margin-top: 12px;
     }
 
     .connection-status__header {
@@ -392,9 +364,6 @@
         padding: 18px;
       }
 
-      .connection-mode-group,
-      .connection-preset-grid,
-      .connection-ssh-grid,
       .connection-action-grid,
       .danger-zone__actions {
         grid-template-columns: 1fr;
@@ -408,6 +377,243 @@
         width: 100%;
       }
     }
+
+    .connection-body {
+      background:
+        linear-gradient(180deg, rgba(232, 239, 248, 0.92) 0%, rgba(248, 250, 252, 0.95) 360px),
+        #f7f9fc;
+    }
+
+    .connection-shell {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 36px 42px 56px;
+    }
+
+    .connection-shell .page-header {
+      align-items: center;
+      margin-bottom: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+    }
+
+    .connection-shell .page-title {
+      color: var(--color-heading);
+    }
+
+    .connection-shell .page-subtitle {
+      color: var(--color-muted);
+      line-height: 1.45;
+    }
+
+    .connection-layout {
+      display: grid;
+      grid-template-columns: minmax(340px, 0.68fr) minmax(620px, 1.55fr);
+      gap: 18px;
+      padding-top: 0;
+      align-items: start;
+    }
+
+    .connection-panel,
+    .connection-status {
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+    }
+
+    .connection-panel {
+      padding: 22px;
+    }
+
+    .connection-status {
+      padding: 22px;
+      top: 18px;
+    }
+
+    .step-heading {
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .step-heading--compact {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(148, 163, 184, 0.24);
+    }
+
+    .step-heading__num {
+      background: #e8f0ff;
+      color: #0a5cbb;
+      box-shadow: inset 0 0 0 1px rgba(10, 92, 187, 0.12);
+    }
+
+    .section-title,
+    .connection-status__header h3 {
+      color: var(--color-heading);
+    }
+
+    .connection-queue__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .connection-queue__list {
+      max-height: 330px;
+      padding: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .queue-item {
+      border-color: rgba(148, 163, 184, 0.32) !important;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+    }
+
+    .queue-item.active-queue-item {
+      border-color: rgba(10, 92, 187, 0.5) !important;
+      background: #f3f8ff !important;
+    }
+
+    #serialFields,
+    #sshFields {
+      margin-top: 2px;
+      border-color: rgba(148, 163, 184, 0.28);
+      background: #f8fafc;
+    }
+
+    .connection-status__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding-bottom: 16px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .connection-status__header .step-heading {
+      flex: 1;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    .connection-status__header .link-btn {
+      flex: 0 0 auto;
+      border-color: rgba(148, 163, 184, 0.34);
+      border-radius: 6px;
+      color: #526173;
+    }
+
+    .connection-status__header .link-btn:hover {
+      background: #0a5cbb;
+      border-color: #0a5cbb;
+      color: #ffffff;
+    }
+
+    .log-tabs {
+      gap: 10px;
+      padding: 6px;
+      border-color: rgba(148, 163, 184, 0.24);
+      background: #ffffff;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+    }
+
+    .log-tab {
+      min-height: 44px;
+      border-color: rgba(148, 163, 184, 0.34);
+      background: #ffffff;
+      color: #526173;
+      border-radius: 6px;
+    }
+
+    .log-tab--activity.active,
+    .log-tab--terminal.active {
+      background: #0a5cbb;
+      border-color: #0a5cbb;
+      color: #ffffff;
+      box-shadow: 0 10px 22px rgba(10, 92, 187, 0.22);
+    }
+
+    .log-tab--activity:hover,
+    .log-tab--terminal:hover {
+      background: #f8fafc !important;
+      border-color: #cbd5e1 !important;
+      color: #172033 !important;
+    }
+
+    .log-tab--activity.active:hover,
+    .log-tab--terminal.active:hover {
+      background: #063f88 !important;
+      border-color: #063f88 !important;
+      color: #ffffff !important;
+    }
+
+    .log-display {
+      margin-top: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    .connection-action-grid {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(148, 163, 184, 0.24);
+    }
+
+    .danger-zone {
+      margin-top: 18px;
+      border: 1px solid rgba(197, 62, 62, 0.18);
+      background: #fff7f7;
+      box-shadow: none;
+    }
+
+    .danger-zone__header {
+      align-items: center;
+    }
+
+    @media (max-width: 1100px) {
+      .connection-shell {
+        padding: 32px 28px 48px;
+      }
+
+      .connection-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .connection-status {
+        position: static;
+        max-height: none;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .connection-shell {
+        padding: 20px 14px 32px;
+      }
+
+      .connection-shell .page-header,
+      .connection-panel,
+      .connection-status {
+        padding: 18px;
+      }
+
+      .connection-status__header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .connection-status__header .link-btn {
+        width: 100%;
+      }
+    }
   </style>
 </head>
 
@@ -415,11 +621,12 @@
   <div id="navbarContainer"></div>
 
   <div class="page-shell connection-shell">
-    <header class="page-header">
+    <header class="page-header page-header--with-action">
       <div>
         <h1 class="page-title">Connection & Execution</h1>
         <p class="page-subtitle">Confirm how you will connect and monitor the live run results.</p>
       </div>
+      <a class="tutorial-page-link" href="quick_guide.html#connectionGuidePanel">Tutorial</a>
     </header>
 
     <div class="connection-layout" id="connectionPage">
@@ -449,49 +656,57 @@
               <p class="step-heading__hint">Pick Serial or SSH, then confirm the port or login fields.</p>
             </div>
           </div>
-          <div class="form-group connection-mode-group">
-            <label class="choice-label"><input type="radio" name="connType" value="serial" /> Serial</label>
-            <label class="choice-label"><input type="radio" name="connType" value="ssh" /> SSH</label>
+          <div class="form-group" style="margin-bottom: 16px;">
+            <div class="radio-card-grid connection-mode-grid">
+              <label class="radio-card">
+                <input type="radio" name="connType" value="serial" />
+                <div class="radio-card-header" style="margin-bottom: 0;">
+                  <span class="radio-card-title">Serial Connection</span>
+                  <div class="radio-card-indicator"></div>
+                </div>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="connType" value="ssh" />
+                <div class="radio-card-header" style="margin-bottom: 0;">
+                  <span class="radio-card-title">SSH Connection</span>
+                  <div class="radio-card-indicator"></div>
+                </div>
+              </label>
+            </div>
           </div>
 
           <div id="serialFields">
-            <p class="hint">Choose the preset that matches your system or select custom.</p>
-            <div class="inline-options connection-preset-grid">
-              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset"
-                  value="linux_usb" checked /> Linux USB-Serial
-                (/dev/ttyUSB0)</label>
-              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset"
-                  value="linux_rs232" /> Linux
-                RS232 (/dev/ttyS0)</label>
-              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset"
-                  value="windows" /> Windows
-                (COM3)</label>
-              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset"
-                  value="mac" /> macOS
-                (/dev/cu.usbserial-10)</label>
-              <label class="choice-label connection-preset-option"><input type="radio" name="serialPreset"
-                  value="custom" /> Custom</label>
+            <div class="inline-options" style="margin-bottom: 10px;">
+              <label class="choice-label"><input type="radio" name="serialPreset" value="linux_usb" checked /> Linux USB-Serial</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="linux_rs232" /> Linux RS232</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="windows" /> Windows</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="mac" /> macOS</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="custom" /> Custom</label>
             </div>
             <label for="serialPort">Serial Port</label>
             <input type="text" id="serialPort" placeholder="/dev/ttyUSB0" />
           </div>
 
-          <div id="sshFields" class="hidden connection-ssh-grid">
-            <div class="form-group">
-              <label for="sshHost">SSH Host</label>
-              <input type="text" id="sshHost" placeholder="192.168.1.1" />
+          <div id="sshFields" class="hidden">
+            <div class="form-row" style="flex-wrap: wrap; gap: 12px;">
+              <div class="form-group">
+                <label for="sshHost">Host</label>
+                <input type="text" id="sshHost" placeholder="192.168.1.1" />
+              </div>
+              <div class="form-group">
+                <label for="sshPort">Port</label>
+                <input type="text" id="sshPort" placeholder="22" />
+              </div>
             </div>
-            <div class="form-group">
-              <label for="sshPort">SSH Port</label>
-              <input type="text" id="sshPort" placeholder="22" />
-            </div>
-            <div class="form-group">
-              <label for="sshUser">SSH Username</label>
-              <input type="text" id="sshUser" placeholder="admin" />
-            </div>
-            <div class="form-group">
-              <label for="sshPass">SSH Password</label>
-              <input type="password" id="sshPass" placeholder="Password" />
+            <div class="form-row" style="flex-wrap: wrap; gap: 12px;">
+              <div class="form-group">
+                <label for="sshUser">Username</label>
+                <input type="text" id="sshUser" placeholder="admin" />
+              </div>
+              <div class="form-group">
+                <label for="sshPass">Password</label>
+                <input type="password" id="sshPass" placeholder="Password" />
+              </div>
             </div>
           </div>
         </form>

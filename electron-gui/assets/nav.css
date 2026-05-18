@@ -44,6 +44,12 @@ body.sidebar-collapsed:not(.welcome-body) {
   outline-offset: 3px;
 }
 
+.sidebar-toggle:hover {
+  background: #1f3b73 !important;
+  border-color: #1f3b73 !important;
+  color: #ffffff !important;
+}
+
 body.sidebar-collapsed .sidebar-toggle {
   left: 104px;
 }
@@ -175,8 +181,8 @@ body.sidebar-collapsed .global-template-badge {
 }
 
 .app-navbar__links a:hover {
-  background: #1e293b;
-  color: #f8fafc;
+  background: #26354f !important;
+  color: #ffffff !important;
 }
 
 .app-navbar__links a:hover svg {
@@ -188,6 +194,12 @@ body.sidebar-collapsed .global-template-badge {
   background: #2563eb;
   color: #ffffff;
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+}
+
+.app-navbar__links a.active:hover {
+  background: #0f2f68 !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 16px rgba(15, 47, 104, 0.5) !important;
 }
 
 .app-navbar__links a.active svg {

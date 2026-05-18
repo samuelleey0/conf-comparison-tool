@@ -37,8 +37,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const studentList = document.getElementById("studentList");
   const deleteTemplateBtn = document.getElementById("deleteTemplateBtn");
   const deleteAllTemplatesBtn = document.getElementById("deleteAllTemplatesBtn");
+  const deleteAllTemplatesConfirm = document.getElementById("deleteAllTemplatesConfirm");
   const deleteResultBtn = document.getElementById("deleteResultBtn");
   const deleteAllResultsBtn = document.getElementById("deleteAllResultsBtn");
+  const deleteAllResultsConfirm = document.getElementById("deleteAllResultsConfirm");
   const deleteSessionBtn = document.getElementById("deleteSessionBtn");
   const deleteStudentBtn = document.getElementById("deleteStudentBtn");
   const examList = document.getElementById("examList");
@@ -597,7 +599,7 @@ document.addEventListener("DOMContentLoaded", () => {
         </select>
         <input type="text" id="newRuleSectionInput" placeholder="Enter custom section name" style="display:none;" />
         <div class="rubric-modal-actions">
-          <button type="button" id="newRuleCancelBtn" class="secondary">Cancel</button>
+          <button type="button" id="newRuleCancelBtn" class="danger">Cancel</button>
           <button type="button" id="newRuleConfirmBtn" class="primary">Create Rule</button>
         </div>
       </div>
@@ -941,11 +943,17 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function deleteAllTemplates() {
+    if ((deleteAllTemplatesConfirm?.value || "").trim() !== "DELETE ALL TEMPLATES") {
+      alert("Type DELETE ALL TEMPLATES to enable this action.");
+      return;
+    }
     if (!confirm("Delete ALL templates? This cannot be undone.")) return;
     await fetchJson("http://127.0.0.1:5050/api/admin/templates", {
       method: "DELETE",
       body: JSON.stringify({ all: true }),
     });
+    if (deleteAllTemplatesConfirm) deleteAllTemplatesConfirm.value = "";
+    updateBulkDeleteButtons();
     loadCleanupLists();
   }
 
@@ -961,12 +969,27 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function deleteAllResults() {
+    if ((deleteAllResultsConfirm?.value || "").trim() !== "DELETE ALL RESULTS") {
+      alert("Type DELETE ALL RESULTS to enable this action.");
+      return;
+    }
     if (!confirm("Delete ALL results? This cannot be undone.")) return;
     await fetchJson("http://127.0.0.1:5050/api/admin/results", {
       method: "DELETE",
       body: JSON.stringify({ all: true }),
     });
+    if (deleteAllResultsConfirm) deleteAllResultsConfirm.value = "";
+    updateBulkDeleteButtons();
     loadCleanupLists();
+  }
+
+  function updateBulkDeleteButtons() {
+    if (deleteAllTemplatesBtn) {
+      deleteAllTemplatesBtn.disabled = (deleteAllTemplatesConfirm?.value || "").trim() !== "DELETE ALL TEMPLATES";
+    }
+    if (deleteAllResultsBtn) {
+      deleteAllResultsBtn.disabled = (deleteAllResultsConfirm?.value || "").trim() !== "DELETE ALL RESULTS";
+    }
   }
 
   async function deleteStudent() {
@@ -1023,12 +1046,15 @@ document.addEventListener("DOMContentLoaded", () => {
   resetDedupBtn?.addEventListener("click", resetDedupConfig);
   deleteTemplateBtn?.addEventListener("click", deleteTemplate);
   deleteAllTemplatesBtn?.addEventListener("click", deleteAllTemplates);
+  deleteAllTemplatesConfirm?.addEventListener("input", updateBulkDeleteButtons);
   deleteResultBtn?.addEventListener("click", deleteResult);
   deleteAllResultsBtn?.addEventListener("click", deleteAllResults);
+  deleteAllResultsConfirm?.addEventListener("input", updateBulkDeleteButtons);
   deleteExamBtn?.addEventListener("click", deleteExam);
   deleteSessionBtn?.addEventListener("click", deleteSession);
   deleteStudentBtn?.addEventListener("click", deleteStudent);
   syncMirrorBtn?.addEventListener("click", syncMirror);
+  updateBulkDeleteButtons();
 
   // Init
   initAdminTabs();

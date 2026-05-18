@@ -2,6 +2,7 @@
   "name": "electron-gui",
   "version": "1.0.0",
   "description": "Frontend desktop app for Automated Cisco Configuration & Marking System",
+  "homepage": "https://github.com/samuelleey0/conf-comparison-tool",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -11,6 +12,8 @@
     "build:backend:linux": "bash ./scripts/build-backend.sh",
     "build:installer": "npm run build:backend && electron-builder --win nsis",
     "build:installer:ubuntu": "npm run build:backend:linux && electron-builder --linux AppImage deb",
+    "install:ubuntu": "bash ./scripts/install-ubuntu.sh",
+    "uninstall:ubuntu": "bash ./scripts/uninstall-ubuntu.sh",
     "build:portable": "npm run build:backend && electron-builder --win portable",
     "build:windows": "npm run build:backend && electron-builder --win nsis portable",
     "build:linux": "npm run build:installer:ubuntu"
@@ -22,7 +25,10 @@
     "automation",
     "flask"
   ],
-  "author": "ICT30018 2026_S1 FYP ConfigSphere Team",
+  "author": {
+    "name": "ICT30018 2026_S1 FYP ConfigSphere Team",
+    "email": "maintainer@example.com"
+  },
   "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
@@ -47,6 +53,7 @@
       ]
     },
     "linux": {
+      "maintainer": "ICT30018 2026_S1 FYP ConfigSphere Team <maintainer@example.com>",
       "target": [
         {
           "target": "AppImage",
@@ -71,8 +78,7 @@
       "shortcutName": "Cisco Config Tool"
     },
     "files": [
-      "main.js",
-      "renderer.js",
+      "*.js",
       "*.html",
       "assets/**/*",
       "node_modules/**/*"

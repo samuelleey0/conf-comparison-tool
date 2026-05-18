@@ -200,6 +200,40 @@ Installer outputs are created in:
 electron-gui/dist/
 ```
 
+To install the generated Ubuntu `.deb` package on the current machine:
+
+```bash
+cd electron-gui
+npm run install:ubuntu
+```
+
+If no `.deb` exists yet, the installer script builds one first. To install a specific package:
+
+```bash
+bash ./scripts/install-ubuntu.sh --deb ./dist/Cisco\ Config\ Comparison\ Tool-1.0.0-linux-amd64.deb
+```
+
+For Serial console access on Ubuntu, add your user to the `dialout` group during install:
+
+```bash
+bash ./scripts/install-ubuntu.sh --serial-permissions
+```
+
+Log out and back in after changing serial permissions.
+
+To uninstall the Ubuntu package:
+
+```bash
+cd electron-gui
+npm run uninstall:ubuntu
+```
+
+To also remove the current user's app settings/cache:
+
+```bash
+bash ./scripts/uninstall-ubuntu.sh --purge-user-data
+```
+
 ## 5. Connect a Cisco Device
 
 The app supports two connection types.

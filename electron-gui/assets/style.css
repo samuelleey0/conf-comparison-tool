@@ -10,6 +10,11 @@
   --color-muted: #5f6575;
   --color-heading: #1b2646;
   --color-danger: #c53e3e;
+  --color-danger-hover: #9f2929;
+  --color-hover-bg: #dbeafe;
+  --color-hover-text: #132a56;
+  --color-active-hover-bg: #0f2f68;
+  --color-active-hover-text: #ffffff;
   --color-sidebar: #f4f5f8;
   --shadow-card: 0 12px 28px rgba(15, 23, 46, 0.08);
 }
@@ -243,7 +248,51 @@ button.danger {
 }
 
 button.danger:hover:not(:disabled) {
-  filter: brightness(0.95);
+  background: #a92f2f;
+  border-color: #a92f2f;
+  color: #ffffff;
+  filter: none;
+}
+
+button[id*="cancel" i],
+button[id*="delete" i],
+button[id*="remove" i],
+button[data-action="cancel"],
+button[data-action="delete"],
+button[data-action="remove"],
+button[title*="delete" i],
+button[title*="remove" i],
+.delete-btn,
+.rubric-delete-btn,
+.remove-btn,
+.remove-device-btn,
+.command-remove-btn,
+.mode-clear-btn,
+.abort-btn {
+  background: var(--color-danger) !important;
+  border-color: var(--color-danger) !important;
+  color: #ffffff !important;
+}
+
+button[id*="cancel" i]:hover:not(:disabled),
+button[id*="delete" i]:hover:not(:disabled),
+button[id*="remove" i]:hover:not(:disabled),
+button[data-action="cancel"]:hover:not(:disabled),
+button[data-action="delete"]:hover:not(:disabled),
+button[data-action="remove"]:hover:not(:disabled),
+button[title*="delete" i]:hover:not(:disabled),
+button[title*="remove" i]:hover:not(:disabled),
+.delete-btn:hover:not(:disabled),
+.rubric-delete-btn:hover:not(:disabled),
+.remove-btn:hover:not(:disabled),
+.remove-device-btn:hover:not(:disabled),
+.command-remove-btn:hover:not(:disabled),
+.mode-clear-btn:hover:not(:disabled),
+.abort-btn:hover:not(:disabled) {
+  background: var(--color-danger-hover) !important;
+  border-color: var(--color-danger-hover) !important;
+  color: #ffffff !important;
+  filter: none;
 }
 
 button.sync-accent {
@@ -358,6 +407,36 @@ button.block {
 .page-header {
   border-bottom: 1px solid var(--color-border);
   padding-bottom: 18px;
+}
+
+.page-header--with-action {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tutorial-page-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--color-primary);
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.tutorial-page-link:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
 }
 
 .page-title {
@@ -847,9 +926,9 @@ button.block {
   height: 28px;
   min-width: 28px;
   border-radius: 50%;
-  border: 1px solid #e0e0e0;
-  background: #fff;
-  color: #999;
+  border: 1px solid var(--color-danger);
+  background: var(--color-danger);
+  color: #ffffff;
   font-size: 0.85rem;
   cursor: pointer;
   display: flex;
@@ -861,9 +940,9 @@ button.block {
 }
 
 .rubric-delete-btn:hover {
-  background: #fff5f5;
-  border-color: #f3b1b1;
-  color: var(--color-danger, #c0392b);
+  background: #a92f2f;
+  border-color: #a92f2f;
+  color: #ffffff;
   box-shadow: 0 2px 6px rgba(192, 57, 43, 0.15);
 }
 
@@ -1306,9 +1385,9 @@ button.block {
 }
 
 .remove-btn {
-  background: #fff5f5;
-  color: var(--color-danger);
-  border: 1px solid #f3b1b1;
+  background: var(--color-danger);
+  color: #ffffff;
+  border: 1px solid var(--color-danger);
   padding: 6px 12px;
   font-size: 0.85rem;
   border-radius: 0;
@@ -1316,8 +1395,9 @@ button.block {
 }
 
 .remove-btn:hover {
-  background: #ffe7e7;
-  border-color: #e48c8c;
+  background: #a92f2f;
+  border-color: #a92f2f;
+  color: #ffffff;
 }
 
 /* Connection page */
@@ -2753,4 +2833,113 @@ progress::-moz-progress-bar {
   color: var(--color-muted);
   line-height: 1.5;
   margin: 0;
+}
+
+/* ── Global hover/active interaction states ───────────────── */
+button:not(.danger):not(.delete-btn):not(.rubric-delete-btn):not(.remove-btn):not(.remove-device-btn):not(.command-remove-btn):not(.mode-clear-btn):not(.abort-btn):hover:not(:disabled),
+input[type="button"]:hover:not(:disabled),
+input[type="submit"]:hover:not(:disabled),
+.link-btn:hover:not(:disabled),
+.tutorial-page-link:hover,
+.homepage-backlink:hover,
+.queue-start-btn:hover:not(:disabled),
+.connection-action-grid__done:hover:not(:disabled) {
+  background: var(--color-primary-dark) !important;
+  border-color: var(--color-primary-dark) !important;
+  color: #ffffff !important;
+}
+
+button.secondary:not(.danger):hover:not(:disabled),
+.btn-outline:hover:not(:disabled),
+.picker-nav-btn:hover:not(:disabled),
+.close-modal:hover:not(:disabled),
+.context-close:hover:not(:disabled) {
+  background: var(--color-hover-bg) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-hover-text) !important;
+}
+
+.log-tab:hover,
+.dir-tab-btn:hover,
+.guide-tab-btn:hover,
+.admin-tab-btn:hover,
+.context-tab:hover,
+.raw-command-btn:hover,
+.rubric-filter-btn:hover,
+.directory-options button:hover,
+.directory-options button.secondary:hover,
+.app-select-trigger:hover:not(:disabled),
+.dropdown-header:hover,
+.dropdown-item:hover,
+.app-select-option:hover,
+.queue-cmd-dropdown__item:hover {
+  background: var(--color-hover-bg) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-hover-text) !important;
+}
+
+.log-tab.active:hover,
+.dir-tab-btn.active:hover,
+.guide-tab-btn.active:hover,
+.admin-tab-btn.active:hover,
+.context-tab.active:hover,
+.raw-command-btn.active:hover,
+.rubric-filter-btn.active:hover,
+.directory-options button.active:hover,
+.app-select-option.selected:hover,
+[aria-selected="true"]:hover {
+  background: var(--color-active-hover-bg) !important;
+  border-color: var(--color-active-hover-bg) !important;
+  color: var(--color-active-hover-text) !important;
+}
+
+.log-tab:hover .log-tab-icon,
+.log-tab.active:hover .log-tab-icon {
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+}
+
+.radio-card:hover,
+.choice-label:hover,
+.connection-preset-option:hover,
+.command-tile:hover,
+.command-card:hover,
+.homepage-card:hover,
+.student-result-item:hover,
+.summary-box:hover,
+.result-item:hover,
+.workflow-step:hover,
+.tree-item:hover {
+  background: #eef5ff !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-hover-text) !important;
+}
+
+.radio-card:hover .radio-card-title,
+.radio-card:hover .radio-card-desc,
+.choice-label:hover,
+.connection-preset-option:hover,
+.command-tile:hover,
+.command-card:hover,
+.homepage-card:hover,
+.student-result-item:hover,
+.summary-box:hover,
+.result-item:hover,
+.workflow-step:hover,
+.tree-item:hover {
+  color: var(--color-hover-text) !important;
+}
+
+.radio-card:has(input[type="radio"]:checked):hover,
+.choice-label:has(input:checked):hover {
+  background: #dbeafe !important;
+  border-color: var(--color-active-hover-bg) !important;
+  color: var(--color-hover-text) !important;
+  box-shadow: 0 10px 26px rgba(15, 47, 104, 0.18) !important;
+}
+
+.radio-card:has(input[type="radio"]:checked):hover .radio-card-title,
+.radio-card:has(input[type="radio"]:checked):hover .radio-card-desc,
+.choice-label:has(input:checked):hover {
+  color: var(--color-hover-text) !important;
 }
