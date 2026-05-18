@@ -20,26 +20,12 @@
           Prepare a mirrored raw-log session, check the device map, assign schemes, and save the export zip to Downloads.
         </p>
       </div>
-      <div class="export-hero__meta">
-        <div class="export-metric">
-          <span class="export-metric__label">Flow</span>
-          <strong>Session to zip</strong>
-        </div>
-        <div class="export-metric">
-          <span class="export-metric__label">Review</span>
-          <strong>Devices and schemes</strong>
-        </div>
-        <div class="export-metric">
-          <span class="export-metric__label">Output</span>
-          <strong>Downloads folder</strong>
-        </div>
-      </div>
     </header>
 
     <section class="export-layout">
-      <aside class="export-sidebar">
-        <section class="export-panel">
-          <div class="export-panel__header">Session</div>
+      <div class="export-top-grid">
+        <section class="export-panel export-panel--top">
+          <div class="export-panel__header"><span class="export-step-num">1</span><span>Session</span></div>
           <div class="export-panel__body">
             <div class="form-field">
               <label for="melbourneClassroomSelect">Classroom / Exam</label>
@@ -54,8 +40,8 @@
           </div>
         </section>
 
-        <section class="export-panel">
-          <div class="export-panel__header">Exam Details</div>
+        <section class="export-panel export-panel--top">
+          <div class="export-panel__header"><span class="export-step-num">2</span><span>Exam Details</span></div>
           <div class="export-panel__body">
             <div class="form-field">
               <label for="melbourneExamName">Exam name</label>
@@ -87,56 +73,65 @@
             </div>
           </div>
         </section>
+      </div>
 
-        <section class="export-panel">
-          <div class="export-panel__header">Export Settings</div>
-          <div class="export-panel__body export-panel__body--compact">
-            <details class="export-details">
-              <summary>Advanced rubric settings</summary>
-              <div class="advanced-grid">
-                <div class="form-field">
-                  <label for="melbourneMaxMarks">Maximum marks</label>
-                  <input id="melbourneMaxMarks" type="number" min="1" value="100" />
+      <div class="export-main-grid">
+        <div class="export-left-stack">
+          <section class="export-panel export-panel--devices">
+            <div class="export-panel__header"><span class="export-step-num">3</span><span>Devices</span></div>
+            <div class="table-scroll">
+              <table class="export-table">
+                <thead>
+                  <tr>
+                    <th>Folder</th>
+                    <th>Type</th>
+                    <th>Exam device name</th>
+                  </tr>
+                </thead>
+                <tbody id="melbourneDevicesBody">
+                  <tr><td colspan="3" class="muted-cell">Loading devices...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="export-panel">
+            <div class="export-panel__header"><span class="export-step-num">5</span><span>Export Settings</span></div>
+            <div class="export-panel__body export-panel__body--compact">
+              <details class="export-details">
+                <summary>Advanced rubric settings</summary>
+                <div class="advanced-grid">
+                  <div class="form-field">
+                    <label for="melbourneMaxMarks">Maximum marks</label>
+                    <input id="melbourneMaxMarks" type="number" min="1" value="100" />
+                  </div>
+                  <div class="form-field">
+                    <label for="melbourneMinorPenalties">Minor penalties</label>
+                    <input id="melbourneMinorPenalties" type="text" value="10,20,30,40" />
+                  </div>
+                  <div class="form-field">
+                    <label for="melbourneRubricName">Rubric name</label>
+                    <input id="melbourneRubricName" type="text" value="Major_Minor" />
+                  </div>
                 </div>
-                <div class="form-field">
-                  <label for="melbourneMinorPenalties">Minor penalties</label>
-                  <input id="melbourneMinorPenalties" type="text" value="10,20,30,40" />
-                </div>
-                <div class="form-field">
-                  <label for="melbourneRubricName">Rubric name</label>
-                  <input id="melbourneRubricName" type="text" value="Major_Minor" />
-                </div>
-              </div>
-            </details>
+              </details>
 
-            <button type="button" id="exportMelbourneBtn" class="export-button" disabled>Export</button>
-            <div id="melbourneSummary" class="summary-box" hidden></div>
-          </div>
-        </section>
-      </aside>
+              <button type="button" id="exportMelbourneBtn" class="export-button" disabled>Export</button>
+              <div id="melbourneSummary" class="summary-box" hidden></div>
+            </div>
+          </section>
 
-      <div class="export-main">
-        <section class="export-panel">
-          <div class="export-panel__header">Devices</div>
-          <div class="table-scroll">
-            <table class="export-table">
-              <thead>
-                <tr>
-                  <th>Folder</th>
-                  <th>Type</th>
-                  <th>Exam device name</th>
-                </tr>
-              </thead>
-              <tbody id="melbourneDevicesBody">
-                <tr><td colspan="3" class="muted-cell">Loading devices...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
+          <section class="export-panel">
+            <div class="export-panel__header"><span class="export-step-num">6</span><span>Export Log</span></div>
+            <div class="export-panel__body">
+              <div id="melbourneLog" class="log-box">Waiting for session data...</div>
+            </div>
+          </section>
+        </div>
 
-        <section class="export-panel">
+        <section class="export-panel export-panel--schemes">
           <div class="export-panel__header export-panel__header--split">
-            <span>Scheme Assignment</span>
+            <span class="export-panel__title"><span class="export-step-num">4</span><span>Scheme Assignment</span></span>
             <span class="assigned-badge" id="melbourneSelectedLabel">0/0 assigned</span>
           </div>
           <div class="export-panel__body">
@@ -144,6 +139,7 @@
               <select id="melbourneBulkScheme" class="bulk-select"></select>
               <button type="button" class="button" id="melbourneApplySchemeBtn">Apply To All</button>
             </div>
+            <div id="melbourneSchemeValidation" class="validation-box" hidden></div>
             <div class="table-scroll">
               <table class="export-table">
                 <thead>
@@ -158,13 +154,6 @@
                 </tbody>
               </table>
             </div>
-          </div>
-        </section>
-
-        <section class="export-panel">
-          <div class="export-panel__header">Export Log</div>
-          <div class="export-panel__body">
-            <div id="melbourneLog" class="log-box">Waiting for session data...</div>
           </div>
         </section>
       </div>
