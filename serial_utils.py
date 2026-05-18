@@ -42,6 +42,32 @@ def _reset_buffers(ser):
             pass
 
 
+def _warm_console_after_open(ser):
+    """
+    Give a newly opened Cisco console a chance to settle before prompt detection.
+
+    USB serial adapters can open successfully before the console is ready to
+    answer CR wake-ups. A light Ctrl-C/Ctrl-Z/CR sequence makes the first open
+    behave more like the current second attempt, without logging out.
+    """
+    try:
+        time.sleep(0.8)
+        _reset_buffers(ser)
+        for payload, delay in (
+            (b"\x03", 0.15),  # Ctrl-C: interrupt any pending output/pager
+            (b"\x1a", 0.25),  # Ctrl-Z: leave config mode if needed
+            (b"\r\n", 0.25),
+            (b"\r\n", 0.25),
+        ):
+            ser.write(payload)
+            ser.flush()
+            time.sleep(delay)
+        _reset_buffers(ser)
+        dbg("Console warm-up completed after serial open.")
+    except Exception as e:
+        dbg(f"Console warm-up failed: {e}")
+
+
 def connect_to_serial(
     port: str,
     baudrate: int = 9600,
@@ -143,7 +169,7 @@ def connect_to_serial(
             time.sleep(0.4)
             emit(f"[INFO] Serial port opened successfully (attempt {retries + 1}).")
             time.sleep(0.05)
-            _reset_buffers(ser)
+            _warm_console_after_open(ser)
 
             # Attempt to detect the prompt
             try:
@@ -154,6 +180,20 @@ def connect_to_serial(
                 return ser
             except TimeoutError as e:
                 dbg(f"Prompt not found on attempt {retries + 1}: {e}")
+                try:
+                    emit("[INFO] No prompt yet; clearing console session and retrying wake...")
+                    clear_session(ser)
+                    output = wait_for_prompt(
+                        ser, [">", "#"], timeout=timeout, wake=True
+                    )
+                    emit(
+                        f"[INFO] Connected. Device prompt: {output.strip().splitlines()[-1]}"
+                    )
+                    return ser
+                except TimeoutError as retry_exc:
+                    dbg(
+                        f"Prompt still not found after session clear on attempt {retries + 1}: {retry_exc}"
+                    )
                 logout_close_connection(ser)
                 time.sleep(0.5)
                 retries += 1
