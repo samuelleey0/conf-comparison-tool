@@ -304,17 +304,183 @@
         width: 100%;
       }
     }
+
+    .system-admin-body {
+      background:
+        linear-gradient(180deg, rgba(232, 239, 248, 0.92) 0%, rgba(248, 250, 252, 0.95) 360px),
+        #f7f9fc;
+    }
+
+    .system-admin-shell,
+    #systemAdminPage {
+      max-width: none;
+      width: 100%;
+    }
+
+    #systemAdminPage {
+      margin: 0 auto;
+      padding-bottom: 32px;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+
+    #systemAdminPage .page-header {
+      align-items: center;
+      margin-bottom: 18px;
+      padding: 22px 24px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+    }
+
+    #systemAdminPage .page-title {
+      font-size: 1.55rem;
+      color: var(--color-heading);
+      letter-spacing: 0;
+    }
+
+    #systemAdminPage .page-subtitle {
+      margin-top: 6px;
+      max-width: 680px;
+      color: var(--color-muted);
+      line-height: 1.45;
+    }
+
+    .admin-tabs {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 18px;
+      padding: 6px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+      overflow: visible;
+    }
+
+    .admin-tab-btn {
+      min-height: 52px;
+      border: 1px solid rgba(148, 163, 184, 0.38);
+      border-radius: 6px !important;
+      background: #ffffff;
+      color: #526173;
+      padding: 10px 12px;
+      line-height: 1.25;
+    }
+
+    .admin-tab-btn:last-child {
+      border-right: 1px solid rgba(148, 163, 184, 0.38);
+    }
+
+    .admin-tab-btn:hover {
+      background: #f8fafc !important;
+      color: #172033 !important;
+      border-color: #cbd5e1 !important;
+    }
+
+    .admin-tab-btn.active,
+    .admin-tab-btn.active:hover {
+      background: #0a5cbb !important;
+      color: #ffffff !important;
+      border-color: #0a5cbb !important;
+      box-shadow: 0 10px 22px rgba(10, 92, 187, 0.22);
+    }
+
+    .section-card {
+      padding: 22px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+    }
+
+    .command-list-header {
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .command-list-title h2,
+    .section-card > h2 {
+      color: var(--color-heading);
+    }
+
+    .command-grid {
+      padding: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .command-card,
+    .dedup-option-card {
+      border-color: rgba(148, 163, 184, 0.3);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+    }
+
+    .command-card:hover,
+    .dedup-option-card:hover {
+      border-color: #cbd5e1;
+      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .command-card code {
+      border-radius: 6px;
+      background: #f8fafc;
+    }
+
+    .add-command-bar,
+    #systemAdminPage .info-box {
+      border-color: rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .remove-btn {
+      border-radius: 6px !important;
+    }
+
+    .dedup-admin-field textarea,
+    #systemAdminPage input,
+    #systemAdminPage select {
+      border-color: rgba(148, 163, 184, 0.34);
+      border-radius: 6px;
+    }
+
+    @media (max-width: 1180px) {
+      .admin-tabs {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      #systemAdminPage .page-header,
+      .section-card {
+        padding: 18px;
+      }
+
+      .admin-tabs {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 
 <body class="system-admin-body">
   <div id="navbarContainer"></div>
 
-  <div class="page-shell" style="overflow: visible;">
+  <div class="page-shell system-admin-shell" style="overflow: visible;">
     <section class="page-card" id="systemAdminPage" style="overflow: visible;">
-      <header class="page-header">
-        <h1 class="page-title">System Administration</h1>
-        <p class="page-subtitle">Manage commands, grading settings, rubric rules, and stored system data.</p>
+      <header class="page-header page-header--with-action">
+        <div>
+          <h1 class="page-title">System Administration</h1>
+          <p class="page-subtitle">Manage commands, grading settings, rubric rules, and stored system data.</p>
+        </div>
+        <a class="tutorial-page-link" href="quick_guide.html#systemAdminGuidePanel">Tutorial</a>
       </header>
 
       <div class="admin-tabs" id="systemAdminTabs" role="tablist" aria-label="System Administration Sections">
