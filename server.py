@@ -876,6 +876,35 @@ def _ensure_base_path(data):
     return base_path, classroom, tutor_name, time_slot, student_id
 
 
+def _command_log_stem(command):
+    return _canonical_cli_command(command).replace(" ", "_").replace("/", "_")
+
+
+def _missing_command_logs(base_path, hostname, commands):
+    if not hostname:
+        return [_canonical_cli_command(cmd) for cmd in commands]
+
+    host_dir = Path(base_path) / hostname
+    if not host_dir.exists():
+        return [_canonical_cli_command(cmd) for cmd in commands]
+
+    try:
+        file_stems = {
+            entry.stem
+            for entry in host_dir.iterdir()
+            if entry.is_file() and entry.name != "config.json"
+        }
+    except OSError:
+        return [_canonical_cli_command(cmd) for cmd in commands]
+
+    missing = []
+    for cmd in commands:
+        cli_cmd = _canonical_cli_command(cmd)
+        if _command_log_stem(cli_cmd) not in file_stems:
+            missing.append(cli_cmd)
+    return missing
+
+
 @app.route("/api/abort", methods=["POST"])
 def api_abort():
     """Signal the running execution to stop immediately."""
@@ -928,6 +957,20 @@ def api_execute():
         files_written = []
         skip_config = bool(data.get("skip_config"))
         skip_hostname_check = bool(data.get("skip_hostname_check"))
+        file_extension = data.get("file_extension") or ".txt"
+        max_collection_attempts = 2
+
+        def cleanup_partial_device_logs(host_folder):
+            if not host_folder:
+                return False
+            deleted_docs = del_partial_logs(base_path, host_folder)
+            delete_engine_student_logs_for_docs_target(Path(base_path) / host_folder)
+            files_written.clear()
+            return deleted_docs
+
+        def verify_collected_commands(host_folder):
+            missing = _missing_command_logs(base_path, host_folder, commands)
+            return missing
 
         def run_serial():
             global current_mode
@@ -1066,80 +1109,111 @@ def api_execute():
                 )
                 return False
 
-            completed = 0
             total_commands = len(commands)
-            try:
-                yield stream_json_line(
-                    {
-                        "type": "progress",
-                        "msg": "Waiting for device prompt before command run...",
-                    }
-                )
-                wait_serial_prompt_ready(local_ser, timeout=6)
-            except Exception as exc:
-                yield stream_json_line(
-                    {
-                        "type": "progress",
-                        "msg": f"Prompt wake warning before commands: {exc}. Continuing...",
-                    }
-                )
-            for cmd in commands:
-                cli_cmd = _canonical_cli_command(cmd)
-                yield stream_json_line(
-                    {"type": "progress", "msg": f"Running '{cli_cmd}'..."}
-                )
+            host_folder = target_device or hostname
+            collection_complete = False
+            last_error = None
+            for attempt in range(1, max_collection_attempts + 1):
+                completed = 0
+                files_written.clear()
                 try:
-                    output = send_command(local_ser, cli_cmd, timeout=30)
-                    yield stream_json_line(
-                        {
-                            "type": "raw_output",
-                            "msg": f"{hostname}# {cli_cmd}\n{output}"
-                        }
-                    )
-                    file_path = save_output_to_file(
-                        cli_cmd,
-                        output,
-                        classroom=classroom,
-                        tutor_name=tutor_name,
-                        time_slot=time_slot,
-                        student_id=student_id,
-                        hostname=target_device or hostname,
-                        base_dir=base_path,
-                    )
-                    save_output_to_engine_students(
-                        cli_cmd,
-                        output,
-                        classroom,
-                        tutor_name,
-                        time_slot,
-                        student_id,
-                        target_device or hostname,
-                    )
-                    files_written.append(file_path)
-                    completed += 1
-                    pct = (
-                        round((completed / total_commands) * 100)
-                        if total_commands
-                        else 100
-                    )
                     yield stream_json_line(
                         {
                             "type": "progress",
-                            "msg": f"Completed '{cli_cmd}'.",
-                            "cmd_done": True,
-                            "progress_pct": pct,
+                            "msg": "Waiting for device prompt before command run...",
                         }
                     )
+                    wait_serial_prompt_ready(local_ser, timeout=6)
                 except Exception as exc:
-                    del_partial_logs(base_path, target_device or hostname)
                     yield stream_json_line(
                         {
-                            "type": "error",
-                            "msg": f"Command '{cli_cmd}' failed: {exc}",
+                            "type": "progress",
+                            "msg": f"Prompt wake warning before commands: {exc}. Continuing...",
                         }
                     )
-                    _close_serial_connection()
-                    return False
+                for cmd in commands:
+                    cli_cmd = _canonical_cli_command(cmd)
+                    yield stream_json_line(
+                        {"type": "progress", "msg": f"Running '{cli_cmd}'..."}
+                    )
+                    try:
+                        output = send_command(local_ser, cli_cmd, timeout=30)
+                        yield stream_json_line(
+                            {
+                                "type": "raw_output",
+                                "msg": f"{hostname}# {cli_cmd}\n{output}"
+                            }
+                        )
+                        file_path = save_output_to_file(
+                            cli_cmd,
+                            output,
+                            classroom=classroom,
+                            tutor_name=tutor_name,
+                            time_slot=time_slot,
+                            student_id=student_id,
+                            hostname=host_folder,
+                            base_dir=base_path,
+                            extension=file_extension,
+                        )
+                        save_output_to_engine_students(
+                            cli_cmd,
+                            output,
+                            classroom,
+                            tutor_name,
+                            time_slot,
+                            student_id,
+                            host_folder,
+                        )
+                        files_written.append(file_path)
+                        completed += 1
+                        pct = (
+                            round((completed / total_commands) * 100)
+                            if total_commands
+                            else 100
+                        )
+                        yield stream_json_line(
+                            {
+                                "type": "progress",
+                                "msg": f"Completed '{cli_cmd}'.",
+                                "cmd_done": True,
+                                "progress_pct": pct,
+                            }
+                        )
+                    except Exception as exc:
+                        last_error = f"Command '{cli_cmd}' failed: {exc}"
+                        break
+
+                missing = verify_collected_commands(host_folder)
+                if last_error is None and not missing:
+                    collection_complete = True
+                    break
+
+                if missing and last_error is None:
+                    last_error = (
+                        "Incomplete command collection; missing logs for: "
+                        + ", ".join(missing)
+                    )
+                cleanup_partial_device_logs(host_folder)
+                if attempt < max_collection_attempts:
+                    yield stream_json_line(
+                        {
+                            "type": "progress",
+                            "msg": f"{last_error}. Deleted partial logs and retrying full command set ({attempt + 1}/{max_collection_attempts})...",
+                            "progress_pct": 0,
+                        }
+                    )
+                    last_error = None
+                    continue
+
+            if not collection_complete:
+                yield stream_json_line(
+                    {
+                        "type": "error",
+                        "msg": last_error or "Incomplete command collection.",
+                    }
+                )
+                _close_serial_connection()
+                return False
 
             if not skip_config:
                 # Build parsed config.json for the student device logs.
@@ -1349,64 +1423,95 @@ def api_execute():
                 )
                 return False
 
-            completed = 0
             total_commands = len(commands)
-            for cmd in commands:
-                cli_cmd = _canonical_cli_command(cmd)
-                yield stream_json_line(
-                    {"type": "progress", "msg": f"Running '{cli_cmd}'..."}
-                )
-                try:
-                    output = send_command_remote(active, cli_cmd, timeout=30)
+            host_folder = target_device or hostname
+            collection_complete = False
+            last_error = None
+            for attempt in range(1, max_collection_attempts + 1):
+                completed = 0
+                files_written.clear()
+                for cmd in commands:
+                    cli_cmd = _canonical_cli_command(cmd)
                     yield stream_json_line(
-                        {
-                            "type": "raw_output",
-                            "msg": f"{hostname}# {cli_cmd}\n{output}"
-                        }
+                        {"type": "progress", "msg": f"Running '{cli_cmd}'..."}
                     )
-                    file_path = save_output_to_file(
-                        cli_cmd,
-                        output,
-                        classroom=classroom,
-                        tutor_name=tutor_name,
-                        time_slot=time_slot,
-                        student_id=student_id,
-                        hostname=target_device or hostname,
-                        base_dir=base_path,
+                    try:
+                        output = send_command_remote(active, cli_cmd, timeout=30)
+                        yield stream_json_line(
+                            {
+                                "type": "raw_output",
+                                "msg": f"{hostname}# {cli_cmd}\n{output}"
+                            }
+                        )
+                        file_path = save_output_to_file(
+                            cli_cmd,
+                            output,
+                            classroom=classroom,
+                            tutor_name=tutor_name,
+                            time_slot=time_slot,
+                            student_id=student_id,
+                            hostname=host_folder,
+                            base_dir=base_path,
+                            extension=file_extension,
+                        )
+                        save_output_to_engine_students(
+                            cli_cmd,
+                            output,
+                            classroom,
+                            tutor_name,
+                            time_slot,
+                            student_id,
+                            host_folder,
+                        )
+                        files_written.append(file_path)
+                        completed += 1
+                        pct = (
+                            round((completed / total_commands) * 100)
+                            if total_commands
+                            else 100
+                        )
+                        yield stream_json_line(
+                            {
+                                "type": "progress",
+                                "msg": f"Completed '{cli_cmd}'.",
+                                "cmd_done": True,
+                                "progress_pct": pct,
+                            }
+                        )
+                    except Exception as exc:
+                        last_error = f"Command '{cli_cmd}' failed: {exc}"
+                        break
+
+                missing = verify_collected_commands(host_folder)
+                if last_error is None and not missing:
+                    collection_complete = True
+                    break
+
+                if missing and last_error is None:
+                    last_error = (
+                        "Incomplete command collection; missing logs for: "
+                        + ", ".join(missing)
                     )
-                    save_output_to_engine_students(
-                        cli_cmd,
-                        output,
-                        classroom,
-                        tutor_name,
-                        time_slot,
-                        student_id,
-                        target_device or hostname,
-                    )
-                    files_written.append(file_path)
-                    completed += 1
-                    pct = (
-                        round((completed / total_commands) * 100)
-                        if total_commands
-                        else 100
-                    )
+                cleanup_partial_device_logs(host_folder)
+                if attempt < max_collection_attempts:
                     yield stream_json_line(
                         {
                             "type": "progress",
-                            "msg": f"Completed '{cli_cmd}'.",
-                            "cmd_done": True,
-                            "progress_pct": pct,
+                            "msg": f"{last_error}. Deleted partial logs and retrying full command set ({attempt + 1}/{max_collection_attempts})...",
+                            "progress_pct": 0,
                         }
                     )
-                except Exception as exc:
-                    del_partial_logs(base_path, target_device or hostname)
-                    yield stream_json_line(
-                        {
-                            "type": "error",
-                            "msg": f"Command '{cli_cmd}' failed: {exc}",
-                        }
-                    )
-                    return False
+                    last_error = None
+                    continue
+
+            if not collection_complete:
+                yield stream_json_line(
+                    {
+                        "type": "error",
+                        "msg": last_error or "Incomplete command collection.",
+                    }
+                )
+                return False
 
             if not skip_config:
                 # Build parsed config.json for the student device logs.
@@ -1482,7 +1587,7 @@ def api_execute():
             tb = traceback.format_exc()
             cleanup_hostname = target_device or hostname
             if cleanup_hostname:
-                del_partial_logs(base_path, cleanup_hostname)
+                cleanup_partial_device_logs(cleanup_hostname)
             yield stream_json_line({"type": "error", "msg": str(exc), "trace": tb})
 
     return Response(generate(), mimetype="text/plain")

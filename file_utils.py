@@ -443,19 +443,18 @@ def del_partial_logs(
 
     if not hostname:
         print("[INFO] Hostname missing; no partial logs deleted.")
-        return
+        return False
 
     simple_log_dir = os.path.join(base_path, hostname)
-    legacy_log_dir = os.path.join(
-        base_path, exam_name, session_id, student_id, hostname
-    )
 
     if os.path.exists(simple_log_dir):
         log_dir = simple_log_dir
+    elif all([exam_name, session_id, student_id]):
+        log_dir = os.path.join(base_path, exam_name, session_id, student_id, hostname)
     else:
-        log_dir = legacy_log_dir
+        log_dir = None
 
-    if os.path.exists(log_dir):
+    if log_dir and os.path.exists(log_dir):
         print(f"[INFO] Deleting partial logs in {log_dir}...")
         for root, dirs, files in os.walk(log_dir, topdown=False):
             for file in files:
@@ -464,5 +463,7 @@ def del_partial_logs(
                 os.rmdir(os.path.join(root, dir))
         os.rmdir(log_dir)
         print("[INFO] Partial logs deleted.")
+        return True
     else:
         print("[INFO] No partial logs found to delete.")
+        return False
