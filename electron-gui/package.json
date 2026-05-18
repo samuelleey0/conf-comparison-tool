@@ -11,6 +11,8 @@
     "build:backend:linux": "bash ./scripts/build-backend.sh",
     "build:installer": "npm run build:backend && electron-builder --win nsis",
     "build:installer:ubuntu": "npm run build:backend:linux && electron-builder --linux AppImage deb",
+    "install:ubuntu": "bash ./scripts/install-ubuntu.sh",
+    "uninstall:ubuntu": "bash ./scripts/uninstall-ubuntu.sh",
     "build:portable": "npm run build:backend && electron-builder --win portable",
     "build:windows": "npm run build:backend && electron-builder --win nsis portable",
     "build:linux": "npm run build:installer:ubuntu"
