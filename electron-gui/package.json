@@ -73,8 +73,7 @@
       "shortcutName": "Cisco Config Tool"
     },
     "files": [
-      "main.js",
-      "renderer.js",
+      "*.js",
       "*.html",
       "assets/**/*",
       "node_modules/**/*"
