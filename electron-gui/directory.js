@@ -45,6 +45,22 @@ function displayPickerPath(pathValue) {
   return pathValue === WINDOWS_DRIVES_ROOT ? "This PC" : (pathValue || "");
 }
 
+function inferSessionFromPath(sessionPath) {
+  if (!sessionPath || !pathModule) {
+    return {
+      classroom: "Selected Session",
+      tutor_name: "Selected Folder",
+      time_slot: "",
+    };
+  }
+  const parts = String(sessionPath).split(pathModule.sep).filter(Boolean);
+  return {
+    classroom: parts.at(-3) || "Selected Session",
+    tutor_name: parts.at(-2) || "Selected Folder",
+    time_slot: parts.at(-1) || "",
+  };
+}
+
 async function fetchPickerJson(url) {
   let res;
   try {
@@ -116,7 +132,7 @@ function openCustomDirectoryPicker() {
   }
 
   confirmBtn.onclick = () => {
-    if (pendingSelectedFolder && pendingSelectedFolder.type === 'session') {
+    if (pendingSelectedFolder && (pendingSelectedFolder.type === 'session' || pendingSelectedFolder.type === 'browser-session')) {
       const { classroom, tutor_name, time_slot, students } = pendingSelectedFolder;
 
       const label = document.getElementById("selectedDirectoryLabel");
@@ -129,7 +145,9 @@ function openCustomDirectoryPicker() {
       if (infoBox) infoBox.classList.add("hidden");
 
       let sessionPath = "";
-      if (students && students.length > 0 && typeof pathModule !== "undefined") {
+      if (pendingSelectedFolder.path) {
+        sessionPath = pendingSelectedFolder.path;
+      } else if (students && students.length > 0 && typeof pathModule !== "undefined") {
          sessionPath = pathModule.dirname(students[0].path);
       }
       if (!sessionPath && currentPickerPath && typeof pathModule !== "undefined") {
@@ -246,8 +264,28 @@ function transformToHierarchy(flatDirs) {
 
 function renderSubfolders(container, subfolders) {
   container.innerHTML = "";
+  const currentSessionPath = currentPickerPath;
+  if (currentSessionPath && currentSessionPath !== WINDOWS_DRIVES_ROOT) {
+    const sessionInfo = inferSessionFromPath(currentSessionPath);
+    pendingSelectedFolder = {
+      type: "browser-session",
+      path: currentSessionPath,
+      classroom: sessionInfo.classroom,
+      tutor_name: sessionInfo.tutor_name,
+      time_slot: sessionInfo.time_slot,
+      students: Array.isArray(subfolders)
+        ? subfolders.map((folder) => ({
+            student_id: folder.name,
+            student_name: "",
+            path: folder.path,
+          }))
+        : [],
+    };
+    const confirmBtn = document.getElementById("confirmFolderPickerBtn");
+    if (confirmBtn) confirmBtn.disabled = false;
+  }
   if (!subfolders || subfolders.length === 0) {
-    container.innerHTML = `<p class="empty-text">Empty folder.</p>`;
+    container.innerHTML = `<p class="empty-text">Empty folder. Click Select Session to use this folder anyway.</p>`;
     return;
   }
   const ul = document.createElement("ul");
