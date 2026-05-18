@@ -2,6 +2,7 @@
   "name": "electron-gui",
   "version": "1.0.0",
   "description": "Frontend desktop app for Automated Cisco Configuration & Marking System",
+  "homepage": "https://github.com/samuelleey0/conf-comparison-tool",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -24,7 +25,10 @@
     "automation",
     "flask"
   ],
-  "author": "ICT30018 2026_S1 FYP ConfigSphere Team",
+  "author": {
+    "name": "ICT30018 2026_S1 FYP ConfigSphere Team",
+    "email": "maintainer@example.com"
+  },
   "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
@@ -49,6 +53,7 @@
       ]
     },
     "linux": {
+      "maintainer": "ICT30018 2026_S1 FYP ConfigSphere Team <maintainer@example.com>",
       "target": [
         {
           "target": "AppImage",
