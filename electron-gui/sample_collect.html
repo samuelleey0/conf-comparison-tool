@@ -144,6 +144,15 @@
         gap: 12px;
       }
 
+      .sample-connection-mode-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        margin-bottom: 16px;
+      }
+
+      .sample-connection-mode-grid .radio-card {
+        padding: 14px 18px;
+      }
+
       .sample-mode-panel.hidden {
         display: none;
       }
@@ -396,8 +405,18 @@
       .sample-mode-panel,
       #sampleSerialFields,
       #sampleSshFields {
+        padding: 16px;
         border-color: rgba(148, 163, 184, 0.28);
+        border-radius: 8px;
         background: #f8fafc;
+      }
+
+      #sampleSerialFields>label {
+        margin-top: 10px;
+      }
+
+      #sampleSshFields .form-row+.form-row {
+        margin-top: 12px;
       }
 
       .sample-mode-grid .radio-card,
@@ -613,16 +632,15 @@
             </div>
           </div>
           <div class="form-group" style="margin-bottom: 16px;">
-            <div class="radio-card-grid"
-              style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 16px;">
-              <label class="radio-card" style="padding: 14px 18px;">
+            <div class="radio-card-grid sample-connection-mode-grid">
+              <label class="radio-card">
                 <input type="radio" name="sampleConnType" value="serial" checked />
                 <div class="radio-card-header" style="margin-bottom: 0;">
                   <span class="radio-card-title">Serial Connection</span>
                   <div class="radio-card-indicator"></div>
                 </div>
               </label>
-              <label class="radio-card" style="padding: 14px 18px;">
+              <label class="radio-card">
                 <input type="radio" name="sampleConnType" value="ssh" />
                 <div class="radio-card-header" style="margin-bottom: 0;">
                   <span class="radio-card-title">SSH Connection</span>
