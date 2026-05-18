@@ -541,6 +541,78 @@ function renderMainStudentGrid(students) {
   });
 }
 
+function studentsFromSessionPath(sessionPath) {
+  if (!sessionPath) return [];
+  try {
+    const fs = require("fs");
+    const entries = fs.readdirSync(sessionPath, { withFileTypes: true });
+    let names = {};
+    const namesPath = pathModule ? pathModule.join(sessionPath, "students.json") : "";
+    if (namesPath && fs.existsSync(namesPath)) {
+      try {
+        names = JSON.parse(fs.readFileSync(namesPath, "utf8")) || {};
+      } catch (_) {
+        names = {};
+      }
+    }
+    return entries
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .map((entry) => ({
+        student_id: entry.name,
+        student_name: names[entry.name] || "",
+        path: pathModule ? pathModule.join(sessionPath, entry.name) : `${sessionPath}/${entry.name}`,
+      }))
+      .sort((a, b) => a.student_id.localeCompare(b.student_id));
+  } catch (err) {
+    console.error("Failed to read selected session folder:", err);
+    return [];
+  }
+}
+
+function useSelectedSessionPath(sessionPath) {
+  if (!sessionPath) return;
+  const sessionInfo = inferSessionFromPath(sessionPath);
+  const students = studentsFromSessionPath(sessionPath);
+  setDirectoryInfo({
+    classroom: sessionInfo.classroom,
+    tutor_name: sessionInfo.tutor_name,
+    time_slot: sessionInfo.time_slot,
+    student_id: "",
+    path: sessionPath,
+    mode: "existing",
+    display: `${sessionInfo.classroom}/${sessionInfo.tutor_name}/${sessionInfo.time_slot}`,
+  });
+  localStorage.setItem("sessionPath", sessionPath);
+  setSelectedExistingDirectory(
+    sessionPath,
+    `Session: ${sessionInfo.classroom} / ${sessionInfo.tutor_name} / ${sessionInfo.time_slot}`
+  );
+  renderMainStudentGrid(students);
+  const infoBox = document.getElementById("existingInfoBox");
+  if (infoBox) {
+    infoBox.classList.toggle("hidden", students.length > 0);
+    infoBox.innerHTML = students.length > 0
+      ? ""
+      : `<strong>No student folders found.</strong><br/><span class="hint">Choose a session folder that contains student ID folders.</span>`;
+  }
+}
+
+async function openNativeSessionDirectoryDialog() {
+  if (!ipcRenderer) return false;
+  try {
+    const selectedPath = await ipcRenderer.invoke(
+      "select-directory",
+      localStorage.getItem("sessionPath") || undefined
+    );
+    if (!selectedPath) return true;
+    useSelectedSessionPath(selectedPath);
+    return true;
+  } catch (err) {
+    console.error("Native directory picker failed:", err);
+    return false;
+  }
+}
+
 // Replaced original openExistingDirectoryDialog
 // async function openExistingDirectoryDialog(startPath) {
 //   if (ipcRenderer) {
@@ -858,9 +930,11 @@ function setupDirectoryPage() {
 
 
   if (chooseBtn) {
-    chooseBtn.addEventListener("click", () => {
+    chooseBtn.addEventListener("click", async () => {
       // Pass the currently selected path if it exists, otherwise undefined (which defaults to Docs)
       // openExistingDirectoryDialog(selectedExistingPath);
+      const handledByNativeDialog = await openNativeSessionDirectoryDialog();
+      if (handledByNativeDialog) return;
       openCustomDirectoryPicker();
     });
   }
