@@ -155,6 +155,13 @@
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 12px;
+      transition: opacity 0.18s ease, filter 0.18s ease;
+    }
+
+    .ds-mode-grid.is-locked {
+      opacity: 0.42;
+      filter: grayscale(0.25);
+      pointer-events: none;
     }
 
     .ds-mode-grid .radio-card {
@@ -165,6 +172,9 @@
 
     .ds-mode-grid .radio-card:hover {
       z-index: 20;
+      background: #eef5ff !important;
+      border-color: var(--color-primary) !important;
+      color: var(--color-primary-dark) !important;
     }
 
     .ds-mode-grid .radio-card[data-mode-card="full"] {
@@ -235,8 +245,8 @@
       background: var(--color-danger);
       border: 1px solid var(--color-danger);
       color: #ffffff;
-      padding: 6px 10px;
-      font-size: 0.78rem;
+      padding: 10px 16px;
+      font-size: 0.86rem;
       font-weight: 700;
       border-radius: 4px;
       cursor: pointer;
@@ -251,6 +261,17 @@
       background: #a92f2f !important;
       border-color: #a92f2f !important;
       color: #ffffff !important;
+    }
+
+    .ds-mode-footer {
+      display: none;
+      justify-content: flex-end;
+      margin-top: 14px;
+      min-height: 40px;
+    }
+
+    .ds-mode-footer.is-visible {
+      display: flex;
     }
 
     .mode-tooltip {
@@ -476,7 +497,9 @@
     }
 
     .dropdown-header:hover {
-      border-color: var(--color-accent);
+      border-color: var(--color-accent) !important;
+      background: #dbeafe !important;
+      color: var(--color-primary-dark) !important;
     }
 
     @keyframes slideInDown {
@@ -537,8 +560,8 @@
     }
 
     .dropdown-item:hover {
-      background: rgba(10, 92, 187, 0.07);
-      color: var(--color-accent);
+      background: #dbeafe !important;
+      color: var(--color-primary-dark) !important;
     }
 
     .dropdown-item input[type="checkbox"] {
@@ -939,9 +962,6 @@
         <div class="ds-card-header">
           <span class="ds-card-title">Setup Mode</span>
           <span class="ds-card-subtitle">Choose one workflow first</span>
-          <div class="ds-card-header-actions">
-            <button type="button" id="clearSetupModeBtn" class="mode-clear-btn">Clear Selection</button>
-          </div>
         </div>
         <div class="ds-mode-grid" id="setupModeSelector">
           <label class="radio-card" data-mode-card="full">
@@ -980,6 +1000,9 @@
               Use this when you already have a collected logs folder. Device folders become template devices and log filenames become commands.
             </span>
           </label>
+        </div>
+        <div class="ds-mode-footer">
+          <button type="button" id="clearSetupModeBtn" class="mode-clear-btn">Cancel Mode</button>
         </div>
       </div>
 

@@ -75,11 +75,22 @@
       transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
     }
 
-    .guide-tab-btn:hover,
+    .guide-tab-btn:hover {
+      background: #1d4ed8 !important;
+      border-color: #1d4ed8 !important;
+      color: #ffffff !important;
+    }
+
     .guide-tab-btn.active {
       background: #2563eb;
       border-color: #2563eb;
       color: #ffffff;
+    }
+
+    .guide-tab-btn.active:hover {
+      background: #0f2f68 !important;
+      border-color: #0f2f68 !important;
+      color: #ffffff !important;
     }
 
     .guide-panel {
@@ -488,12 +499,18 @@
       color: #172033;
     }
 
-    .guide-tab-btn.active,
-    .guide-tab-btn.active:hover {
+    .guide-tab-btn.active {
       background: #0a5cbb;
       border-color: #0a5cbb;
       color: #ffffff;
       box-shadow: 0 10px 22px rgba(10, 92, 187, 0.22);
+    }
+
+    .guide-tab-btn.active:hover {
+      background: #063f88 !important;
+      border-color: #063f88 !important;
+      color: #ffffff !important;
+      box-shadow: 0 12px 26px rgba(6, 63, 136, 0.28);
     }
 
     .workflow-container {

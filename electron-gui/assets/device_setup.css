@@ -243,7 +243,8 @@
     }
 
     .dropdown-item:hover {
-      background: var(--color-bg-soft);
+      background: #dbeafe !important;
+      color: var(--color-primary-dark) !important;
     }
 
     .dropdown-item input[type="checkbox"] {

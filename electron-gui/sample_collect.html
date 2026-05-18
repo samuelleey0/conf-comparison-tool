@@ -330,13 +330,13 @@
         max-width: none;
         width: 100%;
         margin: 0 auto;
-        padding: 36px 42px 56px;
+        padding: 28px 42px 56px;
       }
 
       .connection-shell .page-header {
         align-items: center;
-        margin-bottom: 18px;
-        padding: 22px 24px;
+        margin-bottom: 10px;
+        padding: 18px 22px;
         border: 1px solid rgba(148, 163, 184, 0.24);
         border-radius: 8px;
         background: #ffffff;
@@ -371,7 +371,7 @@
       }
 
       .sample-left-col .page-card {
-        padding: 22px;
+        padding: 18px 22px;
       }
 
       .sample-right-col .page-card {
@@ -382,13 +382,13 @@
       .step-heading {
         align-items: center;
         gap: 10px;
-        padding-bottom: 12px;
+        padding-bottom: 8px;
         border-bottom: 1px solid rgba(148, 163, 184, 0.25);
       }
 
       .step-heading:not(:first-child) {
-        margin-top: 20px;
-        padding-top: 18px;
+        margin-top: 10px;
+        padding-top: 10px;
         border-top: 1px solid rgba(148, 163, 184, 0.24);
       }
 
@@ -419,6 +419,19 @@
         margin-top: 12px;
       }
 
+      .sample-step-body {
+        margin-bottom: 10px !important;
+      }
+
+      .sample-step-body--connect {
+        margin-bottom: 8px !important;
+      }
+
+      .sample-step-body > .hint:last-child {
+        margin-top: 4px;
+        margin-bottom: 0;
+      }
+
       .sample-mode-grid .radio-card,
       .radio-card-grid .radio-card,
       .inline-options .choice-label {
@@ -429,8 +442,9 @@
       .sample-mode-grid .radio-card:hover,
       .radio-card-grid .radio-card:hover,
       .inline-options .choice-label:hover {
-        border-color: #cbd5e1;
-        background: #f8fafc;
+        border-color: var(--color-primary) !important;
+        background: #eef5ff !important;
+        color: var(--color-primary-dark) !important;
       }
 
       .sample-mode-grid .radio-card:has(input:checked),
@@ -440,6 +454,14 @@
         background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 100%);
         color: #0a4f9d;
         box-shadow: 0 8px 24px rgba(10, 92, 187, 0.12);
+      }
+
+      .sample-mode-grid .radio-card:has(input:checked):hover,
+      .radio-card-grid .radio-card:has(input:checked):hover,
+      .inline-options .choice-label:has(input:checked):hover {
+        border-color: #063f88 !important;
+        background: #dbeafe !important;
+        color: var(--color-primary-dark) !important;
       }
 
       .log-tabs {
@@ -474,8 +496,8 @@
 
       .log-tab--activity.active:hover,
       .log-tab--terminal.active:hover {
-        background: #0a5cbb !important;
-        border-color: #0a5cbb !important;
+        background: #063f88 !important;
+        border-color: #063f88 !important;
         color: #ffffff !important;
       }
 
@@ -536,7 +558,7 @@
               <p class="step-heading__hint">Select where lecturer sample logs should be stored.</p>
             </div>
           </div>
-          <div class="form-group" style="margin-bottom: 24px;">
+          <div class="form-group sample-step-body">
             <label>Save Directory</label>
             <div class="existing-picker">
               <button type="button" class="secondary" id="chooseSampleDirBtn">Choose Folder</button>
@@ -561,7 +583,7 @@
               <p class="step-heading__hint">Pick one collection mode first, then complete only that workflow.</p>
             </div>
           </div>
-          <div class="form-group" style="margin-bottom: 24px;">
+          <div class="form-group sample-step-body">
             <div class="sample-mode-grid" id="sampleModeSelector">
               <label class="radio-card" style="padding: 14px 18px;">
                 <input type="radio" name="sampleMode" value="template" />
@@ -631,7 +653,7 @@
               <p class="step-heading__hint">Select connection type and begin collection.</p>
             </div>
           </div>
-          <div class="form-group" style="margin-bottom: 16px;">
+          <div class="form-group sample-step-body sample-step-body--connect">
             <div class="radio-card-grid sample-connection-mode-grid">
               <label class="radio-card">
                 <input type="radio" name="sampleConnType" value="serial" checked />

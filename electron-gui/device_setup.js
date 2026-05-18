@@ -29,6 +29,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const deviceConfigCard = document.getElementById("deviceConfigCard");
   const setupModeSelector = document.getElementById("setupModeSelector");
   const clearSetupModeBtn = document.getElementById("clearSetupModeBtn");
+  const setupModeFooter = clearSetupModeBtn?.closest(".ds-mode-footer");
 
   const MODE_FULL_MANUAL = "full_manual";
   const MODE_STRUCTURE_ONLY = "structure_only";
@@ -217,6 +218,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (deviceConfigCard) deviceConfigCard.classList.toggle("hidden", !currentMode);
     if (saveBar) saveBar.style.display = currentMode ? "" : "none";
     if (clearSetupModeBtn) clearSetupModeBtn.classList.toggle("is-visible", Boolean(currentMode));
+    if (setupModeFooter) setupModeFooter.classList.toggle("is-visible", Boolean(currentMode));
+    if (setupModeSelector) setupModeSelector.classList.toggle("is-locked", Boolean(currentMode));
 
     if (fullManualPanel) fullManualPanel.classList.toggle("hidden", !(currentMode === MODE_FULL_MANUAL && loadedFromServer));
     if (structureOnlyPanel) structureOnlyPanel.classList.add("hidden");

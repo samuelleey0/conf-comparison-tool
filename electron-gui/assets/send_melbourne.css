@@ -29,9 +29,9 @@
 }
 
 .export-hero .tutorial-page-link:hover {
-  background: #ffffff;
-  border-color: #ffffff;
-  color: var(--color-primary);
+  background: #ffffff !important;
+  border-color: #ffffff !important;
+  color: var(--color-primary) !important;
 }
 
 .export-eyebrow {
@@ -188,8 +188,9 @@
 }
 
 .button--secondary:hover:not(:disabled) {
-  background: #e3e8f1;
-  border-color: rgba(31, 59, 115, 0.18);
+  background: #dbeafe !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-primary-dark) !important;
 }
 
 .export-button {
@@ -200,7 +201,9 @@
 }
 
 .export-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #18315f 0%, #0950a3 100%);
+  background: linear-gradient(135deg, #132a56 0%, #063f88 100%) !important;
+  border-color: #063f88 !important;
+  color: #ffffff !important;
 }
 
 .export-button:disabled {
@@ -590,9 +593,9 @@ body.directory-body {
 
 .button--secondary:hover:not(:disabled),
 .button:hover:not(:disabled) {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-  color: #172033;
+  background: #dbeafe !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-primary-dark) !important;
 }
 
 .export-button {
@@ -602,7 +605,9 @@ body.directory-body {
 }
 
 .export-button:hover:not(:disabled) {
-  background: #084b9a;
+  background: #063f88 !important;
+  border-color: #063f88 !important;
+  color: #ffffff !important;
 }
 
 .table-scroll {

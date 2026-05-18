@@ -26,6 +26,18 @@
             border-color: var(--color-primary);
         }
 
+        .grading-sidebar button:hover:not(:disabled) {
+            background-color: #dbeafe !important;
+            color: var(--color-primary-dark) !important;
+            border-color: var(--color-primary) !important;
+        }
+
+        .grading-sidebar button.active:hover:not(:disabled) {
+            background-color: #0f2f68 !important;
+            color: #ffffff !important;
+            border-color: #0f2f68 !important;
+        }
+
         .grading-content {
             overflow-y: auto;
             padding-right: 10px;
@@ -49,7 +61,8 @@
         }
 
         .list-item:hover {
-            background-color: var(--color-bg-soft);
+            background-color: #eef5ff !important;
+            color: var(--color-primary-dark) !important;
         }
 
         .list-item.selected {
