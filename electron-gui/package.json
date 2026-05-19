@@ -1,5 +1,5 @@
 {
-  "name": "automated-cisco-configuration-marking-system",
+  "name": "accms",
   "version": "1.0.0",
   "description": "Frontend desktop app for Automated Cisco Configuration & Marking System",
   "homepage": "https://github.com/samuelleey0/conf-comparison-tool",
@@ -40,11 +40,11 @@
   },
   "build": {
     "appId": "com.cisco.config-tool",
-    "productName": "Automated Cisco Configuration & Marking System",
+    "productName": "ACCMS",
     "directories": {
       "buildResources": "assets"
     },
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "artifactName": "accms-${version}-${os}-${arch}.${ext}",
     "win": {
       "signAndEditExecutable": false,
       "target": [
@@ -75,7 +75,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Automated Cisco Configuration & Marking System"
+      "shortcutName": "ACCMS"
     },
     "files": [
       "*.js",
