@@ -1,5 +1,5 @@
 {
-  "name": "electron-gui",
+  "name": "automated-cisco-configuration-marking-system",
   "version": "1.0.0",
   "description": "Frontend desktop app for Automated Cisco Configuration & Marking System",
   "homepage": "https://github.com/samuelleey0/conf-comparison-tool",
@@ -40,7 +40,7 @@
   },
   "build": {
     "appId": "com.cisco.config-tool",
-    "productName": "Cisco Config Comparison Tool",
+    "productName": "Automated Cisco Configuration & Marking System",
     "directories": {
       "buildResources": "assets"
     },
@@ -75,7 +75,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Cisco Config Tool"
+      "shortcutName": "Automated Cisco Configuration & Marking System"
     },
     "files": [
       "*.js",
