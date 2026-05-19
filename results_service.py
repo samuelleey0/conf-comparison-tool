@@ -37,6 +37,18 @@ def _load_student_results(student_dir: Path, student_id: str):
     if not results_dir.is_dir():
         return None
 
+    current_hostnames = None
+    summary_path = results_dir / "summary.json"
+    if summary_path.exists():
+        try:
+            with open(summary_path, "r") as handle:
+                summary_data = json.load(handle) or {}
+            hostnames = summary_data.get("hostnames_compared") or []
+            if isinstance(hostnames, list) and hostnames:
+                current_hostnames = {str(hostname) for hostname in hostnames}
+        except Exception:
+            current_hostnames = None
+
     host_results = {}
     all_items = []
     for file_path in sorted(results_dir.glob("*_result.json")):
@@ -47,6 +59,8 @@ def _load_student_results(student_dir: Path, student_id: str):
             continue
 
         hostname = data.get("hostname") or file_path.stem.replace("_result", "")
+        if current_hostnames is not None and hostname not in current_hostnames:
+            continue
         results = data.get("results") or []
         host_results[hostname] = {
             "hostname": hostname,
@@ -1231,4 +1245,3 @@ def _extract_raw_excerpt(log_path: Path, feature: str, expected=None, actual=Non
             return excerpt
 
     return "\n".join(lines[:12]).strip()
-
