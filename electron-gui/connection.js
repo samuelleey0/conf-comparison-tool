@@ -8,7 +8,8 @@ let flaskLogListenerAttached = false;
 function appendTerminalLine(message) {
   const termLog = document.getElementById("terminalLog");
   if (!termLog) return;
-  termLog.textContent += `${message}\n`;
+  const text = String(message ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n*$/, "");
+  termLog.textContent += `${text}\n`;
   termLog.scrollTop = termLog.scrollHeight;
 }
 

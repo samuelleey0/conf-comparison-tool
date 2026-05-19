@@ -58,7 +58,8 @@ function nowTimestamp() {
 function appendLogLine(message) {
   const log = document.getElementById("log");
   if (!log) return;
-  log.innerText += `${message}\n`;
+  const text = String(message ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n*$/, "");
+  log.textContent += `${text}\n`;
   log.scrollTop = log.scrollHeight;
 }
 
