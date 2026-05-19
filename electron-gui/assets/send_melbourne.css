@@ -463,11 +463,11 @@ body.directory-body {
 }
 
 .export-top-grid {
-  grid-template-columns: minmax(360px, 0.9fr) minmax(520px, 1.1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.28fr);
 }
 
 .export-main-grid {
-  grid-template-columns: minmax(520px, 0.9fr) minmax(620px, 1.1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.28fr);
 }
 
 .export-left-stack {
@@ -649,14 +649,42 @@ body.directory-body {
   background: #fffafa;
 }
 
+@media (max-width: 1850px) {
+  .export-main-grid {
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: 1fr;
+  }
+
+  .export-left-stack {
+    display: contents;
+  }
+
+  .export-panel--devices {
+    order: 1;
+  }
+
+  .export-panel--schemes {
+    order: 2;
+    height: 805px;
+  }
+
+  .export-panel--settings {
+    order: 3;
+  }
+
+  .export-panel--log {
+    order: 4;
+  }
+}
+
 @media (max-width: 1120px) {
   .export-hero {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .export-top-grid,
-  .export-main-grid {
+  .export-top-grid {
     grid-template-columns: 1fr;
   }
 

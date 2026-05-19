@@ -16,7 +16,7 @@ import logging
 from netmiko.netmiko_globals import MAX_BUFFER
 import errno
 
-READ_TIMEOUT = 8  # seconds
+READ_TIMEOUT = 6  # seconds
 MAX_BUFFER = 4096  # 4KB
 
 DEBUG = True
@@ -51,13 +51,13 @@ def _warm_console_after_open(ser):
     behave more like the current second attempt, without logging out.
     """
     try:
-        time.sleep(0.8)
+        time.sleep(0.25)
         _reset_buffers(ser)
         for payload, delay in (
-            (b"\x03", 0.15),  # Ctrl-C: interrupt any pending output/pager
-            (b"\x1a", 0.25),  # Ctrl-Z: leave config mode if needed
-            (b"\r\n", 0.25),
-            (b"\r\n", 0.25),
+            (b"\x03", 0.08),  # Ctrl-C: interrupt any pending output/pager
+            (b"\x1a", 0.12),  # Ctrl-Z: leave config mode if needed
+            (b"\r\n", 0.12),
+            (b"\r\n", 0.12),
         ):
             ser.write(payload)
             ser.flush()
@@ -66,6 +66,24 @@ def _warm_console_after_open(ser):
         dbg("Console warm-up completed after serial open.")
     except Exception as e:
         dbg(f"Console warm-up failed: {e}")
+
+
+def _quick_prompt_recovery(ser):
+    """Fast recovery used before falling back to the slower close/reopen path."""
+    try:
+        _reset_buffers(ser)
+        for payload, delay in (
+            (b"\x03", 0.08),
+            (b"\x1a", 0.12),
+            (b"\r\n", 0.15),
+            (b"\r\n", 0.15),
+        ):
+            ser.write(payload)
+            ser.flush()
+            time.sleep(delay)
+        dbg("Quick prompt recovery completed.")
+    except Exception as e:
+        dbg(f"Quick prompt recovery failed: {e}")
 
 
 def connect_to_serial(
@@ -181,10 +199,10 @@ def connect_to_serial(
             except TimeoutError as e:
                 dbg(f"Prompt not found on attempt {retries + 1}: {e}")
                 try:
-                    emit("[INFO] No prompt yet; clearing console session and retrying wake...")
-                    clear_session(ser)
+                    emit("[INFO] No prompt yet; retrying a quick console wake...")
+                    _quick_prompt_recovery(ser)
                     output = wait_for_prompt(
-                        ser, [">", "#"], timeout=timeout, wake=True
+                        ser, [">", "#"], timeout=max(4, timeout // 2), wake=True
                     )
                     emit(
                         f"[INFO] Connected. Device prompt: {output.strip().splitlines()[-1]}"
@@ -192,7 +210,7 @@ def connect_to_serial(
                     return ser
                 except TimeoutError as retry_exc:
                     dbg(
-                        f"Prompt still not found after session clear on attempt {retries + 1}: {retry_exc}"
+                        f"Prompt still not found after quick recovery on attempt {retries + 1}: {retry_exc}"
                     )
                 logout_close_connection(ser)
                 time.sleep(0.5)
@@ -236,7 +254,7 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
     """
     start = time.time()
     buffer = b""
-    ser.timeout = 0.4
+    ser.timeout = 0.2
     wake_sent = 0
 
     # ensure buffers are clear before starting
@@ -301,10 +319,10 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
                     except Exception:
                         pass
         else:
-            # no data read this cycle: if wake enabled, send additional CRs spaced out
+            # no data read this cycle: if wake enabled, send additional CRs early
             elapsed = time.time() - start
-            # send up to 3 wake CRs distributed within first part of timeout
-            if wake and wake_sent < 3 and elapsed >= wake_sent * (timeout / 6.0):
+            wake_due = (0.35, 0.9)
+            if wake and wake_sent < 3 and elapsed >= wake_due[wake_sent - 1]:
                 try:
                     ser.write(b"\r\n")
                     ser.flush()
@@ -430,7 +448,7 @@ def ensure_exec_mode(ser, timeout=5):
         # Send Ctrl-Z — this exits any sub-config mode immediately
         ser.write(b"\x1a")
         ser.flush()
-        time.sleep(1)
+        time.sleep(0.25)
 
         # Drain everything the device sent in response
         _reset_buffers(ser)
@@ -438,7 +456,7 @@ def ensure_exec_mode(ser, timeout=5):
         # Send a blank line and read back to see where we are
         ser.write(b"\n")
         ser.flush()
-        time.sleep(0.5)
+        time.sleep(0.2)
         raw = b""
         if ser.in_waiting:
             raw = ser.read(ser.in_waiting)
@@ -449,11 +467,11 @@ def ensure_exec_mode(ser, timeout=5):
             dbg("Still in config after Ctrl-Z, sending 'end'...")
             ser.write(b"end\n")
             ser.flush()
-            time.sleep(1)
+            time.sleep(0.4)
             _reset_buffers(ser)
 
         # Final drain: make sure no stale data is in the buffer
-        time.sleep(0.2)
+        time.sleep(0.05)
         _reset_buffers(ser)
         dbg("ensure_exec_mode completed")
     except Exception as e:
@@ -470,7 +488,7 @@ def enter_enable_mode(ser, timeout=8):
     # Check if we're already at # prompt
     ser.write(b"\n")
     ser.flush()
-    time.sleep(0.5)
+    time.sleep(0.2)
     raw = b""
     if ser.in_waiting:
         raw = ser.read(ser.in_waiting)

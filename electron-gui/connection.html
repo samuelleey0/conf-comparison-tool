@@ -229,6 +229,67 @@
       border-color: rgba(15, 23, 42, 0.1) !important;
       background: #ffffff !important;
       box-shadow: 0 5px 16px rgba(15, 23, 42, 0.05);
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "meta action"
+        "preview action"
+        "status action";
+      gap: 6px 12px;
+      align-items: start !important;
+    }
+
+    .queue-item__meta,
+    .queue-item__preview,
+    .queue-item__status {
+      min-width: 0;
+    }
+
+    .queue-item__meta {
+      grid-area: meta;
+    }
+
+    .queue-item__preview {
+      grid-area: preview;
+      color: var(--color-primary);
+      font-size: 0.86rem;
+      line-height: 1.25;
+    }
+
+    .queue-item__status {
+      grid-area: status;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+      color: var(--color-muted);
+    }
+
+    .queue-item__actions {
+      grid-area: action;
+      align-self: center;
+      display: flex;
+      justify-content: flex-end;
+      min-width: 0;
+    }
+
+    .queue-item__actions .queue-start-btn {
+      max-width: 100%;
+    }
+
+    @media (max-width: 430px) {
+      .queue-item {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+          "meta"
+          "preview"
+          "status"
+          "action";
+      }
+
+      .queue-item__actions {
+        justify-content: flex-start;
+      }
     }
 
     .queue-item.active-queue-item {
@@ -338,13 +399,36 @@
       justify-content: start;
     }
 
-    @media (max-width: 1100px) {
+    @media (max-width: 1370px) {
       .connection-shell {
         padding: 32px 28px 48px;
       }
 
       .connection-layout {
         grid-template-columns: 1fr;
+      }
+
+      #sshFields {
+        display: grid;
+        gap: 8px;
+      }
+
+      #sshFields .form-row {
+        gap: 8px !important;
+        margin: 0 !important;
+      }
+
+      #sshFields .form-row + .form-row {
+        margin-top: 0 !important;
+      }
+
+      #sshFields .form-group {
+        flex: 0 1 auto !important;
+        margin-bottom: 0 !important;
+      }
+
+      #sshFields label {
+        margin-bottom: 3px;
       }
 
       .connection-status {
@@ -579,13 +663,36 @@
       align-items: center;
     }
 
-    @media (max-width: 1100px) {
+    @media (max-width: 1370px) {
       .connection-shell {
         padding: 32px 28px 48px;
       }
 
       .connection-layout {
         grid-template-columns: 1fr;
+      }
+
+      #sshFields {
+        display: grid;
+        gap: 8px;
+      }
+
+      #sshFields .form-row {
+        gap: 8px !important;
+        margin: 0 !important;
+      }
+
+      #sshFields .form-row + .form-row {
+        margin-top: 0 !important;
+      }
+
+      #sshFields .form-group {
+        flex: 0 1 auto !important;
+        margin-bottom: 0 !important;
+      }
+
+      #sshFields label {
+        margin-bottom: 3px;
       }
 
       .connection-status {

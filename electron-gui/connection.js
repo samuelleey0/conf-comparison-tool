@@ -8,7 +8,8 @@ let flaskLogListenerAttached = false;
 function appendTerminalLine(message) {
   const termLog = document.getElementById("terminalLog");
   if (!termLog) return;
-  termLog.textContent += `${message}\n`;
+  const text = String(message ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n*$/, "");
+  termLog.textContent += `${text}\n`;
   termLog.scrollTop = termLog.scrollHeight;
 }
 
@@ -533,16 +534,18 @@ function renderDeviceQueue(devicesMeta, deviceQueueContainer) {
     `;
 
     row.innerHTML = `
-      <div>
+      <div class="queue-item__meta">
         <strong>${device.hostname}</strong>
         <div style="font-size: 0.8rem; color: var(--color-muted);">
           ${device.commands.length} command${device.commands.length !== 1 ? "s" : ""}
-          <span class="queue-preview-hint" style="color:var(--color-primary);">- click to preview</span>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;">
+      <div class="queue-item__preview">Click to preview</div>
+      <div class="queue-item__status">
         <span class="q-chevron" style="font-size:0.7rem;color:var(--color-muted);transition:transform 0.2s;">▼</span>
         <span class="q-badge" style="font-size:0.85rem;font-weight:bold;color:var(--color-muted);">WAITING</span>
+      </div>
+      <div class="queue-item__actions">
         <button type="button" class="queue-start-btn" data-hostname="${device.hostname}">Collect this</button>
       </div>
     `;

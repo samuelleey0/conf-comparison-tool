@@ -2371,15 +2371,24 @@ def _grade_session_from_config(target_path: str, template_name: str):
 
     skipped_students = []
 
+    def _clear_previous_student_results(results_dir: Path) -> None:
+        results_dir.mkdir(parents=True, exist_ok=True)
+        for old_result in results_dir.glob("*_result.json"):
+            old_result.unlink(missing_ok=True)
+        for old_parsed in results_dir.glob("*_student_parsed.json"):
+            old_parsed.unlink(missing_ok=True)
+        for generated_file in ("summary.json", "readableResult.txt"):
+            (results_dir / generated_file).unlink(missing_ok=True)
+
     for student_entry in sorted(target.iterdir()):
         if not student_entry.is_dir():
             continue
         student_id = student_entry.name
+        student_results_dir_student = student_entry / "results"
+        _clear_previous_student_results(student_results_dir_student)
         if not _student_has_collected_data(student_entry):
             skipped_students.append(student_id)
             continue
-        student_results_dir_student = student_entry / "results"
-        student_results_dir_student.mkdir(parents=True, exist_ok=True)
 
         summary = {
             "student_id": student_id,
