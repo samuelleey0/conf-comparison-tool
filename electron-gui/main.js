@@ -7,6 +7,23 @@ const fs = require('fs');
 
 let mainWindow = null;
 let flaskProcess = null;
+let latestStartupProgress = {
+  percent: 0,
+  message: 'Opening application...',
+};
+
+function sendStartupProgress(percent, message) {
+  latestStartupProgress = {
+    percent: Math.max(0, Math.min(100, Math.round(percent))),
+    message,
+  };
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('startup-progress', latestStartupProgress);
+}
+
+ipcMain.on('startup-progress-ready', () => {
+  sendStartupProgress(latestStartupProgress.percent, latestStartupProgress.message);
+});
 
 function copyDirectoryRecursive(source, target) {
   if (!fs.existsSync(source)) return;
@@ -141,18 +158,24 @@ ipcMain.handle('get-available-com-ports', async () => {
 /**
  * Wait until Flask port is reachable (default: 5050)
  */
-function waitForPort(host, port, timeout = 10000) {
+function waitForPort(host, port, timeout = 10000, onProgress = null) {
   return new Promise((resolve, reject) => {
     const start = Date.now();
     (function tryConnect() {
       const socket = net.createConnection(port, host);
       socket.on('connect', () => {
         socket.destroy();
+        if (onProgress) onProgress(96, 'Backend is ready.');
         resolve();
       });
       socket.on('error', () => {
         socket.destroy();
-        if (Date.now() - start > timeout)
+        const elapsed = Date.now() - start;
+        if (onProgress) {
+          const percent = 62 + (Math.min(elapsed, timeout) / timeout) * 32;
+          onProgress(percent, 'Waiting for local backend...');
+        }
+        if (elapsed > timeout)
           reject(new Error('Flask startup timeout'));
         else setTimeout(tryConnect, 250);
       });
@@ -163,7 +186,8 @@ function waitForPort(host, port, timeout = 10000) {
 /**
  * Start Flask backend using fyp-venv's Python interpreter
  */
-function startFlask() {
+function startFlask(onProgress = null) {
+  if (onProgress) onProgress(18, 'Preparing local backend...');
   const packagedBackendExe = path.join(
     process.resourcesPath,
     'backend',
@@ -183,6 +207,7 @@ function startFlask() {
   let pythonPath;
 
   if (app.isPackaged && process.platform === 'win32' && fs.existsSync(packagedBackendExe)) {
+    if (onProgress) onProgress(34, 'Loading bundled backend...');
     const backend = preparePackagedBackend(path.dirname(packagedBackendExe));
     command = backend ? backend.bin : packagedBackendExe;
     args = [];
@@ -193,6 +218,7 @@ function startFlask() {
     process.platform === 'linux' &&
     fs.existsSync(packagedBackendLinuxBin)
   ) {
+    if (onProgress) onProgress(34, 'Preparing bundled backend...');
     const backend = preparePackagedBackend(path.dirname(packagedBackendLinuxBin));
     command = backend ? backend.bin : packagedBackendLinuxBin;
     args = [];
@@ -209,12 +235,14 @@ function startFlask() {
     }
 
     if (fs.existsSync(pythonPath) && fs.existsSync(flaskScript)) {
+      if (onProgress) onProgress(34, 'Starting development backend...');
       command = pythonPath;
       args = [flaskScript];
       cwd = path.join(__dirname, '..');
       console.log(`[INFO] Spawning Flask using: ${pythonPath}`);
       console.log(`[INFO] Running server: ${flaskScript}`);
     } else {
+      if (onProgress) onProgress(34, 'Starting installed backend...');
       command = 'conf-comparison-server';
       args = [];
       cwd = __dirname;
@@ -223,6 +251,7 @@ function startFlask() {
     }
   }
 
+  if (onProgress) onProgress(54, 'Launching local backend...');
   flaskProcess = spawn(command, args, {
     cwd,
     shell: useShell,
@@ -250,7 +279,13 @@ function startFlask() {
     broadcastFlaskLog(line);
   });
 
-  return waitForPort('127.0.0.1', 5050, 15000);
+  flaskProcess.on('error', (err) => {
+    const line = `[ERROR] Failed to start Flask: ${err.message}`;
+    console.error(line);
+    broadcastFlaskLog(line);
+  });
+
+  return waitForPort('127.0.0.1', 5050, 15000, onProgress);
 }
 
 /**
@@ -267,6 +302,25 @@ function createWindow() {
 
   mainWindow.maximize(); // Add this line to maximize the window
 
+  const welcomeLoaded = new Promise((resolve) => {
+    mainWindow.webContents.once('did-finish-load', () => {
+      sendStartupProgress(
+        Math.max(latestStartupProgress.percent, 8),
+        latestStartupProgress.message,
+      );
+      resolve();
+    });
+  });
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    const loadedFile = mainWindow.webContents.getURL();
+    if (loadedFile.endsWith('/welcome.html') || loadedFile.endsWith('\\welcome.html')) {
+      sendStartupProgress(
+        Math.max(latestStartupProgress.percent, 8),
+        latestStartupProgress.message,
+      );
+    }
+  });
   mainWindow.loadFile(path.join(__dirname, 'welcome.html'));
 
   mainWindow.on('closed', () => {
@@ -280,19 +334,29 @@ function createWindow() {
       }
     }
   });
+
+  return welcomeLoaded;
 }
 
 /**
  * App entry
  */
 app.whenReady().then(async () => {
+  await createWindow();
   try {
-    await startFlask();
+    sendStartupProgress(12, 'Starting local services...');
+    await startFlask(sendStartupProgress);
     console.log('[READY] Flask server is live at http://127.0.0.1:5050');
+    sendStartupProgress(100, 'Ready.');
   } catch (err) {
     console.warn('[WARN] Flask did not become ready in time:', err);
+    sendStartupProgress(100, 'Backend took too long. Opening the app...');
   }
-  createWindow();
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.loadFile(path.join(__dirname, 'index.html'));
+    }
+  }, 350);
 });
 
 app.on('window-all-closed', () => {

@@ -381,7 +381,22 @@ function setupWelcomePage() {
     .forEach(k => sessionStorage.removeItem(k));
 
   loadNavbar();
-  window.setTimeout(() => goTo("index.html"), 2200);
+
+  const progressBar = document.getElementById("startupProgressBar");
+  const progressFill = document.getElementById("startupProgressFill");
+  const progressStatus = document.getElementById("startupProgressStatus");
+  const updateStartupProgress = ({ percent = 0, message = "Opening application..." } = {}) => {
+    const clamped = Math.min(100, Math.max(0, Math.round(percent)));
+    if (progressBar) progressBar.setAttribute("aria-valuenow", String(clamped));
+    if (progressFill) progressFill.style.transform = `scaleX(${clamped / 100})`;
+    if (progressStatus) progressStatus.textContent = message;
+  };
+
+  updateStartupProgress({ percent: 4, message: "Opening application..." });
+  if (ipcRenderer) {
+    ipcRenderer.on("startup-progress", (_event, payload) => updateStartupProgress(payload));
+    ipcRenderer.send("startup-progress-ready");
+  }
 }
 
 // -----------------------------

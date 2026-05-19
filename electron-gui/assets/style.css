@@ -1996,7 +1996,15 @@ progress::-moz-progress-bar {
   background: linear-gradient(90deg, #1f3b73 0%, #0a5cbb 55%, #38bdf8 100%);
   transform-origin: left center;
   transform: scaleX(0);
-  animation: welcome-loading-progress 2.2s linear forwards;
+  transition: transform 0.24s ease;
+}
+
+.welcome-loading-status {
+  min-height: 20px;
+  color: var(--color-muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-align: center;
 }
 
 @keyframes welcome-fade-in {
@@ -2008,16 +2016,6 @@ progress::-moz-progress-bar {
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@keyframes welcome-loading-progress {
-  0% {
-    transform: scaleX(0);
-  }
-
-  100% {
-    transform: scaleX(1);
   }
 }
 
