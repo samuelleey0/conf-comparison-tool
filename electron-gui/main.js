@@ -8,6 +8,56 @@ const fs = require('fs');
 let mainWindow = null;
 let flaskProcess = null;
 
+function copyDirectoryRecursive(source, target) {
+  if (!fs.existsSync(source)) return;
+  fs.mkdirSync(target, { recursive: true });
+  for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+    const sourcePath = path.join(source, entry.name);
+    const targetPath = path.join(target, entry.name);
+    if (entry.isDirectory()) {
+      copyDirectoryRecursive(sourcePath, targetPath);
+    } else {
+      fs.copyFileSync(sourcePath, targetPath);
+      try {
+        fs.chmodSync(targetPath, fs.statSync(sourcePath).mode);
+      } catch (_) {
+        // Best effort only; executable permission is set explicitly below.
+      }
+    }
+  }
+}
+
+function preparePackagedBackend(sourceDir) {
+  const backendName = process.platform === 'win32'
+    ? 'conf-comparison-server.exe'
+    : 'conf-comparison-server';
+  const sourceBin = path.join(sourceDir, backendName);
+  if (!fs.existsSync(sourceBin)) return null;
+
+  if (process.platform !== 'linux') {
+    return {
+      bin: sourceBin,
+      cwd: path.dirname(sourceBin),
+    };
+  }
+
+  const targetDir = path.join(app.getPath('userData'), 'backend');
+  const targetBin = path.join(targetDir, backendName);
+  const sourceStat = fs.statSync(sourceBin);
+  const needsCopy = !fs.existsSync(targetBin) || fs.statSync(targetBin).mtimeMs < sourceStat.mtimeMs;
+
+  if (needsCopy) {
+    fs.rmSync(targetDir, { recursive: true, force: true });
+    copyDirectoryRecursive(sourceDir, targetDir);
+  }
+  fs.chmodSync(targetBin, 0o755);
+
+  return {
+    bin: targetBin,
+    cwd: targetDir,
+  };
+}
+
 function broadcastFlaskLog(line) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send('flask-log', line);
@@ -133,19 +183,21 @@ function startFlask() {
   let pythonPath;
 
   if (app.isPackaged && process.platform === 'win32' && fs.existsSync(packagedBackendExe)) {
-    command = packagedBackendExe;
+    const backend = preparePackagedBackend(path.dirname(packagedBackendExe));
+    command = backend ? backend.bin : packagedBackendExe;
     args = [];
-    cwd = path.dirname(packagedBackendExe);
-    console.log(`[INFO] Spawning bundled backend executable: ${packagedBackendExe}`);
+    cwd = backend ? backend.cwd : path.dirname(packagedBackendExe);
+    console.log(`[INFO] Spawning bundled backend executable: ${command}`);
   } else if (
     app.isPackaged &&
     process.platform === 'linux' &&
     fs.existsSync(packagedBackendLinuxBin)
   ) {
-    command = packagedBackendLinuxBin;
+    const backend = preparePackagedBackend(path.dirname(packagedBackendLinuxBin));
+    command = backend ? backend.bin : packagedBackendLinuxBin;
     args = [];
-    cwd = path.dirname(packagedBackendLinuxBin);
-    console.log(`[INFO] Spawning bundled backend executable: ${packagedBackendLinuxBin}`);
+    cwd = backend ? backend.cwd : path.dirname(packagedBackendLinuxBin);
+    console.log(`[INFO] Spawning bundled backend executable: ${command}`);
   } else {
     // Prefer the repo-local virtual environment for development. If this app is
     // running on a machine where the Python backend was installed with pip, fall
