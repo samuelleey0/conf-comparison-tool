@@ -11,26 +11,52 @@
                 width: 100%;
             }
 
-            .dir-header {
-                margin-bottom: 28px;
+            .directory-body {
+                background:
+                    linear-gradient(180deg, rgba(232, 239, 248, 0.92) 0%, rgba(248, 250, 252, 0.95) 360px),
+                    #f7f9fc;
             }
 
-            .dir-header h1 {
-                font-size: 1.45rem;
-                font-weight: 700;
+            .directory-shell {
+                max-width: 1320px;
+                margin: 0 auto;
+                padding: 36px 42px 56px;
+            }
+
+            .directory-shell .page-header {
+                align-items: center;
+                margin-bottom: 18px;
+                padding: 22px 24px;
+                border: 1px solid rgba(148, 163, 184, 0.24);
+                border-radius: 8px;
+                background: #ffffff;
+                box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+            }
+
+            .directory-shell .page-title {
+                font-size: 1.55rem;
                 color: var(--color-heading);
-                margin-bottom: 6px;
+                letter-spacing: 0;
             }
 
-            .dir-header p {
-                font-size: 0.88rem;
+            .directory-shell .page-subtitle {
+                margin-top: 6px;
+                max-width: 680px;
                 color: var(--color-muted);
+                line-height: 1.45;
             }
 
-            .dir-divider {
-                border: none;
-                border-top: 1px solid var(--color-border);
-                margin: 0 0 24px;
+            .directory-body .directory-shell .directory-card {
+                background: var(--color-surface);
+                border: 1px solid rgba(148, 163, 184, 0.28);
+                border-radius: 8px !important;
+                padding: 32px 36px;
+                box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+            }
+
+            .directory-body .directory-shell .directory-card:hover {
+                transform: none;
+                box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
             }
 
             /* ── Mode tabs ───────────────────────────────────── */
@@ -180,11 +206,35 @@
             }
 
             /* ── Existing section ────────────────────────────── */
+            .dir-existing-layout {
+                display: grid;
+                grid-template-columns: 560px 240px;
+                gap: 24px;
+                align-items: flex-start;
+                width: fit-content;
+                max-width: 100%;
+                margin: 0 auto;
+            }
+
+            #existingSection .dir-card {
+                width: fit-content;
+                max-width: 100%;
+                margin: 0 auto;
+            }
+
+            .dir-existing-main {
+                flex: 0 0 auto;
+            }
+
             .dir-pick-row {
                 display: flex;
                 align-items: center;
                 gap: 12px;
                 flex-wrap: wrap;
+                width: calc(560px + 24px + 240px);
+                max-width: 100%;
+                margin-left: auto;
+                margin-right: auto;
                 margin-bottom: 16px;
             }
 
@@ -192,27 +242,152 @@
                 font-size: 0.88rem;
                 color: var(--color-muted);
                 font-style: italic;
+                overflow-wrap: anywhere;
             }
 
             .dir-student-grid {
-                border: 1px solid var(--color-border);
-                border-radius: 6px;
+                width: fit-content;
+                border: 1px solid rgba(148, 163, 184, 0.22);
+                border-radius: 8px;
                 padding: 14px;
                 display: grid;
-                grid-template-columns: repeat(2, minmax(150px, 250px));
-                justify-content: start;
+                grid-template-columns: repeat(2, 260px);
                 gap: 12px;
                 align-content: flex-start;
-                max-height: 380px;
-                max-width: 560px;
+                max-height: 420px;
                 overflow-y: auto;
                 margin-bottom: 16px;
+                background: #fafbfd;
             }
 
             .dir-action-row {
                 display: flex;
-                gap: 8px;
+                gap: 10px;
                 flex-wrap: wrap;
+                justify-content: flex-start;
+            }
+
+            .dir-action-row button {
+                min-width: 140px;
+            }
+
+            /* ── Session sidebar ─────────────────────────────── */
+            .dir-session-sidebar {
+                flex: 0 0 240px;
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+            }
+
+            .dir-sidebar-card {
+                background: #f8fafc;
+                border: 1px solid rgba(148, 163, 184, 0.28);
+                border-radius: 8px;
+                padding: 16px;
+            }
+
+            .dir-sidebar-card__title {
+                font-size: 0.72rem;
+                font-weight: 800;
+                letter-spacing: 0.07em;
+                text-transform: uppercase;
+                color: var(--color-muted);
+                margin-bottom: 12px;
+                padding-bottom: 10px;
+                border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+            }
+
+            .dir-sidebar-item {
+                display: flex;
+                flex-direction: column;
+                gap: 3px;
+                padding: 8px 0;
+            }
+
+            .dir-sidebar-item + .dir-sidebar-item {
+                border-top: 1px solid rgba(148, 163, 184, 0.18);
+            }
+
+            .dir-sidebar-item__label {
+                font-size: 0.73rem;
+                font-weight: 700;
+                color: var(--color-muted);
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+            }
+
+            .dir-sidebar-item__value {
+                font-size: 0.88rem;
+                font-weight: 600;
+                color: var(--color-heading);
+                word-break: break-word;
+            }
+
+            .dir-sidebar-stat {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 10px 0;
+            }
+
+            .dir-sidebar-stat + .dir-sidebar-stat {
+                border-top: 1px solid rgba(148, 163, 184, 0.18);
+            }
+
+            .dir-sidebar-stat__label {
+                font-size: 0.8rem;
+                color: var(--color-muted);
+            }
+
+            .dir-sidebar-stat__value {
+                font-size: 1.1rem;
+                font-weight: 800;
+                color: var(--color-heading);
+            }
+
+            .dir-sidebar-stat__value--accent {
+                color: var(--color-primary);
+            }
+
+            .dir-sidebar-stat__value--success {
+                color: #16a34a;
+            }
+
+            .dir-sidebar-selected {
+                padding: 12px;
+                border-radius: 6px;
+                background: rgba(10, 92, 187, 0.06);
+                border: 1px solid rgba(10, 92, 187, 0.15);
+            }
+
+            .dir-sidebar-selected__label {
+                font-size: 0.72rem;
+                font-weight: 700;
+                color: var(--color-primary);
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                margin-bottom: 6px;
+            }
+
+            .dir-sidebar-selected__id {
+                font-size: 0.95rem;
+                font-weight: 700;
+                color: var(--color-heading);
+            }
+
+            .dir-sidebar-selected__name {
+                font-size: 0.82rem;
+                color: var(--color-muted);
+                margin-top: 2px;
+            }
+
+            .dir-sidebar-empty {
+                text-align: center;
+                padding: 14px 8px;
+                color: var(--color-muted);
+                font-size: 0.82rem;
+                font-style: italic;
+                line-height: 1.45;
             }
 
             /* ── Bulk section ────────────────────────────────── */
@@ -378,8 +553,8 @@
                 padding: 8px 0;
             }
 
-            /* ── Responsive ──────────────────────────────────── */
-            @media (max-width: 640px) {
+            /* ── Responsive: sidebar collapses ──────────────── */
+            @media (max-width: 1400px) {
                 .dir-form-grid {
                     grid-template-columns: 1fr;
                 }
@@ -397,13 +572,83 @@
                     border-bottom: none;
                 }
 
-                .dir-student-grid {
-                    grid-template-columns: 1fr;
+                .dir-existing-layout {
+                    grid-template-columns: 560px;
+                    gap: 16px;
+                    justify-content: center;
+                }
+
+                .dir-pick-row,
+                .dir-existing-layout {
+                    width: 560px;
                     max-width: 100%;
+                }
+
+                .dir-session-sidebar {
+                    flex: 0 0 auto;
+                    display: grid;
+                    grid-template-columns: repeat(3, 1fr);
+                    gap: 12px;
+                    width: 100%;
                 }
 
                 .dir-toggle-help {
                     padding-left: 0;
+                }
+            }
+
+            /* ── Responsive: compact layout ─────────────────── */
+            @media (max-width: 720px) {
+                .directory-shell {
+                    padding: 20px 14px 32px;
+                }
+
+                .directory-shell .page-header {
+                    padding: 18px;
+                }
+
+                .directory-body .directory-shell .directory-card {
+                    padding: 18px;
+                }
+
+                .dir-student-grid {
+                    grid-template-columns: 260px;
+                    width: fit-content;
+                    max-width: 100%;
+                    margin-left: auto;
+                    margin-right: auto;
+                }
+
+                .dir-session-sidebar {
+                    grid-template-columns: 1fr;
+                    width: 260px;
+                    max-width: 100%;
+                    margin-left: auto;
+                    margin-right: auto;
+                }
+
+                .dir-pick-row,
+                .dir-existing-layout {
+                    width: 260px;
+                    max-width: 100%;
+                }
+
+                .dir-action-row {
+                    width: 260px;
+                    max-width: 100%;
+                    margin-left: auto;
+                    margin-right: auto;
+                    justify-content: stretch;
+                }
+
+                .dir-action-row button {
+                    flex: 1 1 100%;
+                    min-width: 0;
+                    width: 100%;
+                    white-space: normal;
+                    line-height: 1.25;
+                    overflow-wrap: anywhere;
+                    text-align: center;
                 }
             }
         </style>
@@ -413,14 +658,15 @@
         <div id="navbarContainer"></div>
 
         <div class="page-shell directory-shell">
-            <section class="page-card directory-card" id="directoryPage" style="border-radius:0;">
+            <header class="page-header page-header--with-action">
+                <div>
+                    <h1 class="page-title">Directory Setup</h1>
+                    <p class="page-subtitle">Choose how you would like to prepare the student workspace.</p>
+                </div>
+                <a class="tutorial-page-link" href="quick_guide.html#directoryGuidePanel">Tutorial</a>
+            </header>
 
-                <!-- Page Header -->
-                <header class="dir-header">
-                    <h1>Directory Setup</h1>
-                    <p>Choose how you would like to prepare the student workspace.</p>
-                </header>
-                <hr class="dir-divider" />
+            <section class="page-card directory-card" id="directoryPage">
 
                 <!-- Mode Tabs -->
                 <div class="dir-tabs">
@@ -493,12 +739,46 @@
                             <span id="selectedDirectoryLabel" class="selected-path">No session selected</span>
                         </div>
 
-                        <div id="mainStudentGridContainer" class="dir-student-grid"></div>
+                        <div class="dir-existing-layout">
+                            <div class="dir-existing-main">
+                                <div id="mainStudentGridContainer" class="dir-student-grid"></div>
 
-                        <div class="dir-action-row">
-                            <button type="button" class="secondary" id="clearExistingSelectionBtn">Clear</button>
-                            <button type="button" id="use-existing-btn" class="primary" disabled>Use Selected Student</button>
-                            <button type="button" id="addStudentBtn" class="secondary">Add Student</button>
+                                <div class="dir-action-row">
+                                    <button type="button" class="secondary" id="clearExistingSelectionBtn">Clear</button>
+                                    <button type="button" id="use-existing-btn" class="primary" disabled>Use Selected Student</button>
+                                    <button type="button" id="addStudentBtn" class="secondary">Add Student</button>
+                                </div>
+                            </div>
+
+                            <aside class="dir-session-sidebar" id="sessionSidebar">
+                                <div class="dir-sidebar-card">
+                                    <div class="dir-sidebar-card__title">Session Info</div>
+                                    <div id="sidebarSessionInfo">
+                                        <div class="dir-sidebar-empty">Choose a session to see details here.</div>
+                                    </div>
+                                </div>
+
+                                <div class="dir-sidebar-card">
+                                    <div class="dir-sidebar-card__title">Overview</div>
+                                    <div id="sidebarStats">
+                                        <div class="dir-sidebar-stat">
+                                            <span class="dir-sidebar-stat__label">Total Students</span>
+                                            <span class="dir-sidebar-stat__value" id="sidebarTotalCount">—</span>
+                                        </div>
+                                        <div class="dir-sidebar-stat">
+                                            <span class="dir-sidebar-stat__label">Completed</span>
+                                            <span class="dir-sidebar-stat__value dir-sidebar-stat__value--success" id="sidebarCompletedCount">—</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="dir-sidebar-card">
+                                    <div class="dir-sidebar-card__title">Selection</div>
+                                    <div id="sidebarSelection">
+                                        <div class="dir-sidebar-empty">Click a student card to select.</div>
+                                    </div>
+                                </div>
+                            </aside>
                         </div>
 
                         <div id="existingInfoBox" class="info-box hidden"></div>

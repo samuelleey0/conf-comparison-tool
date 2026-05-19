@@ -8,6 +8,62 @@ function deriveDirectoryDisplay(dirPath) {
   return dirPath;
 }
 
+// ── Sidebar helpers ──────────────────────────────────
+function updateSessionSidebar(classroom, tutorName, timeSlot, students) {
+  const infoEl = document.getElementById("sidebarSessionInfo");
+  if (infoEl) {
+    infoEl.innerHTML = `
+      <div class="dir-sidebar-item">
+        <span class="dir-sidebar-item__label">Classroom</span>
+        <span class="dir-sidebar-item__value">${classroom}</span>
+      </div>
+      <div class="dir-sidebar-item">
+        <span class="dir-sidebar-item__label">Tutor</span>
+        <span class="dir-sidebar-item__value">${tutorName}</span>
+      </div>
+      <div class="dir-sidebar-item">
+        <span class="dir-sidebar-item__label">Time Slot</span>
+        <span class="dir-sidebar-item__value">${timeSlot}</span>
+      </div>
+    `;
+  }
+
+  const totalEl = document.getElementById("sidebarTotalCount");
+  if (totalEl) totalEl.textContent = students ? students.length : 0;
+
+  // Count completed
+  let completedCount = 0;
+  try {
+    const completedList = JSON.parse(localStorage.getItem("completedStudents") || "[]");
+    if (students && students.length) {
+      students.forEach(s => {
+        if (completedList.includes(s.student_id)) completedCount++;
+      });
+    }
+  } catch (_) {}
+  const completedEl = document.getElementById("sidebarCompletedCount");
+  if (completedEl) completedEl.textContent = completedCount;
+
+  // Reset selection
+  updateSidebarSelection(null);
+}
+
+function updateSidebarSelection(student) {
+  const selEl = document.getElementById("sidebarSelection");
+  if (!selEl) return;
+  if (!student) {
+    selEl.innerHTML = '<div class="dir-sidebar-empty">Click a student card to select.</div>';
+    return;
+  }
+  selEl.innerHTML = `
+    <div class="dir-sidebar-selected">
+      <div class="dir-sidebar-selected__label">Selected Student</div>
+      <div class="dir-sidebar-selected__id">${student.student_id}</div>
+      ${student.student_name ? `<div class="dir-sidebar-selected__name">${student.student_name}</div>` : ''}
+    </div>
+  `;
+}
+
 function setSelectedExistingDirectory(pathValue, displayValue) {
   selectedExistingPath = pathValue || null;
   const display = displayValue || (pathValue ? deriveDirectoryDisplay(pathValue) : null);
@@ -158,6 +214,7 @@ function openCustomDirectoryPicker() {
       }
 
       renderMainStudentGrid(students);
+      updateSessionSidebar(classroom, tutor_name, time_slot, students);
       close();
     }
   };
@@ -487,6 +544,7 @@ function renderMainStudentGrid(students) {
 
       pendingSelectedStudent = student;
       if (useBtn) useBtn.disabled = false;
+      updateSidebarSelection(student);
     };
 
     studentCard.dataset.completed = isCompleted ? "true" : (isPartial ? "partial" : "false");
