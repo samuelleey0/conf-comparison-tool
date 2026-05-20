@@ -68,6 +68,8 @@ from grading_dedup import (
     save_dedup_config,
 )
 from grading_rules import (
+    disable_rubric_rule,
+    enable_rubric_rule,
     load_grading_policy,
     load_rubric_rules,
     reset_rubric_rules,
@@ -1760,6 +1762,28 @@ def api_save_rubric_rules():
     try:
         saved = save_rubric_rules(rules)
         return jsonify({"status": "ok", "rules": saved})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+
+
+@app.route("/api/rubric_rules/disable", methods=["POST"])
+def api_disable_rubric_rule():
+    data = request.get_json() or {}
+    rule_code = data.get("rule_code") or data.get("rule_id") or data.get("code")
+    try:
+        rule, rules = disable_rubric_rule(rule_code)
+        return jsonify({"status": "ok", "rule": rule, "rules": rules})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+
+
+@app.route("/api/rubric_rules/enable", methods=["POST"])
+def api_enable_rubric_rule():
+    data = request.get_json() or {}
+    rule_code = data.get("rule_code") or data.get("rule_id") or data.get("code")
+    try:
+        rule, rules = enable_rubric_rule(rule_code)
+        return jsonify({"status": "ok", "rule": rule, "rules": rules})
     except Exception as exc:
         return jsonify({"status": "error", "message": str(exc)}), 400
 

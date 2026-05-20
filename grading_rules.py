@@ -992,6 +992,66 @@ def save_rubric_rules(rules):
     return cleaned
 
 
+def disable_rubric_rule(rule_code):
+    target = str(rule_code or "").strip()
+    if not target:
+        raise ValueError("Missing rule code.")
+
+    rules = load_rubric_rules()
+    matched = None
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        if target in {str(rule.get("code") or ""), str(rule.get("id") or "")}:
+            rule["enabled"] = False
+            matched = rule
+            break
+
+    if not matched:
+        raise ValueError(f"Rubric rule not found: {target}")
+
+    saved = save_rubric_rules(rules)
+    saved_rule = next(
+        (
+            rule
+            for rule in saved
+            if target in {str(rule.get("code") or ""), str(rule.get("id") or "")}
+        ),
+        matched,
+    )
+    return saved_rule, saved
+
+
+def enable_rubric_rule(rule_code):
+    target = str(rule_code or "").strip()
+    if not target:
+        raise ValueError("Missing rule code.")
+
+    rules = load_rubric_rules()
+    matched = None
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        if target in {str(rule.get("code") or ""), str(rule.get("id") or "")}:
+            rule["enabled"] = True
+            matched = rule
+            break
+
+    if not matched:
+        raise ValueError(f"Rubric rule not found: {target}")
+
+    saved = save_rubric_rules(rules)
+    saved_rule = next(
+        (
+            rule
+            for rule in saved
+            if target in {str(rule.get("code") or ""), str(rule.get("id") or "")}
+        ),
+        matched,
+    )
+    return saved_rule, saved
+
+
 def reset_rubric_rules():
     """Delete saved rules and return fresh defaults."""
     if RUBRIC_RULES_PATH.exists():
@@ -1247,4 +1307,3 @@ def evaluate_pass_fail(summary, policy):
     if not failed:
         failed = summary.get("minor", 0) >= minor_threshold
     return not failed
-

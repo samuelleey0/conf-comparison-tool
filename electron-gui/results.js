@@ -101,6 +101,48 @@ async function fetchJson(path, options = {}) {
   return data;
 }
 
+function canDisableRuleFromResult(item) {
+  const ruleCode = item?.rule_code || item?.rule_id;
+  if (!ruleCode) return false;
+  if (!["missing", "extra", "mismatch"].includes(item.status)) return false;
+  if (item.counts_toward_marking === false) return false;
+  if (item.deduplicated || item.rule_deduplicated || item.verification_rule_deduplicated) return false;
+  return true;
+}
+
+async function disableRubricRule(ruleCode, studentId = "") {
+  const code = String(ruleCode || "").trim();
+  if (!code) return;
+  const message = [
+    `Disable rubric rule ${code}?`,
+    "",
+    "This is a global grading rule. Matching findings for every student will become unscored until you re-enable it in System Admin.",
+  ].join("\n");
+  if (!confirm(message)) return false;
+
+  await fetchJson("/api/rubric_rules/disable", {
+    method: "POST",
+    body: JSON.stringify({ rule_code: code }),
+  });
+  await refreshResults(studentId || currentReport?.student_id || null);
+  alert(`${code} is now disabled. Matching findings are still visible, but no longer count toward marking.`);
+  return true;
+}
+
+async function enableRubricRule(ruleCode, studentId = "") {
+  const code = String(ruleCode || "").trim();
+  if (!code) return false;
+  if (!confirm(`Re-enable rubric rule ${code} for marking?`)) return false;
+
+  await fetchJson("/api/rubric_rules/enable", {
+    method: "POST",
+    body: JSON.stringify({ rule_code: code }),
+  });
+  await refreshResults(studentId || currentReport?.student_id || null);
+  alert(`${code} is now re-enabled and matching findings will count again.`);
+  return true;
+}
+
 function setSessionLabel() {
   const label = document.getElementById("sessionLabel");
   const { classroom, tutorName, timeSlot } = getSessionInfo();
@@ -119,7 +161,7 @@ function statusClass(report) {
   return report.pass ? "status-pass" : "status-fail";
 }
 
-function renderResultsList(reports) {
+function renderResultsList(reports, preferredStudentId = null) {
   const list = document.getElementById("resultsList");
   if (!list) return;
   list.innerHTML = "";
@@ -128,6 +170,11 @@ function renderResultsList(reports) {
     list.innerHTML = `<p class="hint" style="padding: 12px;">No students found.</p>`;
     return;
   }
+
+  const selectedIndex = Math.max(
+    0,
+    reports.findIndex((report) => report.student_id === preferredStudentId)
+  );
 
   reports.forEach((report, index) => {
     const item = document.createElement("div");
@@ -157,7 +204,7 @@ function renderResultsList(reports) {
 
     list.appendChild(item);
 
-    if (index === 0) {
+    if (index === selectedIndex) {
       item.classList.add("selected");
       renderReport(report);
     }
@@ -573,6 +620,25 @@ function _renderErrorItem(report, item, isVerification) {
   const isVerificationRuleDedup = item.verification_rule_deduplicated === true;
   const isRuleDedup = item.rule_deduplicated === true;
   const isSkipped = item.status === "skipped";
+  const disableRuleCode = item.rule_code || item.rule_id || "";
+  const disableAction = canDisableRuleFromResult(item)
+    ? `
+      <div class="result-item-actions">
+        <button type="button" class="result-rule-disable-btn" data-rule-code="${escapeHtml(disableRuleCode)}">
+          Disable Rule
+        </button>
+      </div>
+    `
+    : "";
+  const enableAction = isSkipped && disableRuleCode
+    ? `
+      <div class="result-item-actions">
+        <button type="button" class="result-rule-enable-btn" data-rule-code="${escapeHtml(disableRuleCode)}">
+          Re-enable Rule
+        </button>
+      </div>
+    `
+    : "";
   const codeLine = item.rule_code
     ? `<div class="result-code">Code: ${item.rule_code}</div>`
     : "";
@@ -661,7 +727,45 @@ function _renderErrorItem(report, item, isVerification) {
       <div><strong>Expected</strong><pre>${formatValue(item.expected)}</pre></div>
       <div><strong>Actual</strong><pre>${formatValue(item.actual)}</pre></div>
     </div>
+    ${disableAction}
+    ${enableAction}
   `;
+  div.querySelector(".result-rule-disable-btn")?.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    const ruleCode = event.currentTarget.dataset.ruleCode || disableRuleCode;
+    try {
+      event.currentTarget.disabled = true;
+      event.currentTarget.textContent = "Disabling...";
+      const disabled = await disableRubricRule(ruleCode, report?.student_id || "");
+      if (!disabled) {
+        event.currentTarget.disabled = false;
+        event.currentTarget.textContent = "Disable Rule";
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Failed to disable rubric rule.");
+      event.currentTarget.disabled = false;
+      event.currentTarget.textContent = "Disable Rule";
+    }
+  });
+  div.querySelector(".result-rule-enable-btn")?.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    const ruleCode = event.currentTarget.dataset.ruleCode || disableRuleCode;
+    try {
+      event.currentTarget.disabled = true;
+      event.currentTarget.textContent = "Re-enabling...";
+      const enabled = await enableRubricRule(ruleCode, report?.student_id || "");
+      if (!enabled) {
+        event.currentTarget.disabled = false;
+        event.currentTarget.textContent = "Re-enable Rule";
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Failed to re-enable rubric rule.");
+      event.currentTarget.disabled = false;
+      event.currentTarget.textContent = "Re-enable Rule";
+    }
+  });
   div.addEventListener("click", () => openErrorContext(report, item));
   return div;
 }
@@ -708,7 +812,7 @@ async function runComparison() {
   }
 }
 
-async function refreshResults() {
+async function refreshResults(preferredStudentId = null) {
   const sessionPath = getSessionPath();
   if (!sessionPath) {
     alert("Session path not found. Please select a session first.");
@@ -725,7 +829,7 @@ async function refreshResults() {
     const data = await fetchJson(`/api/results?target_path=${encodeURIComponent(sessionPath)}`);
     reportsCache = data.reports || [];
     policyCache = data.policy || null;
-    renderResultsList(reportsCache);
+    renderResultsList(reportsCache, preferredStudentId || currentReport?.student_id || null);
   } catch (err) {
     console.error(err);
     alert(err.message || "Failed to load results.");
