@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Grading System</title>
+    <link rel="stylesheet" href="assets/style.css" />
+    <link rel="stylesheet" href="assets/nav.css" />
+  <link rel="stylesheet" href="assets/grading.css" />
+
+</head>
+
+<body class="grading-body">
+    <div id="navbarContainer"></div>
+
+    <div class="page-shell">
+        <header class="page-header">
+            <h1 class="page-title">Grading System</h1>
+        </header>
+
+        <div class="grading-container">
+            <nav class="grading-sidebar">
+                <button id="navSchemes" class="secondary active">Schemes</button>
+                <button id="navRubrics" class="secondary">Rubrics</button>
+                <button id="navGrading" class="secondary">Run Grading</button>
+            </nav>
+
+            <main class="grading-content">
+                <!-- Schemes View -->
+                <section id="viewSchemes" class="grading-section active">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h2>Grading Schemes</h2>
+                        <button id="btnNewScheme" class="primary small">New Scheme</button>
+                    </div>
+                    <div id="schemesList" class="list-container">Loading...</div>
+
+                    <div id="schemeEditor" class="editor-section hidden">
+                        <h3>Edit Scheme</h3>
+                        <input type="hidden" id="schemeId" />
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" id="schemeName" />
+                        </div>
+                        <div class="form-group">
+                            <label>Variables (JSON format used for substitution)</label>
+                            <textarea id="schemeVariables" rows="5"
+                                placeholder='{ "hostname": "R1", "ip": "192.168.1.1" }'
+                                style="font-family: monospace;"></textarea>
+                        </div>
+                        <div class="actions">
+                            <button id="btnSaveScheme" class="primary">Save Scheme</button>
+                            <button id="btnCancelScheme" class="danger">Cancel</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Rubrics View -->
+                <section id="viewRubrics" class="grading-section">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h2>Grading Rubrics</h2>
+                        <button id="btnNewRubric" class="primary small">New Rubric</button>
+                    </div>
+                    <div id="rubricsList" class="list-container">Loading...</div>
+
+                    <div id="rubricEditor" class="editor-section hidden">
+                        <h3>Edit Rubric</h3>
+                        <input type="hidden" id="rubricId" />
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" id="rubricName" />
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <input type="text" id="rubricDesc" />
+                        </div>
+
+                        <h4>Criteria</h4>
+                        <div id="rubricCriteriaList" class="criteria-list"></div>
+                        <button id="btnAddCriteria" class="secondary small" style="margin-top: 5px;">+ Add
+                            Criteria</button>
+
+                        <div class="actions" style="margin-top: 15px;">
+                            <button id="btnSaveRubric" class="primary">Save Rubric</button>
+                            <button id="btnCancelRubric" class="danger">Cancel</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Run Grading View -->
+                <section id="viewGrading" class="grading-section">
+                    <h2>Run Grading</h2>
+                    <div class="editor-section">
+                        <div class="form-group">
+                            <label>Select Scheme</label>
+                            <select id="selectScheme" style="width: 100%; padding: 8px;"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Select Rubric</label>
+                            <select id="selectRubric" style="width: 100%; padding: 8px;"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Target Directory</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="targetInfo" readonly placeholder="No directory selected"
+                                    style="flex: 1;" />
+                                <button id="btnSelectTarget" class="secondary">Choose...</button>
+                            </div>
+                        </div>
+                        <button id="btnStartGrading" class="primary">Grade Now</button>
+                    </div>
+
+                    <div id="gradingResults" class="hidden">
+                        <h3>Results</h3>
+                        <div id="resultSummary" class="info-box" style="margin-bottom: 10px; font-weight: bold;"></div>
+                        <table class="data-table" style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: var(--color-bg-soft);">
+                                    <th
+                                        style="text-align: left; padding: 8px; border-bottom: 2px solid var(--color-border);">
+                                        Criteria</th>
+                                    <th
+                                        style="text-align: left; padding: 8px; border-bottom: 2px solid var(--color-border);">
+                                        Pattern Used</th>
+                                    <th
+                                        style="text-align: right; padding: 8px; border-bottom: 2px solid var(--color-border);">
+                                        Score</th>
+                                    <th
+                                        style="text-align: center; padding: 8px; border-bottom: 2px solid var(--color-border);">
+                                        Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultDetails"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <script src="grading.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Connection Setup</title>
+  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="stylesheet" href="assets/nav.css" />
+  <style>
+    .log-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px;
+      width: 100%;
+      padding: 4px;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      background: var(--color-bg-soft);
+      margin-bottom: 14px;
+    }
+
+    .log-tab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--color-muted);
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 10px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .log-tab-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      font-size: 0.78rem;
+      font-weight: 900;
+      line-height: 1;
+      background: rgba(100, 116, 139, 0.12);
+      color: currentColor;
+    }
+
+    .log-tab.active {
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+
+    .log-tab--activity.active,
+    .log-tab--terminal.active {
+      background: #2563eb;
+      color: #fff;
+      border-color: #2563eb;
+    }
+
+    .log-tab.active .log-tab-icon {
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    .log-tab--activity:hover,
+    .log-tab--terminal:hover {
+      color: #ffffff !important;
+      background: #1d4ed8 !important;
+      border-color: #1d4ed8 !important;
+    }
+
+    .log-tab--activity.active:hover,
+    .log-tab--terminal.active:hover {
+      background: #1e40af !important;
+      color: #ffffff !important;
+    }
+
+    .log-panel.hidden {
+      display: none;
+    }
+
+    .log-surface {
+      padding: 12px;
+      border-radius: 8px;
+    }
+
+    .log-display {
+      height: 380px;
+      margin: 0;
+    }
+
+    .connection-body {
+      background: #f4f7fb;
+    }
+
+    .connection-shell {
+      padding: 36px 56px 56px;
+    }
+
+    .connection-shell .page-header {
+      align-items: flex-end;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 22px 24px;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    .connection-shell .page-title {
+      font-size: 1.55rem;
+      letter-spacing: 0;
+    }
+
+    .connection-shell .page-subtitle {
+      margin-top: 6px;
+      max-width: 680px;
+    }
+
+    .connection-layout {
+      grid-template-columns: minmax(320px, 400px) minmax(620px, 1fr);
+      gap: 24px;
+      border-top: none;
+      padding-top: 24px;
+      align-items: stretch;
+    }
+
+    .connection-panel,
+    .connection-status {
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    .connection-panel {
+      padding: 22px;
+      gap: 18px;
+    }
+
+    .connection-status {
+      padding: 22px;
+      position: sticky;
+      top: 20px;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+    }
+
+    .connection-panel form {
+      gap: 18px;
+    }
+
+    .step-heading {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .step-heading--compact {
+      margin-top: 2px;
+      padding-top: 18px;
+      border-top: 1px solid var(--color-border);
+    }
+
+    .step-heading__num {
+      flex: 0 0 30px;
+      width: 30px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: #e8f0ff;
+      color: var(--color-primary);
+      font-size: 0.82rem;
+      font-weight: 800;
+    }
+
+    .step-heading__num--danger {
+      background: rgba(197, 62, 62, 0.1);
+      color: var(--color-danger);
+    }
+
+    .step-heading__hint {
+      margin-top: 4px;
+      line-height: 1.45;
+    }
+
+    .connection-queue {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    .connection-queue__header {
+      margin-bottom: 10px;
+    }
+
+    .connection-queue__header label {
+      margin: 0;
+      font-size: 0.78rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .connection-queue__status {
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #eef2f7;
+      font-size: 0.75rem;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .connection-queue__list {
+      max-height: 300px;
+      padding-right: 4px;
+      gap: 10px;
+    }
+
+    .queue-item-wrapper {
+      border-radius: 8px;
+    }
+
+    .queue-item {
+      padding: 12px 14px !important;
+      border-radius: 8px !important;
+      border-color: rgba(15, 23, 42, 0.1) !important;
+      background: #ffffff !important;
+      box-shadow: 0 5px 16px rgba(15, 23, 42, 0.05);
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "meta action"
+        "preview action"
+        "status action";
+      gap: 6px 12px;
+      align-items: start !important;
+    }
+
+    .queue-item__meta,
+    .queue-item__preview,
+    .queue-item__status {
+      min-width: 0;
+    }
+
+    .queue-item__meta {
+      grid-area: meta;
+    }
+
+    .queue-item__preview {
+      grid-area: preview;
+      color: var(--color-primary);
+      font-size: 0.86rem;
+      line-height: 1.25;
+    }
+
+    .queue-item__status {
+      grid-area: status;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+      color: var(--color-muted);
+    }
+
+    .queue-item__actions {
+      grid-area: action;
+      align-self: center;
+      display: flex;
+      justify-content: flex-end;
+      min-width: 0;
+    }
+
+    .queue-item__actions .queue-start-btn {
+      max-width: 100%;
+    }
+
+    @media (max-width: 430px) {
+      .queue-item {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+          "meta"
+          "preview"
+          "status"
+          "action";
+      }
+
+      .queue-item__actions {
+        justify-content: flex-start;
+      }
+    }
+
+    .queue-item.active-queue-item {
+      border-color: rgba(37, 99, 235, 0.45) !important;
+      background: #f7fbff !important;
+    }
+
+    .queue-cmd-dropdown {
+      border-color: rgba(15, 23, 42, 0.1);
+      background: #f8fafc;
+      border-bottom-left-radius: 8px;
+      border-bottom-right-radius: 8px;
+    }
+
+    .connection-mode-grid {
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      margin-bottom: 16px;
+    }
+
+    .connection-mode-grid .radio-card {
+      padding: 14px 18px;
+    }
+
+    #serialFields,
+    #sshFields {
+      padding: 16px;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    #serialFields > label {
+      margin-top: 10px;
+    }
+
+    #sshFields .form-row + .form-row {
+      margin-top: 12px;
+    }
+
+    .connection-status__header {
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .connection-status__header h3 {
+      font-size: 1.05rem;
+    }
+
+    .connection-status__header .link-btn {
+      border: 1px solid var(--color-border);
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: #ffffff;
+      color: var(--color-muted);
+      text-decoration: none;
+    }
+
+    .connection-status__header .link-btn:hover {
+      background: #111827;
+      border-color: #111827;
+      color: #ffffff;
+    }
+
+    .log-tabs {
+      margin-bottom: 0;
+      border-radius: 8px;
+    }
+
+    .log-surface {
+      padding: 0;
+      border: none;
+      background: transparent;
+    }
+
+    .status-panel.modern {
+      border: none;
+      padding: 0;
+      background: transparent;
+    }
+
+    .log-display {
+      height: min(42vh, 420px);
+      min-height: 320px;
+      border-radius: 8px;
+    }
+
+    .connection-action-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    .connection-action-grid__abort {
+      grid-column: 1 / -1;
+    }
+
+    .danger-zone {
+      margin-top: 0;
+      border-radius: 8px;
+      background: #fff7f7;
+    }
+
+    .danger-zone__actions {
+      display: grid;
+      grid-template-columns: auto minmax(140px, 180px) minmax(180px, auto);
+      gap: 10px;
+      justify-content: start;
+    }
+
+    @media (max-width: 1370px) {
+      .connection-shell {
+        padding: 32px 28px 48px;
+      }
+
+      .connection-layout {
+        grid-template-columns: 1fr;
+      }
+
+      #sshFields {
+        display: grid;
+        gap: 8px;
+      }
+
+      #sshFields .form-row {
+        gap: 8px !important;
+        margin: 0 !important;
+      }
+
+      #sshFields .form-row + .form-row {
+        margin-top: 0 !important;
+      }
+
+      #sshFields .form-group {
+        flex: 0 1 auto !important;
+        margin-bottom: 0 !important;
+      }
+
+      #sshFields label {
+        margin-bottom: 3px;
+      }
+
+      .connection-status {
+        position: static;
+        max-height: none;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .connection-shell {
+        padding: 20px 14px 32px;
+      }
+
+      .connection-shell .page-header,
+      .connection-panel,
+      .connection-status {
+        padding: 18px;
+      }
+
+      .connection-action-grid,
+      .danger-zone__actions {
+        grid-template-columns: 1fr;
+      }
+
+      .danger-zone__actions {
+        justify-content: stretch;
+      }
+
+      .connection-reset-row__select {
+        width: 100%;
+      }
+    }
+
+    .connection-body {
+      background:
+        linear-gradient(180deg, rgba(232, 239, 248, 0.92) 0%, rgba(248, 250, 252, 0.95) 360px),
+        #f7f9fc;
+    }
+
+    .connection-shell {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 36px 42px 56px;
+    }
+
+    .connection-shell .page-header {
+      align-items: center;
+      margin-bottom: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+    }
+
+    .connection-shell .page-title {
+      color: var(--color-heading);
+    }
+
+    .connection-shell .page-subtitle {
+      color: var(--color-muted);
+      line-height: 1.45;
+    }
+
+    .connection-layout {
+      display: grid;
+      grid-template-columns: minmax(340px, 0.68fr) minmax(620px, 1.55fr);
+      gap: 18px;
+      padding-top: 0;
+      align-items: start;
+    }
+
+    .connection-panel,
+    .connection-status {
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+    }
+
+    .connection-panel {
+      padding: 22px;
+    }
+
+    .connection-status {
+      padding: 22px;
+      top: 18px;
+    }
+
+    .step-heading {
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .step-heading--compact {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(148, 163, 184, 0.24);
+    }
+
+    .step-heading__num {
+      background: #e8f0ff;
+      color: #0a5cbb;
+      box-shadow: inset 0 0 0 1px rgba(10, 92, 187, 0.12);
+    }
+
+    .section-title,
+    .connection-status__header h3 {
+      color: var(--color-heading);
+    }
+
+    .connection-queue__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .connection-queue__list {
+      max-height: 330px;
+      padding: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .queue-item {
+      border-color: rgba(148, 163, 184, 0.32) !important;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+    }
+
+    .queue-item.active-queue-item {
+      border-color: rgba(10, 92, 187, 0.5) !important;
+      background: #f3f8ff !important;
+    }
+
+    #serialFields,
+    #sshFields {
+      margin-top: 2px;
+      border-color: rgba(148, 163, 184, 0.28);
+      background: #f8fafc;
+    }
+
+    .connection-status__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding-bottom: 16px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .connection-status__header .step-heading {
+      flex: 1;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    .connection-status__header .link-btn {
+      flex: 0 0 auto;
+      border-color: rgba(148, 163, 184, 0.34);
+      border-radius: 6px;
+      color: #526173;
+    }
+
+    .connection-status__header .link-btn:hover {
+      background: #0a5cbb;
+      border-color: #0a5cbb;
+      color: #ffffff;
+    }
+
+    .log-tabs {
+      gap: 10px;
+      padding: 6px;
+      border-color: rgba(148, 163, 184, 0.24);
+      background: #ffffff;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+    }
+
+    .log-tab {
+      min-height: 44px;
+      border-color: rgba(148, 163, 184, 0.34);
+      background: #ffffff;
+      color: #526173;
+      border-radius: 6px;
+    }
+
+    .log-tab--activity.active,
+    .log-tab--terminal.active {
+      background: #0a5cbb;
+      border-color: #0a5cbb;
+      color: #ffffff;
+      box-shadow: 0 10px 22px rgba(10, 92, 187, 0.22);
+    }
+
+    .log-tab--activity:hover,
+    .log-tab--terminal:hover {
+      background: #f8fafc !important;
+      border-color: #cbd5e1 !important;
+      color: #172033 !important;
+    }
+
+    .log-tab--activity.active:hover,
+    .log-tab--terminal.active:hover {
+      background: #063f88 !important;
+      border-color: #063f88 !important;
+      color: #ffffff !important;
+    }
+
+    .log-display {
+      margin-top: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    .connection-action-grid {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(148, 163, 184, 0.24);
+    }
+
+    .danger-zone {
+      margin-top: 18px;
+      border: 1px solid rgba(197, 62, 62, 0.18);
+      background: #fff7f7;
+      box-shadow: none;
+    }
+
+    .danger-zone__header {
+      align-items: center;
+    }
+
+    @media (max-width: 1370px) {
+      .connection-shell {
+        padding: 32px 28px 48px;
+      }
+
+      .connection-layout {
+        grid-template-columns: 1fr;
+      }
+
+      #sshFields {
+        display: grid;
+        gap: 8px;
+      }
+
+      #sshFields .form-row {
+        gap: 8px !important;
+        margin: 0 !important;
+      }
+
+      #sshFields .form-row + .form-row {
+        margin-top: 0 !important;
+      }
+
+      #sshFields .form-group {
+        flex: 0 1 auto !important;
+        margin-bottom: 0 !important;
+      }
+
+      #sshFields label {
+        margin-bottom: 3px;
+      }
+
+      .connection-status {
+        position: static;
+        max-height: none;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .connection-shell {
+        padding: 20px 14px 32px;
+      }
+
+      .connection-shell .page-header,
+      .connection-panel,
+      .connection-status {
+        padding: 18px;
+      }
+
+      .connection-status__header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .connection-status__header .link-btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body class="connection-body">
+  <div id="navbarContainer"></div>
+
+  <div class="page-shell connection-shell">
+    <header class="page-header page-header--with-action">
+      <div>
+        <h1 class="page-title">Connection & Execution</h1>
+        <p class="page-subtitle">Confirm how you will connect and monitor the live run results.</p>
+      </div>
+      <a class="tutorial-page-link" href="quick_guide.html#connectionGuidePanel">Tutorial</a>
+    </header>
+
+    <div class="connection-layout" id="connectionPage">
+      <section class="connection-panel page-card">
+        <div class="step-heading">
+          <span class="step-heading__num">1</span>
+          <div>
+            <h2 class="section-title">Confirm Device Queue</h2>
+            <p class="step-heading__hint">Check the students/devices that will run. If you want to skip the queue and
+              collect a specific device first, click "Collect this".</p>
+          </div>
+        </div>
+        <form id="connectionForm">
+          <div class="form-group connection-queue">
+            <div class="connection-queue__header">
+              <label>Device Queue</label>
+              <span id="queueStatus" class="connection-queue__status">Idle</span>
+            </div>
+            <div id="deviceQueueContainer" class="connection-queue__list">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+          <div class="step-heading step-heading--compact">
+            <span class="step-heading__num">2</span>
+            <div>
+              <h2 class="section-title">Choose Connection</h2>
+              <p class="step-heading__hint">Pick Serial or SSH, then confirm the port or login fields.</p>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 16px;">
+            <div class="radio-card-grid connection-mode-grid">
+              <label class="radio-card">
+                <input type="radio" name="connType" value="serial" />
+                <div class="radio-card-header" style="margin-bottom: 0;">
+                  <span class="radio-card-title">Serial Connection</span>
+                  <div class="radio-card-indicator"></div>
+                </div>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="connType" value="ssh" />
+                <div class="radio-card-header" style="margin-bottom: 0;">
+                  <span class="radio-card-title">SSH Connection</span>
+                  <div class="radio-card-indicator"></div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div id="serialFields">
+            <div class="inline-options" style="margin-bottom: 10px;">
+              <label class="choice-label"><input type="radio" name="serialPreset" value="linux_usb" checked /> Linux USB-Serial</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="linux_rs232" /> Linux RS232</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="windows" /> Windows</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="mac" /> macOS</label>
+              <label class="choice-label"><input type="radio" name="serialPreset" value="custom" /> Custom</label>
+            </div>
+            <label for="serialPort">Serial Port</label>
+            <input type="text" id="serialPort" placeholder="/dev/ttyUSB0" />
+          </div>
+
+          <div id="sshFields" class="hidden">
+            <div class="form-row" style="flex-wrap: wrap; gap: 12px;">
+              <div class="form-group">
+                <label for="sshHost">Host</label>
+                <input type="text" id="sshHost" placeholder="192.168.1.1" />
+              </div>
+              <div class="form-group">
+                <label for="sshPort">Port</label>
+                <input type="text" id="sshPort" placeholder="22" />
+              </div>
+            </div>
+            <div class="form-row" style="flex-wrap: wrap; gap: 12px;">
+              <div class="form-group">
+                <label for="sshUser">Username</label>
+                <input type="text" id="sshUser" placeholder="admin" />
+              </div>
+              <div class="form-group">
+                <label for="sshPass">Password</label>
+                <input type="password" id="sshPass" placeholder="Password" />
+              </div>
+            </div>
+          </div>
+        </form>
+        <div id="selectedCommandsInfo" class="info-box hidden"></div>
+      </section>
+
+      <section class="connection-status">
+        <header class="connection-status__header">
+          <div class="step-heading">
+            <span class="step-heading__num">3</span>
+            <div>
+              <h3>Run & Monitor</h3>
+              <p class="step-heading__hint">Start the sequence and watch the log until it finishes.</p>
+            </div>
+          </div>
+          <button type="button" id="clearLogBtn" class="link-btn">Clear Log</button>
+        </header>
+        <div class="log-tabs" id="connectionLogTabs">
+          <button type="button" class="log-tab log-tab--activity active" data-target="connectionActivityPanel">
+            <span class="log-tab-icon" aria-hidden="true">☰</span>
+            <span>Activity Log</span>
+          </button>
+          <button type="button" class="log-tab log-tab--terminal" data-target="connectionTerminalPanel">
+            <span class="log-tab-icon" aria-hidden="true">&gt;_</span>
+            <span>Terminal Output</span>
+          </button>
+        </div>
+        <div id="connectionActivityPanel" class="log-panel">
+          <div class="status-panel modern log-surface">
+            <pre id="log" class="log log-display"></pre>
+          </div>
+        </div>
+        <div id="connectionTerminalPanel" class="log-panel hidden">
+          <div class="status-panel modern log-surface">
+            <pre id="terminalLog" class="log log-display" style="color: #10b981;"></pre>
+          </div>
+        </div>
+        <div class="actions justify-end connection-action-grid">
+          <button type="button" id="abortExecutionBtn" class="abort-btn connection-action-grid__abort"
+            style="display: none;">⏹ Stop Execution</button>
+          <button type="button" id="startSequenceBtn" class="primary">Start Auto-Execution Sequence</button>
+          <button type="button" id="doneStudentBtn" class="primary connection-action-grid__done" disabled>Done (Next
+            Student)</button>
+        </div>
+        <div class="danger-zone">
+          <div class="danger-zone__header">
+            <span class="step-heading__num step-heading__num--danger">4</span>
+            <div>
+              <h4 class="danger-zone__title">Danger Zone</h4>
+              <p class="danger-zone__desc">These actions will erase the device's running and startup configuration and
+                reload it. This cannot be undone. Only use after grading is complete.</p>
+            </div>
+          </div>
+          <div class="actions danger-zone__actions">
+            <label for="resetDeviceType" class="connection-reset-row__label">Reset As</label>
+            <select id="resetDeviceType" class="connection-reset-row__select">
+              <option value="switch" selected>Switch</option>
+              <option value="router">Router</option>
+            </select>
+            <button type="button" id="resetDeviceBtn" class="danger">Reset Cisco Device</button>
+          </div>
+        </div>
+
+      </section>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+  <script src="commands.js"></script>
+  <script src="connection.js"></script>
+</body>
+
+</html>

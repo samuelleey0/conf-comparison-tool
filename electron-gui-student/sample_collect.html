@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Collect Sample Logs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="stylesheet" href="assets/nav.css" />
+</head>
+
+<body class="connection-body">
+  <div id="navbarContainer"></div>
+
+  <div class="page-shell connection-shell">
+    <header class="page-header page-header--with-action">
+      <div>
+        <h1 class="page-title">Collect Sample Logs</h1>
+        <p class="page-subtitle">Save lecturer logs to a chosen folder for rubric creation.</p>
+      </div>
+      <a class="tutorial-page-link" href="quick_guide.html#sampleLogsGuidePanel">Tutorial</a>
+    </header>
+
+    <style>
+      .sample-two-column {
+        display: grid;
+        grid-template-columns: minmax(460px, 0.86fr) minmax(640px, 1.14fr);
+        gap: 20px;
+        align-items: start;
+        max-width: 1740px;
+        margin: 0 auto;
+      }
+
+      .sample-left-col,
+      .sample-right-col {
+        min-width: 0;
+      }
+
+      @media (max-width: 1450px) {
+        .sample-two-column {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      body.sidebar-collapsed .sample-two-column {
+        grid-template-columns: minmax(460px, 0.86fr) minmax(640px, 1.14fr);
+      }
+
+      @media (max-width: 1290px) {
+        body.sidebar-collapsed .sample-two-column {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .sample-left-col {
+        min-width: 0;
+      }
+
+      .sample-left-col .page-card {
+        overflow: visible;
+      }
+
+      .sample-left-col input[type="text"],
+      .sample-left-col input[type="password"],
+      .sample-left-col select,
+      .sample-left-col .app-select {
+        max-width: 100%;
+        width: 100%;
+      }
+
+      .sample-left-col .form-row {
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .sample-left-col .compact-row {
+        display: grid;
+        gap: 12px;
+        align-items: end;
+      }
+
+      .sample-left-col .compact-row.compact-row--save {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .sample-left-col .compact-row.compact-row--template {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .sample-left-col .compact-row.compact-row--template>.form-group:not(.sample-action) {
+        grid-column: 1 / -1;
+      }
+
+      .sample-left-col .compact-row.compact-row--template>.form-group.sample-action {
+        width: 100%;
+      }
+
+      .sample-left-col .compact-row.compact-row--template>.form-group.sample-action button {
+        width: 100%;
+        min-width: 0;
+      }
+
+      .sample-left-col .compact-row>.form-group {
+        margin-bottom: 0;
+        min-width: 0;
+      }
+
+      .sample-left-col .compact-row>.form-group:not(.sample-action) {
+        width: 100%;
+      }
+
+      .sample-left-col .compact-row>.form-group.sample-action {
+        width: auto;
+      }
+
+      .sample-left-col .compact-row>.form-group.sample-action button {
+        min-width: 180px;
+      }
+
+      @media (max-width: 900px) {
+
+        .sample-left-col .compact-row.compact-row--save,
+        .sample-left-col .compact-row.compact-row--template {
+          grid-template-columns: 1fr;
+        }
+
+        .sample-left-col .compact-row>.form-group.sample-action {
+          width: 100%;
+        }
+
+        .sample-left-col .compact-row>.form-group.sample-action button {
+          width: 100%;
+          min-width: 0;
+        }
+      }
+
+      .sample-left-col .radio-card-grid {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+      }
+
+      .sample-mode-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .sample-connection-mode-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        margin-bottom: 16px;
+      }
+
+      .sample-connection-mode-grid .radio-card {
+        padding: 14px 18px;
+      }
+
+      .sample-mode-panel.hidden {
+        display: none;
+      }
+
+      .sample-mode-panel {
+        margin-top: 16px;
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        padding: 16px;
+        background: var(--color-surface);
+      }
+
+      .sample-mode-panel h3 {
+        margin: 0 0 6px;
+        font-size: 1rem;
+        color: var(--color-heading);
+      }
+
+      .sample-mode-panel .hint {
+        margin-bottom: 12px;
+      }
+
+      .sample-mode-cancel {
+        margin-top: 12px;
+      }
+
+      .sample-blocked {
+        opacity: 0.45;
+        pointer-events: none;
+        filter: saturate(0.7);
+      }
+
+      @media (max-width: 900px) {
+        .sample-mode-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .log-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+        width: 100%;
+        padding: 4px;
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        background: var(--color-bg-soft);
+        margin-bottom: 14px;
+      }
+
+      .log-tab {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--color-muted);
+        font-size: 0.85rem;
+        font-weight: 700;
+        padding: 10px 14px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      }
+
+      .log-tab-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 5px;
+        font-size: 0.78rem;
+        font-weight: 900;
+        line-height: 1;
+        background: rgba(100, 116, 139, 0.12);
+        color: currentColor;
+      }
+
+      .log-tab.active {
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+      }
+
+      .log-tab--activity.active {
+        background: #1f3b73;
+        color: #fff;
+        border-color: #1f3b73;
+      }
+
+      .log-tab--terminal.active {
+        background: #111827;
+        color: #10b981;
+        border-color: #111827;
+      }
+
+      .log-tab.active .log-tab-icon {
+        background: rgba(255, 255, 255, 0.16);
+      }
+
+      .log-tab--activity:hover {
+        color: #facc15 !important;
+        background: rgba(46, 3, 54, 0.584) !important;
+        border-color: rgba(59, 130, 246, 0.35) !important;
+      }
+
+      .log-tab--terminal:hover {
+        color: #f87171 !important;
+        background: rgba(32, 229, 206, 0.811) !important;
+        border-color: rgba(20, 184, 166, 0.35) !important;
+      }
+
+      .log-tab--activity.active:hover {
+        background: #2a4d99 !important;
+        color: #facc15 !important;
+      }
+
+      .log-tab--terminal.active:hover {
+        background: #1e2d40 !important;
+        color: #f87171 !important;
+      }
+
+      .log-panel.hidden {
+        display: none;
+      }
+
+      .log-surface {
+        padding: 12px;
+        border-radius: 8px;
+      }
+
+      .log-display {
+        height: 380px;
+        margin: 0;
+      }
+
+      .collected-badge {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(31, 59, 115, 0.08);
+        color: var(--color-primary);
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        border: 1px solid rgba(31, 59, 115, 0.2);
+        animation: fadeIn 0.3s ease-out;
+      }
+
+      .collected-badge svg {
+        margin-right: 6px;
+        width: 16px;
+        height: 16px;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .connection-body {
+        background:
+          linear-gradient(180deg, rgba(232, 239, 248, 0.92) 0%, rgba(248, 250, 252, 0.95) 360px),
+          #f7f9fc;
+      }
+
+      .connection-shell {
+        max-width: none;
+        width: 100%;
+        margin: 0 auto;
+        padding: 28px 42px 56px;
+      }
+
+      .connection-shell .page-header {
+        align-items: center;
+        margin-bottom: 10px;
+        padding: 18px 22px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 8px;
+        background: #ffffff;
+        box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+      }
+
+      .connection-shell .page-title {
+        font-size: 1.55rem;
+        color: var(--color-heading);
+        letter-spacing: 0;
+      }
+
+      .connection-shell .page-subtitle {
+        margin-top: 6px;
+        max-width: 680px;
+        color: var(--color-muted);
+        line-height: 1.45;
+      }
+
+      .sample-two-column {
+        max-width: none;
+        grid-template-columns: minmax(460px, 0.78fr) minmax(680px, 1.22fr);
+        gap: 18px;
+      }
+
+      .sample-left-col .page-card,
+      .sample-right-col .page-card {
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 8px;
+        background: #ffffff;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+      }
+
+      .sample-left-col .page-card {
+        padding: 18px 22px;
+      }
+
+      .sample-right-col .page-card {
+        top: 18px !important;
+        padding: 22px !important;
+      }
+
+      .step-heading {
+        align-items: center;
+        gap: 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+      }
+
+      .step-heading:not(:first-child) {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(148, 163, 184, 0.24);
+      }
+
+      .step-heading__num {
+        background: #e8f0ff;
+        color: #0a5cbb;
+        box-shadow: inset 0 0 0 1px rgba(10, 92, 187, 0.12);
+      }
+
+      .section-title {
+        color: var(--color-heading);
+      }
+
+      .sample-mode-panel,
+      #sampleSerialFields,
+      #sampleSshFields {
+        padding: 16px;
+        border-color: rgba(148, 163, 184, 0.28);
+        border-radius: 8px;
+        background: #f8fafc;
+      }
+
+      #sampleSerialFields>label {
+        margin-top: 10px;
+      }
+
+      #sampleSshFields .form-row+.form-row {
+        margin-top: 12px;
+      }
+
+      .sample-step-body {
+        margin-bottom: 10px !important;
+      }
+
+      .sample-step-body--connect {
+        margin-bottom: 8px !important;
+      }
+
+      .sample-step-body > .hint:last-child {
+        margin-top: 4px;
+        margin-bottom: 0;
+      }
+
+      .sample-mode-grid .radio-card,
+      .radio-card-grid .radio-card,
+      .inline-options .choice-label {
+        border-color: rgba(148, 163, 184, 0.34);
+        background: #ffffff;
+      }
+
+      .sample-mode-grid .radio-card:hover,
+      .radio-card-grid .radio-card:hover,
+      .inline-options .choice-label:hover {
+        border-color: var(--color-primary) !important;
+        background: #eef5ff !important;
+        color: var(--color-primary-dark) !important;
+      }
+
+      .sample-mode-grid .radio-card:has(input:checked),
+      .radio-card-grid .radio-card:has(input:checked),
+      .inline-options .choice-label:has(input:checked) {
+        border-color: #0a5cbb;
+        background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 100%);
+        color: #0a4f9d;
+        box-shadow: 0 8px 24px rgba(10, 92, 187, 0.12);
+      }
+
+      .sample-mode-grid .radio-card:has(input:checked):hover,
+      .radio-card-grid .radio-card:has(input:checked):hover,
+      .inline-options .choice-label:has(input:checked):hover {
+        border-color: #063f88 !important;
+        background: #dbeafe !important;
+        color: var(--color-primary-dark) !important;
+      }
+
+      .log-tabs {
+        gap: 10px;
+        padding: 6px;
+        border-color: rgba(148, 163, 184, 0.24);
+        background: #ffffff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+      }
+
+      .log-tab {
+        min-height: 44px;
+        border-color: rgba(148, 163, 184, 0.34);
+        background: #ffffff;
+        color: #526173;
+      }
+
+      .log-tab--activity.active,
+      .log-tab--terminal.active {
+        background: #0a5cbb;
+        border-color: #0a5cbb;
+        color: #ffffff;
+        box-shadow: 0 10px 22px rgba(10, 92, 187, 0.22);
+      }
+
+      .log-tab--activity:hover,
+      .log-tab--terminal:hover {
+        background: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+        color: #172033 !important;
+      }
+
+      .log-tab--activity.active:hover,
+      .log-tab--terminal.active:hover {
+        background: #063f88 !important;
+        border-color: #063f88 !important;
+        color: #ffffff !important;
+      }
+
+      .log-surface {
+        padding: 0;
+        border: none;
+        background: transparent;
+      }
+
+      .log-display {
+        margin-top: 14px;
+        min-height: 320px;
+        height: min(42vh, 420px);
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 8px;
+      }
+
+      .status-banner {
+        border-color: rgba(148, 163, 184, 0.28);
+        background: #f8fafc;
+      }
+
+      .danger-zone {
+        border: 1px solid rgba(197, 62, 62, 0.18);
+        border-radius: 8px;
+        background: #fff7f7;
+      }
+
+      @media (max-width: 1450px) {
+        .sample-two-column,
+        body.sidebar-collapsed .sample-two-column {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .connection-shell {
+          padding: 20px 14px 32px;
+        }
+
+        .connection-shell .page-header,
+        .sample-left-col .page-card,
+        .sample-right-col .page-card {
+          padding: 18px !important;
+        }
+      }
+    </style>
+
+    <div class="sample-two-column" id="sampleCollectPage">
+
+      <!-- Left Column: Settings -->
+      <div class="sample-left-col">
+        <section class="page-card">
+          <div class="step-heading">
+            <span class="step-heading__num">1</span>
+            <div>
+              <h2 class="section-title">Save Location</h2>
+              <p class="step-heading__hint">Select where lecturer sample logs should be stored.</p>
+            </div>
+          </div>
+          <div class="form-group sample-step-body">
+            <label>Save Directory</label>
+            <div class="existing-picker">
+              <button type="button" class="secondary" id="chooseSampleDirBtn">Choose Folder</button>
+              <span id="sampleDirLabel" class="selected-path">No folder selected</span>
+            </div>
+            <div class="compact-row compact-row--save" style="margin-top: 10px;">
+              <div class="form-group">
+                <label for="sampleNewFolderName">Create New Folder</label>
+                <input type="text" id="sampleNewFolderName" placeholder="e.g. SampleLogs_Mar19" />
+              </div>
+              <div class="form-group sample-action">
+                <button type="button" class="secondary" id="sampleCreateFolderBtn">Create Folder</button>
+              </div>
+            </div>
+            <p class="hint">If no folder is selected, new folders are created under Documents.</p>
+          </div>
+
+          <div class="step-heading">
+            <span class="step-heading__num">2</span>
+            <div>
+              <h2 class="section-title">Choose Mode</h2>
+              <p class="step-heading__hint">Pick one collection mode first, then complete only that workflow.</p>
+            </div>
+          </div>
+          <div class="form-group sample-step-body">
+            <div class="sample-mode-grid" id="sampleModeSelector">
+              <label class="radio-card" style="padding: 14px 18px;">
+                <input type="radio" name="sampleMode" value="template" />
+                <div class="radio-card-header" style="margin-bottom: 0;">
+                  <span class="radio-card-title">Use Template</span>
+                  <div class="radio-card-indicator"></div>
+                </div>
+                <p class="radio-card-desc">Load an existing template and collect one template device at a time.</p>
+              </label>
+              <label class="radio-card" style="padding: 14px 18px;">
+                <input type="radio" name="sampleMode" value="manual" />
+                <div class="radio-card-header" style="margin-bottom: 0;">
+                  <span class="radio-card-title">Manual Commands</span>
+                  <div class="radio-card-indicator"></div>
+                </div>
+                <p class="radio-card-desc">Choose commands directly without using a saved template.</p>
+              </label>
+            </div>
+
+            <div id="sampleTemplatePanel" class="sample-mode-panel hidden">
+              <h3>Template Mode</h3>
+              <p class="hint">Load a saved template to auto-fill devices and commands.</p>
+              <div class="compact-row compact-row--template" style="margin-bottom: 12px;">
+                <div class="form-group">
+                  <label>Saved Template</label>
+                  <div id="sampleTemplateSelect" class="app-select"></div>
+                </div>
+                <div class="form-group sample-action">
+                  <button type="button" class="btn-accent" id="loadSampleTemplateBtn">Load Template</button>
+                </div>
+                <div class="form-group sample-action">
+                  <button type="button" class="danger" id="cancelTemplateModeBtn">Cancel Mode</button>
+                </div>
+              </div>
+
+              <div id="sampleTemplateView" class="hidden">
+                <div id="sampleTemplateInfo" class="hint" style="margin-bottom: 12px;">Template loaded.</div>
+                <div id="sampleTemplateDevices"
+                  style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card); margin-bottom: 12px;">
+                </div>
+                <div id="sampleActiveDeviceInfo" class="hint" style="margin-bottom: 0;"></div>
+              </div>
+            </div>
+
+            <div id="sampleManualPanel" class="sample-mode-panel hidden">
+              <h3>Manual Mode</h3>
+              <p class="hint">Search and select commands directly for this collection run.</p>
+              <input type="text" id="sampleCommandSearch" placeholder="Search commands..."
+                style="margin-bottom: 10px;" />
+              <div id="sampleCommandsList"
+                style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card);">
+              </div>
+              <div class="actions align-left" style="margin-top: 10px;">
+                <button type="button" id="selectAllSampleCmds" class="btn-outline">Select All</button>
+                <button type="button" id="clearSampleCmds" class="btn-outline">Clear</button>
+              </div>
+              <div class="sample-mode-cancel">
+                <button type="button" class="danger" id="cancelManualModeBtn">Cancel Mode</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-heading">
+            <span class="step-heading__num">3</span>
+            <div>
+              <h2 class="section-title">Connect & Collect</h2>
+              <p class="step-heading__hint">Select connection type and begin collection.</p>
+            </div>
+          </div>
+          <div class="form-group sample-step-body sample-step-body--connect">
+            <div class="radio-card-grid sample-connection-mode-grid">
+              <label class="radio-card">
+                <input type="radio" name="sampleConnType" value="serial" checked />
+                <div class="radio-card-header" style="margin-bottom: 0;">
+                  <span class="radio-card-title">Serial Connection</span>
+                  <div class="radio-card-indicator"></div>
+                </div>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="sampleConnType" value="ssh" />
+                <div class="radio-card-header" style="margin-bottom: 0;">
+                  <span class="radio-card-title">SSH Connection</span>
+                  <div class="radio-card-indicator"></div>
+                </div>
+              </label>
+            </div>
+
+            <div id="sampleSerialFields">
+              <div class="inline-options" style="margin-bottom: 10px;">
+                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="linux_usb" checked />
+                  Linux USB-Serial</label>
+                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="linux_rs232" /> Linux
+                  RS232</label>
+                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="windows" />
+                  Windows</label>
+                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="mac" /> macOS</label>
+                <label class="choice-label"><input type="radio" name="sampleSerialPreset" value="custom" />
+                  Custom</label>
+              </div>
+              <label for="sampleSerialPort">Serial Port</label>
+              <input type="text" id="sampleSerialPort" placeholder="/dev/ttyUSB0" />
+            </div>
+
+            <div id="sampleSshFields" class="hidden">
+              <div class="form-row" style="flex-wrap: wrap; gap: 12px;">
+                <div class="form-group">
+                  <label for="sampleSshHost">Host</label>
+                  <input type="text" id="sampleSshHost" placeholder="192.168.1.1" />
+                </div>
+                <div class="form-group">
+                  <label for="sampleSshPort">Port</label>
+                  <input type="text" id="sampleSshPort" placeholder="22" />
+                </div>
+              </div>
+              <div class="form-row" style="flex-wrap: wrap; gap: 12px;">
+                <div class="form-group">
+                  <label for="sampleSshUser">Username</label>
+                  <input type="text" id="sampleSshUser" placeholder="admin" />
+                </div>
+                <div class="form-group">
+                  <label for="sampleSshPass">Password</label>
+                  <input type="password" id="sampleSshPass" placeholder="Password" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="actions justify-end"
+            style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--color-border);">
+            <button type="button" id="stopSampleCollectBtn" class="abort-btn" style="display: none;">⏹ Stop
+              Execution</button>
+            <button type="button" id="runSampleCollectBtn" class="primary"
+              style="font-size: 1.05rem; padding: 12px 32px;">Collect Logs</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column: Tracking and Logs -->
+      <div class="sample-right-col">
+        <section class="page-card" style="padding: 24px; position: sticky; top: 20px;">
+          <h3 style="margin: 0 0 16px; font-size: 1.1rem; color: var(--color-heading);">Session Progress</h3>
+
+          <div id="sampleStatus" class="status-banner" style="margin-bottom: 20px;">
+            <div class="status-banner__icon">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5" />
+                <path d="M10 9v5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                <circle cx="10" cy="6.5" r="1" fill="currentColor" />
+              </svg>
+            </div>
+            <div class="status-banner__body">
+              <span class="status-banner__label">Status</span>
+              <span class="status-banner__msg">Initializing...</span>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 24px;">
+            <h4
+              style="margin: 0 0 10px; font-size: 0.8rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.05em;">
+              Collected So Far</h4>
+            <div id="collectedDevicesList" style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <span class="hint" id="noDevicesHint">No devices collected yet.</span>
+            </div>
+          </div>
+
+          <div class="log-tabs" id="sampleLogTabs">
+            <button type="button" class="log-tab log-tab--activity active" data-target="sampleActivityPanel">
+              <span class="log-tab-icon" aria-hidden="true">☰</span>
+              <span>Activity Log</span>
+            </button>
+            <button type="button" class="log-tab log-tab--terminal" data-target="sampleTerminalPanel">
+              <span class="log-tab-icon" aria-hidden="true">&gt;_</span>
+              <span>Terminal Output</span>
+            </button>
+          </div>
+          <div id="sampleActivityPanel" class="log-panel">
+            <div class="status-panel modern log-surface">
+              <pre id="sampleLog" class="log log-display"></pre>
+            </div>
+          </div>
+          <div id="sampleTerminalPanel" class="log-panel hidden">
+            <div class="status-panel modern log-surface">
+              <pre id="sampleTerminalLog" class="log log-display" style="color: #10b981;"></pre>
+            </div>
+          </div>
+
+          <div class="danger-zone" style="margin-top: 24px;">
+            <div class="danger-zone__header">
+              <span class="step-heading__num step-heading__num--danger">!</span>
+              <div>
+                <h4 class="danger-zone__title">Danger Zone</h4>
+                <p class="danger-zone__desc">This will erase the connected Cisco device configuration and reload it.
+                  Only use after collection is complete.</p>
+              </div>
+            </div>
+            <div class="actions danger-zone__actions">
+              <label for="sampleResetDeviceType" class="connection-reset-row__label">Reset As</label>
+              <select id="sampleResetDeviceType" class="connection-reset-row__select">
+                <option value="switch" selected>Switch</option>
+                <option value="router">Router</option>
+              </select>
+              <button type="button" id="sampleResetDeviceBtn" class="danger">Reset Cisco Device</button>
+            </div>
+          </div>
+
+        </section>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+  <script src="sample_collect.js"></script>
+</body>
+
+</html>
