@@ -52,7 +52,7 @@
 
     .guide-tabs {
       display: grid;
-      grid-template-columns: repeat(8, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 4px;
       padding: 4px;
       border: 1px solid #d7dae3;
@@ -658,7 +658,7 @@
   <div class="page-shell tutorial-shell">
     <div class="page-header">
       <h1 class="page-title">Tutorials</h1>
-      <p class="page-subtitle">Follow the current app workflow: build a template, prepare student folders, collect device output, review results, and export when ready.</p>
+      <p class="page-subtitle">Follow the current app workflow: build a template, prepare student folders, collect device output, and review results.</p>
     </div>
 
     <div class="guide-tabs" id="quickGuideTabs" role="tablist" aria-label="Quick Guide Sections">
@@ -667,9 +667,7 @@
       <button type="button" class="guide-tab-btn" data-target="directoryGuidePanel" role="tab" aria-selected="false">Directory</button>
       <button type="button" class="guide-tab-btn" data-target="connectionGuidePanel" role="tab" aria-selected="false">Connection</button>
       <button type="button" class="guide-tab-btn" data-target="resultsGuidePanel" role="tab" aria-selected="false">Results</button>
-      <button type="button" class="guide-tab-btn" data-target="melbourneGuidePanel" role="tab" aria-selected="false">Export to Melbourne</button>
       <button type="button" class="guide-tab-btn" data-target="sampleLogsGuidePanel" role="tab" aria-selected="false">Sample Logs</button>
-      <button type="button" class="guide-tab-btn" data-target="systemAdminGuidePanel" role="tab" aria-selected="false">System Admin</button>
     </div>
 
     <div id="quickGuidesPanel" class="guide-panel active" role="tabpanel">
@@ -721,26 +719,12 @@
           <div class="step-number">4</div>
           <div class="step-title">Review Results</div>
         </div>
-        <p class="step-content">Review grading output and confirm the collected data is ready for export or records.</p>
+        <p class="step-content">Review grading output and confirm the collected data is complete.</p>
         <ul class="step-checklist">
           <li>View comparison results</li>
           <li>Check command evidence</li>
           <li>Review warnings</li>
-          <li>Confirm before export</li>
-        </ul>
-      </div>
-
-      <div class="workflow-step">
-        <div class="step-header">
-          <div class="step-number">5</div>
-          <div class="step-title">Export Melbourne</div>
-        </div>
-        <p class="step-content">Export completed session data in the Melbourne format after results have been checked.</p>
-        <ul class="step-checklist">
-          <li>Open Export Melbourne</li>
-          <li>Confirm export settings</li>
-          <li>Review devices and schemes</li>
-          <li>Check the export log</li>
+          <li>Confirm before closing the review</li>
         </ul>
       </div>
     </div>
@@ -748,20 +732,6 @@
     <div class="page-card">
       <div class="page-card-title">📁 Data Storage</div>
       <div class="page-card-content">All student data and results are stored in <strong>D:\Documents</strong> organized by exam, tutor, time slot, and student ID.</div>
-    </div>
-
-    <div class="page-card">
-      <div class="page-card-title">Understanding Export Melbourne</div>
-      <div class="page-card-content">
-        <p style="margin-bottom: 12px;">After collecting and reviewing student data, Export Melbourne prepares the completed session for submission. This process:</p>
-        <ul class="info-list">
-          <li>Uses the selected session and student workspace created from Directory.</li>
-          <li>Shows export settings before the export is run.</li>
-          <li>Lists devices so you can verify the expected template data is present.</li>
-          <li>Writes progress and results to the export log.</li>
-          <li>Should be run after connection collection and results review are complete.</li>
-        </ul>
-      </div>
     </div>
 
     <div class="page-card">
@@ -797,20 +767,6 @@
     </div>
 
     <div class="page-card">
-      <div class="page-card-title">When to Export</div>
-      <div class="page-card-content">
-        <p style="margin-bottom: 12px;"><strong>Ideal Timing:</strong></p>
-        <ul class="info-list">
-          <li><strong>After all students complete</strong> - Once all student executions are finished and data is collected</li>
-          <li><strong>After reviewing results</strong> - Once marks, warnings, and collected logs have been checked</li>
-          <li><strong>Before submission</strong> - When you need a packaged Melbourne export</li>
-          <li><strong>For records</strong> - To keep a standardized export for the completed session</li>
-        </ul>
-        <p style="margin-top: 12px; margin-bottom: 0; color: #718096; font-size: 0.85rem;"><strong>Note:</strong> Do not export before the session data and results are confirmed.</p>
-      </div>
-    </div>
-
-    <div class="page-card">
       <div class="page-card-title">💡 Helpful Tips</div>
       <div class="tips-grid">
         <div class="tip-card">
@@ -826,16 +782,12 @@
           <div class="tip-card-text">Review results immediately after completion to ensure all data was collected successfully before proceeding.</div>
         </div>
         <div class="tip-card">
-          <div class="tip-card-title">📊 Export for Analysis</div>
-          <div class="tip-card-text">Use Export Melbourne after results are checked and the session is ready for submission or records.</div>
-        </div>
-        <div class="tip-card">
           <div class="tip-card-title">🔍 Configuration Inspection</div>
           <div class="tip-card-text">Use Results and the saved student folders to inspect collected command output and configuration differences.</div>
         </div>
         <div class="tip-card">
           <div class="tip-card-title">📋 Additional Tools</div>
-          <div class="tip-card-text">Use System Admin for configuration and Sample Logs for validation and troubleshooting issues.</div>
+          <div class="tip-card-text">Use Sample Logs for validation and troubleshooting issues.</div>
         </div>
       </div>
     </div>
@@ -935,7 +887,7 @@
             <li>Review the comparison output for the selected student and confirm that the expected device data is present.</li>
             <li>Check command evidence and warning messages before accepting the result.</li>
             <li>If something looks missing, return to Directory or Connection and verify that the correct student and template were used.</li>
-            <li>Once results are confirmed, continue to Export Melbourne if the session is ready for submission or records.</li>
+            <li>Once results are confirmed, keep the output with the saved student record.</li>
           </ol>
         </section>
         <aside class="tutorial-side">
@@ -945,33 +897,6 @@
             <li>Expected devices and commands.</li>
             <li>Warnings or missing command output.</li>
             <li>Scores that align with the rubric and collected evidence.</li>
-          </ul>
-        </aside>
-      </div>
-    </div>
-
-    <div id="melbourneGuidePanel" class="guide-panel" role="tabpanel">
-      <div class="tutorial-layout">
-        <section class="tutorial-main">
-          <div class="tutorial-kicker">Submission export</div>
-          <h2 class="tutorial-title">Export to Melbourne Tutorial</h2>
-          <p class="tutorial-intro">Use this page after results are reviewed to prepare the completed session for Melbourne submission or records.</p>
-          <ol class="tutorial-steps--cards">
-            <li>Open <strong>Export Melbourne</strong> after collection and result review are complete.</li>
-            <li>Check the summary at the top so you know which student/session and devices are being exported.</li>
-            <li>Review <strong>Export Settings</strong> and confirm the selected output details.</li>
-            <li>Review the <strong>Devices</strong> table to make sure the expected template devices and schemes are present.</li>
-            <li>Click <strong>Export</strong> when everything is correct.</li>
-            <li>Read the <strong>Export Log</strong> to confirm whether the export completed or needs attention.</li>
-          </ol>
-        </section>
-        <aside class="tutorial-side">
-          <h3 class="tutorial-side-title">Export Safely</h3>
-          <ul class="tutorial-side-list">
-            <li>Export only after collection and result review are complete.</li>
-            <li>Confirm the student/session context before clicking Export.</li>
-            <li>Review the Devices table for missing devices or schemes.</li>
-            <li>Keep the export log visible until the run finishes.</li>
           </ul>
         </aside>
       </div>
@@ -1005,36 +930,8 @@
       </div>
     </div>
 
-    <div id="systemAdminGuidePanel" class="guide-panel" role="tabpanel">
-      <div class="tutorial-layout">
-        <section class="tutorial-main">
-          <div class="tutorial-kicker">Global settings</div>
-          <h2 class="tutorial-title">System Admin Tutorial</h2>
-          <p class="tutorial-intro">Use this page for system-wide settings that affect templates, marking, grouping, and cleanup.</p>
-          <ol class="tutorial-steps--cards">
-            <li>Open <strong>System Admin</strong> when you need to maintain global setup used by the rest of the app.</li>
-            <li>Use <strong>Commands</strong> to add or remove command names available in Device Setup and Sample Logs.</li>
-            <li>Use <strong>Grading Policy</strong> to adjust policy settings that affect marking behavior.</li>
-            <li>Use <strong>Rubric Defaults</strong> to manage default rubric content used during grading.</li>
-            <li>Use <strong>Grouping & Dedup</strong> to manage grouping and deduplication behavior.</li>
-            <li>Use <strong>System Cleanup</strong> carefully. Cleanup actions can delete saved data, templates, or results depending on the selected control.</li>
-            <li>After making admin changes, return to Device Setup or Results and verify the new behavior before using it in a live session.</li>
-          </ol>
-        </section>
-        <aside class="tutorial-side">
-          <h3 class="tutorial-side-title">Admin Caution</h3>
-          <ul class="tutorial-side-list">
-            <li>Command changes affect future templates and collections.</li>
-            <li>Policy and rubric changes affect marking behavior.</li>
-            <li>Cleanup tools may remove saved system data.</li>
-            <li>Test changes before using them in a live marking session.</li>
-          </ul>
-        </aside>
-      </div>
-    </div>
-
     <div class="footer-section">
-      <p>For more help or issues, contact your system administrator.</p>
+      <p>For more help or issues, contact support.</p>
     </div>
   </div>
 

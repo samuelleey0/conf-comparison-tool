@@ -1,5 +1,5 @@
 {
-  "name": "accms",
+  "name": "accms-student",
   "version": "1.0.0",
   "description": "Frontend desktop app for Automated Cisco Configuration & Marking System",
   "homepage": "https://github.com/samuelleey0/conf-comparison-tool",
@@ -39,12 +39,12 @@
     "xlsx": "^0.18.5"
   },
   "build": {
-    "appId": "com.cisco.config-tool",
-    "productName": "ACCMS",
+    "appId": "com.cisco.config-tool.student",
+    "productName": "ACCMS Student",
     "directories": {
       "buildResources": "assets"
     },
-    "artifactName": "accms-${version}-${os}-${arch}.${ext}",
+    "artifactName": "accms-student-${version}-${os}-${arch}.${ext}",
     "win": {
       "signAndEditExecutable": false,
       "target": [
@@ -75,7 +75,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "ACCMS"
+      "shortcutName": "ACCMS Student"
     },
     "files": [
       "*.js",
