@@ -27,6 +27,22 @@ echo "[installer] Using Python executable: $python_exe"
 rm -rf "$backend_dist_root/$backend_name"
 mkdir -p "$backend_dist_root" "$backend_build_root"
 
+add_data_args=()
+add_data_if_exists() {
+  local source_path="$1"
+  local target_path="$2"
+  if [[ -e "$source_path" ]]; then
+    add_data_args+=(--add-data "$source_path:$target_path")
+  else
+    echo "[installer] Optional data path not found, skipping: $source_path"
+  fi
+}
+
+add_data_if_exists "$repo_root/config" "config"
+add_data_if_exists "$repo_root/comparison_engine/templates" "comparison_engine/templates"
+add_data_if_exists "$repo_root/schemes" "schemes"
+add_data_if_exists "$repo_root/rubrics" "rubrics"
+
 echo "[installer] Building backend executable with PyInstaller..."
 "$python_exe" -m PyInstaller \
   --noconfirm \
@@ -36,10 +52,7 @@ echo "[installer] Building backend executable with PyInstaller..."
   --distpath "$backend_dist_root" \
   --workpath "$backend_build_root" \
   --specpath "$backend_build_root" \
-  --add-data "$repo_root/config:config" \
-  --add-data "$repo_root/comparison_engine/templates:comparison_engine/templates" \
-  --add-data "$repo_root/schemes:schemes" \
-  --add-data "$repo_root/rubrics:rubrics" \
+  "${add_data_args[@]}" \
   "$server_script"
 
 built_bin="$backend_dist_root/$backend_name/$backend_name"

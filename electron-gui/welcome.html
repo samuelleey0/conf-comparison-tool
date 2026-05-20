@@ -25,14 +25,21 @@
                     <h1>Automated Cisco Configuration & Marking System</h1>
                 </div>
                 <div
+                    id="startupProgressBar"
                     class="welcome-loading-bar"
                     role="progressbar"
                     aria-label="Loading application"
                     aria-valuemin="0"
                     aria-valuemax="100"
-                    aria-valuenow="100"
+                    aria-valuenow="0"
                 >
-                    <span class="welcome-loading-bar__fill"></span>
+                    <span
+                        id="startupProgressFill"
+                        class="welcome-loading-bar__fill"
+                    ></span>
+                </div>
+                <div class="welcome-loading-status" id="startupProgressStatus">
+                    Opening application...
                 </div>
             </div>
         </div>

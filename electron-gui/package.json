@@ -1,5 +1,5 @@
 {
-  "name": "electron-gui",
+  "name": "accms",
   "version": "1.0.0",
   "description": "Frontend desktop app for Automated Cisco Configuration & Marking System",
   "homepage": "https://github.com/samuelleey0/conf-comparison-tool",
@@ -40,11 +40,11 @@
   },
   "build": {
     "appId": "com.cisco.config-tool",
-    "productName": "Cisco Config Comparison Tool",
+    "productName": "ACCMS",
     "directories": {
       "buildResources": "assets"
     },
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "artifactName": "accms-${version}-${os}-${arch}.${ext}",
     "win": {
       "signAndEditExecutable": false,
       "target": [
@@ -75,7 +75,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Cisco Config Tool"
+      "shortcutName": "ACCMS"
     },
     "files": [
       "*.js",
