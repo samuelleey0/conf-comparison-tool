@@ -5,6 +5,9 @@ const os = require("os");
 const ENGINE_STUDENTS_ROOT = path.resolve(__dirname, "..", "comparison_engine", "students");
 const DEVICE_TYPES = ["router", "switch", "asa"];
 
+// Export Melbourne packages one mirrored session into Melbourne's expected zip
+// layout. Temporary config files are generated during export but intentionally
+// excluded from the final archive.
 function readJsonFile(filePath) {
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf-8"));
@@ -42,6 +45,7 @@ function parseCsv(value) {
 function deriveExamFields(examName) {
   const words = String(examName || "").trim().split(/\s+/).filter(Boolean);
   const unitcode = words[0] || "";
+  // Short name is sent to Melbourne config files, so keep it filesystem-safe.
   const shortname = words[1] ? words[1].toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "") : "";
   return { unitcode, shortname: shortname || "exam" };
 }
@@ -53,6 +57,8 @@ function appendMelbourneLog(message) {
 }
 
 function buildSessionIndex() {
+  // Melbourne export reads from the mirrored comparison_engine/students tree,
+  // not directly from the user's Documents folder.
   const index = {};
   listDirectoryNames(ENGINE_STUDENTS_ROOT).forEach((classroom) => {
     const classroomPath = path.join(ENGINE_STUDENTS_ROOT, classroom);
@@ -62,6 +68,7 @@ function buildSessionIndex() {
       listDirectoryNames(tutorPath).forEach((timeSlot) => {
         const sessionPath = path.join(tutorPath, timeSlot);
         const studentNames = getSessionStudentNames(classroom, tutorName, timeSlot);
+        // Device folders are handled later; at this stage we only index students.
         const students = listDirectoryNames(sessionPath).map((studentId) => ({
           student_id: studentId,
           student_name: studentNames[studentId] || "",

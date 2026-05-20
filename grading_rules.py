@@ -1,4 +1,9 @@
-"""Rubric rules, grading policy, and result classification helpers."""
+"""Rubric rules, grading policy, and result classification helpers.
+
+This module is the single source of truth for how raw comparator outcomes become
+major/minor/skipped findings. UI pages should change rules through the API
+instead of editing config/rubric_rules.json directly.
+"""
 
 import json
 import re
@@ -993,6 +998,7 @@ def save_rubric_rules(rules):
 
 
 def disable_rubric_rule(rule_code):
+    """Disable a rule globally while keeping matching findings visible as skipped."""
     target = str(rule_code or "").strip()
     if not target:
         raise ValueError("Missing rule code.")
@@ -1002,6 +1008,7 @@ def disable_rubric_rule(rule_code):
     for rule in rules:
         if not isinstance(rule, dict):
             continue
+        # Match both code and id because custom rules can use either as their stable key.
         if target in {str(rule.get("code") or ""), str(rule.get("id") or "")}:
             rule["enabled"] = False
             matched = rule
@@ -1023,6 +1030,7 @@ def disable_rubric_rule(rule_code):
 
 
 def enable_rubric_rule(rule_code):
+    """Re-enable a globally disabled rule so future result refreshes count it again."""
     target = str(rule_code or "").strip()
     if not target:
         raise ValueError("Missing rule code.")
@@ -1032,6 +1040,7 @@ def enable_rubric_rule(rule_code):
     for rule in rules:
         if not isinstance(rule, dict):
             continue
+        # Match both code and id because custom rules can use either as their stable key.
         if target in {str(rule.get("code") or ""), str(rule.get("id") or "")}:
             rule["enabled"] = True
             matched = rule

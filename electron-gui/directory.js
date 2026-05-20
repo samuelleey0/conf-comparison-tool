@@ -1,3 +1,6 @@
+// Directory Setup owns the student workspace selection/creation flow. The
+// selected session is persisted in localStorage because later pages need the
+// same classroom/tutor/time/student context without asking the user again.
 function deriveDirectoryDisplay(dirPath) {
   if (!dirPath) return null;
   if (!pathModule) return dirPath;
@@ -10,6 +13,8 @@ function deriveDirectoryDisplay(dirPath) {
 
 // ── Sidebar helpers ──────────────────────────────────
 function updateSessionSidebar(classroom, tutorName, timeSlot, students) {
+  // The side panel is the canonical session summary for the Existing Directory
+  // tab; avoid duplicating this same session string in the main picker row.
   const infoEl = document.getElementById("sidebarSessionInfo");
   if (infoEl) {
     infoEl.innerHTML = `
@@ -416,6 +421,8 @@ function renderTree(container, hierarchy) {
 }
 
 function renderMainStudentGrid(students) {
+  // Student card status is inferred from existing collected log folders. The
+  // selected template controls how strict "completed" should be.
   const gridContainer = document.getElementById("mainStudentGridContainer");
   const useBtn = document.getElementById("use-existing-btn");
   pendingSelectedStudent = null;
@@ -431,6 +438,7 @@ function renderMainStudentGrid(students) {
     localStorage.setItem("sessionStudents", JSON.stringify(ids));
     try {
       const completed = JSON.parse(localStorage.getItem("completedStudents") || "[]");
+      // Drop completion markers for students that do not belong to this session.
       const filtered = completed.filter((id) => ids.includes(id));
       localStorage.setItem("completedStudents", JSON.stringify(filtered));
     } catch (_) {
@@ -470,6 +478,7 @@ function renderMainStudentGrid(students) {
         const devicesMeta = devicesStr ? JSON.parse(devicesStr) : {};
         const hostnames = Object.keys(devicesMeta);
         if (hostnames.length > 0 && pathModule) {
+          // Template command coverage is stricter than folder existence alone.
           let totalExpected = 0;
           let totalFound = 0;
           hostnames.forEach((hostname) => {

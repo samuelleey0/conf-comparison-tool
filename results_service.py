@@ -1,4 +1,9 @@
-"""Result report building, error context, and raw log preview helpers."""
+"""Result report building, error context, and raw log preview helpers.
+
+Raw comparator JSON stays on disk; this service reloads it with the current
+grading policy/rubric rules so Result page changes such as disabling a rule can
+be reflected without re-running device comparison.
+"""
 
 import json
 import os
@@ -45,6 +50,7 @@ def _load_student_results(student_dir: Path, student_id: str):
                 summary_data = json.load(handle) or {}
             hostnames = summary_data.get("hostnames_compared") or []
             if isinstance(hostnames, list) and hostnames:
+                # Ignore stale *_result.json files from templates used in earlier runs.
                 current_hostnames = {str(hostname) for hostname in hostnames}
         except Exception:
             current_hostnames = None

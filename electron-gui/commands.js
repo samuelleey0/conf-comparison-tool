@@ -1,6 +1,9 @@
 // -----------------------------
 // Commands page
 // -----------------------------
+// Legacy/manual command selection surface. Newer template workflows read the
+// same command list through the backend, but this page remains useful for quick
+// command-set editing and device-type presets.
 
 function updateCommandSelectionState() {
   const badge = document.getElementById("commandCount");
@@ -45,7 +48,8 @@ function autoSelectCommands(deviceType) {
   const checkboxes = Array.from(document.querySelectorAll('input[name="command"]'));
   if (!checkboxes.length) return;
 
-  // Determine which list to check against
+  // Router and switch presets are intentionally exclusive so a quick preset
+  // click does not leave unrelated commands selected by accident.
   const targetCommands = deviceType === 'router' ? ROUTER_COMMANDS : SWITCH_COMMANDS;
   const opposingCommands = deviceType === 'router' ? SWITCH_COMMANDS : ROUTER_COMMANDS;
 

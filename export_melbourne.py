@@ -1,3 +1,11 @@
+"""Melbourne export packaging helpers.
+
+The GUI calls into this module through server.py. It prepares temporary
+Melbourne-required files inside a work directory, copies only the final student
+deliverables into the zip, and intentionally keeps exam_config.toml and
+master_solution.ini out of the exported archive.
+"""
+
 import configparser
 import os
 import re
@@ -443,6 +451,7 @@ def export_to_melbourne(payload):
 
     exam_config_file = export_root / "exam_config.toml"
     master_solution_file = export_root / "master_solution.ini"
+    # These files drive finalisation, but Melbourne does not want them in the zip.
     exam_details = _write_exam_config(exam_config_file, export_root, payload)
     rubric_details = _write_master_solution(
         master_solution_file,
@@ -467,6 +476,7 @@ def export_to_melbourne(payload):
 
     for internal_file in (exam_config_file, master_solution_file):
         try:
+            # Remove after per-student options/solution/exam_info files are written.
             internal_file.unlink()
         except FileNotFoundError:
             pass
