@@ -59,6 +59,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function normalizeMode(value) {
+    // Translate old persisted mode names into the current three-mode workflow.
     if (value === "manual") return MODE_STRUCTURE_ONLY;
     if (value === "logs") return MODE_LOGS_FIRST;
     return VALID_MODES.has(value) ? value : "";
@@ -110,6 +111,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     menu?.querySelectorAll(".app-select-option").forEach((optionNode) => {
       optionNode.addEventListener("click", () => {
         const nextValue = optionNode.dataset.value || "";
+        // Store only the option value in dataset; labels can change without breaking state.
         root.dataset.value = nextValue;
         const labelNode = root.querySelector(".app-select-label");
         if (labelNode) labelNode.textContent = optionNode.textContent || placeholder;

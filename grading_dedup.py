@@ -399,6 +399,7 @@ def verification_is_deduplicated(feature: str, failed_config_refs, failed_config
     options = config.get("dedup_options") or {}
     layer1_ref = _verification_layer1_ref(feature, config)
     if layer1_ref and layer1_ref.startswith("show_running_config.routing."):
+        # Wrong routing protocol makes protocol runtime checks evidence-only.
         if options.get("dedup_routing_when_protocol_failed", True):
             if any(
                 failed_ref == "show_running_config.routing.protocol"
@@ -425,6 +426,7 @@ def verification_is_deduplicated(feature: str, failed_config_refs, failed_config
     vlan_config = config.get("vlan_scheme") or {}
     vlan_command = vlan_config.get("command") or "show_vlan_brief"
     if str(feature or "").startswith(f"verification.{vlan_command}."):
+        # VLAN scheme verification is grouped under the related access/trunk/SVI config fault.
         for failed_feature in failed_config_features:
             if any(
                 token in failed_feature

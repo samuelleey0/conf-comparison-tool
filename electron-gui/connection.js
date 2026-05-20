@@ -53,6 +53,7 @@ function applySerialPreset(preset) {
   const portInput = document.getElementById("serialPort");
   if (!portInput) return;
   if (preset === "custom") {
+    // Custom mode lets lab machines keep their own adapter path without a preset override.
     portInput.removeAttribute("readonly");
   } else {
     portInput.value = SERIAL_PRESETS[preset] || "/dev/ttyUSB0";
@@ -71,6 +72,7 @@ function toggleConnectionFields() {
   if (conn === "ssh") {
     sshFields.classList.remove("hidden");
     serialFields.classList.add("hidden");
+    // Reset/reload actions are implemented for serial Cisco console sessions only.
     if (resetBtn) resetBtn.disabled = true;
   } else {
     sshFields.classList.add("hidden");

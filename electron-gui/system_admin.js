@@ -69,6 +69,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const activateTab = (targetId) => {
       tabs.forEach((tab) => {
         const isActive = tab.dataset.target === targetId;
+        // aria-selected keeps the custom tab set understandable to assistive tools.
         tab.classList.toggle("active", isActive);
         tab.setAttribute("aria-selected", isActive ? "true" : "false");
       });
@@ -512,6 +513,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const data = await fetchJson("http://127.0.0.1:5050/api/rubric_rules");
       rubricRules = data.rules || [];
+      // Deleted custom-rule indexes are UI-local until the user clicks Save.
       deletedIndices = new Set();
       const availableSections = new Set(
         rubricRules.map((rule) => rule.section || rule.category || "").filter(Boolean)

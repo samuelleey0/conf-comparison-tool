@@ -214,6 +214,7 @@ function setDirectoryInfo({
   const prevSessionKey = localStorage.getItem("sessionKey");
   const nextSessionKey = `${resolvedClassroom}::${resolvedTutor}::${resolvedTime}`;
   if (prevSessionKey !== nextSessionKey) {
+    // A new session must not inherit completion state from the previous class.
     localStorage.setItem("sessionKey", nextSessionKey);
     localStorage.removeItem("completedStudents");
     localStorage.removeItem("sessionStudents");
@@ -231,6 +232,7 @@ function setDirectoryInfo({
   if (path) localStorage.setItem("basePath", path);
   else localStorage.removeItem("basePath");
   localStorage.setItem("directoryMode", mode || "create");
+  // Human-readable display is optional; path/classroom/tutor/time are authoritative.
   if (display) localStorage.setItem("directoryDisplay", display);
   else localStorage.removeItem("directoryDisplay");
 }

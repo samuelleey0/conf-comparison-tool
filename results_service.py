@@ -50,6 +50,7 @@ def _load_student_results(student_dir: Path, student_id: str):
                 summary_data = json.load(handle) or {}
             hostnames = summary_data.get("hostnames_compared") or []
             if isinstance(hostnames, list) and hostnames:
+                # Ignore stale *_result.json files from templates used in earlier runs.
                 current_hostnames = {str(hostname) for hostname in hostnames}
         except Exception:
             current_hostnames = None

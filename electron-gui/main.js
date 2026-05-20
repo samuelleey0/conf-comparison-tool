@@ -12,6 +12,7 @@ let flaskProcess = null;
 function broadcastFlaskLog(line) {
   // Renderer pages subscribe to this channel for the raw Terminal Output tabs.
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  // Keep stdout/stderr fan-out centralized so pages do not spawn backend readers.
   mainWindow.webContents.send('flask-log', line);
 }
 
@@ -28,6 +29,7 @@ ipcMain.handle('select-directory', async (event, defaultPath) => {
   };
   const result = await dialog.showOpenDialog(mainWindow || undefined, options);
   if (result.canceled || !result.filePaths || !result.filePaths.length) {
+    // Renderer pages treat null as "user cancelled", not as an error.
     return null;
   }
   return result.filePaths[0];

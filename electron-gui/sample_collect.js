@@ -67,6 +67,7 @@ function setupSampleCollectPage() {
           stopSampleCollectBtn.offsetParent !== null;
 
         if (stopVisible) {
+          // Escape must stop only an active collection, not close unrelated UI.
           event.preventDefault();
           stopSampleCollectBtn.click();
         }
@@ -79,6 +80,7 @@ function setupSampleCollectPage() {
       if (["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(tag)) return;
 
       if (runSampleCollectBtn && !runSampleCollectBtn.disabled) {
+        // Avoid accidental starts while typing in mode/template/connection fields.
         event.preventDefault();
         runSampleCollectBtn.click();
       }

@@ -438,6 +438,7 @@ function renderMainStudentGrid(students) {
     localStorage.setItem("sessionStudents", JSON.stringify(ids));
     try {
       const completed = JSON.parse(localStorage.getItem("completedStudents") || "[]");
+      // Drop completion markers for students that do not belong to this session.
       const filtered = completed.filter((id) => ids.includes(id));
       localStorage.setItem("completedStudents", JSON.stringify(filtered));
     } catch (_) {
@@ -477,6 +478,7 @@ function renderMainStudentGrid(students) {
         const devicesMeta = devicesStr ? JSON.parse(devicesStr) : {};
         const hostnames = Object.keys(devicesMeta);
         if (hostnames.length > 0 && pathModule) {
+          // Template command coverage is stricter than folder existence alone.
           let totalExpected = 0;
           let totalFound = 0;
           hostnames.forEach((hostname) => {

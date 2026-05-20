@@ -58,6 +58,7 @@ function getSessionPath() {
   if (storedSession) {
     const basePath = localStorage.getItem("basePath");
     if (basePath && storedSession === basePath && typeof pathModule !== "undefined") {
+      // Older flows stored the selected student path as sessionPath; correct it here.
       return pathModule.dirname(basePath);
     }
     return storedSession;
@@ -131,6 +132,7 @@ async function disableRubricRule(ruleCode, studentId = "") {
     method: "POST",
     body: JSON.stringify({ rule_code: code }),
   });
+  // Refresh instead of re-running comparison; classification uses the current rules.
   await refreshResults(studentId || currentReport?.student_id || null);
   alert(`${code} is now disabled. Matching findings are still visible, but no longer count toward marking.`);
   return true;
@@ -145,6 +147,7 @@ async function enableRubricRule(ruleCode, studentId = "") {
     method: "POST",
     body: JSON.stringify({ rule_code: code }),
   });
+  // Reclassify existing result files with the re-enabled rule.
   await refreshResults(studentId || currentReport?.student_id || null);
   alert(`${code} is now re-enabled and matching findings will count again.`);
   return true;

@@ -1008,6 +1008,7 @@ def disable_rubric_rule(rule_code):
     for rule in rules:
         if not isinstance(rule, dict):
             continue
+        # Match both code and id because custom rules can use either as their stable key.
         if target in {str(rule.get("code") or ""), str(rule.get("id") or "")}:
             rule["enabled"] = False
             matched = rule
@@ -1039,6 +1040,7 @@ def enable_rubric_rule(rule_code):
     for rule in rules:
         if not isinstance(rule, dict):
             continue
+        # Match both code and id because custom rules can use either as their stable key.
         if target in {str(rule.get("code") or ""), str(rule.get("id") or "")}:
             rule["enabled"] = True
             matched = rule
