@@ -179,6 +179,27 @@
         margin-top: 12px;
       }
 
+      .sample-manual-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      .sample-manual-actions button {
+        min-width: 110px;
+      }
+
+      @media (max-width: 560px) {
+        .sample-manual-actions {
+          flex-wrap: wrap;
+        }
+
+        .sample-manual-actions button {
+          flex: 1 1 100%;
+        }
+      }
+
       .sample-blocked {
         opacity: 0.45;
         pointer-events: none;
@@ -636,11 +657,9 @@
               <div id="sampleCommandsList"
                 style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: var(--color-bg-card);">
               </div>
-              <div class="actions align-left" style="margin-top: 10px;">
+              <div class="sample-manual-actions">
                 <button type="button" id="selectAllSampleCmds" class="btn-outline">Select All</button>
                 <button type="button" id="clearSampleCmds" class="btn-outline">Clear</button>
-              </div>
-              <div class="sample-mode-cancel">
                 <button type="button" class="danger" id="cancelManualModeBtn">Cancel Mode</button>
               </div>
             </div>

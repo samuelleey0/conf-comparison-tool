@@ -15,7 +15,7 @@
     .device-block-header {
       display: flex;
       justify-content: space-between;
-      align-items: flex-end;
+      align-items: center;
       flex-wrap: wrap;
       gap: 12px;
       margin-bottom: 12px;
@@ -23,6 +23,8 @@
     }
 
     .remove-device-btn {
+      align-self: center;
+      transform: translateY(12px);
       background: var(--color-danger, #e74c3c);
       border: 1px solid var(--color-danger, #e74c3c);
       color: #ffffff;
