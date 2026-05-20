@@ -64,6 +64,18 @@ function updateSidebarSelection(student) {
   `;
 }
 
+function resetSessionSidebar() {
+  const infoEl = document.getElementById("sidebarSessionInfo");
+  if (infoEl) {
+    infoEl.innerHTML = '<div class="dir-sidebar-empty">Choose a session to see details here.</div>';
+  }
+  const totalEl = document.getElementById("sidebarTotalCount");
+  if (totalEl) totalEl.textContent = "—";
+  const completedEl = document.getElementById("sidebarCompletedCount");
+  if (completedEl) completedEl.textContent = "—";
+  updateSidebarSelection(null);
+}
+
 function setSelectedExistingDirectory(pathValue, displayValue) {
   selectedExistingPath = pathValue || null;
   const display = displayValue || (pathValue ? deriveDirectoryDisplay(pathValue) : null);
@@ -85,6 +97,9 @@ function setSelectedExistingDirectory(pathValue, displayValue) {
   if (infoBox && !selectedExistingPath) {
     infoBox.classList.add("hidden");
     infoBox.innerHTML = "";
+  }
+  if (!selectedExistingPath) {
+    resetSessionSidebar();
   }
 }
 
@@ -174,12 +189,6 @@ function openCustomDirectoryPicker() {
   confirmBtn.onclick = () => {
     if (pendingSelectedFolder && pendingSelectedFolder.type === 'session') {
       const { classroom, tutor_name, time_slot, students } = pendingSelectedFolder;
-
-      const label = document.getElementById("selectedDirectoryLabel");
-      if (label) {
-        label.textContent = `Session: ${classroom} / ${tutor_name} / ${time_slot}`;
-        label.classList.add("has-value");
-      }
 
       const infoBox = document.getElementById("existingInfoBox");
       if (infoBox) infoBox.classList.add("hidden");
@@ -940,6 +949,7 @@ function setupDirectoryPage() {
             const students = hierarchy[classroom]?.[tutorName]?.[timeSlot];
             if (students) {
               renderMainStudentGrid(students);
+              updateSessionSidebar(classroom, tutorName, timeSlot, students);
             }
           }
         } catch (err) {
@@ -973,6 +983,7 @@ function setupDirectoryPage() {
                const students = hierarchy[classroom]?.[tutorName]?.[timeSlot];
                if (students) {
                   renderMainStudentGrid(students);
+                  updateSessionSidebar(classroom, tutorName, timeSlot, students);
                }
             }
          }).catch(err => console.error("Auto-load failed:", err));
