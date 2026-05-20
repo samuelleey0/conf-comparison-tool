@@ -1,3 +1,11 @@
+"""Melbourne export packaging helpers.
+
+The GUI calls into this module through server.py. It prepares temporary
+Melbourne-required files inside a work directory, copies only the final student
+deliverables into the zip, and intentionally keeps exam_config.toml and
+master_solution.ini out of the exported archive.
+"""
+
 import configparser
 import os
 import re

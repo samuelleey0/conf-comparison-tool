@@ -1,4 +1,9 @@
-"""Grading summary and Layer 1/Layer 2 deduplication helpers."""
+"""Grading summary and Layer 1/Layer 2 deduplication helpers.
+
+This module decides when verification findings should be evidence-only because
+the related configuration error has already been counted. Keep severity/rubric
+decisions in grading_rules.py.
+"""
 
 import copy
 import json

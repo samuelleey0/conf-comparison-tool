@@ -1,3 +1,6 @@
+// Sample Collect lets lecturers collect baseline logs after a structure-only
+// template exists, or manually collect logs without a saved template. It shares
+// the same live terminal stream as Connection but writes into template folders.
 function setupSampleCollectPage() {
   loadNavbar();
 
@@ -41,6 +44,7 @@ function setupSampleCollectPage() {
 
   const appendTerminalLine = (msg) => {
     if (!sampleTerminalLog) return;
+    // This panel mirrors backend stdout/stderr, not the cleaned activity log.
     sampleTerminalLog.textContent += `${msg}\n`;
     sampleTerminalLog.scrollTop = sampleTerminalLog.scrollHeight;
   };
@@ -50,6 +54,8 @@ function setupSampleCollectPage() {
   };
 
   function setupSampleCollectKeyboardShortcuts() {
+    // Match Connection page shortcuts: Escape stops a live collection and Enter
+    // starts only when focus is not inside a form control.
     document.addEventListener("keydown", (event) => {
       if (event.defaultPrevented) return;
 

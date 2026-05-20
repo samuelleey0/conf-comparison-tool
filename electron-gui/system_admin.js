@@ -1,3 +1,6 @@
+// System Admin is the editable control surface for app-wide data. Changes here
+// affect future grading/template behavior globally, so destructive operations
+// are intentionally separated from normal single-item delete buttons.
 document.addEventListener("DOMContentLoaded", () => {
   loadNavbar();
   
@@ -55,6 +58,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let deletedIndices = new Set();
 
   function initAdminTabs() {
+    // Keep the large admin surface manageable without unloading state from
+    // inactive panels.
     if (!adminTabsRoot) return;
     const tabs = Array.from(adminTabsRoot.querySelectorAll(".admin-tab-btn"));
     const panels = tabs
@@ -502,6 +507,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function loadRubricRules() {
+    // Rubric rules are stored as editable JSON on the backend. Disabled rules
+    // still match results, but are returned as skipped/unscored findings.
     try {
       const data = await fetchJson("http://127.0.0.1:5050/api/rubric_rules");
       rubricRules = data.rules || [];

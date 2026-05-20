@@ -1,6 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 
+// Device Setup builds reusable marking templates. The three modes intentionally
+// share the same device editor, but differ in whether baseline raw logs are
+// required now, deferred for Sample Collect, or imported from an existing folder.
 document.addEventListener("DOMContentLoaded", async () => {
   loadNavbar();
 
@@ -49,6 +52,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   let loadedTemplateHasBaseline = false;
   let loadedLogsByCommand = {};
 
+  // Legacy localStorage values used "manual" and "logs"; normalize them so old
+  // saved browser state cannot force an invalid setup mode after app upgrades.
   function getModeRadio(value) {
     return document.querySelector(`input[name="templateSetupMode"][value="${value}"]`);
   }
@@ -70,6 +75,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function renderSingleSelect(root, { options = [], value = "", placeholder = "Select" } = {}) {
     if (!root) return;
+    // Custom selects avoid native dropdown clipping inside the Device card and
+    // keep command/template menus styled consistently across platforms.
     const normalizedOptions = options.map((option) =>
       typeof option === "string" ? { value: option, label: option } : option
     );

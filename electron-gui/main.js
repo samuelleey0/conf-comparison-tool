@@ -1,4 +1,5 @@
-// electron-gui/main.js
+// Electron main process. It owns the desktop window, native folder dialogs, and
+// the Flask backend child process that the renderer pages call through HTTP.
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
@@ -9,11 +10,14 @@ let mainWindow = null;
 let flaskProcess = null;
 
 function broadcastFlaskLog(line) {
+  // Renderer pages subscribe to this channel for the raw Terminal Output tabs.
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send('flask-log', line);
 }
 
 ipcMain.handle('select-directory', async (event, defaultPath) => {
+  // Native directory picker fallback used by pages that need a real filesystem
+  // folder instead of the custom in-app session browser.
   let targetPath = defaultPath;
   if (!targetPath || typeof targetPath !== 'string') {
     targetPath = app.getPath('documents');

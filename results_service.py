@@ -1,4 +1,9 @@
-"""Result report building, error context, and raw log preview helpers."""
+"""Result report building, error context, and raw log preview helpers.
+
+Raw comparator JSON stays on disk; this service reloads it with the current
+grading policy/rubric rules so Result page changes such as disabling a rule can
+be reflected without re-running device comparison.
+"""
 
 import json
 import os

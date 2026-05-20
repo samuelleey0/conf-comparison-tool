@@ -5,6 +5,9 @@ const os = require("os");
 const ENGINE_STUDENTS_ROOT = path.resolve(__dirname, "..", "comparison_engine", "students");
 const DEVICE_TYPES = ["router", "switch", "asa"];
 
+// Export Melbourne packages one mirrored session into Melbourne's expected zip
+// layout. Temporary config files are generated during export but intentionally
+// excluded from the final archive.
 function readJsonFile(filePath) {
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf-8"));
@@ -53,6 +56,8 @@ function appendMelbourneLog(message) {
 }
 
 function buildSessionIndex() {
+  // Melbourne export reads from the mirrored comparison_engine/students tree,
+  // not directly from the user's Documents folder.
   const index = {};
   listDirectoryNames(ENGINE_STUDENTS_ROOT).forEach((classroom) => {
     const classroomPath = path.join(ENGINE_STUDENTS_ROOT, classroom);

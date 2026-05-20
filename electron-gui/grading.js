@@ -2,6 +2,10 @@ const API_ROOT = "http://127.0.0.1:5050";
 const { ipcRenderer } = require("electron");
 const SIDEBAR_COLLAPSE_KEY = "sidebarCollapsed";
 
+// Older grading admin page for schemes/rubrics. The active pass/fail policy and
+// outcome-rule editor now live in System Admin, but these CRUD screens are kept
+// for compatibility with existing saved YAML files.
+
 // Navigate
 function goTo(page) {
     window.location.href = page;

@@ -1,4 +1,9 @@
-"""Directory, session, student, and mirror-path helpers."""
+"""Directory, session, student, and mirror-path helpers.
+
+The app keeps a user-facing Documents tree and a mirrored
+comparison_engine/students tree. Functions here maintain that mapping so pages
+do not need to know which side of the mirror they are reading or writing.
+"""
 
 import json
 import os

@@ -1,6 +1,8 @@
 // -----------------------------
 // Connection page
 // -----------------------------
+// Runs student device collection for the active Directory session. The activity
+// log is user-facing workflow text; the terminal log is raw Flask/device output.
 
 let currentAbortController = null;
 let flaskLogListenerAttached = false;
@@ -8,6 +10,8 @@ let flaskLogListenerAttached = false;
 function appendTerminalLine(message) {
   const termLog = document.getElementById("terminalLog");
   if (!termLog) return;
+  // Backend logs arrive as arbitrary chunks. Normalize before appending so
+  // switching between Activity/Terminal tabs preserves line boundaries.
   const text = String(message ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n*$/, "");
   termLog.textContent += `${text}\n`;
   termLog.scrollTop = termLog.scrollHeight;
@@ -36,6 +40,8 @@ function setupConnectionLogTabs() {
 }
 
 function attachFlaskTerminalListener() {
+  // Attach once per page load; repeated listeners would duplicate every backend
+  // stdout/stderr line in the terminal panel.
   if (!window.ipcRenderer || flaskLogListenerAttached) return;
   window.ipcRenderer.on("flask-log", (_event, line) => {
     appendTerminalLine(line);

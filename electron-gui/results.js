@@ -1,4 +1,5 @@
-// electron-gui/results.js
+// Results page controller. It reads saved comparison outputs, applies the active
+// grading policy/rubric rules, and lets users inspect raw/parsed evidence.
 
 const API_BASE = (typeof window !== "undefined" && window.API_ROOT)
   ? window.API_ROOT
@@ -23,6 +24,8 @@ function getPathParts(pathValue) {
 }
 
 function getSessionInfo() {
+  // Recover session identity from localStorage first, then from the selected
+  // path. This makes Results resilient when users navigate back from other pages.
   const sessionPath = getSessionPath();
   const basePath = localStorage.getItem("basePath");
   let classroom = localStorage.getItem("classroom") || localStorage.getItem("examName") || "";
@@ -102,6 +105,8 @@ async function fetchJson(path, options = {}) {
 }
 
 function canDisableRuleFromResult(item) {
+  // Only scored findings can disable a rule. Deduplicated/skipped rows are
+  // already evidence-only, so showing the button there would be misleading.
   const ruleCode = item?.rule_code || item?.rule_id;
   if (!ruleCode) return false;
   if (!["missing", "extra", "mismatch"].includes(item.status)) return false;
@@ -111,6 +116,8 @@ function canDisableRuleFromResult(item) {
 }
 
 async function disableRubricRule(ruleCode, studentId = "") {
+  // Rule changes are global, not per-student. Results refresh immediately so the
+  // user can see the same finding become skipped/unscored.
   const code = String(ruleCode || "").trim();
   if (!code) return;
   const message = [

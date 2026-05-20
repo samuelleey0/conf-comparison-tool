@@ -1,4 +1,9 @@
-"""Template listing, manifest, import, upload, and baseline helpers."""
+"""Template listing, manifest, import, upload, and baseline helpers.
+
+Template manifests are the contract between Device Setup, Sample Collect, and
+Connection. The frontend should use these helpers through server.py endpoints
+instead of constructing template folders itself.
+"""
 
 import json
 import os

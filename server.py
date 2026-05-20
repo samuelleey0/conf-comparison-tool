@@ -1,4 +1,6 @@
-# server.py
+# Flask API for the Electron GUI. Route functions should stay thin where
+# practical; reusable grading/template/directory/export logic lives in service
+# modules so page behavior and backend rules can evolve independently.
 from flask import Flask, jsonify, request, Response, stream_with_context
 import threading
 from queue import SimpleQueue
@@ -15,7 +17,8 @@ import shutil
 import logging
 import string
 
-# Reuse your helpers
+# Low-level device execution still lives here because it coordinates shared
+# runtime state, abort flags, streaming logs, and serial/SSH connections.
 from file_utils import save_output_to_file, del_partial_logs
 from serial_utils import (
     connect_to_serial,
