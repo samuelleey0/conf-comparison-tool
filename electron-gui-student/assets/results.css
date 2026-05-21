@@ -265,6 +265,83 @@
       max-height: 220px;
     }
 
+    .result-item-actions {
+      display: flex;
+      justify-content: flex-end !important;
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .result-rule-disable-btn {
+      border: 1px solid #c2410c;
+      background: #fff7ed;
+      color: #9a3412;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .result-rule-disable-btn:hover,
+    .result-rule-disable-btn:focus {
+      background: #ea580c !important;
+      color: #ffffff !important;
+      border-color: #c2410c !important;
+      transform: translateY(-1px);
+    }
+
+    .result-rule-disable-btn:active {
+      background: #9a3412 !important;
+      color: #ffffff !important;
+      border-color: #7c2d12 !important;
+      transform: translateY(0);
+    }
+
+    .result-rule-disable-btn:disabled {
+      background: #e5e7eb !important;
+      color: #6b7280 !important;
+      border-color: #cbd5e1 !important;
+      cursor: wait;
+      transform: none;
+    }
+
+    .result-rule-enable-btn {
+      border: 1px solid #15803d;
+      background: #f0fdf4;
+      color: #166534;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .result-rule-enable-btn:hover,
+    .result-rule-enable-btn:focus {
+      background: #16a34a !important;
+      color: #ffffff !important;
+      border-color: #15803d !important;
+      transform: translateY(-1px);
+    }
+
+    .result-rule-enable-btn:active {
+      background: #166534 !important;
+      color: #ffffff !important;
+      border-color: #14532d !important;
+      transform: translateY(0);
+    }
+
+    .result-rule-enable-btn:disabled {
+      background: #e5e7eb !important;
+      color: #6b7280 !important;
+      border-color: #cbd5e1 !important;
+      cursor: wait;
+      transform: none;
+    }
+
     .context-modal {
       position: fixed;
       inset: 0;

@@ -1,4 +1,6 @@
-// electron-gui/renderer.js
+// Shared renderer helpers used by every Electron page.
+// Keep page-specific workflow code in that page's JS file; this file owns cross-page
+// state, navigation, session storage, common API calls, and reusable UI helpers.
 
 const API_ROOT = "http://127.0.0.1:5050";
 const SIDEBAR_COLLAPSE_KEY = "sidebarCollapsed";
@@ -58,6 +60,8 @@ function nowTimestamp() {
 function appendLogLine(message) {
   const log = document.getElementById("log");
   if (!log) return;
+  // Normalize incoming chunks before appending so tab switches/re-renders do not
+  // collapse activity logs into one long paragraph.
   const text = String(message ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n*$/, "");
   log.textContent += `${text}\n`;
   log.scrollTop = log.scrollHeight;
@@ -200,6 +204,9 @@ function setDirectoryInfo({
   mode,
   display,
 }) {
+  // Directory/session details are the hand-off contract between Directory,
+  // Connection, Results, and Export Melbourne pages. Update all legacy keys here
+  // so older pages keep working while newer pages read the clearer key names.
   const resolvedClassroom = classroom || exam_name || "";
   const resolvedTutor = tutor_name || session_id || "";
   const resolvedTime = time_slot || localStorage.getItem("timeSlot") || "";
@@ -207,6 +214,7 @@ function setDirectoryInfo({
   const prevSessionKey = localStorage.getItem("sessionKey");
   const nextSessionKey = `${resolvedClassroom}::${resolvedTutor}::${resolvedTime}`;
   if (prevSessionKey !== nextSessionKey) {
+    // A new session must not inherit completion state from the previous class.
     localStorage.setItem("sessionKey", nextSessionKey);
     localStorage.removeItem("completedStudents");
     localStorage.removeItem("sessionStudents");
@@ -224,6 +232,7 @@ function setDirectoryInfo({
   if (path) localStorage.setItem("basePath", path);
   else localStorage.removeItem("basePath");
   localStorage.setItem("directoryMode", mode || "create");
+  // Human-readable display is optional; path/classroom/tutor/time are authoritative.
   if (display) localStorage.setItem("directoryDisplay", display);
   else localStorage.removeItem("directoryDisplay");
 }
