@@ -1,3 +1,6 @@
+// Directory Setup owns the student workspace selection/creation flow. The
+// selected session is persisted in localStorage because later pages need the
+// same classroom/tutor/time/student context without asking the user again.
 function deriveDirectoryDisplay(dirPath) {
   if (!dirPath) return null;
   if (!pathModule) return dirPath;
@@ -6,6 +9,76 @@ function deriveDirectoryDisplay(dirPath) {
     return parts.slice(-3).join("/");
   }
   return dirPath;
+}
+
+// ── Sidebar helpers ──────────────────────────────────
+function updateSessionSidebar(classroom, tutorName, timeSlot, students) {
+  // The side panel is the canonical session summary for the Existing Directory
+  // tab; avoid duplicating this same session string in the main picker row.
+  const infoEl = document.getElementById("sidebarSessionInfo");
+  if (infoEl) {
+    infoEl.innerHTML = `
+      <div class="dir-sidebar-item">
+        <span class="dir-sidebar-item__label">Classroom</span>
+        <span class="dir-sidebar-item__value">${classroom}</span>
+      </div>
+      <div class="dir-sidebar-item">
+        <span class="dir-sidebar-item__label">Tutor</span>
+        <span class="dir-sidebar-item__value">${tutorName}</span>
+      </div>
+      <div class="dir-sidebar-item">
+        <span class="dir-sidebar-item__label">Time Slot</span>
+        <span class="dir-sidebar-item__value">${timeSlot}</span>
+      </div>
+    `;
+  }
+
+  const totalEl = document.getElementById("sidebarTotalCount");
+  if (totalEl) totalEl.textContent = students ? students.length : 0;
+
+  // Count completed
+  let completedCount = 0;
+  try {
+    const completedList = JSON.parse(localStorage.getItem("completedStudents") || "[]");
+    if (students && students.length) {
+      students.forEach(s => {
+        if (completedList.includes(s.student_id)) completedCount++;
+      });
+    }
+  } catch (_) {}
+  const completedEl = document.getElementById("sidebarCompletedCount");
+  if (completedEl) completedEl.textContent = completedCount;
+
+  // Reset selection
+  updateSidebarSelection(null);
+}
+
+function updateSidebarSelection(student) {
+  const selEl = document.getElementById("sidebarSelection");
+  if (!selEl) return;
+  if (!student) {
+    selEl.innerHTML = '<div class="dir-sidebar-empty">Click a student card to select.</div>';
+    return;
+  }
+  selEl.innerHTML = `
+    <div class="dir-sidebar-selected">
+      <div class="dir-sidebar-selected__label">Selected Student</div>
+      <div class="dir-sidebar-selected__id">${student.student_id}</div>
+      ${student.student_name ? `<div class="dir-sidebar-selected__name">${student.student_name}</div>` : ''}
+    </div>
+  `;
+}
+
+function resetSessionSidebar() {
+  const infoEl = document.getElementById("sidebarSessionInfo");
+  if (infoEl) {
+    infoEl.innerHTML = '<div class="dir-sidebar-empty">Choose a session to see details here.</div>';
+  }
+  const totalEl = document.getElementById("sidebarTotalCount");
+  if (totalEl) totalEl.textContent = "—";
+  const completedEl = document.getElementById("sidebarCompletedCount");
+  if (completedEl) completedEl.textContent = "—";
+  updateSidebarSelection(null);
 }
 
 function setSelectedExistingDirectory(pathValue, displayValue) {
@@ -29,6 +102,9 @@ function setSelectedExistingDirectory(pathValue, displayValue) {
   if (infoBox && !selectedExistingPath) {
     infoBox.classList.add("hidden");
     infoBox.innerHTML = "";
+  }
+  if (!selectedExistingPath) {
+    resetSessionSidebar();
   }
 }
 
@@ -119,12 +195,6 @@ function openCustomDirectoryPicker() {
     if (pendingSelectedFolder && pendingSelectedFolder.type === 'session') {
       const { classroom, tutor_name, time_slot, students } = pendingSelectedFolder;
 
-      const label = document.getElementById("selectedDirectoryLabel");
-      if (label) {
-        label.textContent = `Session: ${classroom} / ${tutor_name} / ${time_slot}`;
-        label.classList.add("has-value");
-      }
-
       const infoBox = document.getElementById("existingInfoBox");
       if (infoBox) infoBox.classList.add("hidden");
 
@@ -158,6 +228,7 @@ function openCustomDirectoryPicker() {
       }
 
       renderMainStudentGrid(students);
+      updateSessionSidebar(classroom, tutor_name, time_slot, students);
       close();
     }
   };
@@ -350,6 +421,8 @@ function renderTree(container, hierarchy) {
 }
 
 function renderMainStudentGrid(students) {
+  // Student card status is inferred from existing collected log folders. The
+  // selected template controls how strict "completed" should be.
   const gridContainer = document.getElementById("mainStudentGridContainer");
   const useBtn = document.getElementById("use-existing-btn");
   pendingSelectedStudent = null;
@@ -365,6 +438,7 @@ function renderMainStudentGrid(students) {
     localStorage.setItem("sessionStudents", JSON.stringify(ids));
     try {
       const completed = JSON.parse(localStorage.getItem("completedStudents") || "[]");
+      // Drop completion markers for students that do not belong to this session.
       const filtered = completed.filter((id) => ids.includes(id));
       localStorage.setItem("completedStudents", JSON.stringify(filtered));
     } catch (_) {
@@ -404,6 +478,7 @@ function renderMainStudentGrid(students) {
         const devicesMeta = devicesStr ? JSON.parse(devicesStr) : {};
         const hostnames = Object.keys(devicesMeta);
         if (hostnames.length > 0 && pathModule) {
+          // Template command coverage is stricter than folder existence alone.
           let totalExpected = 0;
           let totalFound = 0;
           hostnames.forEach((hostname) => {
@@ -487,6 +562,7 @@ function renderMainStudentGrid(students) {
 
       pendingSelectedStudent = student;
       if (useBtn) useBtn.disabled = false;
+      updateSidebarSelection(student);
     };
 
     studentCard.dataset.completed = isCompleted ? "true" : (isPartial ? "partial" : "false");
@@ -882,6 +958,7 @@ function setupDirectoryPage() {
             const students = hierarchy[classroom]?.[tutorName]?.[timeSlot];
             if (students) {
               renderMainStudentGrid(students);
+              updateSessionSidebar(classroom, tutorName, timeSlot, students);
             }
           }
         } catch (err) {
@@ -915,6 +992,7 @@ function setupDirectoryPage() {
                const students = hierarchy[classroom]?.[tutorName]?.[timeSlot];
                if (students) {
                   renderMainStudentGrid(students);
+                  updateSessionSidebar(classroom, tutorName, timeSlot, students);
                }
             }
          }).catch(err => console.error("Auto-load failed:", err));

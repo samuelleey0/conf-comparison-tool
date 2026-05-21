@@ -1,4 +1,9 @@
-"""Rubric rules, grading policy, and result classification helpers."""
+"""Rubric rules, grading policy, and result classification helpers.
+
+This module is the single source of truth for how raw comparator outcomes become
+major/minor/skipped findings. UI pages should change rules through the API
+instead of editing config/rubric_rules.json directly.
+"""
 
 import json
 import re
@@ -241,6 +246,7 @@ def _default_rubric_rules():
             "minor",
             "ACL applied to interface when it should not be.",
         ),
+        ("NON_APPLIED_ACL", "minor", "ACL configured but not applied anywhere."),
         ("MISSING_ACL_APPLIED", "major", "ACL configured but not applied."),
         ("MISMATCH_SWITCHPORT_MODE", "major", "Switchport mode differs."),
         ("MISMATCH_ACCESS_VLAN", "major", "Access VLAN number differs."),
@@ -671,7 +677,10 @@ def _default_rubric_rules():
         "EXTRA_NETWORK_ADVERTISED": [r"\.routing\..+\.networks"],
         "MISMATCH_AUTO_SUMMARY": [r"\.auto_summary$"],
         "MISMATCH_ROUTING_AUTO_SUMMARY": [r"\.auto_summary$"],
-        "MISMATCH_ROUTING_PASSIVE": [r"\.passive_interface"],
+        "MISMATCH_ROUTING_PASSIVE": [
+            r"\.passive_interface",
+            r"^show_running_config\.routing\.rip$",
+        ],
         "MISSING_PASSIVE_INTERFACE": [r"\.passive_interface"],
         "MISMATCH_ROUTING_REDISTRIBUTE": [r"\.redistribute"],
         "MISSING_REDISTRIBUTE": [r"\.redistribute"],
@@ -720,6 +729,7 @@ def _default_rubric_rules():
         "EXTRA_ACL": [r"\.access_lists\..+$"],
         "EXTRA_ACL_RULE": [r"\.access_lists\..+\.rules"],
         "EXTRA_ACL_APPLIED": [r"\.access_groups"],
+        "NON_APPLIED_ACL": [r"\.access_lists\..+\.applied$"],
         "MISSING_ACL_APPLIED": [r"\.access_lists\..+\.applied$", r"\.access_groups"],
         "MISMATCH_ACL_POINTLESS_NORMAL": [r"\.access_lists\..+\.rules\.\d+$"],
         "MISMATCH_ACL_POINTLESS_DEFAULT": [r"\.access_lists\..+\.rules\.\d+$"],
@@ -768,7 +778,7 @@ def _default_rubric_rules():
         "MISMATCH_ETHERCHANNEL_LOAD_BALANCE": [r"\.etherchannel\.load_balance$"],
         "MISMATCH_LACP_PORT_PRIORITY": [r"\.lacp_port_priority$"],
         "MISMATCH_LACP_SYSTEM_PRIORITY": [r"\.lacp_system_priority$"],
-        "MISMATCH_VTY_TRANSPORT": [r"\.vty\.transport$"],
+        "MISMATCH_VTY_TRANSPORT": [r"\.vty\.transport$", r"\.console\.transport$"],
         "MISSING_VTY_LOGIN": [r"\.vty\.login$"],
         "MISMATCH_LINE_PASSWORD": [r"\.(vty|console)\.password"],
         "MISSING_LINE_PASSWORD": [r"\.(vty|console)\.password"],
@@ -990,6 +1000,70 @@ def save_rubric_rules(rules):
     with open(RUBRIC_RULES_PATH, "w") as handle:
         json.dump(cleaned, handle, indent=2)
     return cleaned
+
+
+def disable_rubric_rule(rule_code):
+    """Disable a rule globally while keeping matching findings visible as skipped."""
+    target = str(rule_code or "").strip()
+    if not target:
+        raise ValueError("Missing rule code.")
+
+    rules = load_rubric_rules()
+    matched = None
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        # Match both code and id because custom rules can use either as their stable key.
+        if target in {str(rule.get("code") or ""), str(rule.get("id") or "")}:
+            rule["enabled"] = False
+            matched = rule
+            break
+
+    if not matched:
+        raise ValueError(f"Rubric rule not found: {target}")
+
+    saved = save_rubric_rules(rules)
+    saved_rule = next(
+        (
+            rule
+            for rule in saved
+            if target in {str(rule.get("code") or ""), str(rule.get("id") or "")}
+        ),
+        matched,
+    )
+    return saved_rule, saved
+
+
+def enable_rubric_rule(rule_code):
+    """Re-enable a globally disabled rule so future result refreshes count it again."""
+    target = str(rule_code or "").strip()
+    if not target:
+        raise ValueError("Missing rule code.")
+
+    rules = load_rubric_rules()
+    matched = None
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        # Match both code and id because custom rules can use either as their stable key.
+        if target in {str(rule.get("code") or ""), str(rule.get("id") or "")}:
+            rule["enabled"] = True
+            matched = rule
+            break
+
+    if not matched:
+        raise ValueError(f"Rubric rule not found: {target}")
+
+    saved = save_rubric_rules(rules)
+    saved_rule = next(
+        (
+            rule
+            for rule in saved
+            if target in {str(rule.get("code") or ""), str(rule.get("id") or "")}
+        ),
+        matched,
+    )
+    return saved_rule, saved
 
 
 def reset_rubric_rules():
@@ -1247,4 +1321,3 @@ def evaluate_pass_fail(summary, policy):
     if not failed:
         failed = summary.get("minor", 0) >= minor_threshold
     return not failed
-

@@ -1,6 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 
+// Device Setup builds reusable marking templates. The three modes intentionally
+// share the same device editor, but differ in whether baseline raw logs are
+// required now, deferred for Sample Collect, or imported from an existing folder.
 document.addEventListener("DOMContentLoaded", async () => {
   loadNavbar();
 
@@ -49,11 +52,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   let loadedTemplateHasBaseline = false;
   let loadedLogsByCommand = {};
 
+  // Legacy localStorage values used "manual" and "logs"; normalize them so old
+  // saved browser state cannot force an invalid setup mode after app upgrades.
   function getModeRadio(value) {
     return document.querySelector(`input[name="templateSetupMode"][value="${value}"]`);
   }
 
   function normalizeMode(value) {
+    // Translate old persisted mode names into the current three-mode workflow.
     if (value === "manual") return MODE_STRUCTURE_ONLY;
     if (value === "logs") return MODE_LOGS_FIRST;
     return VALID_MODES.has(value) ? value : "";
@@ -70,6 +76,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function renderSingleSelect(root, { options = [], value = "", placeholder = "Select" } = {}) {
     if (!root) return;
+    // Custom selects avoid native dropdown clipping inside the Device card and
+    // keep command/template menus styled consistently across platforms.
     const normalizedOptions = options.map((option) =>
       typeof option === "string" ? { value: option, label: option } : option
     );
@@ -103,6 +111,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     menu?.querySelectorAll(".app-select-option").forEach((optionNode) => {
       optionNode.addEventListener("click", () => {
         const nextValue = optionNode.dataset.value || "";
+        // Store only the option value in dataset; labels can change without breaking state.
         root.dataset.value = nextValue;
         const labelNode = root.querySelector(".app-select-label");
         if (labelNode) labelNode.textContent = optionNode.textContent || placeholder;

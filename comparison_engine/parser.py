@@ -13,7 +13,7 @@ import ipaddress
 from comparison_engine.compare_utils import should_ignore
 
 
-PARSED_SCHEMA_VERSION = 3
+PARSED_SCHEMA_VERSION = 4
 
 COMMAND_ERROR_PATTERNS = [
     r"^%\s*incomplete command",
@@ -1130,9 +1130,10 @@ def parse_showrun(file_path):
                 continue
 
             if current_acl:
-                # Inside named ACL block - capture permit/deny rules
-                if line.startswith(("permit", "deny")):
-                    config["access_lists"][current_acl]["rules"].append(line)
+                # Inside named ACL block - capture rules with or without IOS sequence numbers.
+                rule_line = re.sub(r"^\d+\s+", "", line)
+                if rule_line.startswith(("permit", "deny")):
+                    config["access_lists"][current_acl]["rules"].append(rule_line)
                 continue
 
             # Global-level commands (outside any context block)

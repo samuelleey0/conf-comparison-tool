@@ -1,4 +1,6 @@
-# server.py
+# Flask API for the Electron GUI. Route functions should stay thin where
+# practical; reusable grading/template/directory/export logic lives in service
+# modules so page behavior and backend rules can evolve independently.
 from flask import Flask, jsonify, request, Response, stream_with_context
 import threading
 from queue import SimpleQueue
@@ -15,7 +17,8 @@ import shutil
 import logging
 import string
 
-# Reuse your helpers
+# Low-level device execution still lives here because it coordinates shared
+# runtime state, abort flags, streaming logs, and serial/SSH connections.
 from file_utils import save_output_to_file, del_partial_logs
 from serial_utils import (
     connect_to_serial,
@@ -35,7 +38,11 @@ from remote_utils import (
     get_hostname_remote,
 )
 from command_manager import load_commands, save_commands
-from comparison_engine.parser import parse_device_logs, normalize_parsed_config
+from comparison_engine.parser import (
+    PARSED_SCHEMA_VERSION,
+    normalize_parsed_config,
+    parse_device_logs,
+)
 from comparison_engine.comparator import compare_dicts
 from comparison_engine.student_manager import find_show_run_file
 from cisco_reset import reload_cisco_device
@@ -68,6 +75,8 @@ from grading_dedup import (
     save_dedup_config,
 )
 from grading_rules import (
+    disable_rubric_rule,
+    enable_rubric_rule,
     load_grading_policy,
     load_rubric_rules,
     reset_rubric_rules,
@@ -241,6 +250,39 @@ def _hostname_matches_target(expected, actual):
     if not expected_name or not actual_name:
         return True
     return expected_name == actual_name
+
+
+def _load_or_refresh_parsed_config(config_path, log_dir=None):
+    config_path = Path(config_path) if config_path else None
+    data = {}
+    schema_version = 0
+    if config_path and config_path.exists():
+        try:
+            data = _load_json_file(config_path) or {}
+            schema_version = int(data.get("schema_version") or 0) if isinstance(data, dict) else 0
+        except Exception:
+            data = {}
+            schema_version = 0
+
+    if schema_version >= PARSED_SCHEMA_VERSION or not log_dir or not log_dir.is_dir():
+        return normalize_parsed_config(data)
+
+    log_files = [
+        str(entry)
+        for entry in sorted(log_dir.iterdir())
+        if entry.is_file() and entry.name != "config.json"
+    ]
+    if not log_files:
+        return normalize_parsed_config(data)
+
+    try:
+        refreshed = normalize_parsed_config(parse_device_logs(log_files))
+        if config_path:
+            with open(config_path, "w", encoding="utf-8") as handle:
+                json.dump(refreshed, handle, indent=4)
+        return refreshed
+    except Exception:
+        return normalize_parsed_config(data)
 
 
 
@@ -1764,6 +1806,28 @@ def api_save_rubric_rules():
         return jsonify({"status": "error", "message": str(exc)}), 400
 
 
+@app.route("/api/rubric_rules/disable", methods=["POST"])
+def api_disable_rubric_rule():
+    data = request.get_json() or {}
+    rule_code = data.get("rule_code") or data.get("rule_id") or data.get("code")
+    try:
+        rule, rules = disable_rubric_rule(rule_code)
+        return jsonify({"status": "ok", "rule": rule, "rules": rules})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+
+
+@app.route("/api/rubric_rules/enable", methods=["POST"])
+def api_enable_rubric_rule():
+    data = request.get_json() or {}
+    rule_code = data.get("rule_code") or data.get("rule_id") or data.get("code")
+    try:
+        rule, rules = enable_rubric_rule(rule_code)
+        return jsonify({"status": "ok", "rule": rule, "rules": rules})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+
+
 @app.route("/api/rubric_rules/reset", methods=["POST"])
 def api_reset_rubric_rules():
     try:
@@ -1863,15 +1927,11 @@ def api_error_context():
         TEMPLATES_DIR, TEMPLATES_DIR / template_name / hostname / "logs"
     )
 
-    template_config = (
-        _load_json_file(template_config_path)
-        if template_config_path and template_config_path.exists()
-        else {}
+    template_config = _load_or_refresh_parsed_config(
+        template_config_path, template_log_dir
     )
-    student_config = (
-        _load_json_file(student_config_path)
-        if student_config_path and student_config_path.exists()
-        else {}
+    student_config = _load_or_refresh_parsed_config(
+        student_config_path, student_log_dir
     )
     command_hint = _command_hint_for_feature(feature)
     template_raw_path = _find_log_file(template_log_dir, command_hint)
@@ -2404,14 +2464,9 @@ def _grade_session_from_config(target_path: str, template_name: str):
             template_config = normalize_parsed_config(template_config)
             student_host_dir = student_entry / hostname
             student_config_path = student_host_dir / "config.json"
-            student_config = {}
-            if student_config_path.exists():
-                try:
-                    with open(student_config_path, "r") as handle:
-                        student_config = json.load(handle) or {}
-                except Exception:
-                    student_config = {}
-            student_config = normalize_parsed_config(student_config)
+            student_config = _load_or_refresh_parsed_config(
+                student_config_path, student_host_dir
+            )
 
             show_run_file = None
             if student_host_dir.is_dir():
