@@ -385,39 +385,6 @@ After installation, the backend can be started from any terminal:
 conf-comparison-server
 ```
 
-### Build a Windows Installer (.exe)
-
-You can build a one-click Windows installer that bundles both:
-
-- The Electron desktop frontend
-- The Flask/Python backend as a packaged executable
-
-From the project root:
-
-```powershell
-cd electron-gui
-npm install
-npm run build:installer
-```
-
-This performs two steps automatically:
-
-1. Builds `server.py` into `electron-gui/backend-dist/conf-comparison-server/conf-comparison-server.exe` using PyInstaller.
-2. Runs Electron Builder to generate an NSIS installer.
-
-Installer outputs are created in:
-
-```text
-electron-gui/dist/
-```
-
-Useful alternatives:
-
-```powershell
-npm run build:portable   # portable .exe
-npm run build:windows    # both NSIS installer and portable
-```
-
 ### Build an Ubuntu Installer
 
 You can build Linux installers, including AppImage and Debian package outputs, on Ubuntu.
@@ -480,6 +447,39 @@ To also remove the current user's app settings/cache:
 
 ```bash
 bash ./scripts/uninstall-ubuntu.sh --purge-user-data
+```
+
+### Build a Windows Installer (.exe)
+
+You can build a one-click Windows installer that bundles both:
+
+- The Electron desktop frontend
+- The Flask/Python backend as a packaged executable
+
+From the project root:
+
+```powershell
+cd electron-gui
+npm install
+npm run build:installer
+```
+
+This performs two steps automatically:
+
+1. Builds `server.py` into `electron-gui/backend-dist/conf-comparison-server/conf-comparison-server.exe` using PyInstaller.
+2. Runs Electron Builder to generate an NSIS installer.
+
+Installer outputs are created in:
+
+```text
+electron-gui/dist/
+```
+
+Useful alternatives:
+
+```powershell
+npm run build:portable   # portable .exe
+npm run build:windows    # both NSIS installer and portable
 ```
 
 ## Notes for Public Users
