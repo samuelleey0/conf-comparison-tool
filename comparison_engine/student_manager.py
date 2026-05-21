@@ -1,3 +1,11 @@
+"""
+Student log discovery and comparison helpers.
+
+This module finds collected student logs, loads or parses per-host config.json
+files, and writes comparison summaries. server.py currently uses find_show_run_file()
+directly; the broader compare_student_hostnames flow is kept for the legacy
+comparison-engine pipeline.
+"""
 import json
 import os
 import ipaddress
@@ -6,6 +14,7 @@ from .comparator import compare_dicts
 from .comparator import normalize_config_with_scheme
 from .parser import detect_command_type
 from .parser import normalize_parsed_config
+from .parser import PARSED_SCHEMA_VERSION
 from .parser import parse_device_logs
 
 SHOW_RUN_TOKENS = [
@@ -116,16 +125,25 @@ def _load_student_config(student_host_dir, log_files):
         try:
             with open(config_path, "r") as handle:
                 data = json.load(handle) or {}
-            return normalize_parsed_config(data), config_path
+            schema_version = int(data.get("schema_version") or 0) if isinstance(data, dict) else 0
+            if schema_version >= PARSED_SCHEMA_VERSION or not log_files:
+                return normalize_parsed_config(data), config_path
         except Exception:
-            return None, config_path
+            if not log_files:
+                return None, config_path
 
     if not log_files:
         return None, None
 
     try:
         parsed = parse_device_logs(log_files)
-        return normalize_parsed_config(parsed), None
+        normalized = normalize_parsed_config(parsed)
+        try:
+            with open(config_path, "w", encoding="utf-8") as handle:
+                json.dump(normalized, handle, indent=2)
+        except Exception:
+            pass
+        return normalized, config_path
     except Exception:
         return None, None
 

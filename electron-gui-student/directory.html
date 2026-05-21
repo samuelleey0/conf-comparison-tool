@@ -1,0 +1,915 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <title>Directory Setup</title>
+        <link rel="stylesheet" href="assets/style.css" />
+        <link rel="stylesheet" href="assets/nav.css" />
+        <style>
+            /* ── Page layout ─────────────────────────────────── */
+            #directoryPage {
+                width: 100%;
+            }
+
+            .directory-body {
+                background:
+                    linear-gradient(180deg, rgba(232, 239, 248, 0.92) 0%, rgba(248, 250, 252, 0.95) 360px),
+                    #f7f9fc;
+            }
+
+            .directory-shell {
+                max-width: 1320px;
+                margin: 0 auto;
+                padding: 36px 42px 56px;
+            }
+
+            .directory-shell .page-header {
+                align-items: center;
+                margin-bottom: 18px;
+                padding: 22px 24px;
+                border: 1px solid rgba(148, 163, 184, 0.24);
+                border-radius: 8px;
+                background: #ffffff;
+                box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+            }
+
+            .directory-shell .page-title {
+                font-size: 1.55rem;
+                color: var(--color-heading);
+                letter-spacing: 0;
+            }
+
+            .directory-shell .page-subtitle {
+                margin-top: 6px;
+                max-width: 680px;
+                color: var(--color-muted);
+                line-height: 1.45;
+            }
+
+            .directory-body .directory-shell .directory-card {
+                background: var(--color-surface);
+                border: 1px solid rgba(148, 163, 184, 0.28);
+                border-radius: 8px !important;
+                padding: 32px 36px;
+                box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+            }
+
+            .directory-body .directory-shell .directory-card:hover {
+                transform: none;
+                box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+            }
+
+            /* ── Mode tabs ───────────────────────────────────── */
+            .dir-tabs {
+                display: flex;
+                gap: 0;
+                border: 1px solid var(--color-border);
+                border-radius: 6px;
+                margin-bottom: 10px;
+                background: var(--color-bg-soft);
+            }
+
+            .dir-tab-btn {
+                position: relative;
+                flex: 1;
+                padding: 10px 14px;
+                font-size: 0.875rem;
+                font-weight: 600;
+                background: transparent;
+                border: none;
+                border-right: 1px solid var(--color-border);
+                color: var(--color-muted);
+                cursor: pointer;
+                transition: background 0.15s, color 0.15s;
+                border-radius: 0 !important;
+            }
+
+            .dir-tab-btn:last-child {
+                border-right: none;
+            }
+
+            .dir-tab-tooltip {
+                position: absolute;
+                left: 12px;
+                right: 12px;
+                top: calc(100% + 10px);
+                z-index: 30;
+                display: block;
+                padding: 10px 12px;
+                border: 1px solid rgba(15, 23, 42, 0.14);
+                border-radius: 6px;
+                background: #ffffff;
+                color: var(--color-muted);
+                font-size: 0.8rem;
+                font-weight: 500;
+                line-height: 1.45;
+                text-align: left;
+                box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
+                opacity: 0;
+                pointer-events: none;
+                transform: translateY(-4px);
+                transition: opacity 0.16s ease, transform 0.16s ease;
+            }
+
+            .dir-tab-btn:hover .dir-tab-tooltip {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            .dir-tab-btn:hover:not(.active) {
+                background: var(--color-border);
+                color: var(--color-heading);
+            }
+
+            .dir-tab-btn.active {
+                background: var(--color-surface);
+                color: var(--color-accent);
+                box-shadow: inset 0 -2px 0 var(--color-accent);
+            }
+
+            .dir-tab-btn.active:hover {
+                background: var(--color-accent);
+                color: #ffffff;
+            }
+
+            /* ── Section card ────────────────────────────────── */
+            .dir-card {
+                background: var(--color-surface);
+                border: 1px solid var(--color-border);
+                border-radius: 6px;
+                padding: 24px 28px;
+                overflow: visible;
+            }
+
+            .dir-card-header {
+                display: flex;
+                align-items: baseline;
+                gap: 12px;
+                margin-bottom: 20px;
+                padding-bottom: 14px;
+                border-bottom: 1px solid var(--color-border);
+            }
+
+            .dir-card-title {
+                font-size: 0.78rem;
+                font-weight: 700;
+                color: var(--color-heading);
+                letter-spacing: 0.07em;
+                text-transform: uppercase;
+            }
+
+            .dir-card-sub {
+                font-size: 0.85rem;
+                color: var(--color-muted);
+            }
+
+            /* ── Create form grid ────────────────────────────── */
+            .dir-form-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 16px 20px;
+                margin-bottom: 20px;
+            }
+
+            .dir-form-group {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .dir-form-group label {
+                font-size: 0.83rem;
+                font-weight: 600;
+                color: var(--color-heading);
+            }
+
+            .dir-form-group input[type="text"],
+            .dir-form-group input[type="file"] {
+                padding: 9px 12px;
+                border: 1px solid var(--color-border);
+                border-radius: 4px;
+                font-size: 0.93rem;
+                background: var(--color-surface);
+                color: var(--color-heading);
+                transition: border-color 0.15s, box-shadow 0.15s;
+            }
+
+            .dir-form-group input[type="text"]:focus {
+                outline: none;
+                border-color: var(--color-accent);
+                box-shadow: 0 0 0 3px rgba(10, 92, 187, 0.10);
+            }
+
+            .dir-form-group .field-hint {
+                font-size: 0.78rem;
+                color: var(--color-muted);
+            }
+
+            /* ── Existing section ────────────────────────────── */
+            .dir-existing-layout {
+                display: grid;
+                grid-template-columns: 560px 240px;
+                gap: 24px;
+                align-items: flex-start;
+                width: fit-content;
+                max-width: 100%;
+                margin: 0 auto;
+            }
+
+            #existingSection .dir-card {
+                width: fit-content;
+                max-width: 100%;
+                margin: 0 auto;
+            }
+
+            .dir-existing-main {
+                flex: 0 0 auto;
+            }
+
+            .dir-pick-row {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                flex-wrap: wrap;
+                width: calc(560px + 24px + 240px);
+                max-width: 100%;
+                margin-left: auto;
+                margin-right: auto;
+                margin-bottom: 16px;
+            }
+
+            .dir-pick-row .selected-path {
+                font-size: 0.88rem;
+                color: var(--color-muted);
+                font-style: italic;
+                overflow-wrap: anywhere;
+            }
+
+            .dir-student-grid {
+                width: fit-content;
+                border: 1px solid rgba(148, 163, 184, 0.22);
+                border-radius: 8px;
+                padding: 14px;
+                display: grid;
+                grid-template-columns: repeat(2, 260px);
+                gap: 12px;
+                align-content: flex-start;
+                max-height: 420px;
+                overflow-y: auto;
+                margin-bottom: 16px;
+                background: #fafbfd;
+            }
+
+            .dir-action-row {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+                justify-content: flex-start;
+            }
+
+            .dir-action-row button {
+                min-width: 140px;
+            }
+
+            /* ── Session sidebar ─────────────────────────────── */
+            .dir-session-sidebar {
+                flex: 0 0 240px;
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+            }
+
+            .dir-sidebar-card {
+                background: #f8fafc;
+                border: 1px solid rgba(148, 163, 184, 0.28);
+                border-radius: 8px;
+                padding: 16px;
+            }
+
+            .dir-sidebar-card__title {
+                font-size: 0.72rem;
+                font-weight: 800;
+                letter-spacing: 0.07em;
+                text-transform: uppercase;
+                color: var(--color-muted);
+                margin-bottom: 12px;
+                padding-bottom: 10px;
+                border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+            }
+
+            .dir-sidebar-item {
+                display: flex;
+                flex-direction: column;
+                gap: 3px;
+                padding: 8px 0;
+            }
+
+            .dir-sidebar-item + .dir-sidebar-item {
+                border-top: 1px solid rgba(148, 163, 184, 0.18);
+            }
+
+            .dir-sidebar-item__label {
+                font-size: 0.73rem;
+                font-weight: 700;
+                color: var(--color-muted);
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+            }
+
+            .dir-sidebar-item__value {
+                font-size: 0.88rem;
+                font-weight: 600;
+                color: var(--color-heading);
+                word-break: break-word;
+            }
+
+            .dir-sidebar-stat {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 10px 0;
+            }
+
+            .dir-sidebar-stat + .dir-sidebar-stat {
+                border-top: 1px solid rgba(148, 163, 184, 0.18);
+            }
+
+            .dir-sidebar-stat__label {
+                font-size: 0.8rem;
+                color: var(--color-muted);
+            }
+
+            .dir-sidebar-stat__value {
+                font-size: 1.1rem;
+                font-weight: 800;
+                color: var(--color-heading);
+            }
+
+            .dir-sidebar-stat__value--accent {
+                color: var(--color-primary);
+            }
+
+            .dir-sidebar-stat__value--success {
+                color: #16a34a;
+            }
+
+            .dir-sidebar-selected {
+                padding: 12px;
+                border-radius: 6px;
+                background: rgba(10, 92, 187, 0.06);
+                border: 1px solid rgba(10, 92, 187, 0.15);
+            }
+
+            .dir-sidebar-selected__label {
+                font-size: 0.72rem;
+                font-weight: 700;
+                color: var(--color-primary);
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                margin-bottom: 6px;
+            }
+
+            .dir-sidebar-selected__id {
+                font-size: 0.95rem;
+                font-weight: 700;
+                color: var(--color-heading);
+            }
+
+            .dir-sidebar-selected__name {
+                font-size: 0.82rem;
+                color: var(--color-muted);
+                margin-top: 2px;
+            }
+
+            .dir-sidebar-empty {
+                text-align: center;
+                padding: 14px 8px;
+                color: var(--color-muted);
+                font-size: 0.82rem;
+                font-style: italic;
+                line-height: 1.45;
+            }
+
+            /* ── Bulk section ────────────────────────────────── */
+            .dir-toggles {
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+                margin-top: 8px;
+                max-width: 760px;
+            }
+
+            .dir-toggle-option {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .dir-toggle-option .toggle-chip {
+                width: fit-content;
+            }
+
+            .dir-toggle-help {
+                margin: 0;
+                font-size: 0.82rem;
+                line-height: 1.45;
+                color: var(--color-muted);
+            }
+
+            .dir-hint {
+                font-size: 0.83rem;
+                color: var(--color-muted);
+                line-height: 1.5;
+                margin-bottom: 14px;
+            }
+
+            /* ── Modals ──────────────────────────────────────── */
+            .modal-overlay {
+                position: fixed;
+                inset: 0;
+                background: rgba(15, 23, 46, 0.45);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 5000;
+            }
+
+            .modal-box {
+                background: var(--color-surface);
+                border: 1px solid var(--color-border);
+                border-radius: 8px;
+                width: min(520px, 96vw);
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                box-shadow: 0 20px 48px rgba(15, 23, 46, 0.20);
+            }
+
+            .modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 16px 20px;
+                border-bottom: 1px solid var(--color-border);
+                background: var(--color-bg-soft);
+            }
+
+            .modal-header h3 {
+                font-size: 1rem;
+                font-weight: 700;
+                color: var(--color-heading);
+                margin: 0;
+            }
+
+            .close-modal {
+                background: none;
+                border: none;
+                font-size: 1.3rem;
+                color: var(--color-muted);
+                cursor: pointer;
+                padding: 2px 6px;
+                line-height: 1;
+                border-radius: 4px;
+                transition: color 0.15s, background 0.15s;
+            }
+
+            .close-modal:hover {
+                color: var(--color-heading);
+                background: var(--color-border);
+            }
+
+            .modal-body {
+                padding: 20px;
+                flex: 1;
+                overflow-y: auto;
+            }
+
+            .modal-footer {
+                display: flex;
+                justify-content: flex-end;
+                gap: 8px;
+                padding: 14px 20px;
+                border-top: 1px solid var(--color-border);
+                background: var(--color-bg-soft);
+            }
+
+            /* ── Folder picker ───────────────────────────────── */
+            .picker-nav {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                background: var(--color-bg-soft);
+                padding: 8px 12px;
+                border-bottom: 1px solid var(--color-border);
+            }
+
+            .picker-nav-btn {
+                flex: 0 0 auto;
+                background: var(--color-surface);
+                border: 1px solid var(--color-border);
+                border-radius: 6px !important;
+                width: 42px;
+                height: 42px;
+                padding: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                color: var(--color-primary);
+                box-shadow: 0 2px 6px rgba(15, 23, 46, 0.08);
+                transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+            }
+
+            .picker-nav-btn svg {
+                width: 22px;
+                height: 22px;
+                stroke-width: 2.4;
+            }
+
+            .picker-nav-btn:hover {
+                background: #eef3ff;
+                border-color: rgba(31, 59, 115, 0.35);
+                color: white;
+                box-shadow: 0 4px 12px rgba(15, 23, 46, 0.12);
+            }
+
+            .picker-nav-btn:focus-visible {
+                outline: none;
+                border-color: var(--color-primary);
+                box-shadow: 0 0 0 3px rgba(31, 59, 115, 0.16);
+            }
+
+            .picker-path-input {
+                font-family: "Consolas", monospace;
+                font-size: 0.83rem;
+                flex: 1;
+                background: transparent;
+                border: none;
+                outline: none;
+                color: var(--color-heading);
+            }
+
+            .folder-tree {
+                padding: 8px 0;
+            }
+
+            /* ── Responsive: sidebar collapses ──────────────── */
+            @media (max-width: 1400px) {
+                .dir-form-grid {
+                    grid-template-columns: 1fr;
+                }
+
+                .dir-tabs {
+                    flex-direction: column;
+                }
+
+                .dir-tab-btn {
+                    border-right: none;
+                    border-bottom: 1px solid var(--color-border);
+                }
+
+                .dir-tab-btn:last-child {
+                    border-bottom: none;
+                }
+
+                .dir-existing-layout {
+                    grid-template-columns: 560px;
+                    gap: 16px;
+                    justify-content: center;
+                }
+
+                .dir-pick-row,
+                .dir-existing-layout {
+                    width: 560px;
+                    max-width: 100%;
+                }
+
+                .dir-session-sidebar {
+                    flex: 0 0 auto;
+                    display: grid;
+                    grid-template-columns: repeat(3, 1fr);
+                    gap: 12px;
+                    width: 100%;
+                }
+
+                .dir-toggle-help {
+                    padding-left: 0;
+                }
+            }
+
+            /* ── Responsive: compact layout ─────────────────── */
+            @media (max-width: 720px) {
+                .directory-shell {
+                    padding: 20px 14px 32px;
+                }
+
+                .directory-shell .page-header {
+                    padding: 18px;
+                }
+
+                .directory-body .directory-shell .directory-card {
+                    padding: 18px;
+                }
+
+                .dir-student-grid {
+                    grid-template-columns: 260px;
+                    width: fit-content;
+                    max-width: 100%;
+                    margin-left: auto;
+                    margin-right: auto;
+                }
+
+                .dir-session-sidebar {
+                    grid-template-columns: 1fr;
+                    width: 260px;
+                    max-width: 100%;
+                    margin-left: auto;
+                    margin-right: auto;
+                }
+
+                .dir-pick-row,
+                .dir-existing-layout {
+                    width: 260px;
+                    max-width: 100%;
+                }
+
+                .dir-action-row {
+                    width: 260px;
+                    max-width: 100%;
+                    margin-left: auto;
+                    margin-right: auto;
+                    justify-content: stretch;
+                }
+
+                .dir-action-row button {
+                    flex: 1 1 100%;
+                    min-width: 0;
+                    width: 100%;
+                    white-space: normal;
+                    line-height: 1.25;
+                    overflow-wrap: anywhere;
+                    text-align: center;
+                }
+            }
+        </style>
+    </head>
+
+    <body class="directory-body">
+        <div id="navbarContainer"></div>
+
+        <div class="page-shell directory-shell">
+            <header class="page-header page-header--with-action">
+                <div>
+                    <h1 class="page-title">Directory Setup</h1>
+                    <p class="page-subtitle">Choose how you would like to prepare the student workspace.</p>
+                </div>
+                <a class="tutorial-page-link" href="quick_guide.html#directoryGuidePanel">Tutorial</a>
+            </header>
+
+            <section class="page-card directory-card" id="directoryPage">
+
+                <!-- Mode Tabs -->
+                <div class="dir-tabs">
+                    <button type="button" id="showCreateBtn" class="dir-tab-btn">
+                        Create New
+                        <span class="dir-tab-tooltip" role="tooltip">Manually add a single student folder.</span>
+                    </button>
+                    <button type="button" id="showExistingBtn" class="dir-tab-btn">
+                        Use Existing
+                        <span class="dir-tab-tooltip" role="tooltip">Select a session and pick a student from already created folders.</span>
+                    </button>
+                    <button type="button" id="showBulkBtn" class="dir-tab-btn">
+                        Bulk Create from File
+                        <span class="dir-tab-tooltip" role="tooltip">Import students from a CSV/TXT/XLSX file to create multiple folders at once.</span>
+                    </button>
+                </div>
+
+                <!-- ── Create Section ─────────────────────────── -->
+                <section id="createSection" class="directory-section hidden">
+                    <div class="dir-card">
+                        <div class="dir-card-header">
+                            <span class="dir-card-title">Create New Directory</span>
+                            <span class="dir-card-sub">Add a single student workspace</span>
+                        </div>
+                        <form id="createDirectoryForm">
+                            <div class="dir-form-grid">
+                                <div class="dir-form-group">
+                                    <label for="createClassroom">Classroom</label>
+                                    <input type="text" id="createClassroom" placeholder="e.g. B408" required />
+                                </div>
+                                <div class="dir-form-group">
+                                    <label for="createTutorName">Tutor Name</label>
+                                    <input type="text" id="createTutorName" placeholder="e.g. Mark Tee" required />
+                                </div>
+                                <div class="dir-form-group">
+                                    <label for="createTimeSlot">Time</label>
+                                    <input type="text" id="createTimeSlot" placeholder="e.g. 9:00am" required />
+                                </div>
+                                <div class="dir-form-group">
+                                    <label for="createStudentId">Student ID</label>
+                                    <input type="text" id="createStudentId" placeholder="e.g. 101XXXXXX" required />
+                                </div>
+                                <div class="dir-form-group">
+                                    <label for="createStudentName">
+                                        Student Name
+                                        <span class="field-hint">(optional)</span>
+                                    </label>
+                                    <input type="text" id="createStudentName" placeholder="e.g. Khant Zin Ko" />
+                                </div>
+                            </div>
+                            <div class="actions justify-end">
+                                <button type="submit" id="create-directory-btn" class="primary">
+                                    Create &amp; Continue
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- ── Existing Section ──────────────────────── -->
+                <section id="existingSection" class="directory-section hidden">
+                    <div class="dir-card">
+                        <div class="dir-card-header">
+                            <span class="dir-card-title">Use Existing Directory</span>
+                            <span class="dir-card-sub">Select a session folder and pick a student</span>
+                        </div>
+
+                        <div class="dir-pick-row">
+                            <button type="button" class="secondary" id="chooseDirectoryBtn">Choose Session</button>
+                        </div>
+
+                        <div class="dir-existing-layout">
+                            <div class="dir-existing-main">
+                                <div id="mainStudentGridContainer" class="dir-student-grid"></div>
+
+                                <div class="dir-action-row">
+                                    <button type="button" class="secondary" id="clearExistingSelectionBtn">Clear</button>
+                                    <button type="button" id="use-existing-btn" class="primary" disabled>Use Selected Student</button>
+                                    <button type="button" id="addStudentBtn" class="secondary">Add Student</button>
+                                </div>
+                            </div>
+
+                            <aside class="dir-session-sidebar" id="sessionSidebar">
+                                <div class="dir-sidebar-card">
+                                    <div class="dir-sidebar-card__title">Session Info</div>
+                                    <div id="sidebarSessionInfo">
+                                        <div class="dir-sidebar-empty">Choose a session to see details here.</div>
+                                    </div>
+                                </div>
+
+                                <div class="dir-sidebar-card">
+                                    <div class="dir-sidebar-card__title">Overview</div>
+                                    <div id="sidebarStats">
+                                        <div class="dir-sidebar-stat">
+                                            <span class="dir-sidebar-stat__label">Total Students</span>
+                                            <span class="dir-sidebar-stat__value" id="sidebarTotalCount">—</span>
+                                        </div>
+                                        <div class="dir-sidebar-stat">
+                                            <span class="dir-sidebar-stat__label">Completed</span>
+                                            <span class="dir-sidebar-stat__value dir-sidebar-stat__value--success" id="sidebarCompletedCount">—</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="dir-sidebar-card">
+                                    <div class="dir-sidebar-card__title">Selection</div>
+                                    <div id="sidebarSelection">
+                                        <div class="dir-sidebar-empty">Click a student card to select.</div>
+                                    </div>
+                                </div>
+                            </aside>
+                        </div>
+
+                        <div id="existingInfoBox" class="info-box hidden"></div>
+                    </div>
+
+                    <!-- Folder Picker Modal -->
+                    <div id="folderPickerOverlay" class="modal-overlay hidden">
+                        <div class="modal-box">
+                            <header class="modal-header" style="flex-direction:column; align-items:stretch; padding-bottom:0; gap:0;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:12px;">
+                                    <h3>Select a Session</h3>
+                                    <button type="button" class="close-modal" id="closeFolderPickerBtn">&times;</button>
+                                </div>
+                                <div class="picker-nav">
+                                    <button type="button" id="pickerBackBtn" class="picker-nav-btn" title="Go to parent folder" aria-label="Go to parent folder">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="m12 5 7 7" />
+                                            <path d="m12 5-7 7" />
+                                            <path d="M12 5v14" />
+                                        </svg>
+                                    </button>
+                                    <input type="text" id="pickerCurrentPath" class="picker-path-input" placeholder="/path/to/directory" />
+                                </div>
+                            </header>
+                            <div class="modal-body" style="padding:0;">
+                                <div id="folderTreeContainer" class="folder-tree">
+                                    <p style="padding:16px 20px; color:var(--color-muted); font-size:0.9rem;">Loading directories...</p>
+                                </div>
+                            </div>
+                            <footer class="modal-footer">
+                                <button type="button" class="danger" id="cancelFolderPickerBtn">Cancel</button>
+                                <button type="button" class="primary" id="confirmFolderPickerBtn" disabled>Select Session</button>
+                            </footer>
+                        </div>
+                    </div>
+
+                    <!-- Add Student Modal -->
+                    <div id="addStudentOverlay" class="modal-overlay hidden">
+                        <div class="modal-box">
+                            <header class="modal-header">
+                                <h3>Add Student</h3>
+                                <button type="button" class="close-modal" id="closeAddStudentBtn">&times;</button>
+                            </header>
+                            <div class="modal-body">
+                                <div class="form-group">
+                                    <label for="newStudentIdInput">Student ID</label>
+                                    <input type="text" id="newStudentIdInput" placeholder="e.g. 101XXXXXX" />
+                                </div>
+                                <div class="form-group">
+                                    <label for="newStudentNameInput">Student Name</label>
+                                    <input type="text" id="newStudentNameInput" placeholder="e.g. Khant Zin Ko" />
+                                </div>
+                            </div>
+                            <footer class="modal-footer">
+                                <button type="button" class="danger" id="cancelAddStudentBtn">Cancel</button>
+                                <button type="button" class="primary" id="confirmAddStudentBtn">Add</button>
+                            </footer>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ── Bulk Section ───────────────────────────── -->
+                <section id="bulkSection" class="directory-section hidden">
+                    <div class="dir-card">
+                        <div class="dir-card-header">
+                            <span class="dir-card-title">Bulk Create</span>
+                            <span class="dir-card-sub">Import students from a CSV / TXT / XLSX file</span>
+                        </div>
+                        <form id="bulkCreateForm">
+                            <div class="dir-form-grid">
+                                <div class="dir-form-group">
+                                    <label for="bulkClassroom">Classroom</label>
+                                    <input type="text" id="bulkClassroom" placeholder="e.g. B408" required />
+                                </div>
+                                <div class="dir-form-group">
+                                    <label for="bulkTutorName">Tutor Name</label>
+                                    <input type="text" id="bulkTutorName" placeholder="e.g. Mark Tee" required />
+                                </div>
+                                <div class="dir-form-group">
+                                    <label for="bulkTimeSlot">Time</label>
+                                    <input type="text" id="bulkTimeSlot" placeholder="e.g. 9:00am" required />
+                                </div>
+                                <div class="dir-form-group">
+                                    <label for="bulkFile">Student File</label>
+                                    <input type="file" id="bulkFile" accept=".csv,.txt,.xlsx,.xls" required />
+                                </div>
+                            </div>
+                            <div class="dir-toggles">
+                                <div class="dir-toggle-option">
+                                    <label class="toggle-chip">
+                                        <input type="checkbox" id="bulkHasTitle" checked />
+                                        <span class="toggle-track"></span>
+                                        <span class="toggle-text">Title row?</span>
+                                    </label>
+                                    <p class="dir-toggle-help">Turn on when the first row is only a report title, for example <code>Active Student Listing</code>. That row will be skipped.</p>
+                                </div>
+                                <div class="dir-toggle-option">
+                                    <label class="toggle-chip">
+                                        <input type="checkbox" id="bulkHasHeader" checked />
+                                        <span class="toggle-track"></span>
+                                        <span class="toggle-text">Header row?</span>
+                                    </label>
+                                    <p class="dir-toggle-help">Turn on when the next row contains column labels, for example <code>Student Number</code> and <code>Student Name</code>. That row will be skipped.</p>
+                                </div>
+                                <div class="dir-toggle-option">
+                                    <label class="toggle-chip">
+                                        <input type="checkbox" id="bulkHasNumber" checked />
+                                        <span class="toggle-track"></span>
+                                        <span class="toggle-text">Number column?</span>
+                                    </label>
+                                    <p class="dir-toggle-help">Turn on when the first column is only row numbering such as <code>1, 2, 3</code>. Student ID will be read from the next column.</p>
+                                </div>
+                            </div>
+                            <br>
+                            <div class="dir-hint">
+                                These switches are on by default for exported student-list files that include a title row, column labels, and row numbers. If your file already starts with student data, turn these switches off. With all switches off, the importer reads column 1 as Student ID and column 2 as Student Name.
+                            </div>
+                            
+                            <div class="actions justify-end" style="margin-top:20px;">
+                                <button type="submit" id="bulk-create-btn" class="primary">
+                                    Create Directories
+                                </button>
+                            </div>
+                        </form>
+                        <div id="bulkResults" class="info-box hidden"></div>
+                    </div>
+                </section>
+
+            </section>
+        </div>
+
+        <script src="renderer.js"></script>
+        <script src="directory.js"></script>
+    </body>
+</html>

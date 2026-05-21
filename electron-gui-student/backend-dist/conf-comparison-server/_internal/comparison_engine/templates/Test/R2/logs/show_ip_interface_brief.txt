@@ -1,0 +1,8 @@
+show ip interface brief
+Interface              IP-Address      OK? Method Status                Protocol
+GigabitEthernet0/0/0   192.168.1.1     YES manual up                    up      
+GigabitEthernet0/0/1   unassigned      YES unset  administratively down down    
+Serial0/1/0            unassigned      YES unset  administratively down down    
+Serial0/1/1            unassigned      YES unset  administratively down down    
+GigabitEthernet0       unassigned      YES unset  administratively down down    
+R1#

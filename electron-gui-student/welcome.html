@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Welcome | ACCMS Student</title>
+        <link rel="stylesheet" href="assets/style.css" />
+    </head>
+
+    <body class="welcome-body" id="welcomePage">
+        <div class="welcome-hero">
+            <div class="welcome-loading">
+                <div class="welcome-logo-row">
+                    <img
+                        src="assets/cisco-logo.svg"
+                        alt="Cisco Logo"
+                        class="logo cisco-logo"
+                    />
+                    <img
+                        src="assets/swinburne-logo.svg"
+                        alt="Swinburne Logo"
+                        class="logo swinburne-logo"
+                    />
+                </div>
+                <div class="welcome-text">
+                    <h1>ACCMS Student</h1>
+                </div>
+                <div
+                    id="startupProgressBar"
+                    class="welcome-loading-bar"
+                    role="progressbar"
+                    aria-label="Loading application"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    aria-valuenow="0"
+                >
+                    <span
+                        id="startupProgressFill"
+                        class="welcome-loading-bar__fill"
+                    ></span>
+                </div>
+                <div class="welcome-loading-status" id="startupProgressStatus">
+                    Opening application...
+                </div>
+            </div>
+        </div>
+
+        <script src="renderer.js"></script>
+    </body>
+</html>

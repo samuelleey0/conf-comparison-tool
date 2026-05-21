@@ -1,29 +1,83 @@
-// electron-gui/device_setup.js
+const fs = require("fs");
+const path = require("path");
 
+// Device Setup builds reusable marking templates. The three modes intentionally
+// share the same device editor, but differ in whether baseline raw logs are
+// required now, deferred for Sample Collect, or imported from an existing folder.
 document.addEventListener("DOMContentLoaded", async () => {
   loadNavbar();
-  
+
   const addDeviceBtn = document.getElementById("addDeviceBtn");
   const clearSetupBtn = document.getElementById("clearSetupBtn");
   const saveBtn = document.getElementById("saveTemplateBtn");
+  const saveBar = saveBtn?.closest(".ds-save-bar");
   const container = document.getElementById("devicesContainer");
   const templateSelect = document.getElementById("templateSelect");
   const loadTemplateBtn = document.getElementById("loadTemplateBtn");
-  
+  const templateNameInput = document.getElementById("templateName");
+  const templateConfigCard = document.getElementById("templateConfigCard");
+  const templateConfigSubtitle = document.getElementById("templateConfigSubtitle");
+  const templateNameHelp = document.getElementById("templateNameHelp");
+  const loadExistingGroup = document.getElementById("loadExistingGroup");
+  const manualToolbar = document.getElementById("manualToolbar");
+  const logsFirstPanel = document.getElementById("logsFirstPanel");
+  const fullManualPanel = document.getElementById("fullManualPanel");
+  const structureOnlyPanel = document.getElementById("structureOnlyPanel");
+  const strictFolderPanel = document.getElementById("strictFolderPanel");
+  const chooseLogsFolderBtn = document.getElementById("chooseLogsFolderBtn");
+  const logsFolderLabel = document.getElementById("logsFolderLabel");
+  const chooseStrictFolderBtn = document.getElementById("chooseStrictFolderBtn");
+  const strictFolderLabel = document.getElementById("strictFolderLabel");
+  const devicesSubtitle = document.getElementById("devicesSubtitle");
+  const deviceConfigCard = document.getElementById("deviceConfigCard");
+  const setupModeSelector = document.getElementById("setupModeSelector");
+  const clearSetupModeBtn = document.getElementById("clearSetupModeBtn");
+  const setupModeFooter = clearSetupModeBtn?.closest(".ds-mode-footer");
+
+  const MODE_FULL_MANUAL = "full_manual";
+  const MODE_STRUCTURE_ONLY = "structure_only";
+  const MODE_LOGS_FIRST = "logs_first";
+  const VALID_MODES = new Set([MODE_FULL_MANUAL, MODE_STRUCTURE_ONLY, MODE_LOGS_FIRST]);
+
   let deviceCount = 0;
   let systemCommands = [];
   let availableTemplates = [];
   let loadedFromServer = false;
   let selectedTemplateName = "";
+  let templateNameProgrammaticUpdate = false;
+  let templateNameEditedManually = false;
+  let currentMode = "";
+  let importedLogsFolder = "";
+  let strictLogsFolder = "";
+  let loadedTemplateHasBaseline = false;
+  let loadedLogsByCommand = {};
+
+  // Legacy localStorage values used "manual" and "logs"; normalize them so old
+  // saved browser state cannot force an invalid setup mode after app upgrades.
+  function getModeRadio(value) {
+    return document.querySelector(`input[name="templateSetupMode"][value="${value}"]`);
+  }
+
+  function normalizeMode(value) {
+    // Translate old persisted mode names into the current three-mode workflow.
+    if (value === "manual") return MODE_STRUCTURE_ONLY;
+    if (value === "logs") return MODE_LOGS_FIRST;
+    return VALID_MODES.has(value) ? value : "";
+  }
 
   function closeOpenSelects(except = null) {
     document.querySelectorAll(".app-select.open").forEach((node) => {
-      if (node !== except) node.classList.remove("open");
+      if (node !== except) {
+        node.classList.remove("open");
+        node.querySelector(".app-select-menu")?.classList.add("hidden");
+      }
     });
   }
 
   function renderSingleSelect(root, { options = [], value = "", placeholder = "Select" } = {}) {
     if (!root) return;
+    // Custom selects avoid native dropdown clipping inside the Device card and
+    // keep command/template menus styled consistently across platforms.
     const normalizedOptions = options.map((option) =>
       typeof option === "string" ? { value: option, label: option } : option
     );
@@ -47,6 +101,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const menu = root.querySelector(".app-select-menu");
     trigger?.addEventListener("click", (event) => {
       event.stopPropagation();
+      if (root.classList.contains("app-select-disabled")) return;
       const isOpen = root.classList.contains("open");
       closeOpenSelects(root);
       root.classList.toggle("open", !isOpen);
@@ -56,6 +111,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     menu?.querySelectorAll(".app-select-option").forEach((optionNode) => {
       optionNode.addEventListener("click", () => {
         const nextValue = optionNode.dataset.value || "";
+        // Store only the option value in dataset; labels can change without breaking state.
         root.dataset.value = nextValue;
         const labelNode = root.querySelector(".app-select-label");
         if (labelNode) labelNode.textContent = optionNode.textContent || placeholder;
@@ -69,6 +125,224 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  function normalizeCommandText(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[_./-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function commandLabelFromFilename(filename) {
+    const base = path.parse(filename).name;
+    return String(base || "")
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function getKnownCommandForFilename(filename) {
+    const inferred = normalizeCommandText(commandLabelFromFilename(filename));
+    const exact = systemCommands.find((cmd) => normalizeCommandText(cmd) === inferred);
+    return exact || commandLabelFromFilename(filename);
+  }
+
+  function setExistingTemplateControlsDisabled(disabled, title = "") {
+    if (templateSelect) {
+      templateSelect.classList.toggle("app-select-disabled", disabled);
+      templateSelect.querySelector(".app-select-trigger")?.toggleAttribute("disabled", disabled);
+      if (disabled) {
+        templateSelect.classList.remove("open");
+        templateSelect.querySelector(".app-select-menu")?.classList.add("hidden");
+      }
+    }
+    if (loadTemplateBtn) {
+      loadTemplateBtn.disabled = disabled;
+      loadTemplateBtn.title = title;
+    }
+  }
+
+  function syncTemplateControls() {
+    const hasManualName = templateNameEditedManually && Boolean(templateNameInput?.value.trim());
+    const disableLoad =
+      currentMode === MODE_LOGS_FIRST ||
+      hasManualName ||
+      !currentMode;
+    const title = currentMode === MODE_LOGS_FIRST
+      ? "Logs First creates a new template from the selected folder."
+      : hasManualName
+        ? "Clear the Template Name field to load an existing template."
+        : "";
+    setExistingTemplateControlsDisabled(disableLoad, title);
+    if (loadExistingGroup) {
+      loadExistingGroup.style.display = currentMode === MODE_LOGS_FIRST ? "none" : "";
+    }
+  }
+
+  function setFolderLabel(label, folderPath) {
+    if (!label) return;
+    label.textContent = folderPath || "No folder selected";
+    label.classList.toggle("has-value", Boolean(folderPath));
+  }
+
+  function setLogsFolder(folderPath) {
+    importedLogsFolder = folderPath || "";
+    setFolderLabel(logsFolderLabel, importedLogsFolder);
+    if (importedLogsFolder) sessionStorage.setItem("deviceSetupLogsFolder", importedLogsFolder);
+    else sessionStorage.removeItem("deviceSetupLogsFolder");
+  }
+
+  function setStrictFolder(folderPath) {
+    strictLogsFolder = folderPath || "";
+    setFolderLabel(strictFolderLabel, strictLogsFolder);
+    if (strictLogsFolder) sessionStorage.setItem("deviceSetupStrictLogsFolder", strictLogsFolder);
+    else sessionStorage.removeItem("deviceSetupStrictLogsFolder");
+  }
+
+  function saveModeToStorage() {
+    localStorage.removeItem("deviceSetupMode");
+    if (currentMode) sessionStorage.setItem("deviceSetupMode", currentMode);
+    else sessionStorage.removeItem("deviceSetupMode");
+  }
+
+  function updateSaveButtonText() {
+    if (!saveBtn) return;
+    if (currentMode === MODE_FULL_MANUAL) {
+      saveBtn.textContent = "Save Complete Template";
+    } else if (currentMode === MODE_STRUCTURE_ONLY) {
+      saveBtn.textContent = "Save Device List for Later Collection";
+    } else if (currentMode === MODE_LOGS_FIRST) {
+      saveBtn.textContent = "Create Template From Logs Folder";
+    } else {
+      saveBtn.textContent = "";
+    }
+    saveBtn.disabled = !currentMode;
+  }
+
+  function updateModeUI() {
+    document.querySelectorAll('input[name="templateSetupMode"]').forEach((radio) => {
+      radio.checked = radio.value === currentMode;
+    });
+
+    if (templateConfigCard) templateConfigCard.classList.toggle("hidden", !currentMode);
+    if (deviceConfigCard) deviceConfigCard.classList.toggle("hidden", !currentMode);
+    if (saveBar) saveBar.style.display = currentMode ? "" : "none";
+    if (clearSetupModeBtn) clearSetupModeBtn.classList.toggle("is-visible", Boolean(currentMode));
+    if (setupModeFooter) setupModeFooter.classList.toggle("is-visible", Boolean(currentMode));
+    if (setupModeSelector) setupModeSelector.classList.toggle("is-locked", Boolean(currentMode));
+
+    if (fullManualPanel) fullManualPanel.classList.toggle("hidden", !(currentMode === MODE_FULL_MANUAL && loadedFromServer));
+    if (structureOnlyPanel) structureOnlyPanel.classList.add("hidden");
+    if (logsFirstPanel) logsFirstPanel.classList.toggle("hidden", currentMode !== MODE_LOGS_FIRST);
+    if (strictFolderPanel) strictFolderPanel.classList.toggle("hidden", !(currentMode === MODE_FULL_MANUAL && loadedFromServer));
+
+    if (manualToolbar) manualToolbar.style.display = currentMode === MODE_LOGS_FIRST ? "none" : "";
+    if (templateConfigSubtitle) {
+      templateConfigSubtitle.textContent = currentMode === MODE_LOGS_FIRST
+        ? "Name the complete template created from a collected logs folder"
+        : "Create a new template or load an existing one";
+    }
+    if (templateNameHelp) {
+      templateNameHelp.textContent = currentMode === MODE_LOGS_FIRST
+        ? "Enter the template name that will be created from the selected logs folder."
+        : "Type a new name to create a template, or leave this blank and load an existing template.";
+    }
+    if (devicesSubtitle) {
+      const labels = {
+        [MODE_FULL_MANUAL]: loadedFromServer
+          ? "Loaded template devices; add missing logs one by one or from a matching folder"
+          : "Add devices, select commands, and attach raw logs",
+        [MODE_STRUCTURE_ONLY]: "Add devices and commands only; logs will be collected later",
+        [MODE_LOGS_FIRST]: "Devices and commands detected from the selected logs folder",
+      };
+      devicesSubtitle.textContent = labels[currentMode] || "Add and configure network devices";
+    }
+
+    container.querySelectorAll(".remove-device-btn").forEach((button) => {
+      button.style.display = currentMode === MODE_LOGS_FIRST ? "none" : "";
+    });
+    container.querySelectorAll(".hostname-input").forEach((input) => {
+      input.readOnly = currentMode === MODE_LOGS_FIRST;
+    });
+    container.querySelectorAll(".custom-dropdown").forEach((dropdown) => {
+      const locked = currentMode === MODE_LOGS_FIRST;
+      dropdown.style.pointerEvents = locked ? "none" : "";
+      dropdown.style.opacity = locked ? "0.65" : "";
+    });
+    container.querySelectorAll(".cmd-file-input").forEach((input) => {
+      const showUpload = currentMode === MODE_FULL_MANUAL;
+      input.disabled = !showUpload;
+      input.style.display = showUpload ? "" : "none";
+    });
+    container.querySelectorAll(".command-badge--uploaded").forEach((badge) => {
+      badge.style.display = currentMode === MODE_FULL_MANUAL ? "" : "none";
+    });
+
+    syncTemplateControls();
+    updateSaveButtonText();
+  }
+
+  function setMode(mode) {
+    currentMode = normalizeMode(mode);
+    saveModeToStorage();
+    if (currentMode === MODE_LOGS_FIRST) {
+      loadedFromServer = false;
+      loadedTemplateHasBaseline = false;
+      loadedLogsByCommand = {};
+      selectedTemplateName = "";
+      setStrictFolder("");
+      templateNameEditedManually = true;
+    }
+    if ((currentMode === MODE_FULL_MANUAL || currentMode === MODE_STRUCTURE_ONLY) && !container.children.length) {
+      addDeviceBlock();
+    }
+    updateModeUI();
+  }
+
+  function clearDeviceSetup({ clearTemplateName = true } = {}) {
+    localStorage.removeItem("templateName");
+    localStorage.removeItem("templateDevices");
+    localStorage.removeItem("activeTemplateName");
+    localStorage.removeItem("activeTemplateDevices");
+    localStorage.removeItem("deviceSetupMode");
+    localStorage.removeItem("deviceSetupLogsFolder");
+    localStorage.removeItem("deviceSetupStrictLogsFolder");
+    sessionStorage.removeItem("deviceSetupMode");
+    sessionStorage.removeItem("deviceSetupLogsFolder");
+    sessionStorage.removeItem("deviceSetupStrictLogsFolder");
+    loadedFromServer = false;
+    loadedTemplateHasBaseline = false;
+    loadedLogsByCommand = {};
+    selectedTemplateName = "";
+    templateNameEditedManually = !clearTemplateName && Boolean(templateNameInput?.value.trim());
+    currentMode = "";
+    deviceCount = 0;
+    container.innerHTML = "";
+    setLogsFolder("");
+    setStrictFolder("");
+    if (clearTemplateName && templateNameInput) templateNameInput.value = "";
+    renderSingleSelect(templateSelect, {
+      options: availableTemplates,
+      value: "",
+      placeholder: "Select a template",
+    });
+    updateModeUI();
+  }
+
+  templateNameInput?.addEventListener("input", () => {
+    if (templateNameProgrammaticUpdate) return;
+    templateNameEditedManually = Boolean(templateNameInput.value.trim());
+    if (templateNameEditedManually && loadedFromServer) {
+      loadedFromServer = false;
+      loadedTemplateHasBaseline = false;
+      loadedLogsByCommand = {};
+      selectedTemplateName = "";
+      setStrictFolder("");
+      localStorage.removeItem("activeTemplateName");
+    }
+    updateModeUI();
+  });
+
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".app-select")) {
       closeOpenSelects();
@@ -76,7 +350,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Fetch all commands from backend
   try {
     const res = await fetch("http://127.0.0.1:5050/api/commands");
     const data = await res.json();
@@ -106,64 +379,70 @@ document.addEventListener("DOMContentLoaded", async () => {
       value: selectedTemplateName,
       placeholder: "Select a template",
     });
+    syncTemplateControls();
   }
 
-  function createCommandRow(commandText = "", existingFileName = null) {
+  function commandHasBaselineLog(hostname, commandText) {
+    const commands = loadedLogsByCommand?.[hostname] || {};
+    const target = normalizeCommandText(commandText);
+    return Object.keys(commands).some((command) => normalizeCommandText(command) === target);
+  }
+
+  function setCommandBadgeState(badge, state) {
+    if (!badge) return;
+    badge.classList.remove("command-badge--selected", "command-badge--baseline", "command-badge--attached");
+    if (state === "attached") {
+      badge.textContent = "File attached";
+      badge.classList.add("command-badge--attached");
+    } else if (state === "baseline") {
+      badge.textContent = "Baseline log exists";
+      badge.classList.add("command-badge--baseline");
+    } else {
+      badge.textContent = "Missing baseline file";
+      badge.classList.add("command-badge--selected");
+    }
+  }
+
+  function createCommandBadge(commandText, { hasBaselineLog = false } = {}) {
     const row = document.createElement("div");
     row.className = "command-item";
     row.dataset.command = commandText;
-    
+    row.dataset.baselineLog = hasBaselineLog ? "1" : "";
     row.innerHTML = `
       <div class="command-meta">
         <input type="text" class="cmd-input" value="${commandText}" readonly />
-        <div class="command-badges"></div>
+        <div class="command-badges">
+          <small class="command-badge command-badge--uploaded"></small>
+        </div>
       </div>
       <div class="command-actions">
-        <input type="file" class="cmd-file" />
+        <input type="file" class="cmd-file-input" accept=".txt,.log,.docx" />
         <button type="button" class="command-remove-btn" title="Remove">✕</button>
       </div>
     `;
-
-    const fileInput = row.querySelector(".cmd-file");
-    const badges = row.querySelector(".command-badges");
-    if (existingFileName) {
-      const fileLabel = document.createElement("small");
-      fileLabel.className = "command-badge command-badge--loaded";
-      fileLabel.textContent = `Loaded: ${existingFileName}`;
-      badges?.appendChild(fileLabel);
-      fileInput.required = false;
-    }
-
-    // Removing from row should also uncheck the dropdown box
+    const fileInput = row.querySelector(".cmd-file-input");
+    const uploadedBadge = row.querySelector(".command-badge--uploaded");
+    setCommandBadgeState(uploadedBadge, hasBaselineLog ? "baseline" : "selected");
+    fileInput?.addEventListener("change", () => {
+      const fallbackState = row.dataset.baselineLog ? "baseline" : "selected";
+      setCommandBadgeState(uploadedBadge, fileInput.files?.length ? "attached" : fallbackState);
+    });
     row.querySelector(".command-remove-btn").addEventListener("click", () => {
       row.remove();
-      const deviceBlock = row.closest(".device-block");
-      if (deviceBlock) {
-        const checkbox = deviceBlock.querySelector(`input[type="checkbox"][value="${commandText}"]`);
-        if (checkbox) checkbox.checked = false;
-        updateDropdownCount(deviceBlock);
-      }
+      const block = row.closest(".device-block");
+      if (!block) return;
+      const checkbox = block.querySelector(`input[type="checkbox"][value="${commandText}"]`);
+      if (checkbox) checkbox.checked = false;
+      updateDropdownCount(block);
     });
-
     return row;
   }
 
   function updateDropdownCount(block) {
     const checkboxes = block.querySelectorAll('.dropdown-item input[type="checkbox"]:checked');
-    const label = block.querySelector('.dropdown-header span');
-    if (checkboxes.length === 0) {
-      label.textContent = "Select Commands";
-    } else {
-      label.textContent = `${checkboxes.length} Commands Selected`;
-    }
-  }
-
-  function normalizeCommandSearch(text) {
-    return String(text || "")
-      .toLowerCase()
-      .replace(/[_./-]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+    const label = block.querySelector(".dropdown-header span");
+    if (!label) return;
+    label.textContent = checkboxes.length ? `${checkboxes.length} Commands Selected` : "Select Commands";
   }
 
   function closeCommandDropdowns(exceptDropdown = null) {
@@ -173,42 +452,36 @@ document.addEventListener("DOMContentLoaded", async () => {
         dropdown.querySelector(".dropdown-list")?.classList.add("hidden");
         const searchInput = dropdown.querySelector(".dropdown-search-input");
         if (searchInput) searchInput.value = "";
-        dropdown.querySelectorAll(".dropdown-item.hidden").forEach((item) => {
-          item.classList.remove("hidden");
-        });
+        dropdown.querySelectorAll(".dropdown-item.hidden").forEach((item) => item.classList.remove("hidden"));
         dropdown.closest(".device-block")?.classList.remove("dropdown-open");
       }
     });
   }
 
-  function addDeviceBlock() {
-    deviceCount++;
+  function addDeviceBlock({ hostname = "", commands = [] } = {}) {
+    deviceCount += 1;
     const deviceId = `device-${deviceCount}`;
-    
+    const selectedCommands = new Set(commands);
+
+    const dropdownListHtml = systemCommands.length
+      ? systemCommands.map((cmd) => `
+          <label class="dropdown-item">
+            <input type="checkbox" value="${cmd}" ${selectedCommands.has(cmd) ? "checked" : ""} />
+            ${cmd}
+          </label>
+        `).join("")
+      : `<div class="dropdown-empty">No commands in System Admin.</div>`;
+
     const block = document.createElement("div");
     block.className = "device-block";
     block.id = deviceId;
-    
-    // Build the dropdown checklist HTML dynamically
-    let dropdownListHtml = systemCommands.map(cmd => `
-      <label class="dropdown-item">
-        <input type="checkbox" value="${cmd}" />
-        ${cmd}
-      </label>
-    `).join("");
-
-    if (systemCommands.length === 0) {
-      dropdownListHtml = `<div class="dropdown-empty">No commands in System Admin.</div>`;
-    }
-
     block.innerHTML = `
       <div class="device-block-header">
         <div class="device-block-title">Device ${deviceCount}</div>
-        
         <div style="display: flex; gap: 16px; flex: 1; align-items: flex-end;">
           <div style="flex: 1;">
             <label style="display: block; font-weight: 600; color: var(--color-heading); margin-bottom: 6px; font-size: 0.9rem;">Hostname</label>
-            <input type="text" class="hostname-input" placeholder="e.g. R1 or S1" required />
+            <input type="text" class="hostname-input" placeholder="e.g. R1 or S1" value="${hostname}" required />
           </div>
           <div style="flex: 1;">
             <label style="display: block; font-weight: 600; color: var(--color-heading); margin-bottom: 6px; font-size: 0.9rem;">Commands</label>
@@ -226,190 +499,192 @@ document.addEventListener("DOMContentLoaded", async () => {
             </div>
           </div>
         </div>
-
         <button type="button" class="remove-device-btn">Remove Device</button>
       </div>
-      
-      <div class="command-list" id="cmds-${deviceId}">
-        <!-- Selected Commands Spawn Here -->
-      </div>
+      <div class="command-list" id="cmds-${deviceId}"></div>
     `;
 
     const cmdList = block.querySelector(`#cmds-${deviceId}`);
     const dropdownRoot = block.querySelector(`#dropdown-${deviceId}`);
-    const dropdownHeader = block.querySelector('.dropdown-header');
-    const dropdownList = block.querySelector('.dropdown-list');
-    const dropdownSearch = block.querySelector('.dropdown-search-input');
+    const dropdownHeader = block.querySelector(".dropdown-header");
+    const dropdownList = block.querySelector(".dropdown-list");
+    const dropdownSearch = block.querySelector(".dropdown-search-input");
+    const hostnameInput = block.querySelector(".hostname-input");
 
-    function positionDropdown() {
-      const rect = dropdownHeader.getBoundingClientRect();
-      dropdownList.style.top = `${rect.bottom}px`;
-      dropdownList.style.left = `${rect.left}px`;
-      dropdownList.style.width = `${rect.width}px`;
-    }
-    
-    window.addEventListener('scroll', () => {
-      if (!dropdownList.classList.contains("hidden")) {
-        positionDropdown();
-      }
-    });
-    
-    window.addEventListener('resize', () => {
-      if (!dropdownList.classList.contains("hidden")) {
-        positionDropdown();
-      }
-    });
-    
-    dropdownHeader.addEventListener("click", (e) => {
-      e.stopPropagation();
+    dropdownHeader.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (currentMode === MODE_LOGS_FIRST) return;
       const willOpen = dropdownList.classList.contains("hidden");
       closeCommandDropdowns(willOpen ? dropdownRoot : null);
       dropdownList.classList.toggle("hidden", !willOpen);
-      dropdownRoot?.classList.toggle("dropdown-open", willOpen);
+      dropdownRoot.classList.toggle("dropdown-open", willOpen);
       block.classList.toggle("dropdown-open", willOpen);
-      if (willOpen) {
-        positionDropdown();
-        dropdownSearch?.focus();
-      }
+      if (willOpen) dropdownSearch?.focus();
     });
 
-    dropdownSearch?.addEventListener("click", (e) => {
-      e.stopPropagation();
-    });
-
+    dropdownSearch?.addEventListener("click", (event) => event.stopPropagation());
     dropdownSearch?.addEventListener("input", () => {
-      const term = normalizeCommandSearch(dropdownSearch.value);
-      const items = block.querySelectorAll('.dropdown-item');
-      items.forEach((item) => {
-        const text = normalizeCommandSearch(item.textContent);
-        item.classList.toggle("hidden", term && !text.includes(term));
+      const term = normalizeCommandText(dropdownSearch.value);
+      block.querySelectorAll(".dropdown-item").forEach((item) => {
+        const text = normalizeCommandText(item.textContent);
+        item.classList.toggle("hidden", Boolean(term) && !text.includes(term));
       });
     });
 
-    // Handle Checkbox changes
-    const checkboxes = block.querySelectorAll('.dropdown-item input[type="checkbox"]');
-    checkboxes.forEach(chk => {
-      chk.addEventListener("change", (e) => {
-         const cmdVal = e.target.value;
-         if (e.target.checked) {
-            // Add row
-            cmdList.appendChild(createCommandRow(cmdVal));
-         } else {
-            // Remove row
-            const existingRow = cmdList.querySelector(`.command-item[data-command="${cmdVal}"]`);
-            if (existingRow) existingRow.remove();
-         }
-         updateDropdownCount(block);
+    block.querySelectorAll('.dropdown-item input[type="checkbox"]').forEach((checkbox) => {
+      checkbox.addEventListener("change", () => {
+        const cmdVal = checkbox.value;
+        const existingRow = cmdList.querySelector(`.command-item[data-command="${cmdVal}"]`);
+        if (checkbox.checked && !existingRow) {
+          cmdList.appendChild(createCommandBadge(cmdVal, {
+            hasBaselineLog: commandHasBaselineLog(hostnameInput.value.trim(), cmdVal),
+          }));
+        }
+        if (!checkbox.checked && existingRow) {
+          existingRow.remove();
+        }
+        updateDropdownCount(block);
+        updateModeUI();
       });
     });
 
-    // Prevent dropdown list clicks from closing the dropdown
-    dropdownList.addEventListener("click", (e) => {
-      e.stopPropagation();
-    });
-
-    block.querySelector(".remove-device-btn").addEventListener("click", () => {
-      block.remove();
-    });
+    dropdownList?.addEventListener("click", (event) => event.stopPropagation());
+    block.querySelector(".remove-device-btn").addEventListener("click", () => block.remove());
 
     container.appendChild(block);
+
+    commands.forEach((cmd) => {
+      const existingRow = cmdList.querySelector(`.command-item[data-command="${cmd}"]`);
+      if (!existingRow) {
+        cmdList.appendChild(createCommandBadge(cmd, {
+          hasBaselineLog: commandHasBaselineLog(hostname, cmd),
+        }));
+      }
+    });
+    updateDropdownCount(block);
+    updateModeUI();
+
     return block;
   }
 
-  addDeviceBtn.addEventListener("click", () => addDeviceBlock());
-  clearSetupBtn?.addEventListener("click", () => {
-    if (!confirm("Clear all device setup data? This will remove saved template settings from this app.")) {
-      return;
-    }
-    localStorage.removeItem("templateName");
-    localStorage.removeItem("templateDevices");
-    localStorage.removeItem("activeTemplateName");
-    localStorage.removeItem("activeTemplateDevices");
-    loadedFromServer = false;
-    deviceCount = 0;
+  function renderImportedDevices(devicesMeta, logsByCommand = loadedLogsByCommand) {
+    loadedLogsByCommand = logsByCommand || {};
     container.innerHTML = "";
-    const nameInput = document.getElementById("templateName");
-    if (nameInput) nameInput.value = "";
-    addDeviceBlock();
-  });
-
-  // Load from local storage
-  function loadTemplateState() {
-    const savedName = localStorage.getItem("templateName");
-    const savedDevicesStr = localStorage.getItem("templateDevices");
-    let restoredFromCache = false;
-
-    if (savedName) {
-      document.getElementById("templateName").value = savedName;
-      selectedTemplateName = savedName;
-    }
-
-    if (savedDevicesStr) {
-      try {
-        const devicesMeta = JSON.parse(savedDevicesStr);
-        const hostnames = Object.keys(devicesMeta);
-        
-        if (hostnames.length > 0) {
-          hostnames.forEach(hostname => {
-            const block = addDeviceBlock();
-            block.querySelector(".hostname-input").value = hostname;
-            
-            const commands = devicesMeta[hostname];
-            const checkboxes = block.querySelectorAll('.dropdown-item input[type="checkbox"]');
-            
-            // Re-check boxes and fire change event to trigger row creation
-            checkboxes.forEach(chk => {
-              if (commands.includes(chk.value)) {
-                chk.checked = true;
-                chk.dispatchEvent(new Event("change"));
-              }
-            });
-
-            // Mark as previously uploaded
-            const cmdRows = block.querySelectorAll(".command-item");
-            cmdRows.forEach(row => {
-               const fileInput = row.querySelector(".cmd-file");
-               const badges = row.querySelector(".command-badges");
-               fileInput.required = false; 
-               
-               const prevUploadedLabel = document.createElement("small");
-               prevUploadedLabel.className = "command-badge command-badge--uploaded";
-               prevUploadedLabel.textContent = "Previously Uploaded";
-               if (badges) {
-                 badges.appendChild(prevUploadedLabel);
-               } else {
-                 row.insertBefore(prevUploadedLabel, fileInput);
-               }
-            });
-          });
-          restoredFromCache = true;
-        }
-      } catch (err) {
-        console.warn("Failed to parse saved devices:", err);
-      }
-    }
-
-    if (restoredFromCache) {
-      return;
-    }
-
-    if (savedName) {
-      loadTemplateFromServer(savedName);
-      return;
-    }
-    
-    // Only add an empty one if we didn't restore any
-    addDeviceBlock();
+    deviceCount = 0;
+    Object.entries(devicesMeta).forEach(([hostname, commands]) => {
+      addDeviceBlock({ hostname, commands });
+    });
+    if (!Object.keys(devicesMeta).length && currentMode !== MODE_LOGS_FIRST) addDeviceBlock();
+    updateModeUI();
   }
 
-  loadTemplateState();
+  function collectDevicesMeta() {
+    const devicesMeta = {};
+    const seen = new Set();
+    let error = null;
 
-  // Global click listener to close dropdowns when clicking outside
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".custom-dropdown") && !e.target.closest(".dropdown-list")) {
-      closeCommandDropdowns();
+    container.querySelectorAll(".device-block").forEach((block) => {
+      if (error) return;
+      const hostname = block.querySelector(".hostname-input")?.value.trim() || "";
+      if (!hostname) {
+        error = "All devices must have a hostname.";
+        return;
+      }
+      if (seen.has(hostname.toLowerCase())) {
+        error = `Duplicate hostname "${hostname}" found.`;
+        return;
+      }
+      seen.add(hostname.toLowerCase());
+      const commands = Array.from(block.querySelectorAll(".command-item .cmd-input"))
+        .map((input) => input.value.trim())
+        .filter(Boolean);
+      if (!commands.length) {
+        error = `Device ${hostname} must have at least one command.`;
+        return;
+      }
+      devicesMeta[hostname] = commands;
+    });
+
+    if (error) throw new Error(error);
+    if (!Object.keys(devicesMeta).length) throw new Error("Please add at least one device.");
+    return devicesMeta;
+  }
+
+  function collectManualFiles() {
+    const manualFiles = [];
+    container.querySelectorAll(".device-block").forEach((block) => {
+      const hostname = block.querySelector(".hostname-input")?.value.trim() || "";
+      if (!hostname) return;
+      block.querySelectorAll(".command-item").forEach((row) => {
+        const command = row.querySelector(".cmd-input")?.value.trim() || "";
+        const file = row.querySelector(".cmd-file-input")?.files?.[0];
+        if (command && file) {
+          manualFiles.push({ hostname, command, file });
+        }
+      });
+    });
+    return manualFiles;
+  }
+
+  function templateDetailsHaveBaseline(data) {
+    if (data?.has_baseline) return true;
+    const logsByCommand = data?.logs_by_command || {};
+    return Object.values(logsByCommand).some((commands) => {
+      return commands && typeof commands === "object" && Object.keys(commands).length > 0;
+    });
+  }
+
+  function scanLogsFolder(folderPath) {
+    const devicesMeta = {};
+    const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+    entries
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+      .forEach((entry) => {
+        const hostDir = path.join(folderPath, entry.name);
+        const commands = fs.readdirSync(hostDir, { withFileTypes: true })
+          .filter((child) => child.isFile() && !child.name.startsWith("."))
+          .map((child) => getKnownCommandForFilename(child.name))
+          .filter(Boolean);
+        if (commands.length) {
+          devicesMeta[entry.name] = Array.from(new Set(commands));
+        }
+      });
+    return devicesMeta;
+  }
+
+  async function selectFolder() {
+    if (!ipcRenderer?.invoke) {
+      alert("Folder picker is not available.");
+      return "";
     }
-  });
+    return (await ipcRenderer.invoke("select-directory")) || "";
+  }
+
+  async function chooseLogsFolder() {
+    const selected = await selectFolder();
+    if (!selected) return;
+    setLogsFolder(selected);
+    try {
+      const devicesMeta = scanLogsFolder(selected);
+      renderImportedDevices(devicesMeta, {});
+      if (!Object.keys(devicesMeta).length) {
+        alert("No device folders with log files were found in the selected folder.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Failed to scan the selected logs folder.");
+    }
+  }
+
+  async function chooseStrictFolder() {
+    if (!loadedFromServer) {
+      alert("Load an existing template before using strict folder fill.");
+      return;
+    }
+    const selected = await selectFolder();
+    if (selected) setStrictFolder(selected);
+  }
 
   async function loadTemplateFromServer(templateName) {
     if (!templateName) return;
@@ -421,62 +696,126 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       const devicesMeta = data.devices_meta || {};
-      const logsByCommand = data.logs_by_command || {};
       localStorage.setItem("templateName", templateName);
+      if (typeof window.updateGlobalTemplateBadge === "function") window.updateGlobalTemplateBadge();
       localStorage.setItem("templateDevices", JSON.stringify(devicesMeta));
       localStorage.setItem("activeTemplateName", templateName);
       localStorage.setItem("activeTemplateDevices", JSON.stringify(devicesMeta));
       loadedFromServer = true;
-      const nameInput = document.getElementById("templateName");
-      if (nameInput) nameInput.value = templateName;
-
-      // Reset UI
-      container.innerHTML = "";
-      deviceCount = 0;
-
-      const hostnames = Object.keys(devicesMeta);
-      if (hostnames.length === 0) {
-        addDeviceBlock();
-        return;
+      loadedTemplateHasBaseline = templateDetailsHaveBaseline(data);
+      loadedLogsByCommand = data.logs_by_command || {};
+      selectedTemplateName = templateName;
+      if (templateNameInput) {
+        templateNameProgrammaticUpdate = true;
+        templateNameInput.value = templateName;
+        templateNameProgrammaticUpdate = false;
       }
-
-      hostnames.forEach(hostname => {
-        const block = addDeviceBlock();
-        block.querySelector(".hostname-input").value = hostname;
-        const commands = devicesMeta[hostname] || [];
-        const cmdList = block.querySelector(".command-list");
-        const checkboxes = block.querySelectorAll('.dropdown-item input[type="checkbox"]');
-        commands.forEach(cmd => {
-          const checkbox = Array.from(checkboxes).find(chk => chk.value === cmd);
-          const existingFile = (logsByCommand[hostname] || {})[cmd] || null;
-          if (checkbox) {
-            checkbox.checked = true;
-          }
-          cmdList.appendChild(createCommandRow(cmd, existingFile));
-        });
-        updateDropdownCount(block);
-
-        const cmdRows = block.querySelectorAll(".command-item");
-        cmdRows.forEach(row => {
-          const fileInput = row.querySelector(".cmd-file");
-          const badges = row.querySelector(".command-badges");
-          fileInput.required = false;
-          const prevUploadedLabel = document.createElement("small");
-          prevUploadedLabel.className = "command-badge command-badge--uploaded";
-          prevUploadedLabel.textContent = "Previously Uploaded";
-          badges?.appendChild(prevUploadedLabel);
-        });
-      });
-
+      templateNameEditedManually = false;
+      renderImportedDevices(devicesMeta, loadedLogsByCommand);
+      updateModeUI();
       saveBtn.disabled = false;
-      saveBtn.textContent = "Save Template & Continue";
     } catch (err) {
       console.error(err);
       alert(err.message || "Failed to load template.");
     }
   }
 
+  function restoreState() {
+    localStorage.removeItem("deviceSetupMode");
+    localStorage.removeItem("deviceSetupLogsFolder");
+    localStorage.removeItem("deviceSetupStrictLogsFolder");
+    const savedName = localStorage.getItem("templateName") || "";
+    const savedDevicesStr = localStorage.getItem("templateDevices") || "";
+    const savedMode = normalizeMode(sessionStorage.getItem("deviceSetupMode") || "");
+    const savedLogsFolder = sessionStorage.getItem("deviceSetupLogsFolder") || "";
+    const savedStrictFolder = sessionStorage.getItem("deviceSetupStrictLogsFolder") || "";
+
+    currentMode = "";
+    loadedFromServer = false;
+    loadedTemplateHasBaseline = false;
+    loadedLogsByCommand = {};
+    selectedTemplateName = "";
+    templateNameEditedManually = false;
+    container.innerHTML = "";
+
+    if (savedMode) setMode(savedMode);
+    else updateModeUI();
+
+    if (savedName && templateNameInput) {
+      templateNameProgrammaticUpdate = true;
+      templateNameInput.value = savedName;
+      templateNameProgrammaticUpdate = false;
+      selectedTemplateName = savedName;
+    } else if (templateNameInput) {
+      templateNameInput.value = "";
+    }
+    setLogsFolder(savedLogsFolder);
+    setStrictFolder(savedStrictFolder);
+
+    if (savedName && savedMode && savedMode !== MODE_LOGS_FIRST) {
+      loadTemplateFromServer(savedName);
+      return;
+    }
+
+    if (savedDevicesStr) {
+      try {
+        const devicesMeta = JSON.parse(savedDevicesStr);
+        if (devicesMeta && Object.keys(devicesMeta).length) {
+          renderImportedDevices(devicesMeta);
+          return;
+        }
+      } catch (err) {
+        console.warn("Failed to parse saved devices:", err);
+      }
+    }
+
+    updateModeUI();
+  }
+
+  function persistTemplateState(templateName, devicesMeta) {
+    localStorage.setItem("templateName", templateName);
+    if (typeof window.updateGlobalTemplateBadge === "function") window.updateGlobalTemplateBadge();
+    localStorage.setItem("templateDevices", JSON.stringify(devicesMeta));
+    localStorage.setItem("activeTemplateName", templateName);
+    localStorage.setItem("activeTemplateDevices", JSON.stringify(devicesMeta));
+    localStorage.removeItem("deviceSetupMode");
+    if (currentMode) sessionStorage.setItem("deviceSetupMode", currentMode);
+  }
+
+  document.querySelectorAll('input[name="templateSetupMode"]').forEach((radio) => {
+    radio.addEventListener("change", () => {
+      const selectedMode = normalizeMode(radio.value);
+      if (selectedMode === currentMode) return;
+      clearDeviceSetup({ clearTemplateName: false });
+      setMode(selectedMode);
+    });
+  });
+
+  setupModeSelector?.querySelectorAll(".radio-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const radio = card.querySelector('input[name="templateSetupMode"]');
+      if (!radio) return;
+      const selectedMode = normalizeMode(radio.value);
+      if (selectedMode === currentMode) return;
+      clearDeviceSetup({ clearTemplateName: false });
+      setMode(selectedMode);
+    });
+  });
+
+  clearSetupModeBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    clearDeviceSetup();
+  });
+
+  chooseLogsFolderBtn?.addEventListener("click", chooseLogsFolder);
+  chooseStrictFolderBtn?.addEventListener("click", chooseStrictFolder);
+  addDeviceBtn?.addEventListener("click", () => addDeviceBlock());
+  clearSetupBtn?.addEventListener("click", () => {
+    if (!confirm("Clear all device setup data? This will remove saved template settings from this app.")) return;
+    clearDeviceSetup();
+  });
   loadTemplateBtn?.addEventListener("click", () => {
+    if (loadTemplateBtn.disabled) return;
     const selected = templateSelect?.dataset.value || selectedTemplateName;
     if (!selected) {
       alert("Please select a template to load.");
@@ -485,113 +824,123 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadTemplateFromServer(selected);
   });
 
-  saveBtn.addEventListener("click", async () => {
-    const templateName = document.getElementById("templateName").value.trim() || "default";
-    
-    const deviceBlocks = document.querySelectorAll(".device-block");
-    if (deviceBlocks.length === 0) {
-      alert("Please add at least one device.");
+  saveBtn?.addEventListener("click", async () => {
+    const templateName = templateNameInput?.value.trim() || "";
+    const sourceTemplateName = loadedFromServer && selectedTemplateName ? selectedTemplateName : "";
+    if (!currentMode) {
+      alert("Choose a setup mode first.");
+      return;
+    }
+    if (!templateName) {
+      alert("Enter a template name first.");
       return;
     }
 
     saveBtn.disabled = true;
     saveBtn.textContent = "Saving...";
 
-    const formData = new FormData();
-    formData.append("template_name", templateName);
-    if (loadedFromServer && selectedTemplateName) {
-      formData.append("source_template_name", selectedTemplateName);
-    }
+    try {
+      let response;
+      if (currentMode === MODE_LOGS_FIRST) {
+        if (!importedLogsFolder) throw new Error("Choose a collected logs folder first.");
+        response = await fetchJson("/api/templates/import_logs_folder", {
+          method: "POST",
+          body: JSON.stringify({
+            template_name: templateName,
+            source_dir: importedLogsFolder,
+          }),
+        });
+        sessionStorage.setItem("deviceSetupLogsFolder", importedLogsFolder);
+      } else {
+        const devicesMeta = collectDevicesMeta();
 
-    let hasError = false;
-    let deviceIndex = 0;
+        if (currentMode === MODE_STRUCTURE_ONLY) {
+          response = await fetchJson("/api/templates/save_setup", {
+            method: "POST",
+            body: JSON.stringify({
+              template_name: templateName,
+              source_template_name: sourceTemplateName,
+              devices_meta: devicesMeta,
+            }),
+          });
+        } else if (strictLogsFolder && loadedFromServer) {
+          response = await fetchJson("/api/templates/import_logs_folder", {
+            method: "POST",
+            body: JSON.stringify({
+              template_name: templateName,
+              source_template_name: sourceTemplateName,
+              source_dir: strictLogsFolder,
+              devices_meta: devicesMeta,
+              strict: true,
+            }),
+          });
+          sessionStorage.setItem("deviceSetupStrictLogsFolder", strictLogsFolder);
+        } else {
+          const manualFiles = collectManualFiles();
+          if (!manualFiles.length) {
+            if (!loadedFromServer || !loadedTemplateHasBaseline) {
+              throw new Error("Attach log files for at least one selected command, or load an existing complete template and choose a folder fill.");
+            }
+            response = await fetchJson("/api/templates/save_setup", {
+              method: "POST",
+              body: JSON.stringify({
+                template_name: templateName,
+                source_template_name: sourceTemplateName,
+                devices_meta: devicesMeta,
+              }),
+            });
+          } else {
+            const formData = new FormData();
+            formData.append("template_name", templateName);
+            formData.append("source_template_name", sourceTemplateName);
+            formData.append("devices_meta", JSON.stringify(devicesMeta));
+            manualFiles.forEach(({ hostname, command, file }) => {
+              formData.append(`file_${hostname}_${command}`, file);
+            });
 
-    // Collect data
-    const devicesMeta = {}; // hostname -> array of commands
-    const seenHostnames = new Set();
-
-    deviceBlocks.forEach(block => {
-      const hostname = block.querySelector(".hostname-input").value.trim();
-      if (!hostname) {
-        alert("All devices must have a hostname.");
-        hasError = true;
-        return;
-      }
-      const hostnameKey = hostname.toLowerCase();
-      if (seenHostnames.has(hostnameKey)) {
-        alert(`Duplicate hostname "${hostname}" found. Each device must have a unique hostname.`);
-        hasError = true;
-        return;
-      }
-      seenHostnames.add(hostnameKey);
-      
-      const commands = [];
-      const cmdRows = block.querySelectorAll(".command-item");
-      cmdRows.forEach(row => {
-        const cmdVal = row.querySelector(".cmd-input").value.trim();
-        const fileInput = row.querySelector(".cmd-file");
-        if (cmdVal) {
-          commands.push(cmdVal);
-          if (fileInput.files.length > 0) {
-            // Field name format: file_HOSTNAME_COMMAND
-            const fieldName = `file_${hostname}_${cmdVal}`;
-            formData.append(fieldName, fileInput.files[0]);
+            const res = await fetch(`${window.API_ROOT}/api/templates/upload`, {
+              method: "POST",
+              body: formData,
+            });
+            response = await parseJsonResponse(res);
+            response.devices_meta = response.results?.devices_meta || devicesMeta;
           }
         }
-      });
-
-      // Optional Upload logic: if file exists, append it. If not, bypass because it's cached.
-      if (commands.length === 0) {
-        alert(`Device ${hostname} must have at least one selected command.`);
-        hasError = true;
-        return;
       }
 
-      devicesMeta[hostname] = commands;
-    });
+      const devicesMeta =
+        response.devices_meta ||
+        response.results?.devices_meta ||
+        collectDevicesMeta();
+      persistTemplateState(templateName, devicesMeta);
 
-    if (hasError) {
-      saveBtn.disabled = false;
-      saveBtn.textContent = "Save Template & Continue";
-      return;
-    }
-
-    formData.append("devices_meta", JSON.stringify(devicesMeta));
-
-    try {
-      const res = await fetch("http://127.0.0.1:5050/api/templates/upload", {
-        method: "POST",
-        body: formData
-      });
-      const data = await res.json();
-      
-      if (!res.ok || data.status === "error") {
-        throw new Error(data.message || "Failed to upload templates.");
-      }
-
-      localStorage.setItem("templateName", templateName);
-      localStorage.setItem("templateDevices", JSON.stringify(devicesMeta));
-      localStorage.setItem("activeTemplateName", templateName);
-      localStorage.setItem("activeTemplateDevices", JSON.stringify(devicesMeta));
-
-      const anyFileSelected = Array.from(document.querySelectorAll(".cmd-file")).some(
-        (input) => input.files && input.files.length > 0
-      );
-      if (anyFileSelected) {
-        alert("Template baseline saved. You may proceed.");
+      if (currentMode === MODE_LOGS_FIRST) {
+        alert("Template baseline imported from the collected logs folder.");
+      } else if (currentMode === MODE_STRUCTURE_ONLY) {
+        alert("Template structure saved without baseline logs. You can collect logs later from Sample Collect.");
+      } else if (response.ignored || response.missing) {
+        const ignoredDevices = response.ignored?.devices?.length || 0;
+        const ignoredCommands = response.ignored?.commands?.length || 0;
+        const missingDevices = Object.keys(response.missing || {}).length;
+        alert(`Template filled from folder. Ignored devices: ${ignoredDevices}. Ignored command files: ${ignoredCommands}. Devices with missing logs: ${missingDevices}.`);
       } else {
-        alert("Device and command setup saved. No template baseline uploaded yet.");
+        alert("Template setup saved and uploaded baseline logs were processed.");
       }
-      goTo("index.html");
-
+      goTo("directory.html");
     } catch (err) {
       console.error(err);
-      alert(err.message);
+      alert(err.message || "Failed to save template.");
     } finally {
-      saveBtn.disabled = false;
-      saveBtn.textContent = "Save Template & Continue";
+      updateSaveButtonText();
     }
   });
 
-  loadTemplateList();
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".custom-dropdown") && !event.target.closest(".dropdown-list")) {
+      closeCommandDropdowns();
+    }
+  });
+
+  await loadTemplateList();
+  restoreState();
 });

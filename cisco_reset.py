@@ -1,16 +1,26 @@
+"""
+Cisco reset workflow helpers.
+
+This script drives a Cisco router or switch over serial, optionally clears
+startup configuration and vlan.dat, then confirms the reload sequence. It is
+used by the Flask backend when the Electron GUI triggers a device reset.
+"""
 import time
 from serial_utils import connect_to_serial
 
 
 class ResetAborted(Exception):
+    """Raised when the user stops an in-progress reset operation."""
     pass
 
 
 def _is_aborted(abort_event):
+    """Return True when an optional threading.Event has requested cancellation."""
     return bool(abort_event and abort_event.is_set())
 
 
 def _sleep_with_abort(seconds, abort_event=None):
+    """Sleep in short chunks so long-running reset steps can stop quickly."""
     deadline = time.time() + seconds
     while time.time() < deadline:
         if _is_aborted(abort_event):
@@ -50,9 +60,17 @@ def reload_cisco_device(
     delete_vlan_database: bool = True,
     abort_event=None,
 ):
+    """
+    Reset and reload a Cisco device through the serial console.
+
+    The GUI/server pass the serial port, reset options, status callback, and
+    optional abort event into this function. It returns a success/error payload
+    with collected log messages for the frontend to display.
+    """
     logs = []
 
     def emit(message):
+        """Print and store a status message, then forward it to the GUI callback."""
         print(message, flush=True)
         logs.append(message)
         if status_cb:
@@ -62,6 +80,7 @@ def reload_cisco_device(
                 pass
 
     def read_until(ser, triggers, timeout=15, log_cb=None):
+        """Local wrapper that applies this reset run's abort event to serial reads."""
         return _read_until(
             ser,
             triggers,
@@ -71,6 +90,7 @@ def reload_cisco_device(
         )
 
     def pause(seconds):
+        """Pause between device prompts while still honoring user cancellation."""
         _sleep_with_abort(seconds, abort_event)
 
     emit(f"[INFO] Connecting to device on {port}...")

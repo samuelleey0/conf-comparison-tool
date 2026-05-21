@@ -1,3 +1,10 @@
+"""
+Serial-console helpers for Cisco devices.
+
+This script opens and manages pyserial sessions, detects Cisco prompts, enters
+enable mode, sends commands, disables paging, and performs cleanup. server.py,
+cisco_reset.py, and the CLI testing entry point share these helpers.
+"""
 from asyncio import Timeout
 
 import serial
@@ -9,7 +16,7 @@ import logging
 from netmiko.netmiko_globals import MAX_BUFFER
 import errno
 
-READ_TIMEOUT = 8  # seconds
+READ_TIMEOUT = 6  # seconds
 MAX_BUFFER = 4096  # 4KB
 
 DEBUG = True
@@ -17,6 +24,7 @@ logger = logging.getLogger("serial_utils")
 
 
 def dbg(msg):
+    """Print debug messages when DEBUG is enabled."""
     if DEBUG:
         print(f"[DEBUG] {msg}")
 
@@ -32,6 +40,50 @@ def _reset_buffers(ser):
             ser.flushOutput()
         except Exception:
             pass
+
+
+def _warm_console_after_open(ser):
+    """
+    Give a newly opened Cisco console a chance to settle before prompt detection.
+
+    USB serial adapters can open successfully before the console is ready to
+    answer CR wake-ups. A light Ctrl-C/Ctrl-Z/CR sequence makes the first open
+    behave more like the current second attempt, without logging out.
+    """
+    try:
+        time.sleep(0.25)
+        _reset_buffers(ser)
+        for payload, delay in (
+            (b"\x03", 0.08),  # Ctrl-C: interrupt any pending output/pager
+            (b"\x1a", 0.12),  # Ctrl-Z: leave config mode if needed
+            (b"\r\n", 0.12),
+            (b"\r\n", 0.12),
+        ):
+            ser.write(payload)
+            ser.flush()
+            time.sleep(delay)
+        _reset_buffers(ser)
+        dbg("Console warm-up completed after serial open.")
+    except Exception as e:
+        dbg(f"Console warm-up failed: {e}")
+
+
+def _quick_prompt_recovery(ser):
+    """Fast recovery used before falling back to the slower close/reopen path."""
+    try:
+        _reset_buffers(ser)
+        for payload, delay in (
+            (b"\x03", 0.08),
+            (b"\x1a", 0.12),
+            (b"\r\n", 0.15),
+            (b"\r\n", 0.15),
+        ):
+            ser.write(payload)
+            ser.flush()
+            time.sleep(delay)
+        dbg("Quick prompt recovery completed.")
+    except Exception as e:
+        dbg(f"Quick prompt recovery failed: {e}")
 
 
 def connect_to_serial(
@@ -53,6 +105,7 @@ def connect_to_serial(
     """
 
     def emit(message):
+        """Print a connection status message and forward it to an optional callback."""
         print(message, flush=True)
         if status_cb:
             try:
@@ -61,6 +114,7 @@ def connect_to_serial(
                 pass
 
     def _aborted():
+        """Return True when the caller requested that connection retries stop."""
         return abort_event and abort_event.is_set()
 
     emit(f"[INFO] Attempting to open serial port: {port} at {baudrate} baud")
@@ -133,7 +187,7 @@ def connect_to_serial(
             time.sleep(0.4)
             emit(f"[INFO] Serial port opened successfully (attempt {retries + 1}).")
             time.sleep(0.05)
-            _reset_buffers(ser)
+            _warm_console_after_open(ser)
 
             # Attempt to detect the prompt
             try:
@@ -144,6 +198,20 @@ def connect_to_serial(
                 return ser
             except TimeoutError as e:
                 dbg(f"Prompt not found on attempt {retries + 1}: {e}")
+                try:
+                    emit("[INFO] No prompt yet; retrying a quick console wake...")
+                    _quick_prompt_recovery(ser)
+                    output = wait_for_prompt(
+                        ser, [">", "#"], timeout=max(4, timeout // 2), wake=True
+                    )
+                    emit(
+                        f"[INFO] Connected. Device prompt: {output.strip().splitlines()[-1]}"
+                    )
+                    return ser
+                except TimeoutError as retry_exc:
+                    dbg(
+                        f"Prompt still not found after quick recovery on attempt {retries + 1}: {retry_exc}"
+                    )
                 logout_close_connection(ser)
                 time.sleep(0.5)
                 retries += 1
@@ -186,7 +254,7 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
     """
     start = time.time()
     buffer = b""
-    ser.timeout = 0.4
+    ser.timeout = 0.2
     wake_sent = 0
 
     # ensure buffers are clear before starting
@@ -251,10 +319,10 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
                     except Exception:
                         pass
         else:
-            # no data read this cycle: if wake enabled, send additional CRs spaced out
+            # no data read this cycle: if wake enabled, send additional CRs early
             elapsed = time.time() - start
-            # send up to 3 wake CRs distributed within first part of timeout
-            if wake and wake_sent < 3 and elapsed >= wake_sent * (timeout / 6.0):
+            wake_due = (0.35, 0.9)
+            if wake and wake_sent < 3 and elapsed >= wake_due[wake_sent - 1]:
                 try:
                     ser.write(b"\r\n")
                     ser.flush()
@@ -324,6 +392,43 @@ def get_hostname(ser, timeout=5):
     return "CiscoDevice"
 
 
+def wait_serial_prompt_ready(ser, timeout=6):
+    """
+    Wake the serial console and wait for a clean EXEC prompt before the next
+    command. Fresh console sessions can need one extra CR after paging or enable
+    setup before command output is reliable.
+    """
+    return wait_for_prompt(ser, [">", "#"], timeout=timeout, wake=True)
+
+
+def detect_hostname_with_prompt_retry(ser, fallback="device", attempts=2, timeout=6):
+    """
+    Detect the Cisco hostname with a prompt wake/wait before each attempt.
+
+    Returning a generic fallback too early creates folders named "device"
+    instead of the real hostname, so cold console sessions get a short retry.
+    """
+    for attempt in range(max(1, attempts)):
+        try:
+            wait_serial_prompt_ready(ser, timeout=timeout)
+        except Exception as exc:
+            print(
+                f"[WARNING] Serial prompt wake before hostname attempt {attempt + 1} failed: {exc}",
+                flush=True,
+            )
+        try:
+            hostname = get_hostname(ser)
+            if hostname and hostname not in {"device", "CiscoDevice"}:
+                return hostname
+        except Exception as exc:
+            print(
+                f"[WARNING] Hostname detection attempt {attempt + 1} failed: {exc}",
+                flush=True,
+            )
+        time.sleep(0.6)
+    return fallback
+
+
 def disable_paging(ser, prompt="#", timeout=5):
     """
     Disable paging on Cisco device to get full output.
@@ -343,7 +448,7 @@ def ensure_exec_mode(ser, timeout=5):
         # Send Ctrl-Z — this exits any sub-config mode immediately
         ser.write(b"\x1a")
         ser.flush()
-        time.sleep(1)
+        time.sleep(0.25)
 
         # Drain everything the device sent in response
         _reset_buffers(ser)
@@ -351,7 +456,7 @@ def ensure_exec_mode(ser, timeout=5):
         # Send a blank line and read back to see where we are
         ser.write(b"\n")
         ser.flush()
-        time.sleep(0.5)
+        time.sleep(0.2)
         raw = b""
         if ser.in_waiting:
             raw = ser.read(ser.in_waiting)
@@ -362,11 +467,11 @@ def ensure_exec_mode(ser, timeout=5):
             dbg("Still in config after Ctrl-Z, sending 'end'...")
             ser.write(b"end\n")
             ser.flush()
-            time.sleep(1)
+            time.sleep(0.4)
             _reset_buffers(ser)
 
         # Final drain: make sure no stale data is in the buffer
-        time.sleep(0.2)
+        time.sleep(0.05)
         _reset_buffers(ser)
         dbg("ensure_exec_mode completed")
     except Exception as e:
@@ -383,7 +488,7 @@ def enter_enable_mode(ser, timeout=8):
     # Check if we're already at # prompt
     ser.write(b"\n")
     ser.flush()
-    time.sleep(0.5)
+    time.sleep(0.2)
     raw = b""
     if ser.in_waiting:
         raw = ser.read(ser.in_waiting)

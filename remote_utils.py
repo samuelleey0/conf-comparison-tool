@@ -1,108 +1,18 @@
+"""
+SSH helpers for Cisco devices.
+
+This script handles Paramiko SSH sessions used by server.py and the CLI testing
+entry point.
+"""
+
 import time
 import re
 import logging
 import paramiko
 import socket
 import os
-import subprocess
 
 logger = logging.getLogger("remote_utils")
-
-
-def _get_iface_mac(iface):
-    try:
-        with open(f"/sys/class/net/{iface}/address", "r") as f:
-            return f.read().strip().lower()
-    except Exception:
-        return None
-
-
-def toggle_usb_adapter(iface, wait_timeout=15, wait_interval=0.5):
-    """
-    Simulate unplug/replug of a USB->Ethernet adapter by unbinding and rebinding its driver.
-
-    - iface: network interface name (e.g. /dev/enx.. or eth0)
-    - wait_timeout: max seconds to wait for interface reappearance
-    Returns True on success, False on failure.
-
-    Notes:
-    - Must run as root (sudo).
-    - If NetworkManager manages the interface it may momentarily rename/restore it.
-    - This is equivalent to physical unplug/replug for most USB network adapters.
-    """
-    if os.geteuid() != 0:
-        print("[ERROR] toggle_usb_adapter requires root privileges. Run with sudo.")
-        return False
-
-    # confirm iface exists and get MAC
-    if not os.path.exists(f"/sys/class/net/{iface}"):
-        print(f"[ERROR] Interface {iface} not found.")
-        return False
-
-    mac = _get_iface_mac(iface)
-    if not mac:
-        print(f"[ERROR] Unable to read MAC for {iface}.")
-        return False
-
-    # locate sysfs device path
-    try:
-        dev_path = os.path.realpath(f"/sys/class/net/{iface}/device")
-    except Exception as e:
-        print(f"[ERROR] Could not resolve sysfs device for {iface}: {e}")
-        return False
-
-    # find driver directory (if present)
-    driver_link = os.path.join(dev_path, "driver")
-    if not os.path.islink(driver_link):
-        print(f"[ERROR] No driver symlink found for {iface} at {driver_link}.")
-        return False
-
-    driver_dir = os.path.realpath(driver_link)
-    device_name = os.path.basename(dev_path)  # e.g. "1-9:1.0" or similar
-    unbind_path = os.path.join(driver_dir, "unbind")
-    bind_path = os.path.join(driver_dir, "bind")
-
-    if not (os.path.exists(unbind_path) and os.path.exists(bind_path)):
-        print(f"[ERROR] bind/unbind files not found under driver {driver_dir}.")
-        return False
-
-    print(
-        f"[INFO] Unbinding device {device_name} from driver {os.path.basename(driver_dir)}..."
-    )
-    try:
-        with open(unbind_path, "w") as f:
-            f.write(device_name)
-    except Exception as e:
-        print(f"[ERROR] Failed to unbind device: {e}")
-        return False
-
-    # wait briefly for device removal
-    time.sleep(1.0)
-
-    # rebind
-    print(
-        f"[INFO] Rebinding device {device_name} to driver {os.path.basename(driver_dir)}..."
-    )
-    try:
-        with open(bind_path, "w") as f:
-            f.write(device_name)
-    except Exception as e:
-        print(f"[ERROR] Failed to bind device: {e}")
-        return False
-
-    # wait for interface with same MAC to reappear (may be same name or new)
-    deadline = time.time() + wait_timeout
-    while time.time() < deadline:
-        # check all net interfaces for same MAC
-        for candidate in os.listdir("/sys/class/net"):
-            cand_mac = _get_iface_mac(candidate)
-            if cand_mac == mac:
-                print(f"[INFO] Interface with MAC {mac} reappeared as {candidate}.")
-                return True
-        time.sleep(wait_interval)
-
-    print(f"[WARN] Timed out waiting for adapter with MAC {mac} to reappear.")
-    return False
 
 
 def remote_connect(host, username="", password="", port="22", timeout=20):
@@ -119,6 +29,7 @@ def remote_connect(host, username="", password="", port="22", timeout=20):
     known_hosts_path = os.path.expanduser("~/.ssh/known_hosts")
 
     def remove_host_key(hostname):
+        """Remove a stale known_hosts entry so a lab device can be retried."""
         if not os.path.exists(known_hosts_path):
             return
         try:
@@ -318,12 +229,14 @@ def get_hostname_remote(client, timeout=10):
 
 
 def disable_paging_remote(client, prompt="#", timeout=5):
+    """Disable terminal paging over SSH so show commands return complete output."""
     return send_command_remote(
         client, "terminal length 0", expected_prompt=prompt, timeout=timeout
     )
 
 
 def enter_enable_mode_remote(client, prompt="#", timeout=5):
+    """Enter privileged EXEC mode on an SSH shell and wait for the # prompt."""
     if not client:
         raise ValueError("SSH client is None")
 
@@ -356,91 +269,3 @@ def enter_enable_mode_remote(client, prompt="#", timeout=5):
                 return buffer.strip()
         time.sleep(0.2)
     raise TimeoutError("Timed out waiting for privileged prompt after 'enable'.")
-
-
-# def clear_arp_entry(
-#     ip: str, interface: str | None = None, allow_flush_all: bool = False
-# ) -> bool:
-#     """
-#     Try to remove a single ARP/neighbor entry for `ip`.
-#     Attempts, in order:
-#         1) ip neigh del <ip> dev <iface> (if iface known)
-#         2) detect iface via `ip neigh show <ip>` and delete
-#         3) ip neigh del <ip> (some kernels accept this)
-#         4) arp -d <ip> (if arp command available)
-#         5) ip neigh flush to <ip>
-#     If all fail and allow_flush_all is True, will attempt `ip neigh flush all` as a last resort.
-#     Returns True on success, False otherwise.
-#     """
-
-#     def run(cmd, use_sudo=False):
-#         full = (["sudo"] + cmd) if use_sudo else cmd
-#         try:
-#             res = subprocess.run(full, capture_output=True, text=True)
-#             return res.returncode == 0, res
-#         except FileNotFoundError as e:
-#             return False, e
-#         except Exception as e:
-#             return False, e
-
-#     # 1) If iface supplied, try targeted delete
-#     if interface:
-#         ok, res = run(["ip", "neigh", "del", ip, "dev", interface])
-#         if ok:
-#             print(f"[INFO] Cleared ARP entry {ip} on {interface}")
-#             return True
-
-#     # 2) Try to detect interface from `ip neigh show <ip>`
-#     ok, res = run(["ip", "neigh", "show", ip])
-#     if ok and isinstance(res, subprocess.CompletedProcess):
-#         out = (res.stdout or "").strip()
-#         m = re.search(r"\bdev\s+(\S+)\b", out)
-#         if m:
-#             iface = m.group(1)
-#             ok2, res2 = run(["ip", "neigh", "del", ip, "dev", iface])
-#             if ok2:
-#                 print(f"[INFO] Cleared ARP entry {ip} on {iface}")
-#                 return True
-
-#     # 3) Try a generic ip neigh del <ip>
-#     ok, res = run(["ip", "neigh", "del", ip])
-#     if ok:
-#         print(f"[INFO] Cleared ARP entry {ip} (no iface)")
-#         return True
-
-#     # 4) Try arp -d <ip> (net-tools)
-#     ok, res = run(["arp", "-d", ip])
-#     if ok:
-#         print(f"[INFO] Cleared ARP entry {ip} using arp -d")
-#         return True
-
-#     # 5) Try ip neigh flush to <ip>
-#     ok, res = run(["ip", "neigh", "flush", "to", ip])
-#     if ok:
-#         print(f"[INFO] Flushed neighbor entry for {ip} using ip neigh flush to")
-#         return True
-
-#     # 6) Try sudo fallbacks for the above (permission issues)
-#     for cmd in (
-#         ["ip", "neigh", "del", ip],
-#         ["arp", "-d", ip],
-#         ["ip", "neigh", "flush", "to", ip],
-#     ):
-#         ok, res = run(cmd, use_sudo=True)
-#         if ok:
-#             print(f"[INFO] Cleared ARP entry {ip} (via sudo): {' '.join(cmd)}")
-#             return True
-
-#     # 7) Last resort: optional flush all (dangerous) only if explicitly allowed
-#     if allow_flush_all:
-#         ok, res = run(["ip", "neigh", "flush", "all"], use_sudo=True)
-#         if ok:
-#             print("[WARN] Flushed all ARP/neighbor entries (allow_flush_all=True).")
-#             return True
-
-#     # report failure
-#     stderr = ""
-#     if isinstance(res, subprocess.CompletedProcess):
-#         stderr = (res.stderr or "").strip()
-#     print(f"[WARN] Unable to clear ARP entry for {ip}. Last result: {stderr}")
-#     return False

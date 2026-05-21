@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quick Guide | Automated Cisco Configuration & Marking System</title>
+  <title>Tutorials | Automated Cisco Configuration & Marking System</title>
   <link rel="stylesheet" href="assets/style.css" />
   <link rel="stylesheet" href="assets/nav.css" />
   <style>
@@ -16,104 +16,169 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background: #f5f7fa;
+      background: var(--color-bg, #eef1f7);
       min-height: 100vh;
     }
 
-    .container {
-      display: flex;
-      min-height: 100vh;
-    }
-
-    .content {
-      flex: 1;
-      padding: 60px 40px;
-      overflow-y: auto;
-      max-width: 900px;
+    .page-shell {
+      max-width: 1400px;
       margin: 0 auto;
+      padding: 48px 56px 64px;
     }
 
-    .guide-header {
-      margin-bottom: 60px;
-      text-align: center;
+    .page-header {
+      margin-bottom: 8px;
     }
 
-    .guide-title {
-      font-size: 2.2rem;
+    .page-title {
+      font-size: 2rem;
       font-weight: 800;
-      color: #1a202c;
+      color: var(--color-primary, #1f3b73);
       margin-bottom: 12px;
       letter-spacing: -0.02em;
     }
 
-    .guide-intro {
+    .page-subtitle {
       font-size: 1rem;
       color: #718096;
       line-height: 1.6;
-      max-width: 600px;
-      margin: 0 auto;
     }
 
     .workflow-container {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 40px;
-      margin-bottom: 60px;
+      gap: 20px;
+    }
+
+    .guide-tabs {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid #d7dae3;
+      border-radius: 8px;
+      background: #f5f7fa;
+    }
+
+    .guide-tab-btn {
+      min-width: 0;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      color: #4a5568;
+      padding: 10px 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: normal;
+      line-height: 1.2;
+      transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+    }
+
+    .guide-tab-btn:hover {
+      background: #1d4ed8 !important;
+      border-color: #1d4ed8 !important;
+      color: #ffffff !important;
+    }
+
+    .guide-tab-btn.active {
+      background: #2563eb;
+      border-color: #2563eb;
+      color: #ffffff;
+    }
+
+    .guide-tab-btn.active:hover {
+      background: #0f2f68 !important;
+      border-color: #0f2f68 !important;
+      color: #ffffff !important;
+    }
+
+    .guide-panel {
+      display: none;
+    }
+
+    .guide-panel.active {
+      display: block;
+    }
+
+    .guide-panel-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .guide-note {
+      margin-top: 14px;
+      padding: 14px 16px;
+      border-left: 3px solid var(--color-accent, #0a5cbb);
+      background: #f5f7fa;
+      color: #4a5568;
+      font-size: 0.9rem;
+      line-height: 1.5;
     }
 
     .workflow-step {
       display: grid;
-      grid-template-columns: 80px 1fr;
-      gap: 24px;
-      padding: 24px;
+      grid-template-columns: 1fr;
+      padding: 32px 36px;
       background: white;
-      border-radius: 12px;
-      border: 1px solid #e2e8f0;
-      transition: box-shadow 0.3s ease, transform 0.3s ease;
+      border: 1px solid #d7dae3;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      transition: box-shadow 0.3s ease, border-color 0.3s ease;
     }
 
     .workflow-step:hover {
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(31, 59, 115, 0.08);
+      border-color: var(--color-primary, #1f3b73);
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
     }
 
     .step-number {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 80px;
-      height: 80px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      width: 48px;
+      height: 48px;
+      background: var(--color-primary, #1f3b73);
       color: white;
       font-weight: 800;
-      font-size: 2rem;
-      border-radius: 12px;
+      font-size: 1.3rem;
+      border-radius: 4px;
       flex-shrink: 0;
     }
 
-    .step-content h3 {
-      font-size: 1.3rem;
+    .step-title {
+      font-size: 1.1rem;
       font-weight: 700;
-      color: #1a202c;
-      margin-bottom: 8px;
+      color: var(--color-primary, #1f3b73);
     }
 
     .step-content p {
       font-size: 0.95rem;
       color: #4a5568;
       line-height: 1.6;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
     }
 
     .step-checklist {
       list-style: none;
-      margin: 12px 0 0 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
     }
 
     .step-checklist li {
       font-size: 0.9rem;
-      color: #718096;
-      padding: 6px 0 6px 24px;
+      color: #4a5568;
+      padding: 8px 0 8px 24px;
       position: relative;
       line-height: 1.5;
     }
@@ -122,249 +187,891 @@
       content: "✓";
       position: absolute;
       left: 0;
-      color: #48bb78;
+      color: var(--color-accent, #0a5cbb);
       font-weight: 700;
     }
 
-    .info-section {
-      background: #edf2f7;
-      border-left: 4px solid #667eea;
-      padding: 20px;
-      border-radius: 8px;
-      margin-bottom: 30px;
+    .page-card {
+      padding: 32px 36px;
+      background: white;
+      border: 1px solid #d7dae3;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      margin-bottom: 20px;
     }
 
-    .info-section-title {
+    .page-card-title {
+      font-size: 1.1rem;
       font-weight: 700;
-      color: #1a202c;
-      margin-bottom: 8px;
+      color: var(--color-primary, #1f3b73);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .page-card-content {
       font-size: 0.95rem;
-    }
-
-    .info-section-text {
-      font-size: 0.9rem;
       color: #4a5568;
       line-height: 1.6;
     }
 
-    .tools-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-      margin: 30px 0;
+    .info-list {
+      list-style: disc;
+      margin-left: 20px;
+      color: #4a5568;
+      font-size: 0.9rem;
     }
 
-    .tool-item {
-      padding: 20px;
-      background: white;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      text-align: center;
-      transition: all 0.3s ease;
-    }
-
-    .tool-item:hover {
-      border-color: #667eea;
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
-    }
-
-    .tool-item-title {
-      font-weight: 700;
-      color: #1a202c;
+    .info-list li {
       margin-bottom: 8px;
-      font-size: 0.95rem;
-    }
-
-    .tool-item-text {
-      font-size: 0.85rem;
-      color: #718096;
       line-height: 1.5;
     }
 
-    .tips-section {
-      background: white;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 32px;
-      margin-top: 40px;
+    .tutorial-steps {
+      margin-left: 20px;
+      color: #4a5568;
+      font-size: 0.92rem;
+      line-height: 1.55;
     }
 
-    .tips-title {
-      font-size: 1.3rem;
+    .tutorial-steps li {
+      margin-bottom: 10px;
+      padding-left: 4px;
+    }
+
+    .tutorial-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.75fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .tutorial-main,
+    .tutorial-side {
+      background: white;
+      border: 1px solid #d7dae3;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .tutorial-main {
+      padding: 28px 32px;
+    }
+
+    .tutorial-side {
+      padding: 22px 24px;
+    }
+
+    .tutorial-kicker {
+      margin-bottom: 8px;
+      color: var(--color-accent, #0a5cbb);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .tutorial-title {
+      margin: 0 0 10px;
+      color: var(--color-primary, #1f3b73);
+      font-size: 1.35rem;
+      font-weight: 800;
+    }
+
+    .tutorial-intro {
+      margin-bottom: 22px;
+      color: #4a5568;
+      line-height: 1.6;
+      font-size: 0.96rem;
+    }
+
+    .tutorial-steps--cards {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: tutorial-step;
+      display: grid;
+      gap: 12px;
+    }
+
+    .tutorial-steps--cards li {
+      counter-increment: tutorial-step;
+      position: relative;
+      margin: 0;
+      padding: 14px 16px 14px 54px;
+      border: 1px solid #e2e6ef;
+      border-radius: 8px;
+      background: #f8fafc;
+      color: #334155;
+      line-height: 1.5;
+    }
+
+    .tutorial-steps--cards li::before {
+      content: counter(tutorial-step);
+      position: absolute;
+      left: 16px;
+      top: 14px;
+      width: 26px;
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: #2563eb;
+      color: #ffffff;
+      font-size: 0.78rem;
+      font-weight: 800;
+    }
+
+    .tutorial-side-title {
+      margin: 0 0 12px;
+      color: var(--color-primary, #1f3b73);
+      font-size: 1rem;
+      font-weight: 800;
+    }
+
+    .tutorial-side-list {
+      margin-left: 18px;
+      color: #4a5568;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .tutorial-side-list li {
+      margin-bottom: 9px;
+    }
+
+    .code-block {
+      background: #f5f7fa;
+      padding: 16px;
+      border-radius: 4px;
+      font-family: "Courier New", monospace;
+      font-size: 0.85rem;
+      overflow-x: auto;
+      color: #1b2646;
+      margin: 16px 0;
+      line-height: 1.6;
+    }
+
+    .file-description {
+      margin-bottom: 16px;
+    }
+
+    .file-description-title {
       font-weight: 700;
-      color: #1a202c;
-      margin-bottom: 20px;
+      color: var(--color-primary, #1f3b73);
+      margin-bottom: 6px;
+      font-size: 0.95rem;
+    }
+
+    .file-description-text {
+      font-size: 0.9rem;
+      color: #4a5568;
+      line-height: 1.5;
+      margin-left: 12px;
+      border-left: 3px solid #d7dae3;
+      padding-left: 12px;
     }
 
     .tips-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 20px;
+      margin-top: 20px;
     }
 
     .tip-card {
-      padding: 16px;
-      background: #f7fafc;
-      border-left: 3px solid #48bb78;
+      padding: 20px 24px;
+      background: #f5f7fa;
+      border-left: 3px solid var(--color-accent, #0a5cbb);
       border-radius: 4px;
     }
 
-    .tip-card strong {
-      color: #1a202c;
+    .tip-card-title {
+      color: var(--color-primary, #1f3b73);
       font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 8px;
     }
 
-    .tip-card p {
+    .tip-card-text {
       font-size: 0.9rem;
       color: #4a5568;
-      margin-top: 6px;
       line-height: 1.5;
     }
 
     .footer-section {
       text-align: center;
-      margin-top: 60px;
-      padding-top: 30px;
-      border-top: 1px solid #e2e8f0;
+      margin-top: 48px;
+      padding-top: 32px;
+      border-top: 1px solid #d7dae3;
       color: #718096;
       font-size: 0.9rem;
     }
 
     @media (max-width: 768px) {
-      .content {
-        padding: 30px 20px;
+      .page-shell {
+        padding: 32px 20px 48px;
       }
 
-      .guide-title {
-        font-size: 1.8rem;
+      .page-title {
+        font-size: 1.6rem;
       }
 
-      .workflow-step {
+      .guide-tab-btn {
+        padding: 9px 5px;
+        font-size: 0.72rem;
+      }
+
+      .step-checklist {
         grid-template-columns: 1fr;
       }
 
-      .step-number {
-        width: 60px;
-        height: 60px;
-        font-size: 1.5rem;
+      .tips-grid {
+        grid-template-columns: 1fr;
       }
 
-      .tools-grid {
+      .tutorial-layout {
+        grid-template-columns: 1fr;
+      }
+
+    }
+
+    .tutorial-body {
+      background:
+        linear-gradient(180deg, rgba(232, 239, 248, 0.92) 0%, rgba(248, 250, 252, 0.95) 360px),
+        #f7f9fc;
+    }
+
+    .tutorial-shell {
+      max-width: none;
+      width: 100%;
+      padding: 36px 42px 56px;
+    }
+
+    .tutorial-shell .page-header {
+      margin-bottom: 18px;
+      padding: 22px 24px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+    }
+
+    .tutorial-shell .page-title {
+      margin-bottom: 7px;
+      color: var(--color-heading);
+      font-size: 1.55rem;
+      letter-spacing: 0;
+    }
+
+    .tutorial-shell .page-subtitle {
+      max-width: none;
+      width: 100%;
+      color: var(--color-muted);
+      line-height: 1.45;
+    }
+
+    .guide-tabs {
+      gap: 10px;
+      margin-bottom: 18px;
+      padding: 6px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+    }
+
+    .guide-tab-btn {
+      min-height: 52px;
+      padding: 9px 10px;
+      border: 1px solid rgba(148, 163, 184, 0.38);
+      border-radius: 6px;
+      background: #ffffff;
+      color: #526173;
+      font-size: 0.76rem;
+      line-height: 1.18;
+    }
+
+    .guide-tab-btn:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+      color: #172033;
+    }
+
+    .guide-tab-btn.active {
+      background: #0a5cbb;
+      border-color: #0a5cbb;
+      color: #ffffff;
+      box-shadow: 0 10px 22px rgba(10, 92, 187, 0.22);
+    }
+
+    .guide-tab-btn.active:hover {
+      background: #063f88 !important;
+      border-color: #063f88 !important;
+      color: #ffffff !important;
+      box-shadow: 0 12px 26px rgba(6, 63, 136, 0.28);
+    }
+
+    .workflow-container {
+      gap: 18px;
+    }
+
+    .workflow-step,
+    .page-card,
+    .tutorial-main,
+    .tutorial-side {
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+    }
+
+    .workflow-step {
+      padding: 22px;
+    }
+
+    .workflow-step:hover {
+      border-color: rgba(10, 92, 187, 0.45);
+      box-shadow: 0 16px 38px rgba(15, 23, 42, 0.09);
+    }
+
+    .step-header {
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .step-number,
+    .tutorial-steps--cards li::before {
+      background: #0a5cbb;
+      border-radius: 50%;
+      box-shadow: inset 0 0 0 1px rgba(10, 92, 187, 0.12);
+    }
+
+    .step-title,
+    .page-card-title,
+    .tutorial-title,
+    .tutorial-side-title,
+    .tip-card-title,
+    .file-description-title {
+      color: var(--color-heading);
+    }
+
+    .step-content,
+    .step-content p,
+    .step-checklist li,
+    .page-card-content,
+    .info-list,
+    .tutorial-intro,
+    .tutorial-side-list,
+    .tip-card-text,
+    .file-description-text {
+      color: #526173;
+    }
+
+    .page-card,
+    .tutorial-main,
+    .tutorial-side {
+      padding: 22px;
+    }
+
+    .guide-note,
+    .tip-card,
+    .tutorial-steps--cards li,
+    .raw-command-toolbar,
+    .code-block {
+      border-color: rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .guide-note,
+    .tip-card {
+      border-left-color: #0a5cbb;
+    }
+
+    .tutorial-layout {
+      grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+      gap: 18px;
+    }
+
+    .tutorial-kicker {
+      color: #0a5cbb;
+    }
+
+    .tutorial-steps--cards {
+      gap: 10px;
+    }
+
+    .tutorial-steps--cards li {
+      border-color: rgba(148, 163, 184, 0.28);
+      background: #f8fafc;
+    }
+
+    .code-block {
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      color: #172033;
+    }
+
+    .footer-section {
+      margin-top: 32px;
+      border-top-color: rgba(148, 163, 184, 0.28);
+      color: var(--color-muted);
+    }
+
+    @media (max-width: 1180px) {
+      .guide-tabs {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 768px) {
+      .tutorial-shell {
+        padding: 20px 14px 32px;
+      }
+
+      .tutorial-shell .page-header,
+      .workflow-step,
+      .page-card,
+      .tutorial-main,
+      .tutorial-side {
+        padding: 18px;
+      }
+
+      .guide-tabs {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 520px) {
+      .guide-tabs {
         grid-template-columns: 1fr;
       }
     }
   </style>
 </head>
 
-<body>
-  <div class="container">
-    <nav class="app-navbar"></nav>
-    <div class="content">
-      <div class="guide-header">
-        <h1 class="guide-title">Quick Guide</h1>
-        <p class="guide-intro">Follow these simple steps to get started with the Automated Cisco Configuration & Marking System.</p>
-      </div>
+<body class="tutorial-body">
+  <div id="navbarContainer"></div>
+  
+  <div class="page-shell tutorial-shell">
+    <div class="page-header">
+      <h1 class="page-title">Tutorials</h1>
+      <p class="page-subtitle">Follow the current app workflow: build a template, prepare student folders, collect device output, review results, and export when ready.</p>
+    </div>
 
-      <div class="workflow-container">
-        <div class="workflow-step">
+    <div class="guide-tabs" id="quickGuideTabs" role="tablist" aria-label="Quick Guide Sections">
+      <button type="button" class="guide-tab-btn active" data-target="quickGuidesPanel" role="tab" aria-selected="true">Quick Guides</button>
+      <button type="button" class="guide-tab-btn" data-target="deviceSetupGuidePanel" role="tab" aria-selected="false">Device Setup</button>
+      <button type="button" class="guide-tab-btn" data-target="directoryGuidePanel" role="tab" aria-selected="false">Directory</button>
+      <button type="button" class="guide-tab-btn" data-target="connectionGuidePanel" role="tab" aria-selected="false">Connection</button>
+      <button type="button" class="guide-tab-btn" data-target="resultsGuidePanel" role="tab" aria-selected="false">Results</button>
+      <button type="button" class="guide-tab-btn" data-target="melbourneGuidePanel" role="tab" aria-selected="false">Export to Melbourne</button>
+      <button type="button" class="guide-tab-btn" data-target="sampleLogsGuidePanel" role="tab" aria-selected="false">Sample Logs</button>
+      <button type="button" class="guide-tab-btn" data-target="systemAdminGuidePanel" role="tab" aria-selected="false">System Admin</button>
+    </div>
+
+    <div id="quickGuidesPanel" class="guide-panel active" role="tabpanel">
+    <div class="workflow-container">
+      <div class="workflow-step">
+        <div class="step-header">
           <div class="step-number">1</div>
-          <div class="step-content">
-            <h3>Device Setup</h3>
-            <p>Prepare your Cisco device and establish a baseline configuration.</p>
-            <ul class="step-checklist">
-              <li>Connect via Serial or SSH</li>
-              <li>Verify device responsiveness</li>
-              <li>Create baseline snapshot</li>
-              <li>Confirm setup complete</li>
-            </ul>
-          </div>
+          <div class="step-title">Device Setup</div>
         </div>
+        <p class="step-content">Choose how to create a template, then define devices, commands, and baseline logs when required.</p>
+        <ul class="step-checklist">
+          <li>Select a setup mode</li>
+          <li>Name or load a template</li>
+          <li>Add devices and commands</li>
+          <li>Attach or import baseline logs</li>
+        </ul>
+      </div>
 
-        <div class="workflow-step">
+      <div class="workflow-step">
+        <div class="step-header">
           <div class="step-number">2</div>
-          <div class="step-content">
-            <h3>Create Directory</h3>
-            <p>Set up the workspace for storing student files and session data.</p>
-            <ul class="step-checklist">
-              <li>Enter exam name</li>
-              <li>Specify tutor/classroom</li>
-              <li>Set time slot</li>
-              <li>Add student ID</li>
-            </ul>
-          </div>
+          <div class="step-title">Prepare Directory</div>
         </div>
+        <p class="step-content">Set up the workspace for storing student files and session data.</p>
+        <ul class="step-checklist">
+          <li>Enter classroom</li>
+          <li>Enter tutor name</li>
+          <li>Set time slot</li>
+          <li>Create, select, or bulk import students</li>
+        </ul>
+      </div>
 
-        <div class="workflow-step">
+      <div class="workflow-step">
+        <div class="step-header">
           <div class="step-number">3</div>
-          <div class="step-content">
-            <h3>Run Connection</h3>
-            <p>Execute the grading workflow and collect student configuration data.</p>
-            <ul class="step-checklist">
-              <li>Select connection method</li>
-              <li>Configure parameters</li>
-              <li>Start execution</li>
-              <li>Monitor progress</li>
-            </ul>
-          </div>
+          <div class="step-title">Run Connection</div>
         </div>
+        <p class="step-content">Collect command output for each queued device and monitor the run.</p>
+        <ul class="step-checklist">
+          <li>Confirm device queue</li>
+          <li>Choose Serial or SSH</li>
+          <li>Start execution</li>
+          <li>Monitor Activity Log and Terminal Output</li>
+        </ul>
+      </div>
 
-        <div class="workflow-step">
+      <div class="workflow-step">
+        <div class="step-header">
           <div class="step-number">4</div>
-          <div class="step-content">
-            <h3>Review Results</h3>
-            <p>Examine marks, collected data, and execution logs.</p>
-            <ul class="step-checklist">
-              <li>View overall marks</li>
-              <li>Review config files</li>
-              <li>Check execution logs</li>
-              <li>Download results</li>
-            </ul>
-          </div>
+          <div class="step-title">Review Results</div>
+        </div>
+        <p class="step-content">Review grading output and confirm the collected data is ready for export or records.</p>
+        <ul class="step-checklist">
+          <li>View comparison results</li>
+          <li>Check command evidence</li>
+          <li>Review warnings</li>
+          <li>Confirm before export</li>
+        </ul>
+      </div>
+
+      <div class="workflow-step">
+        <div class="step-header">
+          <div class="step-number">5</div>
+          <div class="step-title">Export Melbourne</div>
+        </div>
+        <p class="step-content">Export completed session data in the Melbourne format after results have been checked.</p>
+        <ul class="step-checklist">
+          <li>Open Export Melbourne</li>
+          <li>Confirm export settings</li>
+          <li>Review devices and schemes</li>
+          <li>Check the export log</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="page-card">
+      <div class="page-card-title">📁 Data Storage</div>
+      <div class="page-card-content">All student data and results are stored in <strong>D:\Documents</strong> organized by exam, tutor, time slot, and student ID.</div>
+    </div>
+
+    <div class="page-card">
+      <div class="page-card-title">Understanding Export Melbourne</div>
+      <div class="page-card-content">
+        <p style="margin-bottom: 12px;">After collecting and reviewing student data, Export Melbourne prepares the completed session for submission. This process:</p>
+        <ul class="info-list">
+          <li>Uses the selected session and student workspace created from Directory.</li>
+          <li>Shows export settings before the export is run.</li>
+          <li>Lists devices so you can verify the expected template data is present.</li>
+          <li>Writes progress and results to the export log.</li>
+          <li>Should be run after connection collection and results review are complete.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="page-card">
+      <div class="page-card-title">📂 Directory Structure Format</div>
+      <div class="page-card-content">
+        <div class="code-block">comparison_engine/students/<br/>├── student_001/<br/>│&nbsp;&nbsp;&nbsp;├── exam_info.toml<br/>│&nbsp;&nbsp;&nbsp;├── options.ini<br/>│&nbsp;&nbsp;&nbsp;├── solutions.toml<br/>│&nbsp;&nbsp;&nbsp;└── hostname/<br/>│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── sh_run.txt<br/>│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── sh_ip_int_brief.txt<br/>│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── ... (execution logs files)<br/>├── student_002/<br/>│&nbsp;&nbsp;&nbsp;├── exam_info.toml<br/>│&nbsp;&nbsp;&nbsp;├── options.ini<br/>│&nbsp;&nbsp;&nbsp;├── solutions.toml<br/>│&nbsp;&nbsp;&nbsp;└── hostname/<br/>│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── sh_run.txt<br/>│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── sh_ip_int_brief.txt<br/>│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── ... (execution logs files)<br/>└── ...</div>
+      </div>
+    </div>
+
+    <div class="page-card">
+      <div class="page-card-title">📋 Generated Files Explained</div>
+      <div class="page-card-content">
+        <div class="file-description">
+          <div class="file-description-title">exam_info.toml (per student)</div>
+          <div class="file-description-text">Contains exam metadata including exam name, rubrics (Major_Minor with maximum points and penalty values), and option scheme. Extracted from exam_config.toml to maintain exam context for each student's grading session.</div>
+        </div>
+        
+        <div class="file-description">
+          <div class="file-description-title">options.ini (per student)</div>
+          <div class="file-description-text">Stores the student scheme configuration (e.g., scheme = B). Defines the specific grading scheme and marking rules applied to that student's configuration evaluation.</div>
+        </div>
+        
+        <div class="file-description">
+          <div class="file-description-title">solutions.toml (per student)</div>
+          <div class="file-description-text">Comprehensive reference solution file containing exam details (name, semester, unitcode, shortname), device information (device names, types such as Switch/Router), commands executed on each device, collection settings (data_source, parallel execution, timeout), and rubric definitions. Used as the baseline for marking student configurations.</div>
+        </div>
+        
+        <div class="file-description">
+          <div class="file-description-title">hostname/ (logs directory)</div>
+          <div class="file-description-text">Execution logs are organized by hostname within each student's folder, containing sh_run.txt, sh_ip_int_brief.txt, and other command outputs. Maintains a clear audit trail of execution history and device interactions.</div>
         </div>
       </div>
+    </div>
 
-      <div class="info-section">
-        <div class="info-section-title">📁 Data Storage</div>
-        <div class="info-section-text">All student data and results are stored in <strong>D:\Documents</strong> organized by exam, tutor, time slot, and student ID.</div>
+    <div class="page-card">
+      <div class="page-card-title">When to Export</div>
+      <div class="page-card-content">
+        <p style="margin-bottom: 12px;"><strong>Ideal Timing:</strong></p>
+        <ul class="info-list">
+          <li><strong>After all students complete</strong> - Once all student executions are finished and data is collected</li>
+          <li><strong>After reviewing results</strong> - Once marks, warnings, and collected logs have been checked</li>
+          <li><strong>Before submission</strong> - When you need a packaged Melbourne export</li>
+          <li><strong>For records</strong> - To keep a standardized export for the completed session</li>
+        </ul>
+        <p style="margin-top: 12px; margin-bottom: 0; color: #718096; font-size: 0.85rem;"><strong>Note:</strong> Do not export before the session data and results are confirmed.</p>
       </div>
+    </div>
 
-      <div class="tips-section">
-        <h2 class="tips-title">Helpful Tips</h2>
-        <div class="tips-grid">
-          <div class="tip-card">
-            <strong>🔌 Connection Stability</strong>
-            <p>Do not disconnect the device while execution is running. Connection interruption may result in incomplete data collection.</p>
-          </div>
-          <div class="tip-card">
-            <strong>⚙️ Device Preparation</strong>
-            <p>Always verify baseline configuration before proceeding. A proper baseline ensures accurate grading results.</p>
-          </div>
-          <div class="tip-card">
-            <strong>✓ Data Verification</strong>
-            <p>Review results immediately after completion to ensure all data was collected successfully before proceeding.</p>
-          </div>
-          <div class="tip-card">
-            <strong>📊 Additional Tools</strong>
-            <p>Use System Admin for configuration and Sample Logs for validation and troubleshooting issues.</p>
-          </div>
+    <div class="page-card">
+      <div class="page-card-title">💡 Helpful Tips</div>
+      <div class="tips-grid">
+        <div class="tip-card">
+          <div class="tip-card-title">🔌 Connection Stability</div>
+          <div class="tip-card-text">Do not disconnect the device while execution is running. Connection interruption may result in incomplete data collection.</div>
+        </div>
+        <div class="tip-card">
+          <div class="tip-card-title">⚙️ Device Preparation</div>
+          <div class="tip-card-text">Always verify devices, commands, and baseline logs before collecting student output.</div>
+        </div>
+        <div class="tip-card">
+          <div class="tip-card-title">✓ Data Verification</div>
+          <div class="tip-card-text">Review results immediately after completion to ensure all data was collected successfully before proceeding.</div>
+        </div>
+        <div class="tip-card">
+          <div class="tip-card-title">📊 Export for Analysis</div>
+          <div class="tip-card-text">Use Export Melbourne after results are checked and the session is ready for submission or records.</div>
+        </div>
+        <div class="tip-card">
+          <div class="tip-card-title">🔍 Configuration Inspection</div>
+          <div class="tip-card-text">Use Results and the saved student folders to inspect collected command output and configuration differences.</div>
+        </div>
+        <div class="tip-card">
+          <div class="tip-card-title">📋 Additional Tools</div>
+          <div class="tip-card-text">Use System Admin for configuration and Sample Logs for validation and troubleshooting issues.</div>
         </div>
       </div>
+    </div>
 
-      <div class="footer-section">
-        <p>For more help or issues, contact your system administrator.</p>
+    </div>
+
+    <div id="deviceSetupGuidePanel" class="guide-panel" role="tabpanel">
+      <div class="tutorial-layout">
+        <section class="tutorial-main">
+          <div class="tutorial-kicker">Template preparation</div>
+          <h2 class="tutorial-title">Device Setup Tutorial</h2>
+          <p class="tutorial-intro">Use this page to create the template that tells the app which devices and commands should be collected or graded.</p>
+          <ol class="tutorial-steps--cards">
+            <li>Open <strong>Device Setup</strong> and choose a setup mode: build a full template manually, create a device list only, or build from a collected logs folder.</li>
+            <li>Enter a <strong>Template Name</strong>. Leave it blank only when you want to load an existing template from the saved template list.</li>
+            <li>If you choose <strong>Build From Logs Folder</strong>, click <strong>Choose Logs Folder</strong> and select the collected folder that contains one folder per hostname.</li>
+            <li>For manual modes, add each device, enter a clear hostname, and select the commands that should be collected or graded.</li>
+            <li>When building a full template manually, attach the matching raw log file for each selected command.</li>
+            <li>Click the save button at the bottom. The saved template becomes the active template used by Sample Logs and Connection.</li>
+          </ol>
+        </section>
+        <aside class="tutorial-side">
+          <h3 class="tutorial-side-title">Before You Leave</h3>
+          <ul class="tutorial-side-list">
+            <li>Every device should have a clear hostname such as R1 or S1.</li>
+            <li>Every required command should be selected for the correct device.</li>
+            <li>Baseline logs should exist when the mode requires them.</li>
+            <li>Use Clear Selection only when restarting the setup mode choice.</li>
+          </ul>
+        </aside>
       </div>
+    </div>
+
+    <div id="directoryGuidePanel" class="guide-panel" role="tabpanel">
+      <div class="tutorial-layout">
+        <section class="tutorial-main">
+          <div class="tutorial-kicker">Student workspace</div>
+          <h2 class="tutorial-title">Directory Tutorial</h2>
+          <p class="tutorial-intro">Use this page to create or select the folder where student logs and session data will be saved.</p>
+          <ol class="tutorial-steps--cards">
+            <li>Open <strong>Directory</strong> before running a connection. This page prepares the student workspace where collected logs will be saved.</li>
+            <li>Use <strong>Create New</strong> to create one student folder. Enter classroom, tutor name, time, student ID, and optional student name.</li>
+            <li>Use <strong>Use Existing</strong> when a session already exists. Choose the session, then pick the student folder you want to work on.</li>
+            <li>Use <strong>Bulk Create from File</strong> to create many student folders from CSV, TXT, XLSX, or XLS.</li>
+            <li>For bulk import, leave <strong>Title row?</strong>, <strong>Header row?</strong>, and <strong>Number column?</strong> on only when your file contains those parts.</li>
+            <li>After the directory is created or selected, continue to Connection to collect logs for that student.</li>
+          </ol>
+        </section>
+        <aside class="tutorial-side">
+          <h3 class="tutorial-side-title">Check These</h3>
+          <ul class="tutorial-side-list">
+            <li>Classroom, tutor name, and time should match the actual session.</li>
+            <li>Student IDs should be correct before folders are created.</li>
+            <li>Bulk import switches should match the shape of the file.</li>
+            <li>The selected student is the one Connection will use next.</li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+
+    <div id="connectionGuidePanel" class="guide-panel" role="tabpanel">
+      <div class="tutorial-layout">
+        <section class="tutorial-main">
+          <div class="tutorial-kicker">Device collection</div>
+          <h2 class="tutorial-title">Connection Tutorial</h2>
+          <p class="tutorial-intro">Use this page to run the device queue, collect command output, and monitor live execution.</p>
+          <ol class="tutorial-steps--cards">
+            <li>Open <strong>Connection</strong> after selecting a directory and saving a device template.</li>
+            <li>Review the <strong>Device Queue</strong>. Click a device row to preview its commands, or click <strong>Collect this</strong> to start from a specific device.</li>
+            <li>Choose <strong>Serial</strong> or <strong>SSH</strong>. For Serial, select the matching preset or choose Custom and enter the port. For SSH, enter host, port, username, and password.</li>
+            <li>Click <strong>Start Auto-Execution Sequence</strong>. Follow the prompts when the app asks you to plug in or confirm the next device.</li>
+            <li>Use <strong>Activity Log</strong> for workflow messages and <strong>Terminal Output</strong> for raw command output.</li>
+            <li>When collection finishes, click <strong>Next Student</strong> or <strong>Start Grading</strong>, depending on the session state.</li>
+            <li>Use the reset controls only after grading is complete. Reset actions erase device configuration and cannot be undone.</li>
+          </ol>
+        </section>
+        <aside class="tutorial-side">
+          <h3 class="tutorial-side-title">During Collection</h3>
+          <ul class="tutorial-side-list">
+            <li>Do not unplug the active device while commands are running.</li>
+            <li>Use Activity Log for app messages and Terminal Output for raw device text.</li>
+            <li>Stop execution only when the wrong device or wrong connection is being used.</li>
+            <li>Reset devices only after grading is complete.</li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+
+    <div id="resultsGuidePanel" class="guide-panel" role="tabpanel">
+      <div class="tutorial-layout">
+        <section class="tutorial-main">
+          <div class="tutorial-kicker">Review and confirm</div>
+          <h2 class="tutorial-title">Results Tutorial</h2>
+          <p class="tutorial-intro">Use this page to inspect comparison output before moving to export or records.</p>
+          <ol class="tutorial-steps--cards">
+            <li>Open <strong>Results</strong> after collection or grading has completed.</li>
+            <li>Review the comparison output for the selected student and confirm that the expected device data is present.</li>
+            <li>Check command evidence and warning messages before accepting the result.</li>
+            <li>If something looks missing, return to Directory or Connection and verify that the correct student and template were used.</li>
+            <li>Once results are confirmed, continue to Export Melbourne if the session is ready for submission or records.</li>
+          </ol>
+        </section>
+        <aside class="tutorial-side">
+          <h3 class="tutorial-side-title">Look For</h3>
+          <ul class="tutorial-side-list">
+            <li>Correct student and session context.</li>
+            <li>Expected devices and commands.</li>
+            <li>Warnings or missing command output.</li>
+            <li>Scores that align with the rubric and collected evidence.</li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+
+    <div id="melbourneGuidePanel" class="guide-panel" role="tabpanel">
+      <div class="tutorial-layout">
+        <section class="tutorial-main">
+          <div class="tutorial-kicker">Submission export</div>
+          <h2 class="tutorial-title">Export to Melbourne Tutorial</h2>
+          <p class="tutorial-intro">Use this page after results are reviewed to prepare the completed session for Melbourne submission or records.</p>
+          <ol class="tutorial-steps--cards">
+            <li>Open <strong>Export Melbourne</strong> after collection and result review are complete.</li>
+            <li>Check the summary at the top so you know which student/session and devices are being exported.</li>
+            <li>Review <strong>Export Settings</strong> and confirm the selected output details.</li>
+            <li>Review the <strong>Devices</strong> table to make sure the expected template devices and schemes are present.</li>
+            <li>Click <strong>Export</strong> when everything is correct.</li>
+            <li>Read the <strong>Export Log</strong> to confirm whether the export completed or needs attention.</li>
+          </ol>
+        </section>
+        <aside class="tutorial-side">
+          <h3 class="tutorial-side-title">Export Safely</h3>
+          <ul class="tutorial-side-list">
+            <li>Export only after collection and result review are complete.</li>
+            <li>Confirm the student/session context before clicking Export.</li>
+            <li>Review the Devices table for missing devices or schemes.</li>
+            <li>Keep the export log visible until the run finishes.</li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+
+    <div id="sampleLogsGuidePanel" class="guide-panel" role="tabpanel">
+      <div class="tutorial-layout">
+        <section class="tutorial-main">
+          <div class="tutorial-kicker">Baseline collection</div>
+          <h2 class="tutorial-title">Sample Logs Tutorial</h2>
+          <p class="tutorial-intro">Use this page to collect baseline logs for a template that was created as a device list first.</p>
+          <ol class="tutorial-steps--cards">
+            <li>Open <strong>Sample Logs</strong> when you need to collect baseline logs for a device-list template.</li>
+            <li>Choose a save directory and enter a new folder name for the collected sample logs.</li>
+            <li>Load the template that contains the devices and commands you want to collect.</li>
+            <li>Select the device and commands to collect. Use <strong>Select All</strong> or <strong>Clear</strong> to adjust the command list quickly.</li>
+            <li>Choose Serial or SSH connection details, then start collection.</li>
+            <li>Watch the logs while collection runs. Stop collection only if the device or connection is wrong.</li>
+            <li>After collection, the folder should contain one folder per hostname with raw command output files inside.</li>
+          </ol>
+        </section>
+        <aside class="tutorial-side">
+          <h3 class="tutorial-side-title">Folder Result</h3>
+          <ul class="tutorial-side-list">
+            <li>One collected folder should contain the sample run.</li>
+            <li>Each hostname should have its own folder.</li>
+            <li>Each command should save as a raw output file.</li>
+            <li>The collected folder can be used in Device Setup's logs-folder workflow.</li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+
+    <div id="systemAdminGuidePanel" class="guide-panel" role="tabpanel">
+      <div class="tutorial-layout">
+        <section class="tutorial-main">
+          <div class="tutorial-kicker">Global settings</div>
+          <h2 class="tutorial-title">System Admin Tutorial</h2>
+          <p class="tutorial-intro">Use this page for system-wide settings that affect templates, marking, grouping, and cleanup.</p>
+          <ol class="tutorial-steps--cards">
+            <li>Open <strong>System Admin</strong> when you need to maintain global setup used by the rest of the app.</li>
+            <li>Use <strong>Commands</strong> to add or remove command names available in Device Setup and Sample Logs.</li>
+            <li>Use <strong>Grading Policy</strong> to adjust policy settings that affect marking behavior.</li>
+            <li>Use <strong>Rubric Defaults</strong> to manage default rubric content used during grading.</li>
+            <li>Use <strong>Grouping & Dedup</strong> to manage grouping and deduplication behavior.</li>
+            <li>Use <strong>System Cleanup</strong> carefully. Cleanup actions can delete saved data, templates, or results depending on the selected control.</li>
+            <li>After making admin changes, return to Device Setup or Results and verify the new behavior before using it in a live session.</li>
+          </ol>
+        </section>
+        <aside class="tutorial-side">
+          <h3 class="tutorial-side-title">Admin Caution</h3>
+          <ul class="tutorial-side-list">
+            <li>Command changes affect future templates and collections.</li>
+            <li>Policy and rubric changes affect marking behavior.</li>
+            <li>Cleanup tools may remove saved system data.</li>
+            <li>Test changes before using them in a live marking session.</li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+
+    <div class="footer-section">
+      <p>For more help or issues, contact your system administrator.</p>
     </div>
   </div>
 
   <script src="renderer.js"></script>
   <script>
-    // Load navbar
-    fetch('navbar.html')
-      .then(response => response.text())
-      .then(html => {
-        const nav = document.querySelector('.app-navbar');
-        nav.outerHTML = html;
+    document.addEventListener("DOMContentLoaded", () => {
+      const tabsRoot = document.getElementById("quickGuideTabs");
+      if (!tabsRoot) return;
+      const tabs = Array.from(tabsRoot.querySelectorAll(".guide-tab-btn"));
+      const panels = tabs
+        .map((tab) => document.getElementById(tab.dataset.target || ""))
+        .filter(Boolean);
+
+      const activateGuideTab = (targetId, { updateHash = false } = {}) => {
+        const targetTab = tabs.find((tab) => tab.dataset.target === targetId) || tabs[0];
+        const resolvedTargetId = targetTab?.dataset.target || "";
+        tabs.forEach((item) => {
+          const isActive = item === targetTab;
+          item.classList.toggle("active", isActive);
+          item.setAttribute("aria-selected", isActive ? "true" : "false");
+        });
+        panels.forEach((panel) => {
+          panel.classList.toggle("active", panel.id === resolvedTargetId);
+        });
+        if (updateHash && resolvedTargetId) {
+          history.replaceState(null, "", `#${resolvedTargetId}`);
+        }
+      };
+
+      tabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+          activateGuideTab(tab.dataset.target || "", { updateHash: true });
+        });
       });
+
+      activateGuideTab(window.location.hash.slice(1) || "quickGuidesPanel");
+    });
   </script>
 </body>
 

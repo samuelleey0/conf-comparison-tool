@@ -1,12 +1,22 @@
 {
-  "name": "electron-gui",
+  "name": "accms",
   "version": "1.0.0",
   "description": "Frontend desktop app for Automated Cisco Configuration & Marking System",
+  "homepage": "https://github.com/samuelleey0/conf-comparison-tool",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "build:backend": "powershell -ExecutionPolicy Bypass -File ./scripts/build-backend.ps1",
+    "build:backend:linux": "bash ./scripts/build-backend.sh",
+    "build:installer": "npm run build:backend && electron-builder --win nsis",
+    "build:installer:ubuntu": "npm run build:backend:linux && electron-builder --linux AppImage deb",
+    "install:ubuntu": "bash ./scripts/install-ubuntu.sh",
+    "uninstall:ubuntu": "bash ./scripts/uninstall-ubuntu.sh",
+    "build:portable": "npm run build:backend && electron-builder --win portable",
+    "build:windows": "npm run build:backend && electron-builder --win nsis portable",
+    "build:linux": "npm run build:installer:ubuntu"
   },
   "keywords": [
     "electron",
@@ -15,7 +25,10 @@
     "automation",
     "flask"
   ],
-  "author": "ICT30018 2026_S1 FYP ConfigSphere Team",
+  "author": {
+    "name": "ICT30018 2026_S1 FYP ConfigSphere Team",
+    "email": "maintainer@example.com"
+  },
   "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
@@ -27,28 +40,57 @@
   },
   "build": {
     "appId": "com.cisco.config-tool",
-    "productName": "Cisco Config Comparison Tool",
+    "productName": "ACCMS",
     "directories": {
       "buildResources": "assets"
     },
+    "artifactName": "accms-${version}-${os}-${arch}.${ext}",
     "win": {
+      "signAndEditExecutable": false,
       "target": [
+        "nsis",
         "portable"
       ]
+    },
+    "linux": {
+      "maintainer": "ICT30018 2026_S1 FYP ConfigSphere Team <maintainer@example.com>",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Education"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Cisco Config Tool"
+      "shortcutName": "ACCMS"
     },
     "files": [
-      "main.js",
-      "renderer.js",
+      "*.js",
       "*.html",
       "assets/**/*",
       "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "backend-dist/conf-comparison-server",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      }
     ]
   }
 }

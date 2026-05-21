@@ -1,3 +1,10 @@
+"""
+Canonical comparison logic for parsed Cisco configs.
+
+This module compares a template device config against a student's parsed config,
+assigns ACCMS outcome codes, and adds higher-level verification checks used by
+server.py grading/report generation.
+"""
 import re
 import json
 import ipaddress
@@ -21,6 +28,7 @@ VALUE_NOT_PRESENT = "__ACCMS_NOT_PRESENT__"
 
 
 def _normalize_interface_list_value(value):
+    """Convert interface list values into sorted unique strings."""
     if isinstance(value, list):
         cleaned = [str(item).strip() for item in value if str(item).strip()]
         return sorted(set(cleaned))
@@ -38,6 +46,7 @@ def _normalize_interface_list_value(value):
 
 
 def _is_nat_stats_path(full_key: str) -> bool:
+    """Return True when a comparison path points at NAT statistics output."""
     return (
         full_key.endswith("verification.show_ip_nat_statistics")
         or ".verification.show_ip_nat_statistics." in full_key
@@ -45,6 +54,7 @@ def _is_nat_stats_path(full_key: str) -> bool:
 
 
 def _normalize_role_name(value: str) -> str:
+    """Convert a scheme role name into a stable token-safe identifier."""
     sanitized = re.sub(r"[^a-zA-Z0-9]+", "_", str(value).strip().lower())
     return sanitized.strip("_") or "unknown"
 
@@ -88,6 +98,7 @@ def _extract_vlan_tokens_from_scheme(scheme: dict) -> dict:
 
 
 def _replace_vlan_ids_in_text(text: str, vlan_token_map: dict) -> str:
+    """Replace VLAN number tokens in text with scheme-normalized VLAN tokens."""
     if not text:
         return text
 
@@ -102,6 +113,7 @@ def _replace_vlan_ids_in_text(text: str, vlan_token_map: dict) -> str:
 def _normalize_value(
     value, vlan_token_map: dict, key_hint: str = "", parent_key: str = ""
 ):
+    """Recursively normalize VLAN IDs inside parsed config values."""
     if isinstance(value, dict):
         normalized = {}
         for key, child in value.items():
@@ -330,7 +342,7 @@ def _check_configured_but_shutdown(interfaces):
     return results
 
 
-def _check_acl_not_applied(access_lists, interfaces, nat=None):
+def _check_acl_not_applied(access_lists, interfaces, nat=None, template_access_lists=None):
     """Detect ACLs that are created but not applied to any interface.
     Returns list of outcome dicts.
     """
@@ -360,15 +372,27 @@ def _check_acl_not_applied(access_lists, interfaces, nat=None):
         if acl_name:
             applied_acls.add(acl_name)
 
+    template_access_lists = template_access_lists or {}
     for acl_name in access_lists:
         if acl_name not in applied_acls:
+            in_template = acl_name in template_access_lists
             results.append(
                 {
                     "feature": f"show_running_config.access_lists.{acl_name}.applied",
-                    "expected": "ACL applied to at least one interface",
-                    "actual": "ACL not applied to any interface",
-                    "status": "missing",
-                    "outcome_code": "MISSING_ACL_APPLIED",
+                    "expected": (
+                        "ACL applied to at least one interface"
+                        if in_template
+                        else "No unused ACL created"
+                    ),
+                    "actual": (
+                        "ACL not applied to any interface"
+                        if in_template
+                        else f"ACL {acl_name} exists but is not applied to any interface"
+                    ),
+                    "status": "missing" if in_template else "extra",
+                    "outcome_code": (
+                        "MISSING_ACL_APPLIED" if in_template else "NON_APPLIED_ACL"
+                    ),
                 }
             )
 
@@ -416,6 +440,7 @@ def _classify_static_routes(static_routes):
 
 
 def _as_ipv4_address(value):
+    """Parse a value as IPv4Address, returning None when invalid."""
     try:
         return ipaddress.IPv4Address(str(value or "").strip())
     except Exception:
@@ -423,6 +448,7 @@ def _as_ipv4_address(value):
 
 
 def _as_ipv4_network(network, mask):
+    """Parse network/mask values as IPv4Network, returning None when invalid."""
     try:
         return ipaddress.IPv4Network(
             f"{str(network or '').strip()}/{str(mask or '').strip()}",
@@ -433,6 +459,7 @@ def _as_ipv4_network(network, mask):
 
 
 def _route_network_key(route):
+    """Return a comparable destination key for a static route dict."""
     if not isinstance(route, dict):
         return None
     network = str(route.get("network") or route.get("destination") or "").strip()
@@ -451,6 +478,7 @@ def _route_network_key(route):
 
 
 def _lookup_interface_config(interface_name, interfaces):
+    """Find an interface config by name using case-insensitive matching."""
     if not interface_name or not isinstance(interfaces, dict):
         return None
     wanted = str(interface_name).strip().lower()
@@ -461,6 +489,7 @@ def _lookup_interface_config(interface_name, interfaces):
 
 
 def _interface_connected_network(interface_name, interfaces):
+    """Return the connected IPv4 network for an interface, if configured."""
     config = _lookup_interface_config(interface_name, interfaces)
     if not config:
         return None
@@ -513,6 +542,7 @@ def _compare_static_route_lists(
     student_interfaces,
     full_key,
 ):
+    """Compare static routes with special handling for equivalent next hops."""
     template_routes = [r for r in (template_routes or []) if isinstance(r, dict)]
     student_routes = [r for r in (student_routes or []) if isinstance(r, dict)]
 
@@ -897,6 +927,9 @@ def _outcome_code_for_path(full_key, status):
     if ".rip" in full_key and full_key.endswith(".version"):
         return "MISMATCH_RIP_VERSION"
 
+    if full_key.endswith(".routing.rip"):
+        return "MISMATCH_ROUTING_PASSIVE"
+
     # Routing networks
     if ".routing." in full_key and ".networks" in full_key:
         if status == "missing":
@@ -1097,6 +1130,8 @@ def _outcome_code_for_path(full_key, status):
 
     # Console
     if ".console." in full_key:
+        if "transport" in full_key:
+            return "MISMATCH_VTY_TRANSPORT"
         if "password" in full_key:
             if status == "missing":
                 return "MISSING_LINE_PASSWORD"
@@ -1240,6 +1275,7 @@ def _make_result(feature, status, expected=_UNSET, actual=_UNSET, outcome_code=N
 
 
 def _route_codes(routes):
+    """Return the set of route code tokens present in parsed route entries."""
     codes = set()
     if not isinstance(routes, list):
         return codes
@@ -1253,6 +1289,7 @@ def _route_codes(routes):
 
 
 def _route_destinations(routes):
+    """Return learned/static route destinations, excluding connected/local routes."""
     destinations = set()
     if not isinstance(routes, list):
         return destinations
@@ -1273,6 +1310,7 @@ def _route_destinations(routes):
 
 
 def _verification_outcome_code_for_path(full_key, status, expected=None, actual=None):
+    """Map verification comparison paths to user-facing outcome codes."""
     feature = str(full_key or "")
     if not feature.startswith("verification."):
         return None
@@ -1384,6 +1422,7 @@ def _verification_outcome_code_for_path(full_key, status, expected=None, actual=
 
 
 def _normalize_interface_name(name):
+    """Expand common Cisco interface abbreviations for reliable matching."""
     text = str(name or "").strip()
     replacements = (
         ("Gi", "GigabitEthernet"),
@@ -1402,6 +1441,7 @@ def _normalize_interface_name(name):
 
 
 def _normalized_interface_set(values):
+    """Normalize a list of interface names or dicts into a comparable set."""
     interfaces = set()
     for value in values or []:
         if isinstance(value, dict):
@@ -1425,6 +1465,7 @@ def _make_verification_chain_result(
     chain_stopped=False,
     details=None,
 ):
+    """Create a structured multi-step verification failure result."""
     result = _make_result(feature, "mismatch", expected, actual, outcome_code)
     result["command"] = command
     result["level"] = level
@@ -1435,6 +1476,7 @@ def _make_verification_chain_result(
 
 
 def _filter_route_table(routes, code_prefixes):
+    """Filter route-table entries by route-code prefixes."""
     filtered = []
     prefixes = tuple(code_prefixes)
     for route in routes or []:
@@ -1447,6 +1489,7 @@ def _filter_route_table(routes, code_prefixes):
 
 
 def _extract_route_destinations(routes):
+    """Extract destination values from route-table entries."""
     destinations = set()
     for route in routes or []:
         if not isinstance(route, dict):
@@ -1458,6 +1501,7 @@ def _extract_route_destinations(routes):
 
 
 def _route_table_failure(protocol, expected_routes, actual_routes, expected_codes):
+    """Classify why a verification route table does not contain expected routes."""
     actual_codes = _route_codes(actual_routes)
     expected_destinations = _extract_route_destinations(expected_routes)
     actual_destinations = _extract_route_destinations(actual_routes)
@@ -1481,6 +1525,7 @@ def _route_table_failure(protocol, expected_routes, actual_routes, expected_code
 
 
 def _find_default_static_route(routes):
+    """Return the default static route from parsed show-run routes, if present."""
     for route in routes or []:
         if not isinstance(route, dict):
             continue
@@ -1496,6 +1541,7 @@ def _find_default_static_route(routes):
 
 
 def _check_routing_verification(template, student):
+    """Run chained routing verification checks across neighbor/topology/route data."""
     results = []
     template_show_run = template.get("show_running_config", {}) or {}
     student_show_run = student.get("show_running_config", {}) or {}
@@ -2176,6 +2222,69 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
             return False  # Don't skip — we compare these
         return False
 
+    def _dhcp_pool_match_key(name):
+        text = re.sub(r"[^a-z0-9]+", "", str(name or "").strip().lower())
+        if text.endswith("s"):
+            text = text[:-1]
+        return text
+
+    if parent_key.endswith("dhcp_pools") and isinstance(template, dict) and isinstance(student, dict):
+        t_by_norm = {_dhcp_pool_match_key(name): name for name in template.keys()}
+        s_by_norm = {_dhcp_pool_match_key(name): name for name in student.keys()}
+        common_pools = sorted(t_by_norm.keys() & s_by_norm.keys())
+
+        for norm_name in common_pools:
+            t_name = t_by_norm[norm_name]
+            s_name = s_by_norm[norm_name]
+            pool_key = f"{parent_key}.{t_name}"
+            t_pool = template.get(t_name)
+            s_pool = student.get(s_name)
+            if isinstance(t_pool, dict) and isinstance(s_pool, dict):
+                results.extend(compare_dicts(t_pool, s_pool, pool_key))
+            elif t_pool == s_pool:
+                results.append(_make_result(pool_key, "correct"))
+            else:
+                results.append(
+                    _make_result(
+                        pool_key,
+                        "mismatch",
+                        t_pool,
+                        s_pool,
+                        "MISMATCH_DHCP_POOL",
+                    )
+                )
+
+        for norm_name in sorted(t_by_norm.keys() - s_by_norm.keys()):
+            t_name = t_by_norm[norm_name]
+            t_pool = template.get(t_name)
+            if _iface_has_config(t_pool):
+                missing_key = f"{parent_key}.{t_name}"
+                results.append(
+                    _make_result(
+                        missing_key,
+                        "missing",
+                        t_pool,
+                        VALUE_NOT_PRESENT,
+                        "MISSING_DHCP_POOL",
+                    )
+                )
+
+        for norm_name in sorted(s_by_norm.keys() - t_by_norm.keys()):
+            s_name = s_by_norm[norm_name]
+            s_pool = student.get(s_name)
+            if _iface_has_config(s_pool):
+                extra_key = f"{parent_key}.{s_name}"
+                results.append(
+                    _make_result(
+                        extra_key,
+                        "extra",
+                        None,
+                        s_pool,
+                        "EXTRA_DHCP_POOL",
+                    )
+                )
+        return results
+
     # ── Top-level intelligent analysis passes ──
     # These only run at the root level (no parent_key)
     if not parent_key:
@@ -2202,8 +2311,9 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
         results.extend(_check_configured_but_shutdown(s_interfaces))
 
         # ACL not applied detection
+        t_acls = template_show_run.get("access_lists", {}) or {}
         s_acls = student_show_run.get("access_lists", {}) or {}
-        results.extend(_check_acl_not_applied(s_acls, s_interfaces, s_nat))
+        results.extend(_check_acl_not_applied(s_acls, s_interfaces, s_nat, t_acls))
 
         # Routing instance detection
         results.extend(_check_routing_instances(student_routing))
@@ -2390,6 +2500,63 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                 )
             )
         elif isinstance(t_val, dict):
+            if full_key.endswith("dhcp_pools") and isinstance(s_val, dict):
+                t_by_norm = {_dhcp_pool_match_key(name): name for name in t_val.keys()}
+                s_by_norm = {_dhcp_pool_match_key(name): name for name in s_val.keys()}
+                common_pools = sorted(t_by_norm.keys() & s_by_norm.keys())
+
+                for norm_name in common_pools:
+                    t_name = t_by_norm[norm_name]
+                    s_name = s_by_norm[norm_name]
+                    pool_key = f"{full_key}.{t_name}"
+                    t_pool = t_val.get(t_name)
+                    s_pool = s_val.get(s_name)
+                    if isinstance(t_pool, dict) and isinstance(s_pool, dict):
+                        results.extend(compare_dicts(t_pool, s_pool, pool_key))
+                    elif t_pool == s_pool:
+                        results.append(_make_result(pool_key, "correct"))
+                    else:
+                        results.append(
+                            _make_result(
+                                pool_key,
+                                "mismatch",
+                                t_pool,
+                                s_pool,
+                                "MISMATCH_DHCP_POOL",
+                            )
+                        )
+
+                for norm_name in sorted(t_by_norm.keys() - s_by_norm.keys()):
+                    t_name = t_by_norm[norm_name]
+                    t_pool = t_val.get(t_name)
+                    if _iface_has_config(t_pool):
+                        missing_key = f"{full_key}.{t_name}"
+                        results.append(
+                            _make_result(
+                                missing_key,
+                                "missing",
+                                t_pool,
+                                VALUE_NOT_PRESENT,
+                                "MISSING_DHCP_POOL",
+                            )
+                        )
+
+                for norm_name in sorted(s_by_norm.keys() - t_by_norm.keys()):
+                    s_name = s_by_norm[norm_name]
+                    s_pool = s_val.get(s_name)
+                    if _iface_has_config(s_pool):
+                        extra_key = f"{full_key}.{s_name}"
+                        results.append(
+                            _make_result(
+                                extra_key,
+                                "extra",
+                                None,
+                                s_pool,
+                                "EXTRA_DHCP_POOL",
+                            )
+                        )
+                continue
+
             # Hardware models can expose different interface sets.
             # Compare only interfaces present on both sides.
             if full_key.endswith("interfaces") and isinstance(s_val, dict):

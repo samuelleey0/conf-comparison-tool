@@ -1,6 +1,0 @@
-
-IP-EIGRP neighbors for process 65
-H   Address                 Interface       Hold Uptime   SRTT   RTO  Q  Seq
-                                            (sec)         (ms)       Cnt Num
-0   192.168.51.225          Se0/0/1           11 00:23:27    2   200  0  6
-PICO#

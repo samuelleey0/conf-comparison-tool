@@ -29,4 +29,5 @@ blinker>=1.9.0
 click>=8.1.0
 
 # === Optional Utilities ===
+docx2txt>=0.8
 requests>=2.31.0

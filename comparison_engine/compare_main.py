@@ -1,3 +1,10 @@
+"""
+Legacy CLI grading entry point for the comparison engine.
+
+The current Electron/server grading route mainly calls parser.py, comparator.py,
+and student_manager.py directly from server.py. This module keeps an older
+batch/interactive pipeline for manual comparison-engine testing.
+"""
 import os
 import yaml
 from comparison_engine.student_manager import compare_student_hostnames
@@ -91,6 +98,7 @@ def grading_pipeline(target_path, templates_dir):
 
 
 def list_schemes(scheme_folder):
+    """Load available scheme YAML files for scheme-aware CLI grading."""
     schemes = []
     if not os.path.isdir(scheme_folder):
         return schemes
@@ -111,6 +119,7 @@ def list_schemes(scheme_folder):
 
 
 def choose_scheme(schemes, prompt_text):
+    """Prompt the CLI user to choose one loaded scheme definition."""
     if not schemes:
         print("No schemes found. Falling back to strict mode.")
         return None
@@ -132,7 +141,7 @@ def choose_scheme(schemes, prompt_text):
 
 
 def main():
-    """Main function to run the comparison tool."""
+    """Run the interactive multi-hostname comparison CLI."""
     print("=== Multi-Hostname Show Run Comparison Tool ===")
     print("Expected structure:")
     print("  Templates: templates/<template_name>/<hostname>/logs/")
