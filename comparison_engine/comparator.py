@@ -342,7 +342,7 @@ def _check_configured_but_shutdown(interfaces):
     return results
 
 
-def _check_acl_not_applied(access_lists, interfaces, nat=None):
+def _check_acl_not_applied(access_lists, interfaces, nat=None, template_access_lists=None):
     """Detect ACLs that are created but not applied to any interface.
     Returns list of outcome dicts.
     """
@@ -372,15 +372,27 @@ def _check_acl_not_applied(access_lists, interfaces, nat=None):
         if acl_name:
             applied_acls.add(acl_name)
 
+    template_access_lists = template_access_lists or {}
     for acl_name in access_lists:
         if acl_name not in applied_acls:
+            in_template = acl_name in template_access_lists
             results.append(
                 {
                     "feature": f"show_running_config.access_lists.{acl_name}.applied",
-                    "expected": "ACL applied to at least one interface",
-                    "actual": "ACL not applied to any interface",
-                    "status": "missing",
-                    "outcome_code": "MISSING_ACL_APPLIED",
+                    "expected": (
+                        "ACL applied to at least one interface"
+                        if in_template
+                        else "No unused ACL created"
+                    ),
+                    "actual": (
+                        "ACL not applied to any interface"
+                        if in_template
+                        else f"ACL {acl_name} exists but is not applied to any interface"
+                    ),
+                    "status": "missing" if in_template else "extra",
+                    "outcome_code": (
+                        "MISSING_ACL_APPLIED" if in_template else "NON_APPLIED_ACL"
+                    ),
                 }
             )
 
@@ -915,6 +927,9 @@ def _outcome_code_for_path(full_key, status):
     if ".rip" in full_key and full_key.endswith(".version"):
         return "MISMATCH_RIP_VERSION"
 
+    if full_key.endswith(".routing.rip"):
+        return "MISMATCH_ROUTING_PASSIVE"
+
     # Routing networks
     if ".routing." in full_key and ".networks" in full_key:
         if status == "missing":
@@ -1115,6 +1130,8 @@ def _outcome_code_for_path(full_key, status):
 
     # Console
     if ".console." in full_key:
+        if "transport" in full_key:
+            return "MISMATCH_VTY_TRANSPORT"
         if "password" in full_key:
             if status == "missing":
                 return "MISSING_LINE_PASSWORD"
@@ -2294,8 +2311,9 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
         results.extend(_check_configured_but_shutdown(s_interfaces))
 
         # ACL not applied detection
+        t_acls = template_show_run.get("access_lists", {}) or {}
         s_acls = student_show_run.get("access_lists", {}) or {}
-        results.extend(_check_acl_not_applied(s_acls, s_interfaces, s_nat))
+        results.extend(_check_acl_not_applied(s_acls, s_interfaces, s_nat, t_acls))
 
         # Routing instance detection
         results.extend(_check_routing_instances(student_routing))

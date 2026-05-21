@@ -405,12 +405,21 @@ def _extract_error_context(
         and feature_parts[1] == "access_lists"
     ):
         acl_name = feature_parts[2]
+        is_applied_check = len(feature_parts) >= 4 and feature_parts[3] == "applied"
         t_acls = _resolve_json_parts(
             template_config, ["show_running_config", "access_lists"]
         )
         s_acls = _resolve_json_parts(
             student_config, ["show_running_config", "access_lists"]
         )
+        t_interfaces = _resolve_json_parts(
+            template_config, ["show_running_config", "interfaces"]
+        )
+        s_interfaces = _resolve_json_parts(
+            student_config, ["show_running_config", "interfaces"]
+        )
+        t_nat = _resolve_json_parts(template_config, ["show_running_config", "nat"])
+        s_nat = _resolve_json_parts(student_config, ["show_running_config", "nat"])
 
         template_acl = (
             t_acls.get(acl_name, _MISSING) if isinstance(t_acls, dict) else _MISSING
@@ -420,6 +429,51 @@ def _extract_error_context(
         )
 
         if template_acl is not _MISSING or student_acl is not _MISSING:
+            if is_applied_check:
+                def _acl_usage_summary(acl, interfaces, nat):
+                    applied_to = []
+                    if isinstance(interfaces, dict):
+                        for iface_name, iface_data in interfaces.items():
+                            if not isinstance(iface_data, dict):
+                                continue
+                            for group in iface_data.get("access_groups", []) or []:
+                                if (
+                                    isinstance(group, dict)
+                                    and str(group.get("acl")) == acl_name
+                                ):
+                                    applied_to.append(
+                                        {
+                                            "interface": iface_name,
+                                            "direction": group.get("direction") or "in",
+                                        }
+                                    )
+                    nat_bindings = []
+                    if isinstance(nat, dict):
+                        for source in nat.get("inside_source", []) or []:
+                            if (
+                                isinstance(source, dict)
+                                and str(source.get("acl")) == acl_name
+                            ):
+                                nat_bindings.append(source)
+                    return {
+                        "acl_name": acl_name,
+                        "exists": acl is not _MISSING,
+                        "acl": None if acl is _MISSING else acl,
+                        "applied_to_interfaces": applied_to,
+                        "used_by_nat": nat_bindings,
+                        "applied": bool(applied_to or nat_bindings),
+                    }
+
+                return {
+                    "context_path": f"show_running_config.access_lists.{acl_name}.applied",
+                    "highlight_key": "applied",
+                    "template_context": _acl_usage_summary(
+                        template_acl, t_interfaces, t_nat
+                    ),
+                    "student_context": _acl_usage_summary(
+                        student_acl, s_interfaces, s_nat
+                    ),
+                }
             return {
                 "context_path": f"show_running_config.access_lists.{acl_name}",
                 "highlight_key": acl_name,
