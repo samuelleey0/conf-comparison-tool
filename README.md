@@ -35,7 +35,49 @@ git --version
 
 On Windows, `python` may be used instead of `python3`.
 
-## 1. Download the Project
+## 1. Configure Ubuntu Serial Permissions
+
+Serial communication is the default connection method for this tool. On Ubuntu/Linux, your user must be in the `dialout` group to access USB serial devices such as `/dev/ttyUSB0`.
+
+Run this once:
+
+```bash
+sudo usermod -aG dialout $USER
+```
+
+Then log out and log back in, or reboot, so the new group permission takes effect.
+
+After logging back in, verify that `dialout` appears in your groups:
+
+```bash
+groups
+```
+
+Example output:
+
+```text
+ubuntu adm dialout cdrom sudo dip plugdev
+```
+
+Reconnect the USB serial cable and check the device permission:
+
+```bash
+ls -l /dev/ttyUSB0
+```
+
+You should usually see `/dev/ttyUSB0` owned by `root dialout`, for example:
+
+```text
+crw-rw---- 1 root dialout ... /dev/ttyUSB0
+```
+
+If `/dev/ttyUSB0` does not exist, check for other serial device names:
+
+```bash
+ls /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
+```
+
+## 2. Download the Project
 
 Clone the public repository with HTTPS:
 
@@ -46,7 +88,7 @@ cd conf-comparison-tool
 
 If you downloaded the project as a ZIP file, extract it and open a terminal in the extracted `conf-comparison-tool` folder.
 
-## 2. Create the Python Environment
+## 3. Create the Python Environment
 
 For development from the project folder, create a virtual environment named `fyp-venv` in the project root.
 
@@ -56,6 +98,21 @@ macOS / Linux:
 python3 -m venv fyp-venv
 source fyp-venv/bin/activate
 pip install .
+```
+
+On Ubuntu/Linux, if `python3 -m venv fyp-venv` fails because `ensurepip` is not available, install the Python venv package first:
+
+```bash
+sudo apt update
+sudo apt install python3-venv
+python3 -m venv fyp-venv
+```
+
+If Ubuntu asks for a version-specific package, install the package shown in the error message instead, for example:
+
+```bash
+sudo apt install python3.14-venv
+python3 -m venv fyp-venv
 ```
 
 Windows PowerShell:
@@ -84,46 +141,48 @@ Then activate the environment again.
 
 You can still install dependencies with `pip install -r requirements.txt`, but `pip install .` is recommended because it also installs the `conf-comparison-server` backend command.
 
-## 2A. Build an Installable Python Package
-
-To move the Python backend to another device, build a wheel:
-
-```bash
-python -m pip install build
-python -m build
-```
-
-Copy the generated `.whl` file from `dist/` to the other device, then install it there:
-
-```bash
-python -m pip install conf_comparison_tool-0.1.0-py3-none-any.whl
-```
-
-After installation, the backend can be started from any terminal:
-
-```bash
-conf-comparison-server
-```
-
 The Electron app first looks for the repo-local `fyp-venv`. If that environment is not present, it falls back to the installed `conf-comparison-server` command.
 
-## 3. Install the Desktop App Dependencies
+## 4. Install the Desktop App Dependencies
 
 From the project root:
 
 ```bash
 cd electron-gui
 npm install
-npm install xlsx (install this if you need to import Excel file)
 ```
 
-## 4. Start the Application
+Note: `npm install` might take a while, so wait patiently for it to finish.
+
+If you need to import Excel files, install the optional Excel dependency:
+
+```bash
+npm install xlsx
+```
+
+## 5. Start the Application
 
 From inside the `electron-gui` folder:
 
 ```bash
 npm start
 ```
+
+On Ubuntu/Linux, if Electron exits with a `SUID sandbox helper binary` or `chrome-sandbox` error, fix the Electron sandbox permissions from inside the `electron-gui` folder:
+
+```bash
+sudo chown root:root node_modules/electron/dist/chrome-sandbox
+sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+npm start
+```
+
+If you only need a temporary development workaround, you can start Electron without the sandbox:
+
+```bash
+npx electron --no-sandbox .
+```
+
+Use the permission fix above when possible because `--no-sandbox` disables Electron's Chromium sandbox.
 
 The app starts the Flask backend automatically using `../fyp-venv`.
 
@@ -137,104 +196,7 @@ Expected terminal output includes:
 
 An Electron desktop window should open after the backend is ready.
 
-## 4A. Build a Windows Installer (.exe)
-
-You can now build a one-click Windows installer that bundles both:
-
-- The Electron desktop frontend
-- The Flask/Python backend as a packaged executable
-
-From the project root:
-
-```powershell
-cd electron-gui
-npm install
-npm run build:installer
-```
-
-This performs two steps automatically:
-
-1. Builds `server.py` into `electron-gui/backend-dist/conf-comparison-server/conf-comparison-server.exe` using PyInstaller.
-2. Runs Electron Builder to generate an NSIS installer.
-
-Installer outputs are created in:
-
-```text
-electron-gui/dist/
-```
-
-Useful alternatives:
-
-```powershell
-npm run build:portable   # portable .exe
-npm run build:windows    # both NSIS installer and portable
-```
-
-## 4B. Build an Ubuntu 24 Installer
-
-You can also build Linux installers (AppImage + .deb) on Ubuntu 24.
-
-Install required build tools first:
-
-```bash
-sudo apt update
-sudo apt install -y build-essential python3 python3-venv dpkg fakeroot rpm
-```
-
-From the project root:
-
-```bash
-cd electron-gui
-npm install
-npm run build:installer:ubuntu
-```
-
-This command:
-
-1. Builds the Python backend into a Linux executable with PyInstaller.
-2. Builds Electron Linux installers: AppImage and Debian package.
-
-Installer outputs are created in:
-
-```text
-electron-gui/dist/
-```
-
-To install the generated Ubuntu `.deb` package on the current machine:
-
-```bash
-cd electron-gui
-npm run install:ubuntu
-```
-
-If no `.deb` exists yet, the installer script builds one first. To install a specific package:
-
-```bash
-bash ./scripts/install-ubuntu.sh --deb ./dist/Cisco\ Config\ Comparison\ Tool-1.0.0-linux-amd64.deb
-```
-
-For Serial console access on Ubuntu, add your user to the `dialout` group during install:
-
-```bash
-bash ./scripts/install-ubuntu.sh --serial-permissions
-```
-
-Log out and back in after changing serial permissions.
-
-To uninstall the Ubuntu package:
-
-```bash
-cd electron-gui
-npm run uninstall:ubuntu
-```
-
-To also remove the current user's app settings/cache:
-
-```bash
-bash ./scripts/uninstall-ubuntu.sh --purge-user-data
-```
-
-## 5. Connect a Cisco Device
+## 6. Connect a Cisco Device
 
 The app supports two connection types.
 
@@ -259,16 +221,10 @@ Common serial ports:
 On Linux, list available serial ports:
 
 ```bash
-ls /dev/ttyS* /dev/ttyUSB* 2>/dev/null
+ls /dev/ttyS* /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
 ```
 
-If you get permission errors on Linux, add your user to the `dialout` group:
-
-```bash
-sudo usermod -aG dialout $USER
-```
-
-Log out and log back in before trying again.
+If you get permission errors on Linux, complete the `dialout` setup in section 1, then log out and log back in before trying again.
 
 ### Option B: SSH
 
@@ -287,7 +243,7 @@ Make sure your computer can reach the device before connecting:
 ping <device-ip>
 ```
 
-## 6. Basic Workflow
+## 7. Basic Workflow
 
 1. Open the app with `npm start`.
 2. If no template logs are available yet, go to the Sample Logs tab and collect instructor/sample logs first.
@@ -307,7 +263,7 @@ Collected files are stored under your Documents folder, usually in this structur
 
 Grading results are stored under the matching student/session folders.
 
-## 7. Templates, Commands, and Rubrics
+## 8. Templates, Commands, and Rubrics
 
 The desktop app includes administration screens for managing:
 
@@ -371,7 +327,7 @@ Linux:
 
 ```bash
 dmesg | grep tty
-ls /dev/ttyS* /dev/ttyUSB* 2>/dev/null
+ls /dev/ttyS* /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
 ```
 
 macOS:
@@ -404,9 +360,130 @@ pip install -r requirements.txt
 
 Use `python3` instead of `python` on macOS/Linux if needed.
 
+## Optional: Build Packages and Installers
+
+This section is only for developers or maintainers who want to create distributable packages or installers. You do not need these steps for a normal fresh setup from GitHub.
+
+### Build an Installable Python Package
+
+To move the Python backend to another device, build a wheel:
+
+```bash
+python -m pip install build
+python -m build
+```
+
+Copy the generated `.whl` file from `dist/` to the other device, then install it there:
+
+```bash
+python -m pip install conf_comparison_tool-0.1.0-py3-none-any.whl
+```
+
+After installation, the backend can be started from any terminal:
+
+```bash
+conf-comparison-server
+```
+
+### Build a Windows Installer (.exe)
+
+You can build a one-click Windows installer that bundles both:
+
+- The Electron desktop frontend
+- The Flask/Python backend as a packaged executable
+
+From the project root:
+
+```powershell
+cd electron-gui
+npm install
+npm run build:installer
+```
+
+This performs two steps automatically:
+
+1. Builds `server.py` into `electron-gui/backend-dist/conf-comparison-server/conf-comparison-server.exe` using PyInstaller.
+2. Runs Electron Builder to generate an NSIS installer.
+
+Installer outputs are created in:
+
+```text
+electron-gui/dist/
+```
+
+Useful alternatives:
+
+```powershell
+npm run build:portable   # portable .exe
+npm run build:windows    # both NSIS installer and portable
+```
+
+### Build an Ubuntu Installer
+
+You can build Linux installers, including AppImage and Debian package outputs, on Ubuntu.
+
+Install required build tools first:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential python3 python3-venv dpkg fakeroot rpm
+```
+
+From the project root:
+
+```bash
+cd electron-gui
+npm install
+npm run build:installer:ubuntu
+```
+
+This command:
+
+1. Builds the Python backend into a Linux executable with PyInstaller.
+2. Builds Electron Linux installers: AppImage and Debian package.
+
+Installer outputs are created in:
+
+```text
+electron-gui/dist/
+```
+
+To install the generated Ubuntu `.deb` package on the current machine:
+
+```bash
+cd electron-gui
+npm run install:ubuntu
+```
+
+If no `.deb` exists yet, the installer script builds one first. To install a specific package:
+
+```bash
+bash ./scripts/install-ubuntu.sh --deb ./dist/Cisco\ Config\ Comparison\ Tool-1.0.0-linux-amd64.deb
+```
+
+For Serial console access on Ubuntu, add your user to the `dialout` group during install:
+
+```bash
+bash ./scripts/install-ubuntu.sh --serial-permissions
+```
+
+Log out and back in after changing serial permissions.
+
+To uninstall the Ubuntu package:
+
+```bash
+cd electron-gui
+npm run uninstall:ubuntu
+```
+
+To also remove the current user's app settings/cache:
+
+```bash
+bash ./scripts/uninstall-ubuntu.sh --purge-user-data
+```
+
 ## Notes for Public Users
 
-- A Windows one-click installer can be built with `npm run build:installer` inside `electron-gui`.
 - Keep any real student data, device credentials, and grading records private.
 - Do not commit generated logs, student outputs, credentials, or local virtual environments.
 - The internal SSH-to-GitHub setup from the original README is only needed for project contributors with repository write access.
