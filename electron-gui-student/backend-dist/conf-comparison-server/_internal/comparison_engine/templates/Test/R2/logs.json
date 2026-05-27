@@ -1,0 +1,8 @@
+{
+    "hostname": "R2",
+    "show_run_file": "show_running-config.txt",
+    "logs": [
+        "show_ip_interface_brief.txt",
+        "show_running-config.txt"
+    ]
+}

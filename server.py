@@ -1,6 +1,11 @@
+
 # Flask API for the Electron GUI. Route functions should stay thin where
 # practical; reusable grading/template/directory/export logic lives in service
 # modules so page behavior and backend rules can evolve independently.
+# The API controller. It receives HTTP requests, validates inputs, calls these service functions, then returns JSON.
+
+
+
 from flask import Flask, jsonify, request, Response, stream_with_context
 import threading
 from queue import SimpleQueue

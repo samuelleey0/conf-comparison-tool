@@ -1,0 +1,123 @@
+{
+    "show_running_config": {
+        "hostname": "R1",
+        "interfaces": {
+            "GigabitEthernet0/0/0": {
+                "ip": "192.168.1.1",
+                "mask": "255.255.255.0"
+            },
+            "GigabitEthernet0/0/1": {
+                "ip": null,
+                "mask": null,
+                "shutdown": true
+            },
+            "Serial0/1/0": {
+                "ip": null,
+                "mask": null,
+                "shutdown": true
+            },
+            "Serial0/1/1": {
+                "ip": null,
+                "mask": null,
+                "shutdown": true
+            },
+            "GigabitEthernet0": {
+                "ip": null,
+                "mask": null,
+                "shutdown": true
+            }
+        },
+        "banner_motd": "102779687",
+        "vty": {},
+        "console": {
+            "line": "line con 0",
+            "transport": "ssh",
+            "login": "login local"
+        },
+        "users": [
+            {
+                "username": "admin",
+                "privilege": "15",
+                "auth_type": "secret",
+                "auth_level": "5"
+            }
+        ],
+        "access_lists": {},
+        "nat": {
+            "inside_interfaces": [],
+            "outside_interfaces": [],
+            "pools": [],
+            "inside_source": []
+        },
+        "dhcp_pools": {},
+        "dhcp_excluded": [],
+        "routing": {
+            "eigrp": [],
+            "ospf": [],
+            "rip": [],
+            "static_routes": []
+        },
+        "http_server": {
+            "enabled": true,
+            "authentication": "local",
+            "secure_server": true
+        },
+        "switching": {
+            "default_gateway": null,
+            "spanning_tree": {
+                "extend_system_id": true
+            },
+            "vlan_internal_allocation_policy": null,
+            "etherchannel": {
+                "groups": {}
+            }
+        },
+        "etherchannel": {
+            "load_balance": null
+        },
+        "lacp_system_priority": null
+    },
+    "verification": {
+        "show_ip_interface_brief": {
+            "interfaces": {
+                "GigabitEthernet0/0/0": {
+                    "ip": "192.168.1.1",
+                    "status": "up",
+                    "protocol": "up"
+                },
+                "GigabitEthernet0/0/1": {
+                    "ip": "unassigned",
+                    "status": "administratively down",
+                    "protocol": "down"
+                },
+                "Serial0/1/0": {
+                    "ip": "unassigned",
+                    "status": "administratively down",
+                    "protocol": "down"
+                },
+                "Serial0/1/1": {
+                    "ip": "unassigned",
+                    "status": "administratively down",
+                    "protocol": "down"
+                },
+                "GigabitEthernet0": {
+                    "ip": "unassigned",
+                    "status": "administratively down",
+                    "protocol": "down"
+                }
+            }
+        },
+        "show_ip_nat_translations": {
+            "tested": false
+        },
+        "show_ip_dhcp_binding": {
+            "has_assignments": false,
+            "assigned_ips": []
+        },
+        "show_ip_dhcp_pool": {
+            "tested": false,
+            "pool_names": []
+        }
+    },
+    "schema_version": 3
+}

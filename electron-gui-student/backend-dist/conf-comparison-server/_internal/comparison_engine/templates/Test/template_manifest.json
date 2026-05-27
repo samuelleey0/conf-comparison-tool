@@ -1,0 +1,10 @@
+{
+    "template_name": "Test",
+    "devices_meta": {
+        "R2": [
+            "show ip interface brief",
+            "show running-config"
+        ]
+    },
+    "has_baseline": true
+}

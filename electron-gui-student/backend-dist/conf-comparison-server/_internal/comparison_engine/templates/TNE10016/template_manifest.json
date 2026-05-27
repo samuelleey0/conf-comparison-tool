@@ -1,0 +1,12 @@
+{
+    "template_name": "TNE10016",
+    "devices_meta": {
+        "R1": [
+            "show ip interface brief"
+        ],
+        "kn": [
+            "show ip interface brief"
+        ]
+    },
+    "has_baseline": false
+}
