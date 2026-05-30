@@ -199,6 +199,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     else sessionStorage.removeItem("deviceSetupStrictLogsFolder");
   }
 
+  function waitForUiPaint() {
+    return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }
+
   function saveModeToStorage() {
     localStorage.removeItem("deviceSetupMode");
     if (currentMode) sessionStorage.setItem("deviceSetupMode", currentMode);
@@ -390,10 +394,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function setCommandBadgeState(badge, state) {
     if (!badge) return;
-    badge.classList.remove("command-badge--selected", "command-badge--baseline", "command-badge--attached");
+    badge.classList.remove("command-badge--selected", "command-badge--baseline", "command-badge--attached", "command-badge--folder-ready");
     if (state === "attached") {
       badge.textContent = "File attached";
       badge.classList.add("command-badge--attached");
+    } else if (state === "folder-ready") {
+      badge.textContent = "Folder log ready";
+      badge.classList.add("command-badge--folder-ready");
     } else if (state === "baseline") {
       badge.textContent = "Baseline log exists";
       badge.classList.add("command-badge--baseline");
@@ -424,7 +431,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const uploadedBadge = row.querySelector(".command-badge--uploaded");
     setCommandBadgeState(uploadedBadge, hasBaselineLog ? "baseline" : "selected");
     fileInput?.addEventListener("change", () => {
-      const fallbackState = row.dataset.baselineLog ? "baseline" : "selected";
+      const fallbackState = row.dataset.baselineLog ? "baseline" : row.dataset.folderLog ? "folder-ready" : "selected";
       setCommandBadgeState(uploadedBadge, fileInput.files?.length ? "attached" : fallbackState);
     });
     row.querySelector(".command-remove-btn").addEventListener("click", () => {
@@ -470,7 +477,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             ${cmd}
           </label>
         `).join("")
-      : `<div class="dropdown-empty">No commands are available.</div>`;
+      : `<div class="dropdown-empty">No commands in System Admin.</div>`;
 
     const block = document.createElement("div");
     block.className = "device-block";
@@ -578,6 +585,46 @@ document.addEventListener("DOMContentLoaded", async () => {
     updateModeUI();
   }
 
+  function applyStrictFolderPreview(folderPath) {
+    let folderDevicesMeta = {};
+    if (folderPath) {
+      try {
+        folderDevicesMeta = scanLogsFolder(folderPath);
+      } catch (err) {
+        console.warn("Could not preview strict folder logs:", err);
+      }
+    }
+
+    container.querySelectorAll(".device-block").forEach((block) => {
+      const hostname = block.querySelector(".hostname-input")?.value.trim() || "";
+      const folderCommands = Object.entries(folderDevicesMeta).find(
+        ([folderHost]) => folderHost.toLowerCase() === hostname.toLowerCase()
+      )?.[1] || [];
+      const folderCommandKeys = new Set(folderCommands.map((command) => normalizeCommandText(command)));
+
+      block.querySelectorAll(".command-item").forEach((row) => {
+        const command = row.querySelector(".cmd-input")?.value.trim() || "";
+        const fileInput = row.querySelector(".cmd-file-input");
+        const badge = row.querySelector(".command-badge--uploaded");
+        const hasBaselineLog = commandHasBaselineLog(hostname, command);
+        const hasFolderLog = folderCommandKeys.has(normalizeCommandText(command));
+
+        row.dataset.baselineLog = hasBaselineLog ? "1" : "";
+        row.dataset.folderLog = !hasBaselineLog && hasFolderLog ? "1" : "";
+
+        if (fileInput?.files?.length) {
+          setCommandBadgeState(badge, "attached");
+        } else if (hasBaselineLog) {
+          setCommandBadgeState(badge, "baseline");
+        } else if (hasFolderLog) {
+          setCommandBadgeState(badge, "folder-ready");
+        } else {
+          setCommandBadgeState(badge, "selected");
+        }
+      });
+    });
+  }
+
   function collectDevicesMeta() {
     const devicesMeta = {};
     const seen = new Set();
@@ -634,6 +681,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  async function refreshLoadedTemplateDetails(templateName, { render = false } = {}) {
+    if (!templateName) return null;
+    const res = await fetch(`http://127.0.0.1:5050/api/templates/${encodeURIComponent(templateName)}`);
+    const data = await res.json();
+    if (data.status !== "ok") {
+      throw new Error(data.message || "Failed to refresh template details.");
+    }
+
+    loadedTemplateHasBaseline = templateDetailsHaveBaseline(data);
+    loadedLogsByCommand = data.logs_by_command || {};
+    if (render) {
+      renderImportedDevices(data.devices_meta || {}, loadedLogsByCommand);
+    }
+    return data;
+  }
+
   function scanLogsFolder(folderPath) {
     const devicesMeta = {};
     const entries = fs.readdirSync(folderPath, { withFileTypes: true });
@@ -683,18 +746,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
     const selected = await selectFolder();
-    if (selected) setStrictFolder(selected);
+    if (selected) {
+      setStrictFolder(selected);
+      applyStrictFolderPreview(selected);
+    }
   }
 
   async function loadTemplateFromServer(templateName) {
     if (!templateName) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5050/api/templates/${encodeURIComponent(templateName)}`);
-      const data = await res.json();
-      if (data.status !== "ok") {
-        throw new Error(data.message || "Failed to load template.");
-      }
-
+      const data = await refreshLoadedTemplateDetails(templateName);
       const devicesMeta = data.devices_meta || {};
       localStorage.setItem("templateName", templateName);
       if (typeof window.updateGlobalTemplateBadge === "function") window.updateGlobalTemplateBadge();
@@ -702,8 +763,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       localStorage.setItem("activeTemplateName", templateName);
       localStorage.setItem("activeTemplateDevices", JSON.stringify(devicesMeta));
       loadedFromServer = true;
-      loadedTemplateHasBaseline = templateDetailsHaveBaseline(data);
-      loadedLogsByCommand = data.logs_by_command || {};
       selectedTemplateName = templateName;
       if (templateNameInput) {
         templateNameProgrammaticUpdate = true;
@@ -912,7 +971,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         response.devices_meta ||
         response.results?.devices_meta ||
         collectDevicesMeta();
-      persistTemplateState(templateName, devicesMeta);
+      let persistedDevicesMeta = devicesMeta;
+      try {
+        const refreshedTemplate = await refreshLoadedTemplateDetails(templateName, { render: true });
+        persistedDevicesMeta = refreshedTemplate?.devices_meta || devicesMeta;
+      } catch (refreshErr) {
+        console.warn("Template saved, but fresh baseline details could not be loaded:", refreshErr);
+        if (response.has_baseline) {
+          loadedTemplateHasBaseline = true;
+        }
+      }
+      persistTemplateState(templateName, persistedDevicesMeta);
+      await waitForUiPaint();
 
       if (currentMode === MODE_LOGS_FIRST) {
         alert("Template baseline imported from the collected logs folder.");
