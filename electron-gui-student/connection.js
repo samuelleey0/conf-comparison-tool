@@ -204,6 +204,7 @@ async function resetCiscoDevice({ triggerButton = null } = {}) {
 let executionQueue = [];
 let currentQueueIndex = 0;
 let isSequenceRunning = false;
+const START_SEQUENCE_LABEL = "Start Auto-Execution Sequence";
 let manualNextHostname = null;
 let completedQueueHosts = new Set();
 let pollingDisconnect = false;
@@ -505,6 +506,7 @@ async function loadTemplateDevicesForConnection() {
 
 function renderDeviceQueue(devicesMeta, deviceQueueContainer) {
   deviceQueueContainer.innerHTML = "";
+  completedQueueHosts = new Set();
   executionQueue = Object.keys(devicesMeta || {}).map(hostname => ({
     hostname,
     commands: devicesMeta[hostname] || [],
@@ -634,6 +636,26 @@ function renderDeviceQueue(devicesMeta, deviceQueueContainer) {
   });
 }
 
+function setStartSequenceRunning(isRunning) {
+  const startSequenceBtn = document.getElementById("startSequenceBtn");
+  if (!startSequenceBtn) return;
+  startSequenceBtn.disabled = Boolean(isRunning);
+  startSequenceBtn.textContent = isRunning ? "Sequence Running..." : START_SEQUENCE_LABEL;
+}
+
+function resetSequenceControls({ queueStatusText = "Idle", queueStatusColor = "var(--color-muted)" } = {}) {
+  isSequenceRunning = false;
+  setStartSequenceRunning(false);
+  const queueStatus = document.getElementById("queueStatus");
+  if (queueStatus) {
+    queueStatus.textContent = queueStatusText;
+    queueStatus.style.color = queueStatusColor;
+  }
+  const doneStudentBtn = document.getElementById("doneStudentBtn");
+  if (doneStudentBtn) doneStudentBtn.disabled = false;
+  updateDoneStudentButtonLabel();
+}
+
 function startQueueFromSelectedDevice() {
   const startSequenceBtn = document.getElementById("startSequenceBtn");
   const doneStudentBtn = document.getElementById("doneStudentBtn");
@@ -648,11 +670,7 @@ function startQueueFromSelectedDevice() {
 
   isSequenceRunning = true;
   currentQueueIndex = 0;
-  completedQueueHosts = new Set();
-  if (startSequenceBtn) {
-    startSequenceBtn.disabled = true;
-    startSequenceBtn.textContent = "Sequence Running...";
-  }
+  setStartSequenceRunning(true);
   if (doneStudentBtn) doneStudentBtn.disabled = true;
   if (queueStatus) {
     queueStatus.textContent = "Running";
@@ -794,7 +812,11 @@ async function runNextDeviceInQueue() {
         localStorage.setItem("completedStudents", JSON.stringify(completed));
       }
     }
-    document.getElementById("startSequenceBtn").textContent = "Sequence Finished";
+    const startSequenceBtn = document.getElementById("startSequenceBtn");
+    if (startSequenceBtn) {
+      startSequenceBtn.disabled = true;
+      startSequenceBtn.textContent = "Sequence Finished";
+    }
     document.getElementById("queueStatus").textContent = "Completed";
     document.getElementById("queueStatus").style.color = "var(--color-success, #28a745)";
     document.getElementById("doneStudentBtn").disabled = false;
@@ -828,13 +850,12 @@ async function runNextDeviceInQueue() {
   setStoredCommandsFromDevice(currentDevice.hostname);
 
   let sshDetailsForCurrentRun = null;
-  if (connectionMode === "ssh") {
+    if (connectionMode === "ssh") {
     sshDetailsForCurrentRun = await showSshDevicePrompt(currentDevice.hostname);
     if (!sshDetailsForCurrentRun) {
       badge.textContent = "WAITING";
       badge.style.color = "var(--color-muted)";
-      document.getElementById("startSequenceBtn").disabled = false;
-      isSequenceRunning = false;
+      resetSequenceControls();
       return;
     }
   } else {
@@ -847,8 +868,7 @@ async function runNextDeviceInQueue() {
     if (!proceed) {
       badge.textContent = "WAITING";
       badge.style.color = "var(--color-muted)";
-      document.getElementById("startSequenceBtn").disabled = false;
-      isSequenceRunning = false;
+      resetSequenceControls();
       return;
     }
   }
@@ -1002,8 +1022,7 @@ async function runNextDeviceInQueue() {
               appendLogLine(`[INFO] User chose to stop due to hostname mismatch.`);
               badge.textContent = "SKIPPED";
               badge.style.color = "var(--color-muted)";
-              document.getElementById("startSequenceBtn").disabled = false;
-              isSequenceRunning = false;
+              resetSequenceControls();
             }
          } else {
             throw new Error("Execution failed during command run.");
@@ -1017,8 +1036,7 @@ async function runNextDeviceInQueue() {
            badge.textContent = "STOPPED";
            badge.style.color = "var(--color-danger)";
            appendLogLine(`[STOPPED] Execution aborted by user.`);
-           document.getElementById("startSequenceBtn").disabled = false;
-           isSequenceRunning = false;
+           resetSequenceControls();
            // Tell backend to abort too
            try { fetch(`${API_ROOT}/api/abort`, { method: "POST" }); } catch (_) {}
            return;
@@ -1028,8 +1046,7 @@ async function runNextDeviceInQueue() {
          badge.style.color = "var(--color-danger)";
          console.error(e);
          alert(`Execution failed on ${currentDevice.hostname}. Stopping queue.`);
-         document.getElementById("startSequenceBtn").disabled = false;
-         isSequenceRunning = false;
+         resetSequenceControls();
       }
   };
 

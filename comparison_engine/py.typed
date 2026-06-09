@@ -1,1 +1,3 @@
-
+# Marker file for type checkers.
+# Its presence tells tools such as mypy, Pyright, and IDEs that the
+# comparison_engine package includes inline type information in its .py files.
