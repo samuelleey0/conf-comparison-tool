@@ -15,6 +15,78 @@ import os
 logger = logging.getLogger("remote_utils")
 
 
+def _clean_cli_output(text):
+    text = re.sub(r"--More--", "", text)
+    text = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", text)
+    return text
+
+
+def _has_exec_prompt(text, expected_prompt=None):
+    """
+    Treat a command as complete only when the device prompt is at the end of the
+    collected stream. A bare '#' or '>' can appear inside normal show output.
+    """
+    prompt_chars = "#>"
+    if expected_prompt:
+        prompt_chars += "".join(ch for ch in expected_prompt if ch in "#>")
+    prompt_chars = "".join(dict.fromkeys(prompt_chars))
+    return bool(
+        re.search(rf"(^|[\r\n])\S{{1,80}}[{re.escape(prompt_chars)}]\s*$", text)
+    )
+
+
+def _extract_exec_prompt(text):
+    for line in reversed(text.splitlines()):
+        candidate = line.strip()
+        if re.fullmatch(r"\S{1,80}[#>]", candidate):
+            return candidate
+    return None
+
+
+def _read_current_prompt(shell, timeout=2):
+    try:
+        shell.send("\n")
+    except Exception:
+        return None
+
+    buffer = ""
+    start = time.time()
+    while time.time() - start < timeout:
+        if shell.recv_ready():
+            buffer += shell.recv(4096).decode("utf-8", errors="ignore")
+            prompt = _extract_exec_prompt(_clean_cli_output(buffer))
+            if prompt:
+                return prompt
+        else:
+            time.sleep(0.05)
+    return None
+
+
+def _prompt_from_command_echo(text, command):
+    command_text = str(command or "").strip()
+    if not command_text:
+        return None
+    match = re.search(
+        rf"(^|[\r\n])(?P<prompt>\S{{1,80}}[#>])\s*{re.escape(command_text)}\s*(?:[\r\n]|$)",
+        text,
+    )
+    if match:
+        return match.group("prompt")
+    return None
+
+
+def _has_command_prompt(text, command, expected_prompt=None, current_prompt=None):
+    if current_prompt:
+        return bool(re.search(rf"(^|[\r\n]){re.escape(current_prompt)}\s*$", text))
+
+    echoed_prompt = _prompt_from_command_echo(text, command)
+    if echoed_prompt:
+        return bool(
+            re.search(rf"(^|[\r\n]){re.escape(echoed_prompt)}\s*$", text)
+        )
+    return _has_exec_prompt(text, expected_prompt)
+
+
 def remote_connect(host, username="", password="", port="22", timeout=20):
     """
     Establish SSH connection using Paramiko.
@@ -174,6 +246,9 @@ def send_command_remote(client, command, expected_prompt="#", timeout=10):
         time.sleep(0.5)
         while shell.recv_ready():
             shell.recv(4096)
+        current_prompt = _read_current_prompt(shell)
+        while shell.recv_ready():
+            shell.recv(4096)
 
         shell.send(command if command.endswith("\n") else command + "\n")
         start_time = time.time()
@@ -194,12 +269,10 @@ def send_command_remote(client, command, expected_prompt="#", timeout=10):
                     continue
 
                 # clean ANSI escapes for reliable prompt detection
-                clean = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", buffer)
+                clean = _clean_cli_output(buffer)
 
-                # check for expected prompt or common privileged prompt '#'
-                if expected_prompt and expected_prompt in clean:
-                    return clean.strip()
-                if "#" in clean or ">" in clean:
+                # check for a real EXEC prompt at the end of the stream
+                if _has_command_prompt(clean, command, expected_prompt, current_prompt):
                     return clean.strip()
             else:
                 time.sleep(0.2)

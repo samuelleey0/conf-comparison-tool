@@ -36,6 +36,7 @@ electron-gui/backend-build/
 *.bak
 commands.json
 config/
+.trunk
 
 # -------------------------
 # IDE / Editor configs
