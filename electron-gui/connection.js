@@ -460,6 +460,36 @@ function updateDoneStudentButtonLabel() {
   doneStudentBtn.textContent = allDone ? "Start Grading" : "Next Student";
 }
 
+function getConnectionSessionPath() {
+  const storedSession = localStorage.getItem("sessionPath");
+  if (storedSession) {
+    const basePath = localStorage.getItem("basePath");
+    if (basePath && storedSession === basePath && typeof pathModule !== "undefined") {
+      return pathModule.dirname(basePath);
+    }
+    return storedSession;
+  }
+
+  const basePath = localStorage.getItem("basePath");
+  if (basePath && typeof pathModule !== "undefined") {
+    return pathModule.dirname(basePath);
+  }
+
+  const classroom = localStorage.getItem("classroom") || localStorage.getItem("examName");
+  const tutorName = localStorage.getItem("tutorName") || localStorage.getItem("sessionId");
+  const timeSlot = localStorage.getItem("timeSlot");
+  if (classroom && tutorName && timeSlot && typeof pathModule !== "undefined") {
+    try {
+      const os = require("os");
+      return pathModule.join(os.homedir(), "Documents", classroom, tutorName, timeSlot);
+    } catch (_) {
+      return "";
+    }
+  }
+
+  return "";
+}
+
 async function loadTemplateDevicesForConnection() {
   const parseDevices = (raw) => {
     if (!raw) return null;
@@ -472,6 +502,34 @@ async function loadTemplateDevicesForConnection() {
       return null;
     }
   };
+
+  const studentId = localStorage.getItem("studentId") || localStorage.getItem("selectedStudent") || "";
+  const sessionPath = getConnectionSessionPath();
+  if (studentId && sessionPath) {
+    try {
+      const assignmentRes = await fetch(`${API_ROOT}/api/session_template_assignments?target_path=${encodeURIComponent(sessionPath)}`);
+      const assignmentData = await assignmentRes.json();
+      const assignments = assignmentData.assignments || {};
+      const assignment = assignments[studentId] || {};
+      const assignedTemplate = assignment.template_name || assignment.template || "";
+      if (assignedTemplate) {
+        const res = await fetch(`${API_ROOT}/api/templates/${encodeURIComponent(assignedTemplate)}`);
+        const data = await res.json();
+        if (res.ok && data.status === "ok" && data.devices_meta && Object.keys(data.devices_meta).length) {
+          localStorage.setItem("assignedTemplateName", assignedTemplate);
+          localStorage.setItem("templateName", assignedTemplate);
+          localStorage.setItem("templateDevices", JSON.stringify(data.devices_meta));
+          localStorage.setItem("activeTemplateName", assignedTemplate);
+          localStorage.setItem("activeTemplateDevices", JSON.stringify(data.devices_meta));
+          return data.devices_meta;
+        }
+      } else if (assignmentData.status === "ok" && Object.keys(assignments).length) {
+        return {};
+      }
+    } catch (err) {
+      console.warn("Could not load assigned template devices:", err);
+    }
+  }
 
   const templateName =
     localStorage.getItem("templateName") ||

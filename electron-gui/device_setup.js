@@ -435,12 +435,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       setCommandBadgeState(uploadedBadge, fileInput.files?.length ? "attached" : fallbackState);
     });
     row.querySelector(".command-remove-btn").addEventListener("click", () => {
-      row.remove();
       const block = row.closest(".device-block");
       if (!block) return;
-      const checkbox = block.querySelector(`input[type="checkbox"][value="${commandText}"]`);
+      const checkbox = Array.from(block.querySelectorAll('.dropdown-item input[type="checkbox"]'))
+        .find((input) => input.value === commandText);
       if (checkbox) checkbox.checked = false;
+      row.remove();
       updateDropdownCount(block);
+      updateModeUI();
     });
     return row;
   }

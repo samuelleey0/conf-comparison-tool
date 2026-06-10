@@ -136,6 +136,7 @@ TEMPLATES_DIR = BASE_DIR / "comparison_engine" / "templates"
 RESULTS_DIR = None
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 ENGINE_STUDENTS_DIR.mkdir(parents=True, exist_ok=True)
+SESSION_TEMPLATE_ASSIGNMENTS_FILE = "session_template_assignments.json"
 
 connection_lock = threading.Lock()
 
@@ -154,6 +155,70 @@ last_used_ssh_credentials = {
 }
 
 execution_abort = threading.Event()
+
+
+def _resolve_session_dir(target_path: str):
+    target = Path(expand_path(target_path or "")).resolve()
+    if not target.is_dir():
+        return None
+    # Student sessions live under the user Documents tree in normal app use.
+    # Allowing only children of DOCS_DIR keeps assignment reads/writes scoped to
+    # real session folders rather than arbitrary paths.
+    return _safe_resolve_child(DOCS_DIR, target)
+
+
+def _session_template_assignments_path(target_path: str):
+    session_dir = _resolve_session_dir(target_path)
+    if not session_dir:
+        return None
+    return session_dir / SESSION_TEMPLATE_ASSIGNMENTS_FILE
+
+
+def _load_session_template_assignments(target_path: str):
+    assignments_path = _session_template_assignments_path(target_path)
+    if not assignments_path or not assignments_path.exists():
+        return {}
+    try:
+        with open(assignments_path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle) or {}
+        assignments = payload.get("assignments", payload)
+        return assignments if isinstance(assignments, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_session_template_assignments(target_path: str, assignments: dict):
+    assignments_path = _session_template_assignments_path(target_path)
+    if not assignments_path:
+        raise ValueError("Session path not found or is outside Documents.")
+    clean = {}
+    valid_templates = set(list_templates())
+    for student_id, item in (assignments or {}).items():
+        sid = str(student_id or "").strip()
+        if not sid:
+            continue
+        if isinstance(item, dict):
+            template_name = str(item.get("template_name") or item.get("template") or "").strip()
+            scheme = str(item.get("scheme") or "").strip()
+        else:
+            template_name = str(item or "").strip()
+            scheme = ""
+        if template_name and template_name not in valid_templates:
+            raise ValueError(f"Template '{template_name}' does not exist.")
+        if template_name:
+            clean[sid] = {"template_name": template_name}
+            if scheme:
+                clean[sid]["scheme"] = scheme
+    with open(assignments_path, "w", encoding="utf-8") as handle:
+        json.dump({"assignments": clean}, handle, indent=4)
+    return clean
+
+
+def _student_assigned_template(assignments: dict, student_id: str):
+    item = (assignments or {}).get(student_id) or {}
+    if isinstance(item, dict):
+        return str(item.get("template_name") or item.get("template") or "").strip()
+    return str(item or "").strip()
 
 
 
@@ -2094,6 +2159,45 @@ def api_admin_list_templates():
     return jsonify({"status": "ok", "templates": list_templates()})
 
 
+@app.route("/api/session_template_assignments", methods=["GET"])
+def api_get_session_template_assignments():
+    target_path = request.args.get("target_path") or ""
+    assignments_path = _session_template_assignments_path(target_path)
+    if not assignments_path:
+        return jsonify({"status": "error", "message": "Session path not found."}), 404
+    return jsonify(
+        {
+            "status": "ok",
+            "assignments": _load_session_template_assignments(target_path),
+            "path": str(assignments_path),
+        }
+    )
+
+
+@app.route("/api/session_template_assignments", methods=["POST"])
+def api_save_session_template_assignments():
+    data = request.get_json() or {}
+    target_path = data.get("target_path") or ""
+    assignments = data.get("assignments") or {}
+    student_id = (data.get("student_id") or "").strip()
+    template_name = (data.get("template_name") or "").strip()
+
+    try:
+        current = _load_session_template_assignments(target_path)
+        if student_id:
+            if template_name:
+                current[student_id] = {"template_name": template_name}
+            else:
+                current.pop(student_id, None)
+            assignments = current
+        saved = _save_session_template_assignments(target_path, assignments)
+        return jsonify({"status": "ok", "assignments": saved})
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 500
+
+
 @app.route("/api/templates/<template_name>", methods=["GET"])
 def api_get_template_details(template_name):
     try:
@@ -2403,21 +2507,13 @@ def _check_criteria(content, criteria, variables):
 from comparison_engine.compare_main import grading_pipeline
 
 
-def _grade_session_from_config(target_path: str, template_name: str):
-    if not template_has_baseline(template_name):
-        return [], (
-            f"Template '{template_name}' has device/command setup only. "
-            "Upload template baseline logs before grading."
-        )
-
-    template_configs = load_template_configs(template_name)
-    if not template_configs:
-        return [], f"No template configs found for '{template_name}'."
-
+def _grade_session_from_config(target_path: str, template_name: str = "", template_assignments=None):
     results_summary = []
     target = Path(target_path)
     if not target.is_dir():
         return [], f"Target path {target_path} not found."
+    template_assignments = template_assignments or {}
+    template_config_cache = {}
 
     def _student_has_collected_data(student_dir: Path) -> bool:
         if not student_dir.is_dir():
@@ -2455,9 +2551,24 @@ def _grade_session_from_config(target_path: str, template_name: str):
             skipped_students.append(student_id)
             continue
 
+        student_template = _student_assigned_template(template_assignments, student_id) or template_name
+        if not student_template:
+            return [], f"No template assigned for student {student_id}."
+        if student_template not in template_config_cache:
+            if not template_has_baseline(student_template):
+                return [], (
+                    f"Template '{student_template}' assigned to student {student_id} has device/command setup only. "
+                    "Upload template baseline logs before grading."
+                )
+            loaded_template_configs = load_template_configs(student_template)
+            if not loaded_template_configs:
+                return [], f"No template configs found for '{student_template}'."
+            template_config_cache[student_template] = loaded_template_configs
+        template_configs = template_config_cache[student_template]
+
         summary = {
             "student_id": student_id,
-            "template_name": template_name,
+            "template_name": student_template,
             "grading_mode": "strict",
             "hostnames_compared": [],
             "hostnames_missing_template": [],
@@ -2491,7 +2602,7 @@ def _grade_session_from_config(target_path: str, template_name: str):
 
             result_payload = {
                 "student_id": student_id,
-                "template_name": template_name,
+                "template_name": student_template,
                 "grading_mode": "strict",
                 "hostname": hostname,
                 "student_show_run_file": show_run_file,
@@ -2513,7 +2624,7 @@ def _grade_session_from_config(target_path: str, template_name: str):
             json.dump(summary, handle, indent=4)
 
         results_summary.append(
-            {"student_id": student_id, "status": "Graded", "template": template_name}
+            {"student_id": student_id, "status": "Graded", "template": student_template}
         )
 
     if not results_summary:
@@ -2546,11 +2657,14 @@ def api_run_grading():
         return jsonify({"status": "error", "message": "Missing arguments"}), 400
 
     try:
-        # Determine template to use
+        template_assignments = _load_session_template_assignments(target_path)
+
+        # Determine template to use. Per-student assignments take priority; the
+        # single-template fallback is retained for older one-scheme sessions.
         available_templates = list_templates()
 
         chosen_template = template_name
-        if not chosen_template:
+        if not chosen_template and not template_assignments:
             if len(available_templates) == 1:
                 chosen_template = available_templates[0]
             else:
@@ -2566,7 +2680,9 @@ def api_run_grading():
                 )
 
         summary_results, message = _grade_session_from_config(
-            target_path, chosen_template
+            target_path,
+            chosen_template or "",
+            template_assignments=template_assignments,
         )
 
         if not summary_results:
