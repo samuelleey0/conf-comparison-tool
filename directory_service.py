@@ -156,6 +156,16 @@ def safe_iterdir(path: Path):
         return []
 
 
+def _is_repo_container_dir(path: Path) -> bool:
+    try:
+        Path(BASE_DIR).resolve().relative_to(path.resolve())
+        return True
+    except ValueError:
+        return False
+    except OSError:
+        return False
+
+
 def _safe_log_filename_segment(value, fallback):
     cleaned = str(value or "").strip() or fallback
     cleaned = cleaned.replace("/", "_").replace("\\", "_")
@@ -255,6 +265,8 @@ def _iter_unified_session_log_dirs(docs_dir: Path):
     for classroom_dir in safe_iterdir(docs_dir):
         if not safe_is_visible_dir(classroom_dir):
             continue
+        if _is_repo_container_dir(classroom_dir):
+            continue
         for tutor_dir in safe_iterdir(classroom_dir):
             if not safe_is_visible_dir(tutor_dir):
                 continue
@@ -278,6 +290,8 @@ def _iter_legacy_session_log_files(docs_dir: Path):
         return
     for classroom_dir in safe_iterdir(docs_dir):
         if not safe_is_visible_dir(classroom_dir):
+            continue
+        if _is_repo_container_dir(classroom_dir):
             continue
         for tutor_dir in safe_iterdir(classroom_dir):
             if not safe_is_visible_dir(tutor_dir):

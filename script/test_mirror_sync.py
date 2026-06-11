@@ -7,6 +7,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+import directory_service
 from directory_service import save_log_entry, sync_unified_logs_to_mirror
 
 
@@ -75,6 +76,30 @@ class MirrorSyncTests(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(result["synced_count"], 1)
         self.assertEqual(len(self.mirror_files()), 1)
+
+    def test_repo_under_documents_is_not_mirrored(self):
+        original_base_dir = directory_service.BASE_DIR
+        repo_like_dir = (
+            self.docs_dir
+            / "GitHub"
+            / "conf-comparison-tool"
+            / "script"
+            / "fake_student"
+            / "fake_device"
+        )
+        repo_like_dir.mkdir(parents=True)
+        (repo_like_dir / "not_a_student_log.txt").write_text(
+            "this belongs to the repo\n", encoding="utf-8"
+        )
+
+        try:
+            directory_service.BASE_DIR = self.docs_dir / "GitHub" / "conf-comparison-tool"
+            result = self.sync()
+        finally:
+            directory_service.BASE_DIR = original_base_dir
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["synced_count"], 0)
 
     def test_mixed_serial_and_manual_sync(self):
         save_log_entry(
