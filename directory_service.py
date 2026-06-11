@@ -266,6 +266,52 @@ def _iter_unified_session_log_dirs(docs_dir: Path):
                     yield classroom_dir.name, tutor_dir.name, time_dir.name, logs_dir
 
 
+def _iter_legacy_session_log_files(docs_dir: Path):
+    ignored_names = {
+        "config.json",
+        "logs.json",
+        "summary.json",
+        "readableresult.txt",
+        "students.json",
+    }
+    if not docs_dir.exists():
+        return
+    for classroom_dir in safe_iterdir(docs_dir):
+        if not safe_is_visible_dir(classroom_dir):
+            continue
+        for tutor_dir in safe_iterdir(classroom_dir):
+            if not safe_is_visible_dir(tutor_dir):
+                continue
+            for time_dir in safe_iterdir(tutor_dir):
+                if not safe_is_visible_dir(time_dir):
+                    continue
+                for student_dir in safe_iterdir(time_dir):
+                    if not safe_is_visible_dir(student_dir):
+                        continue
+                    if student_dir.name in {UNIFIED_LOGS_DIR_NAME, "results"}:
+                        continue
+                    for device_dir in safe_iterdir(student_dir):
+                        if not safe_is_visible_dir(device_dir):
+                            continue
+                        if device_dir.name in {"results", "raw", "metadata"}:
+                            continue
+                        for log_path in safe_iterdir(device_dir):
+                            if not log_path.is_file() or log_path.name.startswith("."):
+                                continue
+                            if log_path.name.lower() in ignored_names:
+                                continue
+                            if log_path.suffix.lower() not in {"", ".txt", ".log"}:
+                                continue
+                            yield (
+                                classroom_dir.name,
+                                tutor_dir.name,
+                                time_dir.name,
+                                student_dir.name,
+                                device_dir.name,
+                                log_path,
+                            )
+
+
 def _destination_for_mirror_log(target_dir: Path, source_path: Path) -> Path:
     target_dir.mkdir(parents=True, exist_ok=True)
     candidate = target_dir / source_path.name
@@ -295,6 +341,24 @@ def sync_unified_logs_to_mirror(docs_dir=None, engine_students_dir=None):
     skipped_count = 0
     valid_count = 0
 
+    def copy_to_mirror(classroom, tutor_name, time_slot, student_id, device_id, source_path):
+        nonlocal synced_count, skipped_count, valid_count
+        valid_count += 1
+        target_dir = (
+            engine_root
+            / classroom
+            / tutor_name
+            / time_slot
+            / student_id
+            / device_id
+        )
+        destination = _destination_for_mirror_log(target_dir, source_path)
+        if destination.exists():
+            skipped_count += 1
+            return
+        shutil.copy2(source_path, destination)
+        synced_count += 1
+
     for classroom, tutor_name, time_slot, logs_dir in _iter_unified_session_log_dirs(
         docs_root
     ):
@@ -312,14 +376,19 @@ def sync_unified_logs_to_mirror(docs_dir=None, engine_students_dir=None):
                 skipped_count += 1
                 continue
 
-            valid_count += 1
-            target_dir = engine_root / classroom / tutor_name / time_slot / student_id / device_id
-            destination = _destination_for_mirror_log(target_dir, raw_log_path)
-            if destination.exists():
-                skipped_count += 1
-                continue
-            shutil.copy2(raw_log_path, destination)
-            synced_count += 1
+            copy_to_mirror(
+                classroom, tutor_name, time_slot, student_id, device_id, raw_log_path
+            )
+
+    for (
+        classroom,
+        tutor_name,
+        time_slot,
+        student_id,
+        device_id,
+        log_path,
+    ) in _iter_legacy_session_log_files(docs_root):
+        copy_to_mirror(classroom, tutor_name, time_slot, student_id, device_id, log_path)
 
     return {
         "success": valid_count > 0,

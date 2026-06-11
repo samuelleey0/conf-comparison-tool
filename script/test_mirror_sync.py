@@ -1,20 +1,13 @@
-import importlib.util
 import tempfile
 import unittest
 from pathlib import Path
+import sys
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-DIRECTORY_SERVICE_PATH = ROOT_DIR / "directory_service.py"
-DIRECTORY_SERVICE_SPEC = importlib.util.spec_from_file_location(
-    "directory_service", DIRECTORY_SERVICE_PATH
-)
-if DIRECTORY_SERVICE_SPEC is None or DIRECTORY_SERVICE_SPEC.loader is None:
-    raise ImportError(f"Unable to load {DIRECTORY_SERVICE_PATH}")
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
-directory_service = importlib.util.module_from_spec(DIRECTORY_SERVICE_SPEC)
-DIRECTORY_SERVICE_SPEC.loader.exec_module(directory_service)
-save_log_entry = directory_service.save_log_entry
-sync_unified_logs_to_mirror = directory_service.sync_unified_logs_to_mirror
+from directory_service import save_log_entry, sync_unified_logs_to_mirror
 
 
 class MirrorSyncTests(unittest.TestCase):
@@ -62,6 +55,19 @@ class MirrorSyncTests(unittest.TestCase):
             "Gateway of last resort is not set\n",
             "manual",
             session_dir=self.session_dir,
+        )
+
+        result = self.sync()
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["synced_count"], 1)
+        self.assertEqual(len(self.mirror_files()), 1)
+
+    def test_legacy_direct_hostname_logs_sync_to_mirror(self):
+        legacy_device_dir = self.session_dir / "1001" / "R1"
+        legacy_device_dir.mkdir(parents=True)
+        (legacy_device_dir / "show_running_config.txt").write_text(
+            "hostname R1\n", encoding="utf-8"
         )
 
         result = self.sync()
