@@ -269,9 +269,9 @@ def load_project_parser(repo):
     if not repo_path.is_dir():
         raise ValueError(f"Repo path not found: {repo_path}")
     sys.path.insert(0, str(repo_path))
-    from comparison_wrapper import _parse_and_write_device_baseline
+    from comparison_engine.parser import parse_device_logs_with_report
 
-    return _parse_and_write_device_baseline
+    return parse_device_logs_with_report
 
 
 def copy_logs(files, target_dir):
@@ -293,45 +293,14 @@ def copy_logs(files, target_dir):
     return copied
 
 
-def choose_show_run_file(copied):
-    show_run_files = [
-        path
-        for path in copied
-        if detect_command_from_name(path) == "show_running_config"
-    ]
-    if show_run_files:
-        return show_run_files[0].name
-    return copied[0].name if copied else ""
-
-
-def write_logs_json(target_dir, hostname, copied):
-    command_map = {path.name: detect_command_from_name(path) for path in copied}
-    required_command_types = []
-    for command_type in command_map.values():
-        if command_type and command_type not in required_command_types:
-            required_command_types.append(command_type)
-
-    payload = {
-        "hostname": hostname,
-        "show_run_file": choose_show_run_file(copied),
-        "logs": [path.name for path in copied],
-        "command_types": command_map,
-        "required_command_types": required_command_types,
-        "skipped_logs": [],
-    }
-    with (target_dir / "logs.json").open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=4)
-
-
-def write_main_system_json(
-    target_dir, hostname, copied, parse_and_write_device_baseline
-):
-    if not parse_and_write_device_baseline:
-        write_logs_json(target_dir, hostname, copied)
+def write_student_config_json(target_dir, copied, parse_device_logs_with_report):
+    if not parse_device_logs_with_report:
         return False
-    parse_and_write_device_baseline(
-        str(target_dir.parent), hostname, [str(path) for path in copied]
+    parsed_config, _skipped_logs = parse_device_logs_with_report(
+        [str(path) for path in copied]
     )
+    with (target_dir / "config.json").open("w", encoding="utf-8") as handle:
+        json.dump(parsed_config, handle, indent=4)
     return True
 
 
@@ -353,7 +322,7 @@ def main():
     if not source.is_dir():
         raise SystemExit(f"Source folder not found: {source}")
 
-    parse_and_write_device_baseline = load_project_parser(args.repo)
+    parse_device_logs_with_report = load_project_parser(args.repo)
     students = discover_students(source)
     if not students:
         raise SystemExit("No raw logs found.")
@@ -367,9 +336,9 @@ def main():
         student_info = {"student_id": student_id, "devices": []}
         for hostname, files in devices.items():
             target_dir = session / student_id / hostname
-            copied = copy_logs(files, target_dir / "logs")
-            has_config = write_main_system_json(
-                target_dir, hostname, copied, parse_and_write_device_baseline
+            copied = copy_logs(files, target_dir)
+            has_config = write_student_config_json(
+                target_dir, copied, parse_device_logs_with_report
             )
             student_info["devices"].append(
                 {
