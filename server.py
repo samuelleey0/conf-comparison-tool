@@ -24,7 +24,7 @@ import string
 
 # Low-level device execution still lives here because it coordinates shared
 # runtime state, abort flags, streaming logs, and serial/SSH connections.
-from file_utils import save_output_to_file, del_partial_logs
+from file_utils import del_partial_logs
 from serial_utils import (
     connect_to_serial,
     READ_TIMEOUT,
@@ -70,9 +70,10 @@ from directory_service import (
     resolve_picker_path,
     safe_is_visible_dir,
     safe_iterdir,
-    save_output_to_engine_students,
+    save_log_entry,
     save_session_student_names,
     select_directory,
+    sync_unified_logs_to_mirror,
 )
 from grading_dedup import (
     load_dedup_config,
@@ -926,23 +927,57 @@ def api_save_log():
         data.get("tutor_name") or data.get("session_id") or data.get("sessionId") or ""
     ).strip()
     time_slot = (data.get("time_slot") or data.get("timeSlot") or "").strip()
-    student_id = data.get("student_id")
+    student_id = data.get("student_id") or data.get("studentId")
+    device_id = (
+        data.get("device_id")
+        or data.get("deviceId")
+        or data.get("hostname")
+        or data.get("host")
+        or ""
+    )
     filename = data.get("filename", "log.txt")
-    content = data.get("content", "")
+    filename_parts = [
+        part
+        for part in str(filename or "").replace("\\", "/").split("/")
+        if part and part not in {".", ".."}
+    ]
+    if not str(device_id or "").strip() and len(filename_parts) > 1:
+        device_id = filename_parts[-2]
+    command_filename = filename_parts[-1] if filename_parts else str(filename)
+    command = data.get("command") or Path(command_filename).stem
+    content = data.get("content")
+    if content is None:
+        content = data.get("raw_text")
+    if content is None:
+        content = data.get("rawText", "")
 
     if not (classroom and tutor_name and time_slot and student_id):
         return jsonify({"status": "error", "message": "Missing directory info"}), 400
+    if not str(device_id or "").strip():
+        return jsonify({"status": "error", "message": "Missing device_id"}), 400
 
-    base_dir = os.path.expanduser(
-        os.path.join("~/Documents", classroom, tutor_name, time_slot, student_id)
+    session_dir = Path(
+        os.path.expanduser(os.path.join("~/Documents", classroom, tutor_name, time_slot))
     )
-    os.makedirs(base_dir, exist_ok=True)
-    path = os.path.join(base_dir, filename)
 
     try:
-        with open(path, "w") as f:
-            f.write(content)
-        return jsonify({"status": "ok", "message": f"Saved log to {path}"})
+        saved = save_log_entry(
+            student_id,
+            device_id,
+            command,
+            content,
+            "manual",
+            session_dir=session_dir,
+        )
+        return jsonify(
+            {
+                "status": "ok",
+                "message": f"Saved log to {saved['raw_log_path']}",
+                **saved,
+            }
+        )
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -996,7 +1031,8 @@ def _missing_command_logs(base_path, hostname, commands):
     if not hostname:
         return [_canonical_cli_command(cmd) for cmd in commands]
 
-    host_dir = Path(base_path) / hostname
+    base = Path(base_path)
+    host_dir = base.parent / "logs" / base.name / hostname / "raw"
     if not host_dir.exists():
         return [_canonical_cli_command(cmd) for cmd in commands]
 
@@ -1012,7 +1048,8 @@ def _missing_command_logs(base_path, hostname, commands):
     missing = []
     for cmd in commands:
         cli_cmd = _canonical_cli_command(cmd)
-        if _command_log_stem(cli_cmd) not in file_stems:
+        expected_stem = _command_log_stem(cli_cmd)
+        if not any(expected_stem == stem or stem.endswith(f"_{expected_stem}") for stem in file_stems):
             missing.append(cli_cmd)
     return missing
 
@@ -1076,6 +1113,9 @@ def api_execute():
             if not host_folder:
                 return False
             deleted_docs = del_partial_logs(base_path, host_folder)
+            unified_device_dir = Path(base_path).parent / "logs" / student_id / host_folder
+            if unified_device_dir.exists():
+                shutil.rmtree(unified_device_dir)
             delete_engine_student_logs_for_docs_target(Path(base_path) / host_folder)
             files_written.clear()
             return deleted_docs
@@ -1256,26 +1296,15 @@ def api_execute():
                                 "msg": f"{hostname}# {cli_cmd}\n{output}"
                             }
                         )
-                        file_path = save_output_to_file(
-                            cli_cmd,
-                            output,
-                            classroom=classroom,
-                            tutor_name=tutor_name,
-                            time_slot=time_slot,
-                            student_id=student_id,
-                            hostname=host_folder,
-                            base_dir=base_path,
-                            extension=file_extension,
-                        )
-                        save_output_to_engine_students(
-                            cli_cmd,
-                            output,
-                            classroom,
-                            tutor_name,
-                            time_slot,
+                        saved_log = save_log_entry(
                             student_id,
                             host_folder,
+                            cli_cmd,
+                            output,
+                            "serial",
+                            session_dir=Path(base_path).parent,
                         )
+                        file_path = saved_log["raw_log_path"]
                         files_written.append(file_path)
                         completed += 1
                         pct = (
@@ -1555,26 +1584,15 @@ def api_execute():
                                 "msg": f"{hostname}# {cli_cmd}\n{output}"
                             }
                         )
-                        file_path = save_output_to_file(
-                            cli_cmd,
-                            output,
-                            classroom=classroom,
-                            tutor_name=tutor_name,
-                            time_slot=time_slot,
-                            student_id=student_id,
-                            hostname=host_folder,
-                            base_dir=base_path,
-                            extension=file_extension,
-                        )
-                        save_output_to_engine_students(
-                            cli_cmd,
-                            output,
-                            classroom,
-                            tutor_name,
-                            time_slot,
+                        saved_log = save_log_entry(
                             student_id,
                             host_folder,
+                            cli_cmd,
+                            output,
+                            "serial",
+                            session_dir=Path(base_path).parent,
                         )
+                        file_path = saved_log["raw_log_path"]
                         files_written.append(file_path)
                         completed += 1
                         pct = (
@@ -2401,61 +2419,9 @@ def api_admin_delete_students():
 
 @app.route("/api/admin/sync_mirror", methods=["POST"])
 def api_admin_sync_mirror():
-    """Remove engine/students dirs whose corresponding Documents folders no longer exist."""
-    removed = []
-    if not ENGINE_STUDENTS_DIR.exists():
-        return jsonify({"status": "ok", "message": "Nothing to sync.", "removed": []})
-
-    for classroom_dir in list(ENGINE_STUDENTS_DIR.iterdir()):
-        if not classroom_dir.is_dir():
-            continue
-        docs_classroom = DOCS_DIR / classroom_dir.name
-        if not docs_classroom.exists():
-            shutil.rmtree(classroom_dir)
-            removed.append(classroom_dir.name)
-            continue
-        for tutor_dir in list(classroom_dir.iterdir()):
-            if not tutor_dir.is_dir():
-                continue
-            docs_tutor = docs_classroom / tutor_dir.name
-            if not docs_tutor.exists():
-                shutil.rmtree(tutor_dir)
-                removed.append(f"{classroom_dir.name}/{tutor_dir.name}")
-                continue
-            for time_dir in list(tutor_dir.iterdir()):
-                if not time_dir.is_dir():
-                    continue
-                docs_time = docs_tutor / time_dir.name
-                if not docs_time.exists():
-                    shutil.rmtree(time_dir)
-                    removed.append(
-                        f"{classroom_dir.name}/{tutor_dir.name}/{time_dir.name}"
-                    )
-                    continue
-                for student_dir in list(time_dir.iterdir()):
-                    if not student_dir.is_dir():
-                        continue
-                    docs_student = docs_time / student_dir.name
-                    if not docs_student.exists():
-                        shutil.rmtree(student_dir)
-                        removed.append(
-                            f"{classroom_dir.name}/{tutor_dir.name}/{time_dir.name}/{student_dir.name}"
-                        )
-
-                if time_dir.exists() and not any(time_dir.iterdir()):
-                    time_dir.rmdir()
-                if tutor_dir.exists() and not any(tutor_dir.iterdir()):
-                    tutor_dir.rmdir()
-        if classroom_dir.exists() and not any(classroom_dir.iterdir()):
-            classroom_dir.rmdir()
-
-    if removed:
-        msg = f"Removed {len(removed)} orphaned mirror folder(s):\n" + "\n".join(
-            removed
-        )
-    else:
-        msg = "All mirror folders are in sync. Nothing to remove."
-    return jsonify({"status": "ok", "message": msg, "removed": removed})
+    """Copy all unified student logs into comparison_engine/students."""
+    result = sync_unified_logs_to_mirror()
+    return jsonify(result)
 
 
 @app.route("/api/add_student", methods=["POST"])

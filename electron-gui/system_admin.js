@@ -1035,7 +1035,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function syncMirror() {
-    if (!confirm("This will remove any comparison_engine/students folders that no longer exist in Documents. Continue?")) return;
+    if (!confirm("This will copy collected student logs into the comparison mirror. Continue?")) return;
     try {
       const data = await fetchJson("http://127.0.0.1:5050/api/admin/sync_mirror", { method: "POST" });
       alert(data.message || "Mirror sync complete.");
