@@ -242,6 +242,38 @@ function applyStudentCardStatus(studentCard, isCollected) {
   studentCard.classList.toggle("student-card--pending", !isCollected);
 }
 
+function closeStudentTemplatePickers(exceptPicker = null) {
+  document.querySelectorAll(".student-template-picker").forEach((picker) => {
+    if (picker === exceptPicker) return;
+    picker.classList.remove("is-open");
+    const menu = picker.querySelector(".student-template-menu");
+    if (menu) {
+      menu.classList.add("hidden");
+      menu.style.left = "";
+      menu.style.top = "";
+      menu.style.width = "";
+    }
+  });
+}
+
+function positionStudentTemplateMenu(picker) {
+  const trigger = picker?.querySelector(".student-template-trigger");
+  const menu = picker?.querySelector(".student-template-menu");
+  if (!trigger || !menu || menu.classList.contains("hidden")) return;
+
+  const triggerRect = trigger.getBoundingClientRect();
+  const menuHeight = Math.min(menu.scrollHeight || 240, 260);
+  const spaceBelow = window.innerHeight - triggerRect.bottom - 12;
+  const opensUp = spaceBelow < menuHeight && triggerRect.top > menuHeight;
+  const top = opensUp
+    ? Math.max(8, triggerRect.top - menuHeight - 6)
+    : Math.min(triggerRect.bottom + 6, window.innerHeight - menuHeight - 8);
+
+  menu.style.left = `${triggerRect.left}px`;
+  menu.style.top = `${top}px`;
+  menu.style.width = `${triggerRect.width}px`;
+}
+
 function displayPickerPath(pathValue) {
   return pathValue === WINDOWS_DRIVES_ROOT ? "This PC" : (pathValue || "");
 }
@@ -577,6 +609,8 @@ function renderMainStudentGrid(students) {
     return;
   }
 
+  gridContainer.onscroll = () => closeStudentTemplatePickers();
+
   students.forEach(student => {
     const assignedTemplate = (
       sessionTemplateAssignments[student.student_id]?.template_name ||
@@ -611,25 +645,72 @@ function renderMainStudentGrid(students) {
             ${student.student_name ? `<div style="font-size: 0.82rem; color: inherit; opacity: 0.85; word-break: break-word;">${escapeHtml(student.student_name)}</div>` : ""}
           </div>
         </div>
-        <label class="student-template-field">
+        <div class="student-template-field">
           <span>Template</span>
-          <select class="student-template-select" data-student-id="${escapeHtml(student.student_id)}">
-            <option value="">Assign template</option>
-            ${availableTemplates.map((templateName) => `
-              <option value="${escapeHtml(templateName)}" ${templateName === assignedTemplate ? "selected" : ""}>${escapeHtml(templateName)}</option>
-            `).join("")}
-          </select>
-        </label>
+          <div class="student-template-picker" data-student-id="${escapeHtml(student.student_id)}" data-value="${escapeHtml(assignedTemplate)}">
+            <button type="button" class="student-template-trigger">
+              <span class="student-template-trigger__label">${escapeHtml(assignedTemplate || "Assign template")}</span>
+              <span aria-hidden="true">▾</span>
+            </button>
+            <div class="student-template-menu hidden">
+              <input type="text" class="student-template-search" placeholder="Search templates..." />
+              <div class="student-template-options">
+                <button type="button" class="student-template-option ${assignedTemplate ? "" : "is-active"}" data-template="">Assign template</button>
+                ${availableTemplates.map((templateName) => `
+                  <button type="button" class="student-template-option ${templateName === assignedTemplate ? "is-active" : ""}" data-template="${escapeHtml(templateName)}">${escapeHtml(templateName)}</button>
+                `).join("")}
+              </div>
+            </div>
+          </div>
+        </div>
     `;
-    const templateSelect = studentCard.querySelector(".student-template-select");
-    templateSelect?.addEventListener("click", (event) => event.stopPropagation());
-    templateSelect?.addEventListener("change", async (event) => {
+    const templatePicker = studentCard.querySelector(".student-template-picker");
+    const templateTrigger = studentCard.querySelector(".student-template-trigger");
+    const templateMenu = studentCard.querySelector(".student-template-menu");
+    const templateSearch = studentCard.querySelector(".student-template-search");
+    const templateOptions = Array.from(studentCard.querySelectorAll(".student-template-option"));
+
+    templatePicker?.addEventListener("click", (event) => event.stopPropagation());
+    templateTrigger?.addEventListener("click", () => {
+      const willOpen = templateMenu?.classList.contains("hidden");
+      closeStudentTemplatePickers(willOpen ? templatePicker : null);
+      templatePicker?.classList.toggle("is-open", Boolean(willOpen));
+      templateMenu?.classList.toggle("hidden", !willOpen);
+      if (willOpen) {
+        if (templateSearch) templateSearch.value = "";
+        templateOptions.forEach((option) => option.classList.remove("hidden"));
+        requestAnimationFrame(() => {
+          positionStudentTemplateMenu(templatePicker);
+          templateSearch?.focus();
+        });
+      }
+    });
+
+    templateSearch?.addEventListener("input", () => {
+      const term = templateSearch.value.trim().toLowerCase();
+      templateOptions.forEach((option) => {
+        const text = option.textContent.trim().toLowerCase();
+        option.classList.toggle("hidden", Boolean(term) && !text.includes(term));
+      });
+      positionStudentTemplateMenu(templatePicker);
+    });
+
+    templateOptions.forEach((option) => option.addEventListener("click", async (event) => {
       event.stopPropagation();
-      const selectEl = event.currentTarget;
-      const nextTemplate = selectEl.value;
-      selectEl.disabled = true;
+      const nextTemplate = option.dataset.template || "";
+      if (nextTemplate === (templatePicker?.dataset.value || "")) {
+        closeStudentTemplatePickers();
+        return;
+      }
+      templateTrigger.disabled = true;
       try {
         await saveStudentTemplateAssignment(student.student_id, nextTemplate);
+        if (templatePicker) templatePicker.dataset.value = nextTemplate;
+        const label = templateTrigger.querySelector(".student-template-trigger__label");
+        if (label) label.textContent = nextTemplate || "Assign template";
+        templateOptions.forEach((button) => {
+          button.classList.toggle("is-active", (button.dataset.template || "") === nextTemplate);
+        });
         if (pendingSelectedStudent?.student_id === student.student_id) {
           localStorage.setItem("assignedTemplateName", nextTemplate);
           localStorage.setItem("templateName", nextTemplate);
@@ -643,24 +724,22 @@ function renderMainStudentGrid(students) {
           localStorage.getItem("timeSlot") || "",
           students
         );
-        selectEl.disabled = false;
+        closeStudentTemplatePickers();
+        templateTrigger.disabled = false;
       } catch (err) {
         console.error(err);
         alert(err.message || "Failed to save template assignment.");
-        selectEl.value = assignedTemplate;
-        selectEl.disabled = false;
+        templateTrigger.disabled = false;
       }
-    });
+    }));
 
     studentCard.onclick = () => {
       document.querySelectorAll("#mainStudentGridContainer .student-card.selected-student").forEach(el => {
         el.classList.remove("selected-student");
-        el.style.boxShadow = "";
         el.style.color = "inherit";
       });
 
       studentCard.classList.add("selected-student");
-      studentCard.style.boxShadow = "0 0 0 3px rgba(31, 59, 115, 0.22), 0 8px 18px rgba(15, 23, 42, 0.12)";
       studentCard.style.color = "var(--color-heading)";
 
       pendingSelectedStudent = student;
@@ -1176,5 +1255,8 @@ function openAddStudentModal(onConfirm) {
 
 
 document.addEventListener("DOMContentLoaded", () => {
-  if (document.getElementById("directoryPage")) setupDirectoryPage();
+  if (document.getElementById("directoryPage")) {
+    setupDirectoryPage();
+    document.addEventListener("click", () => closeStudentTemplatePickers());
+  }
 });

@@ -39,6 +39,14 @@ function setupConnectionLogTabs() {
   });
 }
 
+function updateSelectedStudentBadge() {
+  const badge = document.getElementById("selectedStudentBadge");
+  if (!badge) return;
+  const studentId = localStorage.getItem("studentId") || localStorage.getItem("selectedStudent") || "";
+  badge.textContent = studentId || "Not selected";
+  badge.title = studentId || "No student selected";
+}
+
 function attachFlaskTerminalListener() {
   // Attach once per page load; repeated listeners would duplicate every backend
   // stdout/stderr line in the terminal panel.
@@ -741,6 +749,7 @@ async function setupConnectionPage() {
   loadNavbar();
   attachFlaskTerminalListener();
   setupConnectionKeyboardShortcuts();
+  updateSelectedStudentBadge();
 
   // Build Execution Queue UI
   const deviceQueueContainer = document.getElementById("deviceQueueContainer");

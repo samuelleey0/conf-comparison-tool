@@ -6,6 +6,16 @@ const { spawn } = require('child_process');
 const net = require('net');
 const fs = require('fs');
 
+// Ubuntu VMs can expose incomplete EGL/OpenGL support to Chromium. When that
+// happens Electron may flicker or crash during heavy repainting, especially with
+// floating menus. Use software rendering on Linux unless explicitly overridden.
+if (process.platform === 'linux' && process.env.ACCMS_ENABLE_GPU !== '1') {
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch('disable-gpu');
+  app.commandLine.appendSwitch('disable-gpu-compositing');
+  app.commandLine.appendSwitch('disable-features', 'UseOzonePlatform');
+}
+
 let mainWindow = null;
 let flaskProcess = null;
 let latestStartupProgress = {
