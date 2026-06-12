@@ -13,7 +13,7 @@ import ipaddress
 from comparison_engine.compare_utils import should_ignore
 
 
-PARSED_SCHEMA_VERSION = 4
+PARSED_SCHEMA_VERSION = 7
 
 COMMAND_ERROR_PATTERNS = [
     r"^%\s*incomplete command",
@@ -1077,6 +1077,8 @@ def parse_showrun(file_path):
                     current_eigrp.setdefault("redistribute", []).append(
                         line.replace("redistribute", "", 1).strip()
                     )
+                elif line == "default-information originate":
+                    current_eigrp.setdefault("redistribute", []).append("default")
                 continue
 
             if current_ospf:
@@ -1091,6 +1093,8 @@ def parse_showrun(file_path):
                     current_ospf.setdefault("redistribute", []).append(
                         line.replace("redistribute", "", 1).strip()
                     )
+                elif line == "default-information originate":
+                    current_ospf.setdefault("redistribute", []).append("default")
                 continue
 
             if current_rip:
@@ -1111,9 +1115,31 @@ def parse_showrun(file_path):
                     current_rip.setdefault("redistribute", []).append(
                         line.replace("redistribute", "", 1).strip()
                     )
+                elif line == "default-information originate":
+                    current_rip.setdefault("redistribute", []).append("default")
                 continue
 
             if current_line:
+                if line.startswith("line vty"):
+                    current_line = config["vty"]
+                    current_line["line"] = line
+                    current_interface = None
+                    current_pool = None
+                    current_acl = None
+                    current_eigrp = None
+                    current_ospf = None
+                    current_rip = None
+                    continue
+                if line.startswith("line con"):
+                    current_line = config["console"]
+                    current_line["line"] = line
+                    current_interface = None
+                    current_pool = None
+                    current_acl = None
+                    current_eigrp = None
+                    current_ospf = None
+                    current_rip = None
+                    continue
                 if line.startswith("password"):
                     parts = line.split()
                     if len(parts) >= 2:
@@ -1123,6 +1149,13 @@ def parse_showrun(file_path):
                     current_line["login"] = line
                 elif line.startswith("transport input"):
                     current_line["transport"] = line.replace("transport input", "", 1).strip()
+                elif line.startswith("access-class"):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        direction = parts[2] if len(parts) > 2 else "in"
+                        current_line.setdefault("access_groups", []).append(
+                            {"acl": parts[1], "direction": direction}
+                        )
                 elif line.startswith("exec-timeout"):
                     current_line["exec_timeout"] = line.replace("exec-timeout", "", 1).strip()
                 elif line.startswith("logging synchronous") or line == "logging synchronous":
