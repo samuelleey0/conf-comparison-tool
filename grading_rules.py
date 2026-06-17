@@ -1206,9 +1206,6 @@ def classify_items(items, policy, rubric_rules=None):
     classified_config = []
     failed_config_refs = set()
     failed_config_features = set()
-    # Fix 2: track interfaces where MISSING_ENCAPSULATION has already been scored,
-    # so that MISSING_PPP_AUTH on the same interface is treated as evidence-only.
-    encapsulation_scored_interfaces = set()
 
     for item in config_items:
         item_copy = _classify_single_item(
@@ -1239,45 +1236,22 @@ def classify_items(items, policy, rubric_rules=None):
             failed_config_features.add(item_copy.get("feature", ""))
             severity = item_copy.get("severity", "minor")
             rule_id = item_copy.get("rule_id")
-            rule_code = item_copy.get("rule_code") or item_copy.get("outcome_code", "")
-
-            # Fix 2: suppress MISSING_PPP_AUTH when MISSING_ENCAPSULATION already
-            # scored on the same interface (they represent one configuration omission).
-            ppp_auth_suppressed = False
-            if rule_code == "MISSING_PPP_AUTH":
-                feature = item_copy.get("feature", "")
-                # Extract interface ref from feature like
-                # show_running_config.interfaces.Serial0/1/0.ppp_authentication
-                iface_ref = config_block_ref(feature) or ""
-                if iface_ref in encapsulation_scored_interfaces:
-                    item_copy["rule_deduplicated"] = True
-                    item_copy["counts_toward_marking"] = False
-                    item_copy["dedup_ref"] = iface_ref
-                    ppp_auth_suppressed = True
-
-            if not ppp_auth_suppressed:
-                if severity == "major":
-                    summary["major"] += 1
-                    item_copy["rule_deduplicated"] = False
-                    # Fix 2: track interfaces where encapsulation error was scored
-                    if rule_code == "MISSING_ENCAPSULATION":
-                        feature = item_copy.get("feature", "")
-                        iface_ref = config_block_ref(feature) or ""
-                        if iface_ref:
-                            encapsulation_scored_interfaces.add(iface_ref)
-                else:
-                    if rule_id:
-                        if rule_id not in minor_rule_hits:
-                            summary["minor"] += 1
-                            minor_rule_hits.add(rule_id)
-                            item_copy["rule_deduplicated"] = False
-                        else:
-                            # Same rule already counted — still show but mark as not scored
-                            item_copy["rule_deduplicated"] = True
-                            item_copy["counts_toward_marking"] = False
-                    else:
+            if severity == "major":
+                summary["major"] += 1
+                item_copy["rule_deduplicated"] = False
+            else:
+                if rule_id:
+                    if rule_id not in minor_rule_hits:
                         summary["minor"] += 1
+                        minor_rule_hits.add(rule_id)
                         item_copy["rule_deduplicated"] = False
+                    else:
+                        # Same rule already counted — still show but mark as not scored
+                        item_copy["rule_deduplicated"] = True
+                        item_copy["counts_toward_marking"] = False
+                else:
+                    summary["minor"] += 1
+                    item_copy["rule_deduplicated"] = False
 
         classified_config.append(item_copy)
 

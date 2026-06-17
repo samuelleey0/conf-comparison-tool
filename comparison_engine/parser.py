@@ -13,7 +13,7 @@ import ipaddress
 from comparison_engine.compare_utils import should_ignore
 
 
-PARSED_SCHEMA_VERSION = 7
+PARSED_SCHEMA_VERSION = 8
 
 COMMAND_ERROR_PATTERNS = [
     r"^%\s*incomplete command",
@@ -1216,6 +1216,7 @@ def parse_showrun(file_path):
                         if pass_idx + 2 < len(parts):
                             user_entry["auth_type"] = "password"
                             user_entry["auth_level"] = parts[pass_idx + 1]
+                            user_entry["password"] = " ".join(parts[pass_idx + 2 :])
 
                     config["users"].append(user_entry)
             elif line.startswith("access-list"):

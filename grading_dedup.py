@@ -398,6 +398,19 @@ def verification_is_deduplicated(feature: str, failed_config_refs, failed_config
     config = load_dedup_config()
     options = config.get("dedup_options") or {}
     layer1_ref = _verification_layer1_ref(feature, config)
+
+    # VERIFY_IFACE_DOWN is always counted as its own standalone major error.
+    # It must not be suppressed even when a related config error (e.g. missing
+    # PPP encapsulation) exists on the same interface.
+    # We detect it by looking at the feature path: protocol checks on
+    # show_ip_interface_brief always correspond to VERIFY_IFACE_DOWN.
+    _never_dedup_iface_suffixes = config.get("never_dedup_iface_check_suffixes") or [
+        ".protocol",
+    ]
+    if str(feature or "").startswith("verification.show_ip_interface_brief."):
+        for suffix in _never_dedup_iface_suffixes:
+            if str(feature or "").endswith(suffix):
+                return False, layer1_ref
     if layer1_ref and layer1_ref.startswith("show_running_config.routing."):
         # Wrong routing protocol makes protocol runtime checks evidence-only.
         if options.get("dedup_routing_when_protocol_failed", True):
@@ -442,17 +455,5 @@ def verification_is_deduplicated(feature: str, failed_config_refs, failed_config
                 for prefix in route_config.get("dedup_feature_prefixes", [])
             ):
                 return True, route_config.get("default_parent")
-
-        # Fix 3: also suppress route verification errors when a physical interface
-        # config error (e.g. missing PPP encapsulation) is already scored — the
-        # routing table absence is a downstream consequence, not a separate mistake.
-        _iface_error_codes = {
-            "MISSING_ENCAPSULATION",
-            "MISMATCH_ENCAPSULATION",
-            "VERIFY_IFACE_DOWN",
-        }
-        for failed_feature in failed_config_features:
-            if failed_feature.startswith("show_running_config.interfaces."):
-                return True, route_config.get("default_parent") or "show_running_config.routing"
 
     return False, layer1_ref

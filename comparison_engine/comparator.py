@@ -195,11 +195,61 @@ def _detect_acl_pointless_rules(rules):
             pointless.append((idx, "MISMATCH_ACL_POINTLESS_DEFAULT"))
             continue
 
+        if _acl_rule_has_noncontiguous_wildcard(rule_lower):
+            pointless.append((idx, "MISMATCH_ACL_POINTLESS_NORMAL"))
+            continue
+
         # Check if this rule is a catch-all 'permit/deny any' or 'permit/deny ip any any'
         if re.search(r"(permit|deny)\s+(ip\s+)?any\s*(any)?$", rule_lower):
             seen_any_any = True
 
     return pointless
+
+
+def _wildcard_is_contiguous(wildcard):
+    try:
+        wildcard_int = int(ipaddress.IPv4Address(str(wildcard)))
+    except Exception:
+        return False
+    return (wildcard_int & (wildcard_int + 1)) == 0
+
+
+def _acl_rule_has_noncontiguous_wildcard(rule):
+    """Return True when an ACL address/wildcard pair is not a normal network mask.
+
+    The official marker treats rules such as
+    ``permit tcp 0.0.0.1 255.255.255.128 ...`` as pointless because the wildcard
+    is not a valid contiguous wildcard for a network-style ACL entry.
+    """
+    parts = _canonical_acl_rule(rule).split()
+    if len(parts) < 4 or parts[0] not in {"permit", "deny"}:
+        return False
+
+    index = 2 if parts[1] in {"ip", "tcp", "udp", "icmp"} else 1
+    while index < len(parts):
+        token = parts[index]
+        if token in {"any", "eq", "range", "lt", "gt", "neq"}:
+            index += 1
+            continue
+        if token == "host":
+            index += 2
+            continue
+        try:
+            ipaddress.IPv4Address(token)
+        except Exception:
+            index += 1
+            continue
+        if index + 1 >= len(parts):
+            return False
+        try:
+            ipaddress.IPv4Address(parts[index + 1])
+        except Exception:
+            index += 1
+            continue
+        if not _wildcard_is_contiguous(parts[index + 1]):
+            return True
+        index += 2
+    return False
 
 
 def _canonical_acl_rule(rule):
@@ -1553,6 +1603,74 @@ def _check_extra_ppp(template_interfaces, student_interfaces):
     return results
 
 
+def _has_chap_ppp_interface(interfaces):
+    if not isinstance(interfaces, dict):
+        return False
+    for cfg in interfaces.values():
+        if not isinstance(cfg, dict):
+            continue
+        if cfg.get("encapsulation") == "ppp" and cfg.get("ppp_authentication") == "chap":
+            return True
+    return False
+
+
+def _users_by_name(users):
+    mapped = {}
+    if not isinstance(users, list):
+        return mapped
+    for user in users:
+        if not isinstance(user, dict):
+            continue
+        username = str(user.get("username") or "").strip()
+        if username:
+            mapped[username] = user
+    return mapped
+
+
+def _check_ppp_account_passwords(template_show_run, student_show_run):
+    """Check CHAP peer account passwords for PPP links.
+
+    The official marker reports a missing peer account as an incorrect PPP
+    password with a blank configured value. This keeps local output aligned with
+    that wording instead of surfacing generic missing/extra local users.
+    """
+    if not isinstance(template_show_run, dict) or not isinstance(student_show_run, dict):
+        return []
+    if not _has_chap_ppp_interface(template_show_run.get("interfaces") or {}):
+        return []
+
+    template_users = _users_by_name(template_show_run.get("users") or [])
+    student_users = _users_by_name(student_show_run.get("users") or [])
+    results = []
+
+    for username, expected_user in sorted(template_users.items()):
+        if expected_user.get("auth_type") != "password":
+            continue
+        expected_password = str(expected_user.get("password") or "")
+        if not expected_password:
+            continue
+        actual_user = student_users.get(username)
+        if actual_user is None:
+            actual_password = "(user not configured)"
+        elif not isinstance(actual_user, dict):
+            actual_password = "(user not configured)"
+        else:
+            raw = actual_user.get("password")
+            actual_password = str(raw) if raw else "(no password set)"
+        if actual_password != expected_password:
+            results.append(
+                _make_result(
+                    f"show_running_config.users.{username}.ppp_chap_password",
+                    "mismatch",
+                    expected_password,
+                    actual_password,
+                    "MISMATCH_PPP_PASSWORD",
+                )
+            )
+
+    return results
+
+
 def _check_nat_completeness(student_nat):
     """Check for missing NAT ACL binding and overload when NAT pools exist."""
     results = []
@@ -1763,14 +1881,6 @@ def _outcome_code_for_path(full_key, status):
         if status == "missing":
             return "MISSING_CLOCK_RATE"
         return "MISMATCH_CLOCK_RATE"
-
-    # Description
-    if full_key.endswith(".description"):
-        if status == "missing":
-            return "MISSING_DESCRIPTION"
-        if status == "extra":
-            return "EXTRA_DESCRIPTION"
-        return "MISSING_DESCRIPTION"
 
     # Encapsulation
     if full_key.endswith(".encapsulation"):
@@ -3204,6 +3314,8 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
     def _should_skip_path(path):
         if path == "schema_version" or path.endswith(".schema_version"):
             return True
+        if re.search(r"^show_running_config\.interfaces\..+\.description$", path):
+            return True
         if "sticky_macs" in path:
             return True
         if path.endswith("switching.spanning_tree.extend_system_id"):
@@ -3369,6 +3481,9 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
 
         # Extra PPP (PPP on interfaces that should not have it)
         results.extend(_check_extra_ppp(t_interfaces, s_interfaces))
+
+        # PPP CHAP account password validation
+        results.extend(_check_ppp_account_passwords(template_show_run, student_show_run))
 
         # NAT completeness (pool without ACL binding)
         results.extend(_check_nat_completeness(s_nat))
