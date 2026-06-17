@@ -24,14 +24,17 @@ RUBRIC_RULES_PATH = BASE_DIR / "config" / "rubric_rules.json"
 DEFAULT_DISABLED_RULE_CODES = {
     # These checks remain visible as evidence, but the current default marking
     # profile should not deduct marks for them.
-    "EXTRA_DESCRIPTION",
+    "EXTRA_ACL",
     "EXTRA_MOTD",
-    "MISSING_LINE_PASSWORD",
+    "EXTRA_USER",
+    "MISSING_ACL",
     "MISSING_MOTD",
+    "MISSING_USER",
     "MISMATCH_HTTP_SERVER",
     "MISMATCH_LINE_PASSWORD",
     "MISMATCH_MOTD",
     "MISMATCH_ROUTING_PASSIVE",
+    "VERIFY_DHCP_NOT_ASSIGNING",
     "MISMATCH_VTY_TRANSPORT",
     "VERIFY_GATEWAY_WRONG",
     "VERIFY_IFACE_ADMIN_UP",
@@ -216,12 +219,6 @@ def _default_rubric_rules():
             "Interface shutdown but configured.",
         ),
         ("MISMATCH_CLOCK_RATE", "major", "Serial clock rate differs."),
-        ("MISSING_DESCRIPTION", "minor", "Required interface description not set."),
-        (
-            "EXTRA_DESCRIPTION",
-            "minor",
-            "Interface description set when it should not be.",
-        ),
         (
             "EXTRA_IFACE_CONFIGURED",
             "major",
@@ -443,11 +440,6 @@ def _default_rubric_rules():
         ("EXTRA_ACL_APPLIED", "minor", "ACL applied to wrong interface."),
         ("EXTRA_VLAN", "minor", "Extra VLAN created."),
         ("EXTRA_VTY_CONFIG", "minor", "Extra VTY command added."),
-        (
-            "EXTRA_DESCRIPTION",
-            "minor",
-            "Interface description added when not required.",
-        ),
         ("EXTRA_USER", "minor", "Extra user account created."),
         ("EXTRA_TRUNK_ALLOWED_VLAN", "minor", "Extra VLAN allowed on trunk."),
         ("EXTRA_STP_PRIORITY", "minor", "Extra STP priority configured."),
@@ -460,7 +452,7 @@ def _default_rubric_rules():
         ("EXTRA_LINE_ENABLED", "minor", "Line access enabled when it should not be."),
         (
             "VERIFY_IFACE_DOWN",
-            "minor",
+            "major",
             "Interface should be up but is down in show ip interface brief.",
         ),
         (
@@ -724,8 +716,6 @@ def _default_rubric_rules():
         "MISMATCH_ENCAPSULATION": [r"\.interfaces\..+\.encapsulation$"],
         "MISSING_ENCAPSULATION": [r"\.interfaces\..+\.encapsulation$"],
         "MISMATCH_CONFIGURED_IF_SHUTDOWN": [r"\.configured_if_shutdown$"],
-        "MISSING_DESCRIPTION": [r"\.interfaces\..+\.description$"],
-        "EXTRA_DESCRIPTION": [r"\.interfaces\..+\.description$"],
         "MISMATCH_GATEWAY_ADDRESS": [r"\.switching\.default_gateway$"],
         "MISSING_DEFAULT_GATEWAY": [r"\.switching\.default_gateway$"],
         "MISMATCH_SUB_INT_VLAN": [r"\.subinterface$"],
@@ -1216,6 +1206,9 @@ def classify_items(items, policy, rubric_rules=None):
     classified_config = []
     failed_config_refs = set()
     failed_config_features = set()
+    # Fix 2: track interfaces where MISSING_ENCAPSULATION has already been scored,
+    # so that MISSING_PPP_AUTH on the same interface is treated as evidence-only.
+    encapsulation_scored_interfaces = set()
 
     for item in config_items:
         item_copy = _classify_single_item(
@@ -1246,22 +1239,45 @@ def classify_items(items, policy, rubric_rules=None):
             failed_config_features.add(item_copy.get("feature", ""))
             severity = item_copy.get("severity", "minor")
             rule_id = item_copy.get("rule_id")
-            if severity == "major":
-                summary["major"] += 1
-                item_copy["rule_deduplicated"] = False
-            else:
-                if rule_id:
-                    if rule_id not in minor_rule_hits:
-                        summary["minor"] += 1
-                        minor_rule_hits.add(rule_id)
-                        item_copy["rule_deduplicated"] = False
-                    else:
-                        # Same rule already counted — still show but mark as not scored
-                        item_copy["rule_deduplicated"] = True
-                        item_copy["counts_toward_marking"] = False
-                else:
-                    summary["minor"] += 1
+            rule_code = item_copy.get("rule_code") or item_copy.get("outcome_code", "")
+
+            # Fix 2: suppress MISSING_PPP_AUTH when MISSING_ENCAPSULATION already
+            # scored on the same interface (they represent one configuration omission).
+            ppp_auth_suppressed = False
+            if rule_code == "MISSING_PPP_AUTH":
+                feature = item_copy.get("feature", "")
+                # Extract interface ref from feature like
+                # show_running_config.interfaces.Serial0/1/0.ppp_authentication
+                iface_ref = config_block_ref(feature) or ""
+                if iface_ref in encapsulation_scored_interfaces:
+                    item_copy["rule_deduplicated"] = True
+                    item_copy["counts_toward_marking"] = False
+                    item_copy["dedup_ref"] = iface_ref
+                    ppp_auth_suppressed = True
+
+            if not ppp_auth_suppressed:
+                if severity == "major":
+                    summary["major"] += 1
                     item_copy["rule_deduplicated"] = False
+                    # Fix 2: track interfaces where encapsulation error was scored
+                    if rule_code == "MISSING_ENCAPSULATION":
+                        feature = item_copy.get("feature", "")
+                        iface_ref = config_block_ref(feature) or ""
+                        if iface_ref:
+                            encapsulation_scored_interfaces.add(iface_ref)
+                else:
+                    if rule_id:
+                        if rule_id not in minor_rule_hits:
+                            summary["minor"] += 1
+                            minor_rule_hits.add(rule_id)
+                            item_copy["rule_deduplicated"] = False
+                        else:
+                            # Same rule already counted — still show but mark as not scored
+                            item_copy["rule_deduplicated"] = True
+                            item_copy["counts_toward_marking"] = False
+                    else:
+                        summary["minor"] += 1
+                        item_copy["rule_deduplicated"] = False
 
         classified_config.append(item_copy)
 

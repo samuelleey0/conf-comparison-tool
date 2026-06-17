@@ -443,4 +443,16 @@ def verification_is_deduplicated(feature: str, failed_config_refs, failed_config
             ):
                 return True, route_config.get("default_parent")
 
+        # Fix 3: also suppress route verification errors when a physical interface
+        # config error (e.g. missing PPP encapsulation) is already scored — the
+        # routing table absence is a downstream consequence, not a separate mistake.
+        _iface_error_codes = {
+            "MISSING_ENCAPSULATION",
+            "MISMATCH_ENCAPSULATION",
+            "VERIFY_IFACE_DOWN",
+        }
+        for failed_feature in failed_config_features:
+            if failed_feature.startswith("show_running_config.interfaces."):
+                return True, route_config.get("default_parent") or "show_running_config.routing"
+
     return False, layer1_ref
