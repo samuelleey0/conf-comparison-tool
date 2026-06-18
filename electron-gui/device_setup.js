@@ -136,7 +136,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   function commandLabelFromFilename(filename) {
     const base = path.parse(filename).name;
     return String(base || "")
-      .replace(/[_-]+/g, " ")
+      .replace(/_+/g, " ")
       .replace(/\s+/g, " ")
       .trim();
   }

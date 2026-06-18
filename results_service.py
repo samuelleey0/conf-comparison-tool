@@ -622,7 +622,7 @@ def _canonical_cli_command(command):
     normalized = _normalize_text(text)
     if normalized == "show running config":
         return "show running-config"
-    if normalized == "show access lists":
+    if normalized in {"show access list", "show access lists"}:
         return "show access-lists"
     return text
 
