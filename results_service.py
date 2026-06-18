@@ -624,6 +624,8 @@ def _canonical_cli_command(command):
         return "show running-config"
     if normalized in {"show access list", "show access lists"}:
         return "show access-lists"
+    if normalized == "show port security":
+        return "show port-security"
     return text
 
 
