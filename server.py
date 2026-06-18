@@ -1023,37 +1023,6 @@ def _ensure_base_path(data):
     return base_path, classroom, tutor_name, time_slot, student_id
 
 
-def _command_log_stem(command):
-    return _canonical_cli_command(command).replace(" ", "_").replace("/", "_")
-
-
-def _missing_command_logs(base_path, hostname, commands):
-    if not hostname:
-        return [_canonical_cli_command(cmd) for cmd in commands]
-
-    base = Path(base_path)
-    host_dir = base.parent / "logs" / base.name / hostname / "raw"
-    if not host_dir.exists():
-        return [_canonical_cli_command(cmd) for cmd in commands]
-
-    try:
-        file_stems = {
-            entry.stem
-            for entry in host_dir.iterdir()
-            if entry.is_file() and entry.name != "config.json"
-        }
-    except OSError:
-        return [_canonical_cli_command(cmd) for cmd in commands]
-
-    missing = []
-    for cmd in commands:
-        cli_cmd = _canonical_cli_command(cmd)
-        expected_stem = _command_log_stem(cli_cmd)
-        if not any(expected_stem == stem or stem.endswith(f"_{expected_stem}") for stem in file_stems):
-            missing.append(cli_cmd)
-    return missing
-
-
 @app.route("/api/abort", methods=["POST"])
 def api_abort():
     """Signal the running execution to stop immediately."""
@@ -1119,10 +1088,6 @@ def api_execute():
             delete_engine_student_logs_for_docs_target(Path(base_path) / host_folder)
             files_written.clear()
             return deleted_docs
-
-        def verify_collected_commands(host_folder):
-            missing = _missing_command_logs(base_path, host_folder, commands)
-            return missing
 
         def run_serial():
             global current_mode
@@ -1324,15 +1289,14 @@ def api_execute():
                         last_error = f"Command '{cli_cmd}' failed: {exc}"
                         break
 
-                missing = verify_collected_commands(host_folder)
-                if last_error is None and not missing:
+                if last_error is None and completed == total_commands:
                     collection_complete = True
                     break
 
-                if missing and last_error is None:
+                if last_error is None:
                     last_error = (
-                        "Incomplete command collection; missing logs for: "
-                        + ", ".join(missing)
+                        f"Incomplete command collection; completed {completed} of "
+                        f"{total_commands} selected command(s)."
                     )
                 cleanup_partial_device_logs(host_folder)
                 if attempt < max_collection_attempts:
@@ -1612,15 +1576,14 @@ def api_execute():
                         last_error = f"Command '{cli_cmd}' failed: {exc}"
                         break
 
-                missing = verify_collected_commands(host_folder)
-                if last_error is None and not missing:
+                if last_error is None and completed == total_commands:
                     collection_complete = True
                     break
 
-                if missing and last_error is None:
+                if last_error is None:
                     last_error = (
-                        "Incomplete command collection; missing logs for: "
-                        + ", ".join(missing)
+                        f"Incomplete command collection; completed {completed} of "
+                        f"{total_commands} selected command(s)."
                     )
                 cleanup_partial_device_logs(host_folder)
                 if attempt < max_collection_attempts:
