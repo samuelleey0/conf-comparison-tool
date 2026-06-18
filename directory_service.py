@@ -187,6 +187,7 @@ def save_log_entry(
     source_type,
     session_dir=None,
     logs_root=None,
+    include_student_dir=True,
 ):
     """
     Save one collected log in the legacy student/device folder layout.
@@ -216,7 +217,10 @@ def save_log_entry(
     else:
         logs_root = Path(logs_root)
 
-    device_dir = logs_root / safe_student / safe_device
+    if include_student_dir:
+        device_dir = logs_root / safe_student / safe_device
+    else:
+        device_dir = logs_root / safe_device
     device_dir.mkdir(parents=True, exist_ok=True)
     command_segment = safe_command.replace(" ", "_").replace("/", "_")
     raw_path = device_dir / f"{command_segment}.txt"

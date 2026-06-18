@@ -1023,6 +1023,20 @@ def _ensure_base_path(data):
     return base_path, classroom, tutor_name, time_slot, student_id
 
 
+def _collection_session_dir(base_path, student_id):
+    """
+    Return the folder that should contain student folders for collected logs.
+
+    In create mode, base_path is already .../<time_slot>/<student_id>. In
+    existing mode, the selected path may be either the session folder or the
+    student folder. Saving always appends <student_id>/<hostname>/<command>.txt.
+    """
+    base = Path(base_path)
+    if student_id and base.name == str(student_id):
+        return base.parent
+    return base
+
+
 @app.route("/api/abort", methods=["POST"])
 def api_abort():
     """Signal the running execution to stop immediately."""
@@ -1077,15 +1091,25 @@ def api_execute():
         skip_hostname_check = bool(data.get("skip_hostname_check"))
         file_extension = data.get("file_extension") or ".txt"
         max_collection_attempts = 2
+        is_sample_collection = str(student_id or "").strip().lower() == "sample"
+        student_folder = str(student_id or "unknown")
+        collection_session_dir = _collection_session_dir(base_path, student_id)
+        collection_student_dir = (
+            Path(collection_session_dir)
+            if is_sample_collection
+            else Path(collection_session_dir) / student_folder
+        )
 
         def cleanup_partial_device_logs(host_folder):
             if not host_folder:
                 return False
-            deleted_docs = del_partial_logs(base_path, host_folder)
-            unified_device_dir = Path(base_path).parent / "logs" / student_id / host_folder
+            deleted_docs = del_partial_logs(str(collection_student_dir), host_folder)
+            unified_device_dir = (
+                Path(base_path).parent / "logs" / student_folder / host_folder
+            )
             if unified_device_dir.exists():
                 shutil.rmtree(unified_device_dir)
-            delete_engine_student_logs_for_docs_target(Path(base_path) / host_folder)
+            delete_engine_student_logs_for_docs_target(collection_student_dir / host_folder)
             files_written.clear()
             return deleted_docs
 
@@ -1267,7 +1291,8 @@ def api_execute():
                             cli_cmd,
                             output,
                             "serial",
-                            session_dir=Path(base_path).parent,
+                            session_dir=collection_session_dir,
+                            include_student_dir=not is_sample_collection,
                         )
                         file_path = saved_log["raw_log_path"]
                         files_written.append(file_path)
@@ -1324,7 +1349,7 @@ def api_execute():
                 # Build parsed config.json for the student device logs.
                 try:
                     host_folder = target_device or hostname or "device"
-                    host_dir = os.path.join(base_path, host_folder)
+                    host_dir = os.path.join(collection_student_dir, host_folder)
                     os.makedirs(host_dir, exist_ok=True)
                     config = parse_device_logs(files_written)
                     config_path = os.path.join(host_dir, "config.json")
@@ -1336,7 +1361,7 @@ def api_execute():
                 except Exception as exc:
                     try:
                         host_folder = target_device or hostname or "device"
-                        host_dir = os.path.join(base_path, host_folder)
+                        host_dir = os.path.join(collection_student_dir, host_folder)
                         os.makedirs(host_dir, exist_ok=True)
                         fallback = parse_device_logs([])
                         fallback["parse_error"] = str(exc)
@@ -1554,7 +1579,8 @@ def api_execute():
                             cli_cmd,
                             output,
                             "serial",
-                            session_dir=Path(base_path).parent,
+                            session_dir=collection_session_dir,
+                            include_student_dir=not is_sample_collection,
                         )
                         file_path = saved_log["raw_log_path"]
                         files_written.append(file_path)
@@ -1610,7 +1636,7 @@ def api_execute():
                 # Build parsed config.json for the student device logs.
                 try:
                     host_folder = target_device or hostname or "device"
-                    host_dir = os.path.join(base_path, host_folder)
+                    host_dir = os.path.join(collection_student_dir, host_folder)
                     os.makedirs(host_dir, exist_ok=True)
                     config = parse_device_logs(files_written)
                     config_path = os.path.join(host_dir, "config.json")
@@ -1622,7 +1648,7 @@ def api_execute():
                 except Exception as exc:
                     try:
                         host_folder = target_device or hostname or "device"
-                        host_dir = os.path.join(base_path, host_folder)
+                        host_dir = os.path.join(collection_student_dir, host_folder)
                         os.makedirs(host_dir, exist_ok=True)
                         fallback = parse_device_logs([])
                         fallback["parse_error"] = str(exc)
