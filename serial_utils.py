@@ -418,7 +418,9 @@ def _prompt_from_command_echo(text, command):
 
 def _has_command_prompt(text, command, expected_prompt=None, current_prompt=None):
     if current_prompt:
-        return bool(re.search(rf"(^|[\r\n]){re.escape(current_prompt)}\s*$", text))
+        if re.search(rf"(^|[\r\n]){re.escape(current_prompt)}\s*$", text):
+            return True
+        return _has_exec_prompt(text, expected_prompt)
 
     echoed_prompt = _prompt_from_command_echo(text, command)
     if echoed_prompt:

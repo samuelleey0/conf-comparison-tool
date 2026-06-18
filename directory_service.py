@@ -10,7 +10,6 @@ import os
 import re
 import shutil
 import string
-from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -166,14 +165,6 @@ def _is_repo_container_dir(path: Path) -> bool:
         return False
 
 
-def _safe_log_filename_segment(value, fallback):
-    cleaned = str(value or "").strip() or fallback
-    cleaned = cleaned.replace("/", "_").replace("\\", "_")
-    cleaned = re.sub(r"[^A-Za-z0-9_. -]+", "_", cleaned)
-    cleaned = re.sub(r"\s+", "_", cleaned).strip("._ ")
-    return cleaned or fallback
-
-
 def _unique_file_path(directory: Path, filename: str) -> Path:
     candidate = directory / filename
     if not candidate.exists():
@@ -196,13 +187,13 @@ def save_log_entry(
     source_type,
     session_dir=None,
     logs_root=None,
+    include_student_dir=True,
 ):
     """
-    Save one collected log in the unified raw+metadata store.
+    Save one collected log in the legacy student/device folder layout.
 
     Default layout under a session:
-      logs/<student_id>/<device_id>/raw/<timestamp>_<command>.txt
-      logs/<student_id>/<device_id>/metadata/<timestamp>_<command>.json
+      <student_id>/<device_id>/<command>.txt
     """
     safe_student = normalize_directory_segment(student_id, "Student ID")
     safe_device = normalize_directory_segment(device_id, "Device ID")
@@ -220,40 +211,32 @@ def save_log_entry(
 
     if logs_root is None:
         if session_dir is None:
-            logs_root = BASE_DIR / UNIFIED_LOGS_DIR_NAME
+            logs_root = BASE_DIR
         else:
-            logs_root = Path(session_dir) / UNIFIED_LOGS_DIR_NAME
+            logs_root = Path(session_dir)
     else:
         logs_root = Path(logs_root)
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    command_segment = _safe_log_filename_segment(safe_command, "command")
-    base_filename = f"{timestamp}_{command_segment}"
-    device_dir = logs_root / safe_student / safe_device
-    raw_dir = device_dir / "raw"
-    metadata_dir = device_dir / "metadata"
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    metadata_dir.mkdir(parents=True, exist_ok=True)
-
-    raw_path = _unique_file_path(raw_dir, f"{base_filename}.txt")
+    if include_student_dir:
+        device_dir = logs_root / safe_student / safe_device
+    else:
+        device_dir = logs_root / safe_device
+    device_dir.mkdir(parents=True, exist_ok=True)
+    command_segment = safe_command.replace(" ", "_").replace("/", "_")
+    raw_path = device_dir / f"{command_segment}.txt"
     raw_path.write_text(text, encoding="utf-8")
 
-    metadata_path = _unique_file_path(metadata_dir, f"{raw_path.stem}.json")
     metadata = {
         "student_id": safe_student,
         "device_id": safe_device,
         "command": safe_command,
         "source_type": safe_source,
-        "timestamp": timestamp,
         "raw_log_path": str(raw_path),
     }
-    metadata_path.write_text(
-        json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
 
     return {
         "raw_log_path": str(raw_path),
-        "metadata_path": str(metadata_path),
+        "metadata_path": None,
         "logs_root": str(logs_root),
         "metadata": metadata,
     }

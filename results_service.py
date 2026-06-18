@@ -619,8 +619,13 @@ def _normalize_text(value):
 
 def _canonical_cli_command(command):
     text = str(command or "").strip()
-    if _normalize_text(text) == "show running config":
+    normalized = _normalize_text(text)
+    if normalized == "show running config":
         return "show running-config"
+    if normalized in {"show access list", "show access lists"}:
+        return "show access-lists"
+    if normalized == "show port security":
+        return "show port-security"
     return text
 
 

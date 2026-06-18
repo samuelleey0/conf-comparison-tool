@@ -1023,35 +1023,18 @@ def _ensure_base_path(data):
     return base_path, classroom, tutor_name, time_slot, student_id
 
 
-def _command_log_stem(command):
-    return _canonical_cli_command(command).replace(" ", "_").replace("/", "_")
+def _collection_session_dir(base_path, student_id):
+    """
+    Return the folder that should contain student folders for collected logs.
 
-
-def _missing_command_logs(base_path, hostname, commands):
-    if not hostname:
-        return [_canonical_cli_command(cmd) for cmd in commands]
-
+    In create mode, base_path is already .../<time_slot>/<student_id>. In
+    existing mode, the selected path may be either the session folder or the
+    student folder. Saving always appends <student_id>/<hostname>/<command>.txt.
+    """
     base = Path(base_path)
-    host_dir = base.parent / "logs" / base.name / hostname / "raw"
-    if not host_dir.exists():
-        return [_canonical_cli_command(cmd) for cmd in commands]
-
-    try:
-        file_stems = {
-            entry.stem
-            for entry in host_dir.iterdir()
-            if entry.is_file() and entry.name != "config.json"
-        }
-    except OSError:
-        return [_canonical_cli_command(cmd) for cmd in commands]
-
-    missing = []
-    for cmd in commands:
-        cli_cmd = _canonical_cli_command(cmd)
-        expected_stem = _command_log_stem(cli_cmd)
-        if not any(expected_stem == stem or stem.endswith(f"_{expected_stem}") for stem in file_stems):
-            missing.append(cli_cmd)
-    return missing
+    if student_id and base.name == str(student_id):
+        return base.parent
+    return base
 
 
 @app.route("/api/abort", methods=["POST"])
@@ -1108,21 +1091,27 @@ def api_execute():
         skip_hostname_check = bool(data.get("skip_hostname_check"))
         file_extension = data.get("file_extension") or ".txt"
         max_collection_attempts = 2
+        is_sample_collection = str(student_id or "").strip().lower() == "sample"
+        student_folder = str(student_id or "unknown")
+        collection_session_dir = _collection_session_dir(base_path, student_id)
+        collection_student_dir = (
+            Path(collection_session_dir)
+            if is_sample_collection
+            else Path(collection_session_dir) / student_folder
+        )
 
         def cleanup_partial_device_logs(host_folder):
             if not host_folder:
                 return False
-            deleted_docs = del_partial_logs(base_path, host_folder)
-            unified_device_dir = Path(base_path).parent / "logs" / student_id / host_folder
+            deleted_docs = del_partial_logs(str(collection_student_dir), host_folder)
+            unified_device_dir = (
+                Path(base_path).parent / "logs" / student_folder / host_folder
+            )
             if unified_device_dir.exists():
                 shutil.rmtree(unified_device_dir)
-            delete_engine_student_logs_for_docs_target(Path(base_path) / host_folder)
+            delete_engine_student_logs_for_docs_target(collection_student_dir / host_folder)
             files_written.clear()
             return deleted_docs
-
-        def verify_collected_commands(host_folder):
-            missing = _missing_command_logs(base_path, host_folder, commands)
-            return missing
 
         def run_serial():
             global current_mode
@@ -1302,7 +1291,8 @@ def api_execute():
                             cli_cmd,
                             output,
                             "serial",
-                            session_dir=Path(base_path).parent,
+                            session_dir=collection_session_dir,
+                            include_student_dir=not is_sample_collection,
                         )
                         file_path = saved_log["raw_log_path"]
                         files_written.append(file_path)
@@ -1324,15 +1314,14 @@ def api_execute():
                         last_error = f"Command '{cli_cmd}' failed: {exc}"
                         break
 
-                missing = verify_collected_commands(host_folder)
-                if last_error is None and not missing:
+                if last_error is None and completed == total_commands:
                     collection_complete = True
                     break
 
-                if missing and last_error is None:
+                if last_error is None:
                     last_error = (
-                        "Incomplete command collection; missing logs for: "
-                        + ", ".join(missing)
+                        f"Incomplete command collection; completed {completed} of "
+                        f"{total_commands} selected command(s)."
                     )
                 cleanup_partial_device_logs(host_folder)
                 if attempt < max_collection_attempts:
@@ -1360,7 +1349,7 @@ def api_execute():
                 # Build parsed config.json for the student device logs.
                 try:
                     host_folder = target_device or hostname or "device"
-                    host_dir = os.path.join(base_path, host_folder)
+                    host_dir = os.path.join(collection_student_dir, host_folder)
                     os.makedirs(host_dir, exist_ok=True)
                     config = parse_device_logs(files_written)
                     config_path = os.path.join(host_dir, "config.json")
@@ -1372,7 +1361,7 @@ def api_execute():
                 except Exception as exc:
                     try:
                         host_folder = target_device or hostname or "device"
-                        host_dir = os.path.join(base_path, host_folder)
+                        host_dir = os.path.join(collection_student_dir, host_folder)
                         os.makedirs(host_dir, exist_ok=True)
                         fallback = parse_device_logs([])
                         fallback["parse_error"] = str(exc)
@@ -1590,7 +1579,8 @@ def api_execute():
                             cli_cmd,
                             output,
                             "serial",
-                            session_dir=Path(base_path).parent,
+                            session_dir=collection_session_dir,
+                            include_student_dir=not is_sample_collection,
                         )
                         file_path = saved_log["raw_log_path"]
                         files_written.append(file_path)
@@ -1612,15 +1602,14 @@ def api_execute():
                         last_error = f"Command '{cli_cmd}' failed: {exc}"
                         break
 
-                missing = verify_collected_commands(host_folder)
-                if last_error is None and not missing:
+                if last_error is None and completed == total_commands:
                     collection_complete = True
                     break
 
-                if missing and last_error is None:
+                if last_error is None:
                     last_error = (
-                        "Incomplete command collection; missing logs for: "
-                        + ", ".join(missing)
+                        f"Incomplete command collection; completed {completed} of "
+                        f"{total_commands} selected command(s)."
                     )
                 cleanup_partial_device_logs(host_folder)
                 if attempt < max_collection_attempts:
@@ -1647,7 +1636,7 @@ def api_execute():
                 # Build parsed config.json for the student device logs.
                 try:
                     host_folder = target_device or hostname or "device"
-                    host_dir = os.path.join(base_path, host_folder)
+                    host_dir = os.path.join(collection_student_dir, host_folder)
                     os.makedirs(host_dir, exist_ok=True)
                     config = parse_device_logs(files_written)
                     config_path = os.path.join(host_dir, "config.json")
@@ -1659,7 +1648,7 @@ def api_execute():
                 except Exception as exc:
                     try:
                         host_folder = target_device or hostname or "device"
-                        host_dir = os.path.join(base_path, host_folder)
+                        host_dir = os.path.join(collection_student_dir, host_folder)
                         os.makedirs(host_dir, exist_ok=True)
                         fallback = parse_device_logs([])
                         fallback["parse_error"] = str(exc)
