@@ -2502,6 +2502,8 @@ def _verification_outcome_code_for_path(full_key, status, expected=None, actual=
             return "VERIFY_PORT_SECURITY_MISSING_IFACE"
         if feature.endswith(".max_secure_addr"):
             return "VERIFY_PORT_SECURITY_MAX_WRONG"
+        if feature.endswith(".current_count"):
+            return "VERIFY_PORT_SECURITY_CURRENT_COUNT"
         if feature.endswith(".security_action"):
             return "VERIFY_PORT_SECURITY_ACTION_WRONG"
         if feature.endswith(".security_violation_count"):
@@ -2627,6 +2629,64 @@ def _find_default_static_route(routes):
         if destination == "0.0.0.0/0":
             return route
     return None
+
+
+def _route_table_entry_is_default(route):
+    """Return true when a parsed route-table entry represents the default route."""
+    if not isinstance(route, dict):
+        return False
+    destination = str(route.get("destination") or route.get("network") or "").strip()
+    mask = str(route.get("mask", "")).strip()
+    if destination in {"0.0.0.0/0", "0.0.0.0"} and mask in {
+        "",
+        "0.0.0.0",
+        "/0",
+    }:
+        return True
+    return False
+
+
+def _static_routes_from_verification(verification):
+    """Return static routes from operational route-table captures."""
+    route_static = (verification.get("show_ip_route_static") or {}).get("routes") or []
+    if route_static:
+        return route_static, "show_ip_route_static"
+
+    show_ip_route = verification.get("show_ip_route") or {}
+    routes = _filter_route_table(show_ip_route.get("routes") or [], {"S"})
+    if routes:
+        return routes, "show_ip_route"
+
+    return [], "show_ip_route_static"
+
+
+def _route_table_static_destinations(routes):
+    """Extract comparable static route destinations from parsed route-table entries."""
+    cidrs = set()
+    networks = set()
+    for route in routes or []:
+        if not isinstance(route, dict):
+            continue
+        if _route_table_entry_is_default(route):
+            continue
+        destination = str(route.get("destination", "")).strip()
+        mask = str(route.get("mask", "")).strip()
+        if not destination or destination == "-":
+            continue
+        if "/" in destination:
+            networks.add(destination.split("/", 1)[0])
+            cidrs.add(destination)
+        elif mask:
+            networks.add(destination)
+            try:
+                cidrs.add(
+                    str(ipaddress.IPv4Network(f"{destination}/{mask}", strict=False))
+                )
+            except Exception:
+                cidrs.add(f"{destination}/{mask}")
+        else:
+            networks.add(destination)
+    return cidrs, networks
 
 
 def _check_routing_verification(template, student):
@@ -3057,27 +3117,16 @@ def _check_routing_verification(template, student):
         return None
 
     def _static_result():
-        t_static = template_routing.get("static_routes") or []
-        if not t_static:
+        t_route_static, source_command = _static_routes_from_verification(
+            template_verification
+        )
+        if not t_route_static:
             return None
-        s_route_static = (student_verification.get("show_ip_route_static") or {}).get(
-            "routes"
-        ) or []
-        if not s_route_static:
-            show_ip_route = student_verification.get("show_ip_route") or {}
-            s_route_static = _filter_route_table(
-                show_ip_route.get("routes") or [], {"S"}
-            )
+        s_route_static, _ = _static_routes_from_verification(student_verification)
 
-        t_default = _find_default_static_route(t_static)
-        if t_default:
+        if any(_route_table_entry_is_default(route) for route in t_route_static):
             default_present = any(
-                str(route.get("destination", "")).strip() == "0.0.0.0/0"
-                or (
-                    str(route.get("destination", "")).strip() == "0.0.0.0"
-                    and str(route.get("mask", "")).strip() == "0.0.0.0"
-                )
-                for route in s_route_static
+                _route_table_entry_is_default(route) for route in s_route_static
             )
             if not default_present:
                 return _make_verification_chain_result(
@@ -3085,52 +3134,17 @@ def _check_routing_verification(template, student):
                     "VERIFY_DEFAULT_ROUTE_MISSING",
                     "default route installed",
                     "default route absent",
-                    "show_ip_route_static",
+                    source_command,
                     3,
                     "static",
                 )
 
-        expected_static = set()
-        expected_static_networks = set()
-        for route in t_static:
-            if not isinstance(route, dict):
-                continue
-            network = str(route.get("network", "")).strip()
-            mask = str(route.get("mask", "")).strip()
-            if network and mask and not (network == "0.0.0.0" and mask == "0.0.0.0"):
-                expected_static_networks.add(network)
-                try:
-                    expected_static.add(
-                        str(ipaddress.IPv4Network(f"{network}/{mask}", strict=False))
-                    )
-                except Exception:
-                    expected_static.add(f"{network}/{mask}")
-
-        actual_static = set()
-        actual_static_networks = set()
-        for route in s_route_static:
-            if not isinstance(route, dict):
-                continue
-            destination = str(route.get("destination", "")).strip()
-            mask = str(route.get("mask", "")).strip()
-            if destination:
-                if "/" in destination:
-                    actual_static_networks.add(destination.split("/", 1)[0])
-                else:
-                    actual_static_networks.add(destination)
-                if "/" in destination:
-                    actual_static.add(destination)
-                elif mask:
-                    try:
-                        actual_static.add(
-                            str(
-                                ipaddress.IPv4Network(
-                                    f"{destination}/{mask}", strict=False
-                                )
-                            )
-                        )
-                    except Exception:
-                        actual_static.add(f"{destination}/{mask}")
+        expected_static, expected_static_networks = _route_table_static_destinations(
+            t_route_static
+        )
+        actual_static, actual_static_networks = _route_table_static_destinations(
+            s_route_static
+        )
 
         missing_static = sorted(
             cidr
@@ -3144,7 +3158,7 @@ def _check_routing_verification(template, student):
                 "VERIFY_STATIC_ROUTE_MISSING",
                 sorted(expected_static),
                 sorted(actual_static or actual_static_networks),
-                "show_ip_route_static",
+                source_command,
                 3,
                 "static",
                 details=missing_static,

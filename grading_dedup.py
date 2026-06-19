@@ -375,6 +375,12 @@ def verification_block_name(feature: str):
             return f"{command}.{parts[2]}"
         return command
     if command in set(config.get("interface_commands") or []) and len(parts) >= 4:
+        if (
+            command == "show_port_security"
+            and len(parts) >= 5
+            and parts[4] == "current_count"
+        ):
+            return "show_port_security.current_count"
         return f"{command}.{parts[3]}"
     if command in (config.get("collection_parent_map") or {}) and len(parts) >= 4:
         return f"{command}.{parts[3]}"

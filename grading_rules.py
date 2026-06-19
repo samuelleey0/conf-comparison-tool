@@ -34,6 +34,7 @@ DEFAULT_DISABLED_RULE_CODES = {
     "MISMATCH_LINE_PASSWORD",
     "MISMATCH_MOTD",
     "MISMATCH_ROUTING_PASSIVE",
+    "VERIFY_DHCP_POOL_MISSING",
     "VERIFY_DHCP_NOT_ASSIGNING",
     "MISMATCH_VTY_TRANSPORT",
     "VERIFY_GATEWAY_WRONG",
@@ -574,6 +575,11 @@ def _default_rubric_rules():
             "VERIFY_PORT_SECURITY_MAX_WRONG",
             "minor",
             "Port security maximum differs in show port-security.",
+        ),
+        (
+            "VERIFY_PORT_SECURITY_CURRENT_COUNT",
+            "minor",
+            "Port security current secure address count differs in show port-security.",
         ),
         (
             "VERIFY_PORT_SECURITY_ACTION_WRONG",
