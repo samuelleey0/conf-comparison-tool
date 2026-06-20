@@ -74,6 +74,16 @@ function setupSampleCollectPage() {
         if (sampleManualPanel?.contains(event.target) && sampleCommandSearch?.value) {
           event.preventDefault();
           resetSampleCommandSearch();
+          return;
+        }
+        if (
+          currentSampleMode === "manual" &&
+          sampleManualPanel &&
+          !sampleManualPanel.classList.contains("hidden") &&
+          sampleCommandSearch?.value
+        ) {
+          event.preventDefault();
+          resetSampleCommandSearch();
         }
         return;
       }

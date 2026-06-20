@@ -1053,6 +1053,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       closeCommandDropdowns();
     }
   });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const openDropdown = document.querySelector(".custom-dropdown.dropdown-open");
+    const block = openDropdown?.closest(".device-block");
+    if (!block) return;
+    event.preventDefault();
+    resetCommandSearch(block);
+  });
 
   await loadTemplateList();
   restoreState();
