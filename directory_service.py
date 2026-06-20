@@ -16,6 +16,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 DOCS_DIR = (Path.home() / "Documents").resolve()
 ENGINE_STUDENTS_DIR = BASE_DIR / "comparison_engine" / "students"
+UNIFIED_LOGS_DIR_NAME = "logs"
 WINDOWS_DRIVES_ROOT = "__WINDOWS_DRIVES__"
 WINDOWS_INVALID_SEGMENT_CHARS = '<>:"/\\|?*'
 WINDOWS_RESERVED_NAMES = {
@@ -186,6 +187,250 @@ def safe_iterdir(path: Path):
         return list(path.iterdir())
     except (OSError, PermissionError):
         return []
+
+
+def _is_repo_container_dir(path: Path) -> bool:
+    try:
+        Path(BASE_DIR).resolve().relative_to(path.resolve())
+        return True
+    except ValueError:
+        return False
+    except OSError:
+        return False
+
+
+def _unique_file_path(directory: Path, filename: str) -> Path:
+    candidate = directory / filename
+    if not candidate.exists():
+        return candidate
+    stem = candidate.stem
+    suffix = candidate.suffix
+    index = 2
+    while True:
+        numbered = directory / f"{stem}_{index}{suffix}"
+        if not numbered.exists():
+            return numbered
+        index += 1
+
+
+def save_log_entry(
+    student_id,
+    device_id,
+    command,
+    raw_text,
+    source_type,
+    session_dir=None,
+    logs_root=None,
+    include_student_dir=True,
+):
+    """
+    Save one collected log in the legacy student/device folder layout.
+
+    Default layout under a session:
+      <student_id>/<device_id>/<command>.txt
+    """
+    safe_student = normalize_directory_segment(student_id, "Student ID")
+    safe_device = normalize_directory_segment(device_id, "Device ID")
+    safe_command = str(command or "").strip()
+    if not safe_command:
+        raise ValueError("Missing command.")
+
+    safe_source = str(source_type or "").strip().lower()
+    if safe_source not in {"serial", "manual"}:
+        raise ValueError("source_type must be 'serial' or 'manual'.")
+
+    text = "" if raw_text is None else str(raw_text)
+    if safe_source == "manual" and not text.strip():
+        raise ValueError("Manual log content cannot be empty.")
+
+    if logs_root is None:
+        if session_dir is None:
+            logs_root = BASE_DIR
+        else:
+            logs_root = Path(session_dir)
+    else:
+        logs_root = Path(logs_root)
+
+    if include_student_dir:
+        device_dir = logs_root / safe_student / safe_device
+    else:
+        device_dir = logs_root / safe_device
+    device_dir.mkdir(parents=True, exist_ok=True)
+    command_segment = safe_command.replace(" ", "_").replace("/", "_")
+    raw_path = device_dir / f"{command_segment}.txt"
+    raw_path.write_text(text, encoding="utf-8")
+
+    metadata = {
+        "student_id": safe_student,
+        "device_id": safe_device,
+        "command": safe_command,
+        "source_type": safe_source,
+        "raw_log_path": str(raw_path),
+    }
+
+    return {
+        "raw_log_path": str(raw_path),
+        "metadata_path": None,
+        "logs_root": str(logs_root),
+        "metadata": metadata,
+    }
+
+
+def _iter_unified_session_log_dirs(docs_dir: Path):
+    if not docs_dir.exists():
+        return
+    for classroom_dir in safe_iterdir(docs_dir):
+        if not safe_is_visible_dir(classroom_dir):
+            continue
+        if _is_repo_container_dir(classroom_dir):
+            continue
+        for tutor_dir in safe_iterdir(classroom_dir):
+            if not safe_is_visible_dir(tutor_dir):
+                continue
+            for time_dir in safe_iterdir(tutor_dir):
+                if not safe_is_visible_dir(time_dir):
+                    continue
+                logs_dir = time_dir / UNIFIED_LOGS_DIR_NAME
+                if logs_dir.is_dir():
+                    yield classroom_dir.name, tutor_dir.name, time_dir.name, logs_dir
+
+
+def _iter_legacy_session_log_files(docs_dir: Path):
+    ignored_names = {
+        "config.json",
+        "logs.json",
+        "summary.json",
+        "readableresult.txt",
+        "students.json",
+    }
+    if not docs_dir.exists():
+        return
+    for classroom_dir in safe_iterdir(docs_dir):
+        if not safe_is_visible_dir(classroom_dir):
+            continue
+        if _is_repo_container_dir(classroom_dir):
+            continue
+        for tutor_dir in safe_iterdir(classroom_dir):
+            if not safe_is_visible_dir(tutor_dir):
+                continue
+            for time_dir in safe_iterdir(tutor_dir):
+                if not safe_is_visible_dir(time_dir):
+                    continue
+                for student_dir in safe_iterdir(time_dir):
+                    if not safe_is_visible_dir(student_dir):
+                        continue
+                    if student_dir.name in {UNIFIED_LOGS_DIR_NAME, "results"}:
+                        continue
+                    for device_dir in safe_iterdir(student_dir):
+                        if not safe_is_visible_dir(device_dir):
+                            continue
+                        if device_dir.name in {"results", "raw", "metadata"}:
+                            continue
+                        for log_path in safe_iterdir(device_dir):
+                            if not log_path.is_file() or log_path.name.startswith("."):
+                                continue
+                            if log_path.name.lower() in ignored_names:
+                                continue
+                            if log_path.suffix.lower() not in {"", ".txt", ".log"}:
+                                continue
+                            yield (
+                                classroom_dir.name,
+                                tutor_dir.name,
+                                time_dir.name,
+                                student_dir.name,
+                                device_dir.name,
+                                log_path,
+                            )
+
+
+def _destination_for_mirror_log(target_dir: Path, source_path: Path) -> Path:
+    target_dir.mkdir(parents=True, exist_ok=True)
+    candidate = target_dir / source_path.name
+    if candidate.exists():
+        try:
+            if candidate.read_bytes() == source_path.read_bytes():
+                return candidate
+        except OSError:
+            pass
+    for existing in target_dir.glob(f"{source_path.stem}*{source_path.suffix}"):
+        try:
+            if existing.is_file() and existing.read_bytes() == source_path.read_bytes():
+                return existing
+        except OSError:
+            continue
+    return _unique_file_path(target_dir, source_path.name)
+
+
+def sync_unified_logs_to_mirror(docs_dir=None, engine_students_dir=None):
+    docs_root = Path(docs_dir) if docs_dir is not None else DOCS_DIR
+    engine_root = (
+        Path(engine_students_dir)
+        if engine_students_dir is not None
+        else ENGINE_STUDENTS_DIR
+    )
+    synced_count = 0
+    skipped_count = 0
+    valid_count = 0
+
+    def copy_to_mirror(classroom, tutor_name, time_slot, student_id, device_id, source_path):
+        nonlocal synced_count, skipped_count, valid_count
+        valid_count += 1
+        target_dir = (
+            engine_root
+            / classroom
+            / tutor_name
+            / time_slot
+            / student_id
+            / device_id
+        )
+        destination = _destination_for_mirror_log(target_dir, source_path)
+        if destination.exists():
+            skipped_count += 1
+            return
+        shutil.copy2(source_path, destination)
+        synced_count += 1
+
+    for classroom, tutor_name, time_slot, logs_dir in _iter_unified_session_log_dirs(
+        docs_root
+    ):
+        for metadata_path in logs_dir.glob("*/*/metadata/*.json"):
+            try:
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                skipped_count += 1
+                continue
+
+            student_id = str(metadata.get("student_id") or "").strip()
+            device_id = str(metadata.get("device_id") or "").strip()
+            raw_log_path = Path(str(metadata.get("raw_log_path") or ""))
+            if not student_id or not device_id or not raw_log_path.is_file():
+                skipped_count += 1
+                continue
+
+            copy_to_mirror(
+                classroom, tutor_name, time_slot, student_id, device_id, raw_log_path
+            )
+
+    for (
+        classroom,
+        tutor_name,
+        time_slot,
+        student_id,
+        device_id,
+        log_path,
+    ) in _iter_legacy_session_log_files(docs_root):
+        copy_to_mirror(classroom, tutor_name, time_slot, student_id, device_id, log_path)
+
+    return {
+        "success": valid_count > 0,
+        "synced_count": synced_count,
+        "skipped_count": skipped_count,
+        "message": (
+            "Mirror sync completed"
+            if valid_count > 0
+            else "No valid logs available for mirror sync"
+        ),
+    }
 
 
 def save_output_to_engine_students(

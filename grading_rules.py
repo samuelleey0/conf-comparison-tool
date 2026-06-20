@@ -21,6 +21,22 @@ BASE_DIR = Path(__file__).resolve().parent
 GRADING_POLICY_PATH = BASE_DIR / "config" / "grading_policy.json"
 RUBRIC_RULES_PATH = BASE_DIR / "config" / "rubric_rules.json"
 
+DEFAULT_DISABLED_RULE_CODES = {
+    # These checks remain visible as evidence, but the current default marking
+    # profile should not deduct marks for them.
+    "EXTRA_DESCRIPTION",
+    "EXTRA_MOTD",
+    "MISSING_LINE_PASSWORD",
+    "MISSING_MOTD",
+    "MISMATCH_HTTP_SERVER",
+    "MISMATCH_LINE_PASSWORD",
+    "MISMATCH_MOTD",
+    "MISMATCH_ROUTING_PASSIVE",
+    "MISMATCH_VTY_TRANSPORT",
+    "VERIFY_GATEWAY_WRONG",
+    "VERIFY_IFACE_ADMIN_UP",
+}
+
 def _default_grading_policy():
     return {
         "major_threshold": 1,
@@ -906,7 +922,7 @@ def _default_rubric_rules():
                 "section": section,
                 "description": description,
                 "severity": severity,
-                "enabled": True,
+                "enabled": code not in DEFAULT_DISABLED_RULE_CODES,
                 "statuses": statuses,
                 "patterns": pattern_map.get(code, []),
             }

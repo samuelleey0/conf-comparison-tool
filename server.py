@@ -74,6 +74,7 @@ from directory_service import (
     save_session_student_names,
     select_directory,
     sync_docs_student_folder_to_engine,
+    sync_unified_logs_to_mirror,
 )
 from grading_dedup import (
     load_dedup_config,

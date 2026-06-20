@@ -35,17 +35,18 @@ function updateSessionSidebar(classroom, tutorName, timeSlot, students) {
 
   const totalEl = document.getElementById("sidebarTotalCount");
   if (totalEl) totalEl.textContent = students ? students.length : 0;
+  const assignedEl = document.getElementById("sidebarAssignedCount");
+  if (assignedEl) {
+    const assignedCount = (students || []).filter((student) => {
+      const assignment = sessionTemplateAssignments[student.student_id] || {};
+      return Boolean(assignment.template_name || assignment.template);
+    }).length;
+    assignedEl.textContent = assignedCount;
+  }
 
-  // Count completed
-  let completedCount = 0;
-  try {
-    const completedList = JSON.parse(localStorage.getItem("completedStudents") || "[]");
-    if (students && students.length) {
-      students.forEach(s => {
-        if (completedList.includes(s.student_id)) completedCount++;
-      });
-    }
-  } catch (_) {}
+  const completedCount = (students || []).filter((student) =>
+    studentFolderHasCollectedContent(student.path || "")
+  ).length;
   const completedEl = document.getElementById("sidebarCompletedCount");
   if (completedEl) completedEl.textContent = completedCount;
 
@@ -78,6 +79,8 @@ function resetSessionSidebar() {
   if (totalEl) totalEl.textContent = "—";
   const completedEl = document.getElementById("sidebarCompletedCount");
   if (completedEl) completedEl.textContent = "—";
+  const assignedEl = document.getElementById("sidebarAssignedCount");
+  if (assignedEl) assignedEl.textContent = "—";
   updateSidebarSelection(null);
 }
 
@@ -116,6 +119,160 @@ let currentFolderTreeData = [];
 let pendingSelectedFolder = null;
 let pendingSelectedStudent = null;
 const WINDOWS_DRIVES_ROOT = "__WINDOWS_DRIVES__";
+let availableTemplates = [];
+let sessionTemplateAssignments = {};
+let templateDevicesByName = {};
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function getSessionPathFromStudents(students) {
+  if (Array.isArray(students) && students.length && students[0].path && pathModule) {
+    return pathModule.dirname(students[0].path);
+  }
+  return getStoredSessionPath();
+}
+
+function getStoredSessionPath() {
+  const sessionPath = localStorage.getItem("sessionPath");
+  if (sessionPath) return sessionPath;
+  const basePath = localStorage.getItem("basePath");
+  if (basePath && pathModule) {
+    const studentId = localStorage.getItem("studentId");
+    const baseName = pathModule.basename(basePath);
+    return studentId && baseName === studentId ? pathModule.dirname(basePath) : basePath;
+  }
+  return "";
+}
+
+async function loadAvailableTemplates() {
+  try {
+    const data = await fetchJson("/api/admin/templates");
+    availableTemplates = Array.isArray(data.templates) ? data.templates : [];
+  } catch (err) {
+    console.warn("Could not load templates for assignment:", err);
+    availableTemplates = [];
+  }
+}
+
+async function loadSessionTemplateAssignments(sessionPath) {
+  if (!sessionPath) {
+    sessionTemplateAssignments = {};
+    return;
+  }
+  try {
+    const data = await fetchJson(`/api/session_template_assignments?target_path=${encodeURIComponent(sessionPath)}`);
+    sessionTemplateAssignments = data.assignments || {};
+  } catch (err) {
+    console.warn("Could not load session template assignments:", err);
+    sessionTemplateAssignments = {};
+  }
+}
+
+async function getTemplateDevices(templateName) {
+  if (!templateName) return {};
+  if (templateDevicesByName[templateName]) return templateDevicesByName[templateName];
+  try {
+    const data = await fetchJson(`/api/templates/${encodeURIComponent(templateName)}`);
+    templateDevicesByName[templateName] = data.devices_meta || {};
+  } catch (err) {
+    console.warn(`Could not load devices for template ${templateName}:`, err);
+    templateDevicesByName[templateName] = {};
+  }
+  return templateDevicesByName[templateName];
+}
+
+async function preloadAssignedTemplateDevices(students) {
+  const templateNames = new Set();
+  (students || []).forEach((student) => {
+    const assigned = sessionTemplateAssignments[student.student_id] || {};
+    const templateName = assigned.template_name || assigned.template || "";
+    if (templateName) templateNames.add(templateName);
+  });
+  await Promise.all(Array.from(templateNames).map((templateName) => getTemplateDevices(templateName)));
+}
+
+async function prepareSessionTemplateState(sessionPath, students) {
+  await loadAvailableTemplates();
+  await loadSessionTemplateAssignments(sessionPath);
+  await preloadAssignedTemplateDevices(students);
+}
+
+async function saveStudentTemplateAssignment(studentId, templateName) {
+  const sessionPath = getStoredSessionPath() || getSessionPathFromStudents([]);
+  if (!sessionPath) {
+    throw new Error("Session path not found. Choose the session again.");
+  }
+  const data = await fetchJson("/api/session_template_assignments", {
+    method: "POST",
+    body: JSON.stringify({
+      target_path: sessionPath,
+      student_id: studentId,
+      template_name: templateName,
+    }),
+  });
+  sessionTemplateAssignments = data.assignments || {};
+  if (templateName) await getTemplateDevices(templateName);
+  return sessionTemplateAssignments;
+}
+
+function studentFolderHasCollectedContent(studentPath) {
+  if (!studentPath) return false;
+  try {
+    const fs = require("fs");
+    if (!fs.existsSync(studentPath)) return false;
+    return fs.readdirSync(studentPath).some((name) => {
+      if (!name || name === ".DS_Store" || name.startsWith(".")) return false;
+      return true;
+    });
+  } catch (_) {
+    return false;
+  }
+}
+
+function applyStudentCardStatus(studentCard, isCollected) {
+  studentCard.dataset.completed = isCollected ? "true" : "false";
+  studentCard.classList.toggle("student-card--collected", isCollected);
+  studentCard.classList.toggle("student-card--pending", !isCollected);
+}
+
+function closeStudentTemplatePickers(exceptPicker = null) {
+  document.querySelectorAll(".student-template-picker").forEach((picker) => {
+    if (picker === exceptPicker) return;
+    picker.classList.remove("is-open");
+    const menu = picker.querySelector(".student-template-menu");
+    if (menu) {
+      menu.classList.add("hidden");
+      menu.style.left = "";
+      menu.style.top = "";
+      menu.style.width = "";
+    }
+  });
+}
+
+function positionStudentTemplateMenu(picker) {
+  const trigger = picker?.querySelector(".student-template-trigger");
+  const menu = picker?.querySelector(".student-template-menu");
+  if (!trigger || !menu || menu.classList.contains("hidden")) return;
+
+  const triggerRect = trigger.getBoundingClientRect();
+  const menuHeight = Math.min(menu.scrollHeight || 240, 260);
+  const spaceBelow = window.innerHeight - triggerRect.bottom - 12;
+  const opensUp = spaceBelow < menuHeight && triggerRect.top > menuHeight;
+  const top = opensUp
+    ? Math.max(8, triggerRect.top - menuHeight - 6)
+    : Math.min(triggerRect.bottom + 6, window.innerHeight - menuHeight - 8);
+
+  menu.style.left = `${triggerRect.left}px`;
+  menu.style.top = `${top}px`;
+  menu.style.width = `${triggerRect.width}px`;
+}
 
 function displayPickerPath(pathValue) {
   return pathValue === WINDOWS_DRIVES_ROOT ? "This PC" : (pathValue || "");
@@ -191,7 +348,7 @@ function openCustomDirectoryPicker() {
     };
   }
 
-  confirmBtn.onclick = () => {
+  confirmBtn.onclick = async () => {
     if (pendingSelectedFolder && pendingSelectedFolder.type === 'session') {
       const { classroom, tutor_name, time_slot, students } = pendingSelectedFolder;
 
@@ -227,6 +384,7 @@ function openCustomDirectoryPicker() {
         localStorage.setItem("sessionPath", sessionPath);
       }
 
+      await prepareSessionTemplateState(sessionPath, students);
       renderMainStudentGrid(students);
       updateSessionSidebar(classroom, tutor_name, time_slot, students);
       close();
@@ -421,8 +579,8 @@ function renderTree(container, hierarchy) {
 }
 
 function renderMainStudentGrid(students) {
-  // Student card status is inferred from existing collected log folders. The
-  // selected template controls how strict "completed" should be.
+  // Student card status is filesystem-based so it survives app restarts:
+  // any real content in the student folder means that collection has started.
   const gridContainer = document.getElementById("mainStudentGridContainer");
   const useBtn = document.getElementById("use-existing-btn");
   pendingSelectedStudent = null;
@@ -451,7 +609,14 @@ function renderMainStudentGrid(students) {
     return;
   }
 
+  gridContainer.onscroll = () => closeStudentTemplatePickers();
+
   students.forEach(student => {
+    const assignedTemplate = (
+      sessionTemplateAssignments[student.student_id]?.template_name ||
+      sessionTemplateAssignments[student.student_id]?.template ||
+      ""
+    );
     const studentCard = document.createElement("div");
     studentCard.className = "student-card";
     studentCard.style.cssText = `
@@ -461,111 +626,140 @@ function renderMainStudentGrid(students) {
         text-align: left;
         cursor: pointer;
         background: var(--color-surface);
-        display: flex;
-        flex-direction: row;
-        align-items: center;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: start;
         gap: 12px;
         box-shadow: 0 2px 6px rgba(15, 23, 46, 0.05);
     `;
 
-    // Check if the student's subfolder exists to mark as "completed"
     const studentPath = student.path || "";
-    let isCompleted = false;
-    let isPartial = false;
-    if (studentPath && require("fs").existsSync(studentPath)) {
-      try {
-        const devicesStr = localStorage.getItem("templateDevices");
-        const devicesMeta = devicesStr ? JSON.parse(devicesStr) : {};
-        const hostnames = Object.keys(devicesMeta);
-        if (hostnames.length > 0 && pathModule) {
-          // Template command coverage is stricter than folder existence alone.
-          let totalExpected = 0;
-          let totalFound = 0;
-          hostnames.forEach((hostname) => {
-            const commands = devicesMeta[hostname] || [];
-            const hostDir = pathModule.join(studentPath, hostname);
-            if (!require("fs").existsSync(hostDir)) return;
-            const files = require("fs").readdirSync(hostDir);
-            commands.forEach((cmd) => {
-              totalExpected += 1;
-              const safeCommand = cmd.replace(/\\s+/g, "_").replace(/\\//g, "_");
-              const matched = files.some((name) => name.startsWith(safeCommand));
-              if (matched) totalFound += 1;
-            });
-          });
-          if (totalExpected > 0) {
-            isCompleted = totalFound === totalExpected;
-            isPartial = totalFound > 0 && totalFound < totalExpected;
-          } else {
-            isCompleted = true;
-          }
-        } else {
-          isCompleted = true;
-        }
-      } catch (err) {
-        isCompleted = true;
-      }
-    }
-
-    if (isCompleted) {
-      studentCard.style.border = "1.5px solid var(--color-success, #28a745)";
-      studentCard.style.backgroundColor = "rgba(40, 167, 69, 0.05)";
-    } else if (isPartial) {
-      studentCard.style.border = "1.5px solid #ff9800";
-      studentCard.style.backgroundColor = "rgba(255, 152, 0, 0.08)";
-    }
-
-    let completedList = [];
-    try {
-      completedList = JSON.parse(localStorage.getItem("completedStudents") || "[]");
-    } catch (_) {
-      completedList = [];
-    }
-    if (completedList.includes(student.student_id)) {
-      studentCard.classList.add("executed-student");
-      studentCard.style.borderColor = "var(--color-primary)";
-      studentCard.style.backgroundColor = "rgba(31, 59, 115, 0.1)";
-    }
+    const isCollected = studentFolderHasCollectedContent(studentPath);
+    applyStudentCardStatus(studentCard, isCollected);
 
     studentCard.innerHTML = `
-        <div style="font-size: 1.2rem;">👤</div>
-        <div style="min-width: 0;">
-          <div style="font-weight: bold; font-size: 0.95rem; word-break: break-all;">${student.student_id}</div>
-          ${student.student_name ? `<div style="font-size: 0.82rem; color: inherit; opacity: 0.85; word-break: break-word;">${student.student_name}</div>` : ""}
+        <div class="student-card__main">
+          <div style="font-size: 1.2rem;">👤</div>
+          <div style="min-width: 0;">
+            <div style="font-weight: bold; font-size: 0.95rem; word-break: break-all;">${escapeHtml(student.student_id)}</div>
+            ${student.student_name ? `<div style="font-size: 0.82rem; color: inherit; opacity: 0.85; word-break: break-word;">${escapeHtml(student.student_name)}</div>` : ""}
+          </div>
+        </div>
+        <div class="student-template-field">
+          <span>Template</span>
+          <div class="student-template-picker" data-student-id="${escapeHtml(student.student_id)}" data-value="${escapeHtml(assignedTemplate)}">
+            <button type="button" class="student-template-trigger">
+              <span class="student-template-trigger__label">${escapeHtml(assignedTemplate || "Assign template")}</span>
+              <span aria-hidden="true">▾</span>
+            </button>
+            <div class="student-template-menu hidden">
+              <input type="text" class="student-template-search" placeholder="Search templates..." />
+              <div class="student-template-options">
+                <button type="button" class="student-template-option ${assignedTemplate ? "" : "is-active"}" data-template="">Assign template</button>
+                ${availableTemplates.map((templateName) => `
+                  <button type="button" class="student-template-option ${templateName === assignedTemplate ? "is-active" : ""}" data-template="${escapeHtml(templateName)}">${escapeHtml(templateName)}</button>
+                `).join("")}
+              </div>
+            </div>
+          </div>
         </div>
     `;
+    const templatePicker = studentCard.querySelector(".student-template-picker");
+    const templateTrigger = studentCard.querySelector(".student-template-trigger");
+    const templateMenu = studentCard.querySelector(".student-template-menu");
+    const templateSearch = studentCard.querySelector(".student-template-search");
+    const templateOptions = Array.from(studentCard.querySelectorAll(".student-template-option"));
+
+    templatePicker?.addEventListener("click", (event) => event.stopPropagation());
+    templateTrigger?.addEventListener("click", () => {
+      const willOpen = templateMenu?.classList.contains("hidden");
+      closeStudentTemplatePickers(willOpen ? templatePicker : null);
+      templatePicker?.classList.toggle("is-open", Boolean(willOpen));
+      templateMenu?.classList.toggle("hidden", !willOpen);
+      if (willOpen) {
+        if (templateSearch) templateSearch.value = "";
+        templateOptions.forEach((option) => option.classList.remove("hidden"));
+        requestAnimationFrame(() => {
+          positionStudentTemplateMenu(templatePicker);
+          templateSearch?.focus();
+        });
+      }
+    });
+
+    templateSearch?.addEventListener("input", () => {
+      const term = templateSearch.value.trim().toLowerCase();
+      templateOptions.forEach((option) => {
+        const text = option.textContent.trim().toLowerCase();
+        option.classList.toggle("hidden", Boolean(term) && !text.includes(term));
+      });
+      positionStudentTemplateMenu(templatePicker);
+    });
+
+    templateOptions.forEach((option) => option.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      const nextTemplate = option.dataset.template || "";
+      if (nextTemplate === (templatePicker?.dataset.value || "")) {
+        closeStudentTemplatePickers();
+        return;
+      }
+      templateTrigger.disabled = true;
+      try {
+        await saveStudentTemplateAssignment(student.student_id, nextTemplate);
+        if (templatePicker) templatePicker.dataset.value = nextTemplate;
+        const label = templateTrigger.querySelector(".student-template-trigger__label");
+        if (label) label.textContent = nextTemplate || "Assign template";
+        templateOptions.forEach((button) => {
+          button.classList.toggle("is-active", (button.dataset.template || "") === nextTemplate);
+        });
+        if (pendingSelectedStudent?.student_id === student.student_id) {
+          localStorage.setItem("assignedTemplateName", nextTemplate);
+          localStorage.setItem("templateName", nextTemplate);
+          localStorage.setItem("activeTemplateName", nextTemplate);
+          localStorage.setItem("templateDevices", JSON.stringify(templateDevicesByName[nextTemplate] || {}));
+          localStorage.setItem("activeTemplateDevices", JSON.stringify(templateDevicesByName[nextTemplate] || {}));
+        }
+        updateSessionSidebar(
+          localStorage.getItem("classroom") || localStorage.getItem("examName") || "",
+          localStorage.getItem("tutorName") || localStorage.getItem("sessionId") || "",
+          localStorage.getItem("timeSlot") || "",
+          students
+        );
+        closeStudentTemplatePickers();
+        templateTrigger.disabled = false;
+      } catch (err) {
+        console.error(err);
+        alert(err.message || "Failed to save template assignment.");
+        templateTrigger.disabled = false;
+      }
+    }));
 
     studentCard.onclick = () => {
       document.querySelectorAll("#mainStudentGridContainer .student-card.selected-student").forEach(el => {
         el.classList.remove("selected-student");
-        if (el.classList.contains("executed-student")) {
-           el.style.borderColor = "var(--color-primary)";
-           el.style.backgroundColor = "rgba(31, 59, 115, 0.1)";
-        } else if (el.dataset.completed === "true") {
-           el.style.borderColor = "var(--color-success, #28a745)";
-           el.style.backgroundColor = "rgba(40, 167, 69, 0.05)";
-        } else if (el.dataset.completed === "partial") {
-           el.style.borderColor = "#ff9800";
-           el.style.backgroundColor = "rgba(255, 152, 0, 0.08)";
-        } else {
-           el.style.borderColor = "var(--color-border)";
-           el.style.backgroundColor = "var(--color-bg-card)";
-        }
         el.style.color = "inherit";
       });
 
       studentCard.classList.add("selected-student");
-      studentCard.style.borderColor = "var(--color-primary)";
-      studentCard.style.borderWidth = "2px";
-      studentCard.style.backgroundColor = "rgba(31, 59, 115, 0.08)";
       studentCard.style.color = "var(--color-heading)";
 
       pendingSelectedStudent = student;
+      const selectedTemplate = (
+        sessionTemplateAssignments[student.student_id]?.template_name ||
+        sessionTemplateAssignments[student.student_id]?.template ||
+        ""
+      );
+      if (selectedTemplate) {
+        localStorage.setItem("assignedTemplateName", selectedTemplate);
+        localStorage.setItem("templateName", selectedTemplate);
+        localStorage.setItem("activeTemplateName", selectedTemplate);
+        localStorage.setItem("templateDevices", JSON.stringify(templateDevicesByName[selectedTemplate] || {}));
+        localStorage.setItem("activeTemplateDevices", JSON.stringify(templateDevicesByName[selectedTemplate] || {}));
+      } else {
+        localStorage.removeItem("assignedTemplateName");
+      }
       if (useBtn) useBtn.disabled = false;
       updateSidebarSelection(student);
     };
-
-    studentCard.dataset.completed = isCompleted ? "true" : (isPartial ? "partial" : "false");
 
     studentCard.ondblclick = () => {
       pendingSelectedStudent = student;
@@ -708,6 +902,15 @@ async function handleUseExistingDirectory() {
     alert("Please choose a session and select a student first.");
     return;
   }
+  const assignedTemplate = (
+    sessionTemplateAssignments[pendingSelectedStudent.student_id]?.template_name ||
+    sessionTemplateAssignments[pendingSelectedStudent.student_id]?.template ||
+    ""
+  );
+  if (!assignedTemplate) {
+    alert("Assign a template to this student before collecting logs.");
+    return;
+  }
 
   try {
     const data = await fetchJson("/api/select_directory", {
@@ -728,6 +931,12 @@ async function handleUseExistingDirectory() {
     if (pathModule) {
       localStorage.setItem("sessionPath", pathModule.dirname(data.path));
     }
+    localStorage.setItem("assignedTemplateName", assignedTemplate);
+    localStorage.setItem("templateName", assignedTemplate);
+    localStorage.setItem("activeTemplateName", assignedTemplate);
+    const assignedDevices = templateDevicesByName[assignedTemplate] || await getTemplateDevices(assignedTemplate);
+    localStorage.setItem("templateDevices", JSON.stringify(assignedDevices));
+    localStorage.setItem("activeTemplateDevices", JSON.stringify(assignedDevices));
     setSelectedExistingDirectory(
       data.path,
       `${data.classroom}/${data.tutor_name}/${data.time_slot}/${data.student_id}`
@@ -957,6 +1166,7 @@ function setupDirectoryPage() {
             const hierarchy = transformToHierarchy(data.directories);
             const students = hierarchy[classroom]?.[tutorName]?.[timeSlot];
             if (students) {
+              await prepareSessionTemplateState(sessionPath, students);
               renderMainStudentGrid(students);
               updateSessionSidebar(classroom, tutorName, timeSlot, students);
             }
@@ -971,18 +1181,19 @@ function setupDirectoryPage() {
 
   const storedMode = localStorage.getItem("directoryMode");
   const storedBasePath = localStorage.getItem("basePath");
+  const storedSessionPath = getStoredSessionPath();
 
   if (storedMode === "existing") {
     setSelectedExistingDirectory(
-      storedBasePath,
-      localStorage.getItem("directoryDisplay")
+      storedSessionPath || storedBasePath,
+      storedSessionPath ? deriveDirectoryDisplay(storedSessionPath) : localStorage.getItem("directoryDisplay")
     );
 
     // Auto-load grid if we have a path
-    if (storedBasePath && storedBasePath !== "null") {
+    if (storedSessionPath && storedSessionPath !== "null") {
        fetch(`${API_ROOT}/api/directories`) // Wait, if we use the backend API, the default fetches subfolders. We can use loadDirectory natively.
          .then(res => res.json())
-         .then(data => {
+         .then(async data => {
             if (data.status === "ok" && data.directories) {
                const hierarchy = transformToHierarchy(data.directories);
                const classroom = localStorage.getItem("classroom") || localStorage.getItem("examName");
@@ -991,6 +1202,7 @@ function setupDirectoryPage() {
 
                const students = hierarchy[classroom]?.[tutorName]?.[timeSlot];
                if (students) {
+                  await prepareSessionTemplateState(storedSessionPath, students);
                   renderMainStudentGrid(students);
                   updateSessionSidebar(classroom, tutorName, timeSlot, students);
                }
@@ -1043,5 +1255,8 @@ function openAddStudentModal(onConfirm) {
 
 
 document.addEventListener("DOMContentLoaded", () => {
-  if (document.getElementById("directoryPage")) setupDirectoryPage();
+  if (document.getElementById("directoryPage")) {
+    setupDirectoryPage();
+    document.addEventListener("click", () => closeStudentTemplatePickers());
+  }
 });

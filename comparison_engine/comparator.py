@@ -8,6 +8,7 @@ server.py grading/report generation.
 import re
 import json
 import ipaddress
+import copy
 from collections import Counter
 
 
@@ -201,6 +202,214 @@ def _detect_acl_pointless_rules(rules):
     return pointless
 
 
+def _canonical_acl_rule(rule):
+    """Normalize ACL rule text so IOS formatting does not create false errors."""
+    text = str(rule or "").strip().lower()
+    text = re.sub(r"^\d+\s+", "", text)
+    text = text.replace(", wildcard bits", "")
+    text = text.replace("wildcard bits", "")
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+ICMP_TYPE_TOKENS = {
+    "echo",
+    "echo-reply",
+    "unreachable",
+    "time-exceeded",
+    "packet-too-big",
+    "source-quench",
+    "redirect",
+    "router-advertisement",
+    "router-solicitation",
+    "timestamp-request",
+    "timestamp-reply",
+    "mask-request",
+    "mask-reply",
+    "traceroute",
+    "administratively-prohibited",
+}
+
+
+def _canonical_acl_policy_rule(rule):
+    """Normalize ACL text for policy-equivalence checks.
+
+    For ICMP, the official checker often treats a single generic permit/deny icmp
+    as equivalent to split echo/echo-reply rules, with the split version graded
+    as a minor not-optimal ACL instead of a major mismatch. Drop the trailing
+    ICMP subtype token so those cases can be recognized.
+    """
+    text = _canonical_acl_rule(rule)
+    parts = text.split()
+    if len(parts) >= 5 and parts[0] in {"permit", "deny"} and parts[1] == "icmp":
+        if parts[-1] in ICMP_TYPE_TOKENS:
+            return " ".join(parts[:-1])
+    return text
+
+
+def _is_implicit_deny_equivalent(rule):
+    """Return True when an explicit final deny only repeats IOS implicit deny."""
+    text = _canonical_acl_rule(rule)
+    return text in {
+        "deny any",
+        "deny ip any any",
+        "deny 0.0.0.0 255.255.255.255",
+        "deny ip 0.0.0.0 255.255.255.255 any",
+        "deny ip any 0.0.0.0 255.255.255.255",
+    }
+
+
+def _normalize_acl_rules_for_compare(rules):
+    """Return ACL rules with sequence numbers and final implicit-deny duplicates removed."""
+    if not isinstance(rules, list):
+        return rules
+    normalized = [_canonical_acl_rule(rule) for rule in rules]
+    while normalized and _is_implicit_deny_equivalent(normalized[-1]):
+        normalized.pop()
+    return normalized
+
+
+def _parse_standard_acl_rule(rule):
+    """Parse simple standard ACL rules for host/network coverage checks."""
+    text = _canonical_acl_rule(rule)
+    parts = text.split()
+    if len(parts) < 2:
+        return None
+    action = parts[0]
+    if action not in {"permit", "deny"}:
+        return None
+    if parts[1] == "ip":
+        return None
+
+    if parts[1] == "any":
+        return {
+            "action": action,
+            "network": ipaddress.IPv4Network("0.0.0.0/0"),
+        }
+
+    try:
+        ip_addr = ipaddress.IPv4Address(parts[1])
+    except Exception:
+        return None
+
+    if len(parts) >= 3:
+        try:
+            wildcard = ipaddress.IPv4Address(parts[2])
+            mask_int = int(wildcard) ^ 0xFFFFFFFF
+            netmask = ipaddress.IPv4Address(mask_int)
+            network = ipaddress.IPv4Network(f"{ip_addr}/{netmask}", strict=False)
+        except Exception:
+            return None
+    else:
+        network = ipaddress.IPv4Network(f"{ip_addr}/32", strict=False)
+
+    return {"action": action, "network": network}
+
+
+def _standard_acl_rule_is_equivalent_or_narrower(template_rule, student_rule):
+    """Allow standard ACL host shorthand when it is inside the template range."""
+    template = _parse_standard_acl_rule(template_rule)
+    student = _parse_standard_acl_rule(student_rule)
+    if not template or not student:
+        return False
+    if template["action"] != student["action"]:
+        return False
+    # A narrower permit still satisfies the security restriction. A narrower
+    # deny can allow traffic the template intended to block, so keep it strict.
+    if template["action"] != "permit":
+        return template["network"] == student["network"]
+    return student["network"].subnet_of(template["network"])
+
+
+def _acl_rule_lists_equivalent_or_narrower(template_rules, student_rules):
+    """Return True when all ACL rules are equivalent after IOS-safe cleanup."""
+    template_norm = _normalize_acl_rules_for_compare(template_rules)
+    student_norm = _normalize_acl_rules_for_compare(student_rules)
+    if not isinstance(template_norm, list) or not isinstance(student_norm, list):
+        return False
+    if len(template_norm) != len(student_norm):
+        return False
+    return all(
+        _acl_rule_matches_or_is_narrower(t_rule, s_rule)
+        for t_rule, s_rule in zip(template_norm, student_norm)
+    )
+
+
+def _is_permit_ip_any_any(rule):
+    text = _canonical_acl_rule(rule)
+    return text == "permit ip any any"
+
+
+def _is_permit_ip_source_any(rule):
+    text = _canonical_acl_rule(rule)
+    return bool(
+        re.match(
+            r"^permit ip (?:\d{1,3}\.){3}\d{1,3} (?:\d{1,3}\.){3}\d{1,3} any$",
+            text,
+        )
+    )
+
+
+def _acl_rule_matches_or_is_narrower(template_rule, student_rule):
+    """Return True when student rule is equivalent or a narrower permit."""
+    if template_rule == student_rule:
+        return True
+    if _nat_acl_standard_extended_equivalent(template_rule, student_rule):
+        return True
+    if _standard_acl_rule_is_equivalent_or_narrower(template_rule, student_rule):
+        return True
+    if _is_permit_ip_any_any(template_rule) and _is_permit_ip_source_any(student_rule):
+        return True
+    return False
+
+
+def _acl_rules_are_not_optimal(template_rules, student_rules):
+    """Detect functionally close ACLs that should be minor not-optimal findings."""
+    template_norm = _normalize_acl_rules_for_compare(template_rules)
+    student_norm = _normalize_acl_rules_for_compare(student_rules)
+    if not isinstance(template_norm, list) or not isinstance(student_norm, list):
+        return False
+    if template_norm == student_norm:
+        return False
+    if not template_norm or not student_norm:
+        return False
+
+    if len(template_norm) == len(student_norm):
+        return all(
+            _acl_rule_matches_or_is_narrower(t_rule, s_rule)
+            for t_rule, s_rule in zip(template_norm, student_norm)
+        )
+
+    template_policy = [_canonical_acl_policy_rule(rule) for rule in template_norm]
+    student_policy = [_canonical_acl_policy_rule(rule) for rule in student_norm]
+    if template_policy and student_policy:
+        template_policy_set = set(template_policy)
+        if template_policy_set.issubset(set(student_policy)):
+            extra_student_policies = [
+                rule for rule in student_policy if rule not in template_policy_set
+            ]
+            if not extra_student_policies:
+                return True
+
+    # Extra student rules can still be a not-optimal ACL if all template rules
+    # appear in the same logical order and no required deny is removed.
+    template_idx = 0
+    for student_rule in student_norm:
+        if template_idx >= len(template_norm):
+            break
+        if _acl_rule_matches_or_is_narrower(template_norm[template_idx], student_rule):
+            template_idx += 1
+    return template_idx == len(template_norm)
+
+
+def _is_acl_rule_list_path(path):
+    """Return True for config and verification ACL rule-list comparison paths."""
+    feature = str(path or "")
+    return (
+        ".access_lists." in feature and feature.endswith(".rules")
+    ) or feature.startswith("verification.show_access_lists.acls.")
+
+
 def _check_ospf_areas(ospf_configs):
     """Analyze OSPF area configuration for common errors.
     Returns list of outcome dicts.
@@ -342,7 +551,13 @@ def _check_configured_but_shutdown(interfaces):
     return results
 
 
-def _check_acl_not_applied(access_lists, interfaces, nat=None, template_access_lists=None):
+def _check_acl_not_applied(
+    access_lists,
+    interfaces,
+    nat=None,
+    template_access_lists=None,
+    template_applied_acls=None,
+):
     """Detect ACLs that are created but not applied to any interface.
     Returns list of outcome dicts.
     """
@@ -373,30 +588,587 @@ def _check_acl_not_applied(access_lists, interfaces, nat=None, template_access_l
             applied_acls.add(acl_name)
 
     template_access_lists = template_access_lists or {}
+    template_applied_acls = set(template_applied_acls or [])
     for acl_name in access_lists:
         if acl_name not in applied_acls:
-            in_template = acl_name in template_access_lists
+            required_application = acl_name in template_applied_acls
+            if acl_name in template_access_lists and not required_application:
+                continue
             results.append(
                 {
                     "feature": f"show_running_config.access_lists.{acl_name}.applied",
                     "expected": (
                         "ACL applied to at least one interface"
-                        if in_template
+                        if required_application
                         else "No unused ACL created"
                     ),
                     "actual": (
                         "ACL not applied to any interface"
-                        if in_template
+                        if required_application
                         else f"ACL {acl_name} exists but is not applied to any interface"
                     ),
-                    "status": "missing" if in_template else "extra",
+                    "status": "missing" if required_application else "extra",
                     "outcome_code": (
-                        "MISSING_ACL_APPLIED" if in_template else "NON_APPLIED_ACL"
+                        "MISSING_ACL_APPLIED" if required_application else "NON_APPLIED_ACL"
                     ),
                 }
             )
 
     return results
+
+
+def _line_contexts(show_run):
+    """Return pseudo-interface contexts for line sections that can apply ACLs."""
+    if not isinstance(show_run, dict):
+        return {}
+    contexts = {}
+    for name in ("vty", "console"):
+        value = show_run.get(name)
+        if isinstance(value, dict):
+            contexts[name] = value
+    return contexts
+
+
+def _iter_acl_applications(show_run):
+    """Yield ACL applications as (context, direction, acl_name).
+
+    Interfaces use their interface name as context; line vty/console sections use
+    the literal context name so ACL matching works for access-class too.
+    """
+    if not isinstance(show_run, dict):
+        return
+    contexts = {}
+    contexts.update(show_run.get("interfaces", {}) or {})
+    contexts.update(_line_contexts(show_run))
+    for context_name, context_cfg in contexts.items():
+        if not isinstance(context_cfg, dict):
+            continue
+        for group in context_cfg.get("access_groups", []) or []:
+            if not isinstance(group, dict):
+                continue
+            acl_name = str(group.get("acl") or "").strip()
+            if not acl_name:
+                continue
+            direction = str(group.get("direction") or "in").strip().lower()
+            yield _normalize_interface_name(context_name), direction, acl_name
+
+
+def _replace_acl_applications(show_run, acl_alias):
+    """Replace applied student ACL names with template ACL names in-place."""
+    if not isinstance(show_run, dict) or not acl_alias:
+        return
+    reverse_alias = {student_acl: template_acl for template_acl, student_acl in acl_alias.items()}
+    contexts = {}
+    contexts.update(show_run.get("interfaces", {}) or {})
+    contexts.update(_line_contexts(show_run))
+    for context_cfg in contexts.values():
+        if not isinstance(context_cfg, dict):
+            continue
+        for group in context_cfg.get("access_groups", []) or []:
+            if not isinstance(group, dict):
+                continue
+            acl_name = str(group.get("acl") or "").strip()
+            if acl_name in reverse_alias:
+                group["acl"] = reverse_alias[acl_name]
+
+
+def _build_applied_acl_aliases(template_show_run, student_show_run):
+    """Map template ACL names to student ACL names by where they are applied.
+
+    John-style marking treats ACL purpose/application as more important than the
+    literal ACL name. If a student applies ACLVLAN10 where the template applies
+    blocktosatolo0, compare ACLVLAN10's content under blocktosatolo0 instead of
+    reporting a missing template ACL and an extra student ACL.
+    """
+    template_apps = {}
+    for context_name, direction, acl_name in _iter_acl_applications(template_show_run):
+        template_apps[(context_name, direction)] = acl_name
+
+    aliases = {}
+    for context_name, direction, student_acl in _iter_acl_applications(student_show_run):
+        template_acl = template_apps.get((context_name, direction))
+        if template_acl and template_acl != student_acl:
+            aliases[template_acl] = student_acl
+    return aliases
+
+
+def _build_content_acl_aliases(template_show_run, student_show_run, existing_aliases=None):
+    """Map ACL names by equivalent rule content when application data is absent."""
+    aliases = dict(existing_aliases or {})
+    if not isinstance(template_show_run, dict) or not isinstance(student_show_run, dict):
+        return aliases
+
+    template_acls = template_show_run.get("access_lists", {}) or {}
+    student_acls = student_show_run.get("access_lists", {}) or {}
+    if not isinstance(template_acls, dict) or not isinstance(student_acls, dict):
+        return aliases
+
+    reverse_aliases = {student_acl for student_acl in aliases.values()}
+    student_by_signature = {}
+    for student_acl, student_data in student_acls.items():
+        if student_acl in reverse_aliases or not isinstance(student_data, dict):
+            continue
+        signature = (
+            str(student_data.get("type") or "").strip().lower(),
+            tuple(_normalize_acl_rules_for_compare(student_data.get("rules") or [])),
+        )
+        student_by_signature.setdefault(signature, []).append(student_acl)
+
+    for template_acl, template_data in template_acls.items():
+        if template_acl in aliases or template_acl in student_acls:
+            continue
+        if not isinstance(template_data, dict):
+            continue
+        signature = (
+            str(template_data.get("type") or "").strip().lower(),
+            tuple(_normalize_acl_rules_for_compare(template_data.get("rules") or [])),
+        )
+        candidates = student_by_signature.get(signature) or []
+        if len(candidates) == 1:
+            aliases[template_acl] = candidates[0]
+            continue
+
+        loose_candidates = []
+        for student_acl, student_data in student_acls.items():
+            if student_acl in reverse_aliases or not isinstance(student_data, dict):
+                continue
+            if str(template_data.get("type") or "").strip().lower() != str(
+                student_data.get("type") or ""
+            ).strip().lower():
+                continue
+            if _acl_rule_lists_equivalent_or_narrower(
+                template_data.get("rules") or [],
+                student_data.get("rules") or [],
+            ):
+                loose_candidates.append(student_acl)
+        if len(loose_candidates) == 1:
+            aliases[template_acl] = loose_candidates[0]
+
+    return aliases
+
+
+def _named_object_signature(value):
+    """Return a stable comparable signature for semantic name matching."""
+    if isinstance(value, dict):
+        cleaned = {}
+        for key, child in value.items():
+            if child in (None, "", [], {}):
+                continue
+            cleaned[str(key)] = _named_object_signature(child)
+        return json.dumps(cleaned, sort_keys=True)
+    if isinstance(value, list):
+        cleaned = [
+            _named_object_signature(item)
+            for item in value
+            if item not in (None, "", [], {})
+        ]
+        return json.dumps(cleaned, sort_keys=True)
+    return str(value).strip().lower()
+
+
+def _dhcp_pool_match_key(name):
+    """Normalize DHCP pool names for semantic comparisons.
+
+    Cisco outputs can shorten or decorate pool names between show run and show
+    ip dhcp pool. Strip punctuation, plural noise, and a trailing pool suffix so
+    semantically identical names line up more often.
+    """
+    text = re.sub(r"[^a-z0-9]+", "", str(name or "").strip().lower())
+    if text.endswith("pool"):
+        text = text[:-4]
+    if text.endswith("s"):
+        text = text[:-1]
+    return text
+
+
+def _build_pool_aliases(template_pools, student_pools):
+    """Map template pool names to student pool names by semantic pool content."""
+    aliases = {}
+    if not isinstance(template_pools, dict) or not isinstance(student_pools, dict):
+        return aliases
+
+    student_by_signature = {}
+    for student_name, student_pool in student_pools.items():
+        if not isinstance(student_pool, dict):
+            continue
+        student_by_signature.setdefault(
+            _named_object_signature(student_pool), []
+        ).append(student_name)
+
+    for template_name, template_pool in template_pools.items():
+        if not isinstance(template_pool, dict):
+            continue
+        if template_name in student_pools:
+            continue
+        candidates = student_by_signature.get(
+            _named_object_signature(template_pool), []
+        )
+        if len(candidates) == 1:
+            aliases[template_name] = candidates[0]
+    return aliases
+
+
+def _nat_pool_list_to_dict(pools):
+    """Convert a NAT pool list into a name-keyed dict for alias matching."""
+    result = {}
+    for pool in pools or []:
+        if not isinstance(pool, dict):
+            continue
+        name = str(pool.get("name") or "").strip()
+        if not name:
+            continue
+        normalized = dict(pool)
+        normalized.pop("name", None)
+        result[name] = normalized
+    return result
+
+
+def _build_nat_pool_aliases(template_show_run, student_show_run):
+    """Map template NAT pool names to student NAT pool names by range/netmask."""
+    if not isinstance(template_show_run, dict) or not isinstance(student_show_run, dict):
+        return {}
+    template_pools = _nat_pool_list_to_dict(
+        (template_show_run.get("nat", {}) or {}).get("pools", [])
+    )
+    student_pools = _nat_pool_list_to_dict(
+        (student_show_run.get("nat", {}) or {}).get("pools", [])
+    )
+    return _build_pool_aliases(template_pools, student_pools)
+
+
+def _build_dhcp_pool_aliases(template_show_run, student_show_run):
+    """Map template DHCP pool names to student pool names by pool properties."""
+    if not isinstance(template_show_run, dict) or not isinstance(student_show_run, dict):
+        return {}
+    template_pools = template_show_run.get("dhcp_pools", {}) or {}
+    student_pools = student_show_run.get("dhcp_pools", {}) or {}
+    return _build_pool_aliases(template_pools, student_pools)
+
+
+def _nat_source_signature(source, nat_pool_aliases=None):
+    """Return a comparable signature for a NAT inside-source binding."""
+    if not isinstance(source, dict):
+        return None
+    pool_name = str(source.get("pool") or "").strip()
+    for template_pool, student_pool in (nat_pool_aliases or {}).items():
+        if pool_name == student_pool:
+            pool_name = template_pool
+            break
+    return (
+        pool_name,
+        bool(source.get("overload")),
+    )
+
+
+def _build_nat_acl_aliases(
+    template_show_run,
+    student_show_run,
+    nat_pool_aliases=None,
+    existing_aliases=None,
+):
+    """Map template NAT ACL names to student NAT ACL names by inside-source use."""
+    aliases = dict(existing_aliases or {})
+    if not isinstance(template_show_run, dict) or not isinstance(student_show_run, dict):
+        return aliases
+
+    template_sources = (template_show_run.get("nat", {}) or {}).get("inside_source", []) or []
+    student_sources = (student_show_run.get("nat", {}) or {}).get("inside_source", []) or []
+    if not template_sources or not student_sources:
+        return aliases
+
+    student_by_signature = {}
+    for student_source in student_sources:
+        if not isinstance(student_source, dict):
+            continue
+        signature = _nat_source_signature(student_source, nat_pool_aliases)
+        if not signature:
+            continue
+        student_by_signature.setdefault(signature, []).append(student_source)
+
+    for template_source in template_sources:
+        if not isinstance(template_source, dict):
+            continue
+        template_acl = str(template_source.get("acl") or "").strip()
+        if not template_acl or template_acl in aliases:
+            continue
+        signature = _nat_source_signature(template_source, nat_pool_aliases)
+        candidates = student_by_signature.get(signature) or []
+        student_acls = {
+            str(candidate.get("acl") or "").strip()
+            for candidate in candidates
+            if isinstance(candidate, dict) and str(candidate.get("acl") or "").strip()
+        }
+        if len(student_acls) == 1:
+            student_acl = next(iter(student_acls))
+            if student_acl != template_acl:
+                aliases[template_acl] = student_acl
+
+    return aliases
+
+
+def _apply_nat_pool_aliases_to_student(student_data, nat_pool_aliases):
+    """Rename student NAT pool references to template pool names in-place."""
+    if not isinstance(student_data, dict) or not nat_pool_aliases:
+        return
+    reverse_alias = {
+        student_pool: template_pool
+        for template_pool, student_pool in nat_pool_aliases.items()
+    }
+
+    show_run = student_data.get("show_running_config", {}) or {}
+    nat = show_run.get("nat", {}) or {}
+
+    pools = nat.get("pools", []) or []
+    for pool in pools:
+        if not isinstance(pool, dict):
+            continue
+        pool_name = str(pool.get("name") or "").strip()
+        if pool_name in reverse_alias:
+            pool["name"] = reverse_alias[pool_name]
+
+    inside_source = nat.get("inside_source", []) or []
+    for source in inside_source:
+        if not isinstance(source, dict):
+            continue
+        pool_name = str(source.get("pool") or "").strip()
+        if pool_name in reverse_alias:
+            source["pool"] = reverse_alias[pool_name]
+            command = str(source.get("command") or "")
+            if command:
+                source["command"] = command.replace(pool_name, reverse_alias[pool_name])
+
+    verification = student_data.get("verification", {}) or {}
+    nat_stats = verification.get("show_ip_nat_statistics", {}) or {}
+
+    pools_dict = nat_stats.get("pools")
+    if isinstance(pools_dict, dict):
+        for student_pool, template_pool in reverse_alias.items():
+            if student_pool in pools_dict:
+                pools_dict[template_pool] = pools_dict.pop(student_pool)
+
+    mappings = nat_stats.get("mappings", []) or []
+    for mapping in mappings:
+        if not isinstance(mapping, dict):
+            continue
+        pool_name = str(mapping.get("pool") or "").strip()
+        if pool_name in reverse_alias:
+            mapping["pool"] = reverse_alias[pool_name]
+
+
+def _apply_dhcp_pool_aliases_to_student(student_data, dhcp_pool_aliases):
+    """Rename student DHCP pool references to template pool names in-place."""
+    if not isinstance(student_data, dict) or not dhcp_pool_aliases:
+        return
+    reverse_alias = {
+        student_pool: template_pool
+        for template_pool, student_pool in dhcp_pool_aliases.items()
+    }
+
+    show_run = student_data.get("show_running_config", {}) or {}
+    dhcp_pools = show_run.get("dhcp_pools")
+    if isinstance(dhcp_pools, dict):
+        for student_pool, template_pool in reverse_alias.items():
+            if student_pool in dhcp_pools:
+                dhcp_pools[template_pool] = dhcp_pools.pop(student_pool)
+
+    verification = student_data.get("verification", {}) or {}
+    dhcp_pool = verification.get("show_ip_dhcp_pool", {}) or {}
+    pool_names = dhcp_pool.get("pool_names")
+    if isinstance(pool_names, list):
+        dhcp_pool["pool_names"] = [
+            reverse_alias.get(str(name).strip(), name) for name in pool_names
+        ]
+
+
+def _nat_acl_standard_extended_equivalent(template_rule, student_rule):
+    """Treat NAT ACL standard/extended syntax variants as equivalent."""
+    template_text = _canonical_acl_rule(template_rule)
+    student_text = _canonical_acl_rule(student_rule)
+
+    extended = re.match(
+        r"^(permit|deny) ip ((?:\d{1,3}\.){3}\d{1,3}) ((?:\d{1,3}\.){3}\d{1,3}) any$",
+        template_text,
+    )
+    standard = re.match(
+        r"^(permit|deny) ((?:\d{1,3}\.){3}\d{1,3}) ((?:\d{1,3}\.){3}\d{1,3})$",
+        student_text,
+    )
+    if extended and standard:
+        return extended.groups() == standard.groups()
+
+    extended = re.match(
+        r"^(permit|deny) ip ((?:\d{1,3}\.){3}\d{1,3}) ((?:\d{1,3}\.){3}\d{1,3}) any$",
+        student_text,
+    )
+    standard = re.match(
+        r"^(permit|deny) ((?:\d{1,3}\.){3}\d{1,3}) ((?:\d{1,3}\.){3}\d{1,3})$",
+        template_text,
+    )
+    if extended and standard:
+        return extended.groups() == standard.groups()
+
+    return False
+
+
+def _template_acl_is_applied_by_alias(template_acl, show_run, acl_aliases):
+    """Return True when an equivalent student ACL is applied somewhere."""
+    if not template_acl or not isinstance(show_run, dict):
+        return False
+    student_acl = (acl_aliases or {}).get(template_acl, template_acl)
+    for _, _, applied_acl in _iter_acl_applications(show_run):
+        if applied_acl == student_acl:
+            return True
+    return False
+
+
+def _template_acl_exists_by_alias(template_acl, show_run, acl_aliases):
+    """Return True when an equivalent student ACL definition exists."""
+    if not template_acl or not isinstance(show_run, dict):
+        return False
+    student_acl = (acl_aliases or {}).get(template_acl, template_acl)
+    access_lists = show_run.get("access_lists", {}) or {}
+    return isinstance(access_lists, dict) and (
+        student_acl in access_lists or template_acl in access_lists
+    )
+
+
+def _ensure_equivalent_acl_applications(template_show_run, student_show_run, acl_alias):
+    """Add comparison-only ACL applications when an equivalent ACL is already applied.
+
+    This mirrors the official checker's behavior for cases where the ACL content
+    is correct but the student used a different ACL name or attached the ACL at
+    an equivalent point in the path.
+    """
+    if not isinstance(template_show_run, dict) or not isinstance(student_show_run, dict):
+        return
+    if not acl_alias:
+        return
+
+    contexts = {
+        _normalize_interface_name(name): cfg
+        for name, cfg in (student_show_run.get("interfaces", {}) or {}).items()
+    }
+    contexts.update(_line_contexts(student_show_run))
+    required_groups = set()
+    for template_context, template_direction, template_acl in _iter_acl_applications(
+        template_show_run
+    ):
+        required_groups.add((template_context, template_direction, template_acl))
+        if not (
+            _template_acl_is_applied_by_alias(template_acl, student_show_run, acl_alias)
+            or _template_acl_exists_by_alias(template_acl, student_show_run, acl_alias)
+        ):
+            continue
+        wanted_group = {"acl": template_acl, "direction": template_direction}
+        context_cfg = contexts.get(template_context)
+        if not isinstance(context_cfg, dict):
+            continue
+        access_groups = context_cfg.setdefault("access_groups", [])
+        if not isinstance(access_groups, list):
+            context_cfg["access_groups"] = []
+            access_groups = context_cfg["access_groups"]
+        if wanted_group not in access_groups:
+            access_groups.append(wanted_group)
+
+    aliased_template_acls = set(acl_alias.keys())
+    if not aliased_template_acls:
+        return
+    for context_name, context_cfg in contexts.items():
+        if not isinstance(context_cfg, dict):
+            continue
+        if "access_groups" not in context_cfg:
+            continue
+        groups = context_cfg.get("access_groups", [])
+        if not isinstance(groups, list):
+            continue
+        cleaned_groups = [
+            group
+            for group in groups
+            if not (
+                isinstance(group, dict)
+                and str(group.get("acl") or "").strip() in aliased_template_acls
+                and (
+                    context_name,
+                    str(group.get("direction") or "in").strip().lower(),
+                    str(group.get("acl") or "").strip(),
+                )
+                not in required_groups
+            )
+        ]
+        if cleaned_groups:
+            context_cfg["access_groups"] = cleaned_groups
+        else:
+            context_cfg.pop("access_groups", None)
+
+
+def _apply_acl_aliases_to_student(student, acl_alias, template_show_run=None):
+    """Return a comparison-only student copy with equivalent ACL names aligned."""
+    if not acl_alias:
+        return student
+    normalized_student = copy.deepcopy(student)
+    student_show_run = normalized_student.get("show_running_config", {}) or {}
+    student_acls = student_show_run.get("access_lists", {}) or {}
+    if isinstance(student_acls, dict):
+        for template_acl, student_acl in acl_alias.items():
+            if student_acl in student_acls:
+                student_acls[template_acl] = student_acls.pop(student_acl)
+    _replace_acl_applications(student_show_run, acl_alias)
+
+    nat = student_show_run.get("nat", {}) or {}
+    for source in nat.get("inside_source", []) or []:
+        if not isinstance(source, dict):
+            continue
+        acl_name = str(source.get("acl") or "").strip()
+        for template_acl, student_acl in acl_alias.items():
+            if acl_name == student_acl:
+                source["acl"] = template_acl
+                command = str(source.get("command") or "")
+                if command:
+                    source["command"] = command.replace(student_acl, template_acl)
+                break
+
+    verification_acls = (
+        normalized_student.get("verification", {})
+        .get("show_access_lists", {})
+        .get("acls", {})
+    )
+    if isinstance(verification_acls, dict):
+        for template_acl, student_acl in acl_alias.items():
+            if student_acl in verification_acls:
+                verification_acls[template_acl] = verification_acls.pop(student_acl)
+    nat_stats = (
+        normalized_student.get("verification", {})
+        .get("show_ip_nat_statistics", {})
+    )
+    if isinstance(nat_stats, dict):
+        for mapping in nat_stats.get("mappings", []) or []:
+            if not isinstance(mapping, dict):
+                continue
+            acl_name = str(mapping.get("acl") or "").strip()
+            for template_acl, student_acl in acl_alias.items():
+                if acl_name == student_acl:
+                    mapping["acl"] = template_acl
+                    break
+    _ensure_equivalent_acl_applications(template_show_run, student_show_run, acl_alias)
+    return normalized_student
+
+
+def _apply_comparison_aliases_to_student(
+    student,
+    acl_alias=None,
+    nat_pool_aliases=None,
+    dhcp_pool_aliases=None,
+    template_show_run=None,
+):
+    """Return a comparison-only student copy with semantic name aliases aligned."""
+    normalized_student = copy.deepcopy(student)
+    _apply_nat_pool_aliases_to_student(normalized_student, nat_pool_aliases or {})
+    _apply_dhcp_pool_aliases_to_student(normalized_student, dhcp_pool_aliases or {})
+    return _apply_acl_aliases_to_student(
+        normalized_student,
+        acl_alias or {},
+        template_show_run,
+    )
 
 
 def _check_routing_instances(routing):
@@ -1274,6 +2046,213 @@ def _make_result(feature, status, expected=_UNSET, actual=_UNSET, outcome_code=N
     return result
 
 
+def _network_statement_to_network(statement):
+    """Best-effort parse of IOS routing network statements into an IPv4Network."""
+    text = str(statement or "").strip()
+    addresses = re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", text)
+    if not addresses:
+        return None
+    network_ip = addresses[0]
+
+    # EIGRP/OSPF style: network A.B.C.D wildcard
+    if len(addresses) >= 2:
+        try:
+            wildcard = ipaddress.IPv4Address(addresses[1])
+            wildcard_int = int(wildcard)
+            mask_int = wildcard_int ^ 0xFFFFFFFF
+            netmask = ipaddress.IPv4Address(mask_int)
+            return ipaddress.IPv4Network(f"{network_ip}/{netmask}", strict=False)
+        except Exception:
+            return None
+
+    # RIP style: IOS uses major/classful networks for network statements.
+    try:
+        first_octet = int(network_ip.split(".", 1)[0])
+        if first_octet < 128:
+            prefix = 8
+        elif first_octet < 192:
+            prefix = 16
+        else:
+            prefix = 24
+        return ipaddress.IPv4Network(f"{network_ip}/{prefix}", strict=False)
+    except Exception:
+        return None
+
+
+def _routing_network_advertises_interface(statement, interfaces):
+    """Return True if a routing network statement matches any configured interface."""
+    network = _network_statement_to_network(statement)
+    if not network or not isinstance(interfaces, dict):
+        return False
+    for iface_cfg in interfaces.values():
+        if not isinstance(iface_cfg, dict):
+            continue
+        ip_addr = _as_ipv4_address(iface_cfg.get("ip"))
+        if ip_addr and ip_addr in network:
+            return True
+    return False
+
+
+def _routing_networks_cover(template_statement, student_statement):
+    """Return True when a student routing statement covers the template network."""
+    template_network = _network_statement_to_network(template_statement)
+    student_network = _network_statement_to_network(student_statement)
+    if not template_network or not student_network:
+        return str(template_statement).strip() == str(student_statement).strip()
+    return template_network.subnet_of(student_network)
+
+
+def _compare_routing_protocol_instances(
+    protocol, template_instances, student_instances, full_key, student_interfaces
+):
+    """Compare same-protocol routing config by meaningful fields."""
+    results = []
+    template_instances = [
+        item for item in (template_instances or []) if isinstance(item, dict)
+    ]
+    student_instances = [
+        item for item in (student_instances or []) if isinstance(item, dict)
+    ]
+    if not template_instances and not student_instances:
+        return results
+    if template_instances and not student_instances:
+        return [
+            _make_result(
+                f"{full_key}.{protocol}",
+                "missing",
+                template_instances,
+                VALUE_NOT_PRESENT,
+                "MISSING_ROUTING_PROTOCOL",
+            )
+        ]
+    if student_instances and not template_instances:
+        return [
+            _make_result(
+                f"{full_key}.{protocol}",
+                "extra",
+                None,
+                student_instances,
+                "EXTRA_ROUTING_PROTOCOL",
+            )
+        ]
+
+    template_cfg = template_instances[0]
+    student_cfg = student_instances[0]
+    protocol_key = f"{full_key}.{protocol}"
+
+    template_networks = {str(item).strip() for item in template_cfg.get("networks", [])}
+    student_networks = {str(item).strip() for item in student_cfg.get("networks", [])}
+    template_networks.discard("")
+    student_networks.discard("")
+
+    matched_template_networks = set()
+    matched_student_networks = set()
+    for template_statement in template_networks:
+        for student_statement in student_networks:
+            if _routing_networks_cover(template_statement, student_statement):
+                matched_template_networks.add(template_statement)
+                matched_student_networks.add(student_statement)
+                break
+
+    missing_networks = sorted(template_networks - matched_template_networks)
+    extra_networks = sorted(student_networks - matched_student_networks)
+    if missing_networks:
+        results.append(
+            _make_result(
+                f"{protocol_key}.networks",
+                "missing",
+                missing_networks,
+                sorted(student_networks),
+                "MISSING_ROUTING_NETWORK",
+            )
+        )
+    if extra_networks:
+        results.append(
+            _make_result(
+                f"{protocol_key}.networks",
+                "extra",
+                sorted(template_networks),
+                extra_networks,
+                "EXTRA_NETWORK_ADVERTISED",
+            )
+        )
+
+    for statement in sorted(student_networks):
+        if not _routing_network_advertises_interface(statement, student_interfaces):
+            results.append(
+                _make_result(
+                    f"{protocol_key}.networks.bad_statement",
+                    "mismatch",
+                    "Routing network statement that advertises at least one interface",
+                    statement,
+                    "MISSING_NETWORK_STATEMENT_INTERFACE",
+                )
+            )
+
+    template_redistribute = {
+        str(item).strip() for item in template_cfg.get("redistribute", []) or []
+    }
+    student_redistribute = {
+        str(item).strip() for item in student_cfg.get("redistribute", []) or []
+    }
+    template_redistribute.discard("")
+    student_redistribute.discard("")
+    missing_redistribute = sorted(template_redistribute - student_redistribute)
+    extra_redistribute = sorted(student_redistribute - template_redistribute)
+    if missing_redistribute:
+        results.append(
+            _make_result(
+                f"{protocol_key}.redistribute",
+                "missing",
+                missing_redistribute,
+                sorted(student_redistribute),
+                "MISSING_REDISTRIBUTE",
+            )
+        )
+    if extra_redistribute:
+        results.append(
+            _make_result(
+                f"{protocol_key}.redistribute",
+                "extra",
+                sorted(template_redistribute),
+                extra_redistribute,
+                "EXTRA_REDISTRIBUTE",
+            )
+        )
+
+    if template_cfg.get("auto_summary") != student_cfg.get("auto_summary"):
+        results.append(
+            _make_result(
+                f"{protocol_key}.auto_summary",
+                "mismatch",
+                template_cfg.get("auto_summary"),
+                student_cfg.get("auto_summary"),
+                "MISMATCH_AUTO_SUMMARY",
+            )
+        )
+
+    template_passive = {
+        str(item).strip() for item in template_cfg.get("passive_interfaces", []) or []
+    }
+    student_passive = {
+        str(item).strip() for item in student_cfg.get("passive_interfaces", []) or []
+    }
+    template_passive.discard("")
+    student_passive.discard("")
+    if template_passive != student_passive:
+        results.append(
+            _make_result(
+                f"{protocol_key}.passive_interfaces",
+                "mismatch",
+                sorted(template_passive),
+                sorted(student_passive),
+                "MISMATCH_ROUTING_PASSIVE",
+            )
+        )
+
+    return results
+
+
 def _route_codes(routes):
     """Return the set of route code tokens present in parsed route entries."""
     codes = set()
@@ -2110,6 +3089,32 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
     """
     Recursively compares two dictionaries and returns structured results.
     """
+    if not parent_key and isinstance(template, dict) and isinstance(student, dict):
+        template_show_run = template.get("show_running_config", {}) or {}
+        student_show_run = student.get("show_running_config", {}) or {}
+        nat_pool_aliases = _build_nat_pool_aliases(template_show_run, student_show_run)
+        dhcp_pool_aliases = _build_dhcp_pool_aliases(
+            template_show_run, student_show_run
+        )
+        acl_aliases = _build_applied_acl_aliases(template_show_run, student_show_run)
+        acl_aliases = _build_nat_acl_aliases(
+            template_show_run,
+            student_show_run,
+            nat_pool_aliases,
+            acl_aliases,
+        )
+        acl_aliases = _build_content_acl_aliases(
+            template_show_run, student_show_run, acl_aliases
+        )
+        if acl_aliases or nat_pool_aliases or dhcp_pool_aliases:
+            student = _apply_comparison_aliases_to_student(
+                student,
+                acl_aliases,
+                nat_pool_aliases,
+                dhcp_pool_aliases,
+                template_show_run,
+            )
+
     results = []
 
     def _iface_has_config(val):
@@ -2197,6 +3202,8 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
         return False
 
     def _should_skip_path(path):
+        if path == "schema_version" or path.endswith(".schema_version"):
+            return True
         if "sticky_macs" in path:
             return True
         if path.endswith("switching.spanning_tree.extend_system_id"):
@@ -2213,6 +3220,17 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
             return True
         if path.endswith("verification.show_vlan_brief.vlans.1.ports"):
             return True
+        if path.endswith("show_running_config.interfaces.Vlan1.shutdown"):
+            return True
+        if path.endswith(".logging_synchronous"):
+            return True
+        if path.endswith(".line") and (".console." in path or ".vty." in path):
+            return True
+        if (
+            path.endswith(".access_groups")
+            and (".console." in path or ".vty." in path)
+        ):
+            return True
         if re.search(r"pagp|lacp", path, re.IGNORECASE) and re.search(
             r"timer|negotiated|state|partner", path, re.IGNORECASE
         ):
@@ -2221,12 +3239,6 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
         if "enable_secret_type" in path or "enable_password_type" in path:
             return False  # Don't skip — we compare these
         return False
-
-    def _dhcp_pool_match_key(name):
-        text = re.sub(r"[^a-z0-9]+", "", str(name or "").strip().lower())
-        if text.endswith("s"):
-            text = text[:-1]
-        return text
 
     if parent_key.endswith("dhcp_pools") and isinstance(template, dict) and isinstance(student, dict):
         t_by_norm = {_dhcp_pool_match_key(name): name for name in template.keys()}
@@ -2313,7 +3325,16 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
         # ACL not applied detection
         t_acls = template_show_run.get("access_lists", {}) or {}
         s_acls = student_show_run.get("access_lists", {}) or {}
-        results.extend(_check_acl_not_applied(s_acls, s_interfaces, s_nat, t_acls))
+        acl_contexts = dict(s_interfaces)
+        acl_contexts.update(_line_contexts(student_show_run))
+        template_applied_acls = {
+            acl_name for _, _, acl_name in _iter_acl_applications(template_show_run)
+        }
+        results.extend(
+            _check_acl_not_applied(
+                s_acls, acl_contexts, s_nat, t_acls, template_applied_acls
+            )
+        )
 
         # Routing instance detection
         results.extend(_check_routing_instances(student_routing))
@@ -2475,6 +3496,21 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                 results.append(_make_result(full_key, "missing", t_val, None))
             else:
                 results.append(_make_result(full_key, "correct"))
+        elif full_key.endswith(".hostname"):
+            if str(t_val).strip().lower() == str(s_val).strip().lower():
+                results.append(_make_result(full_key, "correct"))
+            else:
+                results.append(
+                    _make_result(
+                        full_key,
+                        "mismatch",
+                        t_val,
+                        s_val,
+                        _verification_outcome_code_for_path(
+                            full_key, "mismatch", t_val, s_val
+                        ),
+                    )
+                )
         elif t_val is None and s_val is None:
             results.append(_make_result(full_key, "correct"))
         elif t_val is None and s_val is not None:
@@ -2557,17 +3593,121 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                         )
                 continue
 
+            if full_key.endswith("access_lists") and isinstance(s_val, dict):
+                t_acl_names = set(t_val.keys())
+                s_acl_names = set(s_val.keys())
+                common_acls = sorted(t_acl_names & s_acl_names)
+
+                for acl_name in common_acls:
+                    acl_key = f"{full_key}.{acl_name}"
+                    t_acl = t_val.get(acl_name)
+                    s_acl = s_val.get(acl_name)
+                    if isinstance(t_acl, dict) and isinstance(s_acl, dict):
+                        t_rules = t_acl.get("rules") or []
+                        s_rules = s_acl.get("rules") or []
+                        if _acl_rule_lists_equivalent_or_narrower(t_rules, s_rules):
+                            results.append(_make_result(acl_key, "correct"))
+                            continue
+                    results.extend(compare_dicts(t_acl, s_acl, acl_key))
+
+                for acl_name in sorted(t_acl_names - s_acl_names):
+                    t_acl = t_val.get(acl_name)
+                    if _iface_has_config(t_acl):
+                        missing_key = f"{full_key}.{acl_name}"
+                        results.append(
+                            _make_result(
+                                missing_key,
+                                "missing",
+                                t_acl,
+                                VALUE_NOT_PRESENT,
+                                "MISSING_ACL",
+                            )
+                        )
+
+                for acl_name in sorted(s_acl_names - t_acl_names):
+                    s_acl = s_val.get(acl_name)
+                    if _iface_has_config(s_acl):
+                        extra_key = f"{full_key}.{acl_name}"
+                        results.append(
+                            _make_result(
+                                extra_key,
+                                "extra",
+                                None,
+                                s_acl,
+                                "EXTRA_ACL",
+                            )
+                        )
+                continue
+
             # Hardware models can expose different interface sets.
             # Compare only interfaces present on both sides.
             if full_key.endswith("interfaces") and isinstance(s_val, dict):
-                t_ifaces = set(t_val.keys())
-                s_ifaces = set(s_val.keys())
+                t_by_norm = {
+                    _normalize_interface_name(name): name for name in t_val.keys()
+                }
+                s_by_norm = {
+                    _normalize_interface_name(name): name for name in s_val.keys()
+                }
+                t_ifaces = set(t_by_norm.keys())
+                s_ifaces = set(s_by_norm.keys())
                 common_interfaces = sorted(t_ifaces & s_ifaces)
-                for iface in common_interfaces:
-                    iface_key = f"{full_key}.{iface}"
-                    t_iface = t_val.get(iface)
-                    s_iface = s_val.get(iface)
+                for norm_iface in common_interfaces:
+                    t_name = t_by_norm[norm_iface]
+                    s_name = s_by_norm[norm_iface]
+                    iface_key = f"{full_key}.{t_name}"
+                    t_iface = t_val.get(t_name)
+                    s_iface = s_val.get(s_name)
                     if isinstance(t_iface, dict) and isinstance(s_iface, dict):
+                        if (
+                            full_key.endswith("show_running_config.interfaces")
+                            and s_iface.get("shutdown") is True
+                            and t_iface.get("shutdown") is not True
+                        ):
+                            # A shutdown port/interface is the primary functional error.
+                            # Suppress secondary access/mode/IP noise for the same interface.
+                            t_shutdown = (
+                                {"shutdown": t_iface["shutdown"]}
+                                if "shutdown" in t_iface
+                                else {}
+                            )
+                            results.extend(
+                                compare_dicts(
+                                    t_shutdown,
+                                    {"shutdown": True},
+                                    iface_key,
+                                )
+                            )
+                            continue
+                        if (
+                            full_key.endswith("show_running_config.interfaces")
+                            and t_iface.get("ip") is not None
+                            and not s_iface.get("ip")
+                        ):
+                            # When an interface has no IP, report that primary
+                            # address failure instead of cascading mask/VLAN/
+                            # encapsulation findings for the same interface.
+                            reduced_student = {}
+                            if "ip" in s_iface:
+                                reduced_student["ip"] = s_iface.get("ip")
+                            results.extend(
+                                compare_dicts(
+                                    {"ip": t_iface.get("ip")},
+                                    reduced_student,
+                                    iface_key,
+                                )
+                            )
+                            continue
+                        if (
+                            full_key.endswith("show_running_config.interfaces")
+                            and t_iface.get("switchport_mode") == "access"
+                            and "switchport_mode" not in s_iface
+                            and s_iface.get("access_vlan") is not None
+                        ):
+                            # Cisco access mode is often the operational default.
+                            # Grade the VLAN assignment instead of requiring the
+                            # literal switchport mode command on access ports.
+                            t_iface = dict(t_iface)
+                            t_iface.pop("switchport_mode", None)
                         results.extend(compare_dicts(t_iface, s_iface, iface_key))
                     elif t_iface == s_iface:
                         results.append(_make_result(iface_key, "correct"))
@@ -2589,13 +3729,15 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
 
                 missing_items = []
                 extra_items = []
-                for iface in missing_ifaces:
+                for norm_iface in missing_ifaces:
+                    iface = t_by_norm[norm_iface]
                     t_iface = t_val.get(iface)
                     if _iface_has_config(t_iface):
                         if _is_hw_absent_interface(iface, t_iface):
                             continue
                         missing_items.append((iface, t_iface))
-                for iface in extra_ifaces:
+                for norm_iface in extra_ifaces:
+                    iface = s_by_norm[norm_iface]
                     s_iface = s_val.get(iface)
                     if _iface_has_config(s_iface):
                         if _is_hw_absent_interface(iface, s_iface):
@@ -2763,6 +3905,18 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                         )
                     )
                     continue
+                for protocol in ("eigrp", "ospf", "rip"):
+                    results.extend(
+                        _compare_routing_protocol_instances(
+                            protocol,
+                            t_val.get(protocol) or [],
+                            s_val.get(protocol) or [],
+                            full_key,
+                            s_val.get("interfaces") or student.get("interfaces") or {},
+                        )
+                    )
+                    t_val.pop(protocol, None)
+                    s_val.pop(protocol, None)
             # VLAN brief: merge missing/extra VLAN IDs with same VLAN name.
             if full_key.endswith("verification.show_vlan_brief.vlans") and isinstance(
                 s_val, dict
@@ -2894,6 +4048,51 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
                     )
                 )
                 continue
+
+            if full_key == "verification.show_ip_dhcp_binding.assigned_ips":
+                if t_val and s_val:
+                    results.append(_make_result(full_key, "correct"))
+                elif t_val and not s_val:
+                    results.append(
+                        _make_result(
+                            full_key,
+                            "mismatch",
+                            t_val,
+                            s_val,
+                            "VERIFY_DHCP_NOT_ASSIGNING",
+                        )
+                    )
+                else:
+                    results.append(_make_result(full_key, "correct"))
+                continue
+
+            if full_key == "verification.show_ip_dhcp_pool.pool_names":
+                template_names = {_dhcp_pool_match_key(name) for name in t_val}
+                student_names = {_dhcp_pool_match_key(name) for name in s_val}
+                if template_names == student_names:
+                    results.append(_make_result(full_key, "correct"))
+                    continue
+
+            if _is_acl_rule_list_path(full_key):
+                normalized_template_rules = _normalize_acl_rules_for_compare(t_val)
+                normalized_student_rules = _normalize_acl_rules_for_compare(s_val)
+                if (
+                    normalized_template_rules == normalized_student_rules
+                    or _acl_rule_lists_equivalent_or_narrower(t_val, s_val)
+                ):
+                    results.append(_make_result(full_key, "correct"))
+                    continue
+                if _acl_rules_are_not_optimal(t_val, s_val):
+                    results.append(
+                        _make_result(
+                            full_key,
+                            "mismatch",
+                            t_val,
+                            s_val,
+                            "MISMATCH_ACL_NOT_OPTIMAL",
+                        )
+                    )
+                    continue
 
             # Special handling for user lists keyed by username.
             t_is_user_list = all(

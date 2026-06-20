@@ -804,7 +804,7 @@ async function runComparison() {
         exam_name: classroom,
         session_id: tutorName,
         target_path: sessionPath,
-        template_name: localStorage.getItem("templateName") || null,
+        template_name: null,
         include_reports: true,
       }),
     });

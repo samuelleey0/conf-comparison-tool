@@ -339,12 +339,113 @@ def wait_for_prompt(ser, expected_prompts, timeout=15, wake=True):
     )
 
 
+def _clean_cli_output(text):
+    text = re.sub(r"--More--", "", text)
+    text = re.sub(r"\x1b\[.*?[@-~]", "", text)
+    return text
+
+
+def _has_exec_prompt(text, expected_prompt=None):
+    """
+    Cisco command output is complete only when an EXEC prompt is seen at the end
+    of the stream. Looking for any '#' or '>' is unsafe because show output can
+    contain those characters before the command has finished.
+    """
+    prompt_chars = "#>"
+    if expected_prompt:
+        prompt_chars += "".join(ch for ch in expected_prompt if ch in "#>")
+    prompt_chars = "".join(dict.fromkeys(prompt_chars))
+    return bool(
+        re.search(rf"(^|[\r\n])\S{{1,80}}[{re.escape(prompt_chars)}]\s*$", text)
+    )
+
+
+def _extract_exec_prompt(text):
+    for line in reversed(text.splitlines()):
+        candidate = line.strip()
+        if re.fullmatch(r"\S{1,80}[#>]", candidate):
+            return candidate
+    return None
+
+
+def _read_current_prompt(ser, timeout=2):
+    try:
+        ser.write(b"\n")
+        ser.flush()
+    except Exception:
+        return None
+
+    buffer = b""
+    start = time.time()
+    original_timeout = getattr(ser, "timeout", None)
+    try:
+        ser.timeout = 0.1
+        while time.time() - start < timeout:
+            data = ser.read(1024)
+            if data:
+                buffer += data
+                prompt = _extract_exec_prompt(
+                    _clean_cli_output(buffer.decode("utf-8", errors="ignore"))
+                )
+                if prompt:
+                    return prompt
+            else:
+                time.sleep(0.05)
+    finally:
+        if original_timeout is not None:
+            ser.timeout = original_timeout
+    return None
+
+
+def _command_text(command):
+    if isinstance(command, bytes):
+        return command.decode("utf-8", errors="ignore").strip()
+    return str(command).strip()
+
+
+def _prompt_from_command_echo(text, command):
+    command_text = _command_text(command)
+    if not command_text:
+        return None
+    match = re.search(
+        rf"(^|[\r\n])(?P<prompt>\S{{1,80}}[#>])\s*{re.escape(command_text)}\s*(?:[\r\n]|$)",
+        text,
+    )
+    if match:
+        return match.group("prompt")
+    return None
+
+
+def _has_command_prompt(text, command, expected_prompt=None, current_prompt=None):
+    if current_prompt:
+        if re.search(rf"(^|[\r\n]){re.escape(current_prompt)}\s*$", text):
+            return True
+        return _has_exec_prompt(text, expected_prompt)
+
+    echoed_prompt = _prompt_from_command_echo(text, command)
+    if echoed_prompt:
+        return bool(
+            re.search(rf"(^|[\r\n]){re.escape(echoed_prompt)}\s*$", text)
+        )
+    return _has_exec_prompt(text, expected_prompt)
+
+
 def send_command(ser, command, expected_prompt=">", timeout=20):
     """
     Send a command to the Cisco device and read the response.
     Assumes the prompt is '>', but if '(config)#' is detected, sends 'end'
     to exit configuration mode and proceeds to the next command.
     """
+    try:
+        ser.reset_input_buffer()
+    except Exception:
+        pass
+    current_prompt = _read_current_prompt(ser)
+    try:
+        ser.reset_input_buffer()
+    except Exception:
+        pass
+
     if isinstance(command, str):
         ser.write(command.encode("utf-8") + b"\n")
     else:
@@ -359,7 +460,7 @@ def send_command(ser, command, expected_prompt=">", timeout=20):
         if not data:
             continue
         buffer += data
-        decoded = buffer.decode("utf-8", errors="ignore")
+        decoded = _clean_cli_output(buffer.decode("utf-8", errors="ignore"))
 
         if "(config)#" in decoded:
             print("[INFO] Device entered configuration mode. Exiting to EXEC mode...")
@@ -368,9 +469,7 @@ def send_command(ser, command, expected_prompt=">", timeout=20):
             time.sleep(0.2)
             buffer = b""
             continue
-        if expected_prompt in decoded or "#" in decoded:
-            decoded = re.sub(r"--More--", "", decoded)
-            decoded = re.sub(r"\x1b\[.*?[@-~]", "", decoded)
+        if _has_command_prompt(decoded, command, expected_prompt, current_prompt):
             return decoded.strip()
     raise TimeoutError(
         f" [ERROR] Command '{command}' timed out after {timeout} seconds."

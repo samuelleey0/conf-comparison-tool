@@ -118,6 +118,25 @@
       max-width: 680px;
     }
 
+    .connection-header-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .selected-student-line {
+      margin-top: 8px;
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: var(--color-heading);
+    }
+
+    .selected-student-line span {
+      color: var(--color-primary-dark);
+    }
+
     .connection-layout {
       grid-template-columns: minmax(320px, 400px) minmax(620px, 1fr);
       gap: 24px;
@@ -402,6 +421,10 @@
     @media (max-width: 1370px) {
       .connection-shell {
         padding: 32px 28px 48px;
+      }
+
+      .connection-shell .page-header {
+        align-items: flex-start;
       }
 
       .connection-layout {
@@ -720,6 +743,15 @@
       .connection-status__header .link-btn {
         width: 100%;
       }
+
+      .connection-header-actions,
+      .connection-header-actions .tutorial-page-link {
+        width: 100%;
+      }
+
+      .connection-queue__header {
+        width: 100%;
+      }
     }
   </style>
 </head>
@@ -733,7 +765,9 @@
         <h1 class="page-title">Connection & Execution</h1>
         <p class="page-subtitle">Confirm how you will connect and monitor the live run results.</p>
       </div>
-      <a class="tutorial-page-link" href="quick_guide.html#connectionGuidePanel">Tutorial</a>
+      <div class="connection-header-actions">
+        <a class="tutorial-page-link" href="quick_guide.html#connectionGuidePanel">Tutorial</a>
+      </div>
     </header>
 
     <div class="connection-layout" id="connectionPage">
@@ -744,6 +778,7 @@
             <h2 class="section-title">Confirm Device Queue</h2>
             <p class="step-heading__hint">Check the students/devices that will run. If you want to skip the queue and
               collect a specific device first, click "Collect this".</p>
+            <div class="selected-student-line">Selected Student - <span id="selectedStudentBadge">Not selected</span></div>
           </div>
         </div>
         <form id="connectionForm">

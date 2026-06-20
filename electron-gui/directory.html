@@ -208,18 +208,19 @@
             /* ── Existing section ────────────────────────────── */
             .dir-existing-layout {
                 display: grid;
-                grid-template-columns: 560px 240px;
+                grid-template-columns: minmax(660px, 760px) minmax(280px, 0.7fr);
                 gap: 24px;
                 align-items: flex-start;
-                width: fit-content;
-                max-width: 100%;
+                width: 100%;
+                max-width: 1120px;
+                justify-content: center;
+                justify-self: center;
                 margin: 0 auto;
             }
 
             #existingSection .dir-card {
-                width: fit-content;
                 max-width: 100%;
-                margin: 0 auto;
+                width: 100%;
             }
 
             .dir-existing-main {
@@ -231,8 +232,8 @@
                 align-items: center;
                 gap: 12px;
                 flex-wrap: wrap;
-                width: calc(560px + 24px + 240px);
-                max-width: 100%;
+                width: 100%;
+                max-width: 1120px;
                 margin-left: auto;
                 margin-right: auto;
                 margin-bottom: 16px;
@@ -246,18 +247,251 @@
             }
 
             .dir-student-grid {
-                width: fit-content;
+                width: 100%;
                 border: 1px solid rgba(148, 163, 184, 0.22);
                 border-radius: 8px;
                 padding: 14px;
                 display: grid;
-                grid-template-columns: repeat(2, 260px);
+                grid-template-columns: repeat(2, minmax(260px, 1fr));
                 gap: 12px;
                 align-content: flex-start;
                 max-height: 420px;
                 overflow-y: auto;
                 margin-bottom: 16px;
                 background: #fafbfd;
+            }
+
+            .student-status-legend {
+                width: 100%;
+                min-width: 0;
+                max-width: 100%;
+                display: flex;
+                gap: 12px;
+                align-items: center;
+                justify-content: flex-start;
+                flex-wrap: wrap;
+                margin-bottom: 12px;
+                padding: 13px 15px;
+                border: 1px solid rgba(148, 163, 184, 0.24);
+                border-radius: 8px;
+                background: #fff;
+            }
+
+            .student-status-legend__item {
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                font-size: 0.88rem;
+                font-weight: 800;
+                color: var(--color-heading);
+            }
+
+            .student-status-legend__swatch {
+                width: 18px;
+                height: 18px;
+                border-radius: 3px;
+                border: 2px solid currentColor;
+            }
+
+            .student-status-legend__swatch--collected {
+                color: #18854b;
+                background: #dff3e8;
+            }
+
+            .student-status-legend__swatch--pending {
+                color: #2f61b8;
+                background: #e5efff;
+            }
+
+            .student-card--collected {
+                border-color: #18854b !important;
+                background: #e8f6ee !important;
+            }
+
+            .student-card--collected:hover {
+                border-color: #0f6f3d !important;
+                background: #d7f0e2 !important;
+                color: var(--color-heading) !important;
+            }
+
+            .student-card--pending {
+                border-color: #2f61b8 !important;
+                background: #edf4ff !important;
+            }
+
+            .student-card--pending:hover {
+                border-color: #1f4f9e !important;
+                background: #dceaff !important;
+                color: var(--color-heading) !important;
+            }
+
+            .student-card {
+                position: relative;
+            }
+
+            .student-card.selected-student {
+                border-color: #b45309 !important;
+                background: #fff4d6 !important;
+                color: var(--color-heading) !important;
+                box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.22), 0 14px 28px rgba(120, 53, 15, 0.16) !important;
+            }
+
+            .student-card.selected-student:hover {
+                border-color: #92400e !important;
+                background: #ffedb5 !important;
+                color: var(--color-heading) !important;
+            }
+
+            .student-card.selected-student::before {
+                content: "";
+                position: absolute;
+                left: 0;
+                top: 10px;
+                bottom: 10px;
+                width: 5px;
+                border-radius: 0 4px 4px 0;
+                background: #b45309;
+            }
+
+            .student-card__main {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                min-width: 0;
+                padding-bottom: 10px;
+                border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+            }
+
+            .student-template-field {
+                display: grid;
+                gap: 6px;
+                min-width: 0;
+                cursor: default;
+            }
+
+            .student-template-field span {
+                font-size: 0.72rem;
+                font-weight: 700;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+                color: var(--color-muted);
+            }
+
+            .student-template-picker {
+                position: relative;
+                min-width: 0;
+            }
+
+            .student-template-trigger {
+                width: 100%;
+                min-width: 0;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                padding: 9px 10px;
+                border: 1px solid var(--color-border);
+                border-radius: 4px;
+                background: #fff;
+                color: var(--color-heading);
+                font-size: 0.86rem;
+                font-weight: 600;
+                text-align: left;
+                cursor: pointer;
+            }
+
+            .student-template-trigger:hover {
+                border-color: var(--color-primary) !important;
+                background: var(--color-primary) !important;
+                color: #ffffff !important;
+            }
+
+            .student-template-trigger:focus {
+                outline: none;
+                border-color: var(--color-primary);
+                box-shadow: 0 0 0 3px rgba(31, 59, 115, 0.14);
+            }
+
+            .student-template-trigger__label {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .student-template-menu {
+                position: fixed;
+                z-index: 9999;
+                display: grid;
+                gap: 6px;
+                padding: 8px;
+                border: 1px solid rgba(148, 163, 184, 0.38);
+                border-radius: 6px;
+                background: #fff;
+                box-shadow: 0 16px 32px rgba(15, 23, 42, 0.18);
+            }
+
+            .student-template-menu.hidden {
+                display: none;
+            }
+
+            .student-template-search {
+                width: 100%;
+                min-width: 0;
+                padding: 8px 9px;
+                border: 1px solid var(--color-border);
+                border-radius: 4px;
+                color: var(--color-heading);
+                font-size: 0.84rem;
+                font-weight: 600;
+            }
+
+            .student-template-search:focus {
+                outline: none;
+                border-color: var(--color-primary);
+                box-shadow: 0 0 0 3px rgba(31, 59, 115, 0.12);
+            }
+
+            .student-template-options {
+                display: grid;
+                gap: 4px;
+                max-height: 180px;
+                overflow-y: auto;
+            }
+
+            .student-template-option {
+                width: 100%;
+                min-width: 0;
+                padding: 8px 9px;
+                border: 1px solid transparent;
+                border-radius: 4px !important;
+                background: transparent;
+                color: var(--color-heading);
+                font-size: 0.82rem;
+                font-weight: 700;
+                text-align: left;
+                cursor: pointer;
+                overflow-wrap: anywhere;
+            }
+
+            .student-template-option:hover,
+            .student-template-option.is-active:hover {
+                border-color: var(--color-primary) !important;
+                background: var(--color-primary) !important;
+                color: #fff !important;
+            }
+
+            .student-template-option.is-active {
+                border-color: rgba(31, 59, 115, 0.28);
+                background: #e8efff;
+                color: var(--color-primary);
+            }
+
+            .student-template-empty {
+                padding: 8px 9px;
+                color: var(--color-muted);
+                font-size: 0.8rem;
+                font-style: italic;
             }
 
             .dir-action-row {
@@ -273,7 +507,7 @@
 
             /* ── Session sidebar ─────────────────────────────── */
             .dir-session-sidebar {
-                flex: 0 0 240px;
+                width: 100%;
                 display: flex;
                 flex-direction: column;
                 gap: 14px;
@@ -573,14 +807,14 @@
                 }
 
                 .dir-existing-layout {
-                    grid-template-columns: 560px;
+                    grid-template-columns: minmax(0, 1fr);
                     gap: 16px;
                     justify-content: center;
                 }
 
                 .dir-pick-row,
                 .dir-existing-layout {
-                    width: 560px;
+                    width: 100%;
                     max-width: 100%;
                 }
 
@@ -594,6 +828,43 @@
 
                 .dir-toggle-help {
                     padding-left: 0;
+                }
+            }
+
+            @media (max-width: 1500px) {
+                body:not(.sidebar-collapsed) .dir-existing-layout {
+                    grid-template-columns: minmax(0, 1fr);
+                    gap: 16px;
+                }
+
+                body:not(.sidebar-collapsed) .dir-session-sidebar {
+                    display: grid;
+                    grid-template-columns: repeat(3, minmax(0, 1fr));
+                    gap: 12px;
+                    width: 100%;
+                }
+            }
+
+            @media (max-width: 1050px) {
+                body:not(.sidebar-collapsed) .dir-student-grid {
+                    grid-template-columns: minmax(0, 1fr);
+                    width: min(326px, 100%);
+                    margin-left: auto;
+                    margin-right: auto;
+                }
+
+                body:not(.sidebar-collapsed) .student-status-legend,
+                body:not(.sidebar-collapsed) .dir-action-row {
+                    width: min(326px, 100%);
+                    margin-left: auto;
+                    margin-right: auto;
+                }
+
+                body:not(.sidebar-collapsed) .dir-session-sidebar {
+                    grid-template-columns: 1fr;
+                    width: min(326px, 100%);
+                    margin-left: auto;
+                    margin-right: auto;
                 }
             }
 
@@ -612,16 +883,23 @@
                 }
 
                 .dir-student-grid {
-                    grid-template-columns: 260px;
+                    grid-template-columns: minmax(0, 1fr);
                     width: fit-content;
                     max-width: 100%;
                     margin-left: auto;
                     margin-right: auto;
                 }
 
+                .student-status-legend {
+                    width: min(326px, 100%);
+                    min-width: 0;
+                    margin-left: auto;
+                    margin-right: auto;
+                }
+
                 .dir-session-sidebar {
                     grid-template-columns: 1fr;
-                    width: 260px;
+                    width: min(326px, 100%);
                     max-width: 100%;
                     margin-left: auto;
                     margin-right: auto;
@@ -629,12 +907,12 @@
 
                 .dir-pick-row,
                 .dir-existing-layout {
-                    width: 260px;
+                    width: min(326px, 100%);
                     max-width: 100%;
                 }
 
                 .dir-action-row {
-                    width: 260px;
+                    width: min(326px, 100%);
                     max-width: 100%;
                     margin-left: auto;
                     margin-right: auto;
@@ -740,6 +1018,16 @@
 
                         <div class="dir-existing-layout">
                             <div class="dir-existing-main">
+                                <div class="student-status-legend" aria-label="Student collection status legend">
+                                    <div class="student-status-legend__item">
+                                        <span class="student-status-legend__swatch student-status-legend__swatch--collected"></span>
+                                        <span>Green: already collected</span>
+                                    </div>
+                                    <div class="student-status-legend__item">
+                                        <span class="student-status-legend__swatch student-status-legend__swatch--pending"></span>
+                                        <span>Blue: not collected</span>
+                                    </div>
+                                </div>
                                 <div id="mainStudentGridContainer" class="dir-student-grid"></div>
 
                                 <div class="dir-action-row">
@@ -763,6 +1051,10 @@
                                         <div class="dir-sidebar-stat">
                                             <span class="dir-sidebar-stat__label">Total Students</span>
                                             <span class="dir-sidebar-stat__value" id="sidebarTotalCount">—</span>
+                                        </div>
+                                        <div class="dir-sidebar-stat">
+                                            <span class="dir-sidebar-stat__label">Templates Assigned</span>
+                                            <span class="dir-sidebar-stat__value dir-sidebar-stat__value--accent" id="sidebarAssignedCount">—</span>
                                         </div>
                                         <div class="dir-sidebar-stat">
                                             <span class="dir-sidebar-stat__label">Completed</span>

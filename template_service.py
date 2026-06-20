@@ -64,7 +64,7 @@ def load_template_manifest(template_name: str):
                     manifest = json.load(handle) or {}
                 for name in manifest.get("logs", []):
                     base = os.path.splitext(name)[0]
-                    commands.append(base.replace("_", " "))
+                    commands.append(_canonical_cli_command(base.replace("_", " ")))
             except Exception:
                 commands = []
         if commands:
