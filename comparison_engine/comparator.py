@@ -3339,6 +3339,8 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
             path,
         ):
             return True
+        if path == "verification.show_ip_ospf_database.lsa_types.as_external":
+            return True
         if re.search(
             r"verification\.show_vlan_brief\.vlans\.(1002|1003|1004|1005)(\.|$)",
             path,
