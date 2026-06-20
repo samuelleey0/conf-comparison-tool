@@ -433,6 +433,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!block) return;
       const checkbox = block.querySelector(`input[type="checkbox"][value="${commandText}"]`);
       if (checkbox) checkbox.checked = false;
+      syncDropdownSelectionStyles(block);
+      pinSelectedCommands(block);
       updateDropdownCount(block);
     });
     return row;
@@ -456,6 +458,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const searchInput = block.querySelector(".dropdown-search-input");
     if (searchInput) searchInput.value = "";
     block.querySelectorAll(".dropdown-item.hidden").forEach((item) => item.classList.remove("hidden"));
+    pinSelectedCommands(block);
   }
 
   function pinSelectedCommands(block) {
@@ -478,10 +481,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (dropdown !== exceptDropdown) {
         dropdown.classList.remove("dropdown-open");
         dropdown.querySelector(".dropdown-list")?.classList.add("hidden");
-        const searchInput = dropdown.querySelector(".dropdown-search-input");
-        if (searchInput) searchInput.value = "";
-        dropdown.querySelectorAll(".dropdown-item.hidden").forEach((item) => item.classList.remove("hidden"));
-        dropdown.closest(".device-block")?.classList.remove("dropdown-open");
+        const block = dropdown.closest(".device-block");
+        if (block) {
+          resetCommandSearch(block);
+          block.classList.remove("dropdown-open");
+        }
       }
     });
   }
@@ -548,9 +552,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       dropdownRoot.classList.toggle("dropdown-open", willOpen);
       block.classList.toggle("dropdown-open", willOpen);
       if (willOpen) dropdownSearch?.focus();
+      else resetCommandSearch(block);
     });
 
     dropdownSearch?.addEventListener("click", (event) => event.stopPropagation());
+    dropdownSearch?.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      resetCommandSearch(block);
+    });
     dropdownSearch?.addEventListener("input", () => {
       const term = normalizeCommandText(dropdownSearch.value);
       block.querySelectorAll(".dropdown-item").forEach((item) => {
@@ -573,9 +583,6 @@ document.addEventListener("DOMContentLoaded", async () => {
           existingRow.remove();
         }
         checkbox.closest(".dropdown-item")?.classList.toggle("selected", checkbox.checked);
-        if (checkbox.checked) {
-          resetCommandSearch(block);
-        }
         pinSelectedCommands(block);
         updateDropdownCount(block);
         updateModeUI();

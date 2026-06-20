@@ -71,6 +71,10 @@ function setupSampleCollectPage() {
           event.preventDefault();
           stopSampleCollectBtn.click();
         }
+        if (sampleManualPanel?.contains(event.target) && sampleCommandSearch?.value) {
+          event.preventDefault();
+          resetSampleCommandSearch();
+        }
         return;
       }
 
@@ -152,6 +156,7 @@ function setupSampleCollectPage() {
   const resetSampleCommandSearch = () => {
     if (sampleCommandSearch) sampleCommandSearch.value = "";
     list?.querySelectorAll(".sample-cmd-row.hidden").forEach((row) => row.classList.remove("hidden"));
+    pinSelectedSampleCommands();
   };
 
   function renderSingleSelect(root, { options = [], value = "", placeholder = "Select" } = {}) {
@@ -715,15 +720,11 @@ function setupSampleCollectPage() {
   list?.addEventListener("change", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLInputElement) || target.type !== "checkbox") return;
-    if (target.checked) {
-      resetSampleCommandSearch();
-    }
     pinSelectedSampleCommands();
   });
 
   document.getElementById("selectAllSampleCmds")?.addEventListener("click", () => {
     document.querySelectorAll('#sampleCommandsList input[type="checkbox"]').forEach((cb) => (cb.checked = true));
-    resetSampleCommandSearch();
     pinSelectedSampleCommands();
   });
 
@@ -823,6 +824,9 @@ function setupSampleCollectPage() {
         node.classList.remove("open");
         node.querySelector(".app-select-menu")?.classList.add("hidden");
       });
+    }
+    if (sampleManualPanel && !event.target.closest("#sampleManualPanel")) {
+      resetSampleCommandSearch();
     }
   });
 
