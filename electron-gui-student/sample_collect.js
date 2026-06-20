@@ -71,6 +71,20 @@ function setupSampleCollectPage() {
           event.preventDefault();
           stopSampleCollectBtn.click();
         }
+        if (sampleManualPanel?.contains(event.target) && sampleCommandSearch?.value) {
+          event.preventDefault();
+          resetSampleCommandSearch();
+          return;
+        }
+        if (
+          currentSampleMode === "manual" &&
+          sampleManualPanel &&
+          !sampleManualPanel.classList.contains("hidden") &&
+          sampleCommandSearch?.value
+        ) {
+          event.preventDefault();
+          resetSampleCommandSearch();
+        }
         return;
       }
 
@@ -133,6 +147,26 @@ function setupSampleCollectPage() {
       const text = normalizeCommandSearch(row.textContent);
       row.classList.toggle("hidden", !!term && !text.includes(term));
     });
+    pinSelectedSampleCommands();
+  };
+
+  const pinSelectedSampleCommands = () => {
+    if (!list) return;
+    const rows = Array.from(list.querySelectorAll(".sample-cmd-row"));
+    rows
+      .sort((a, b) => {
+        const aChecked = a.querySelector('input[type="checkbox"]')?.checked ? 0 : 1;
+        const bChecked = b.querySelector('input[type="checkbox"]')?.checked ? 0 : 1;
+        if (aChecked !== bChecked) return aChecked - bChecked;
+        return Number(a.dataset.commandOrder || 0) - Number(b.dataset.commandOrder || 0);
+      })
+      .forEach((row) => list.appendChild(row));
+  };
+
+  const resetSampleCommandSearch = () => {
+    if (sampleCommandSearch) sampleCommandSearch.value = "";
+    list?.querySelectorAll(".sample-cmd-row.hidden").forEach((row) => row.classList.remove("hidden"));
+    pinSelectedSampleCommands();
   };
 
   function renderSingleSelect(root, { options = [], value = "", placeholder = "Select" } = {}) {
@@ -302,9 +336,10 @@ function setupSampleCollectPage() {
       }
 
       list.innerHTML = "";
-      commands.forEach((cmd) => {
+      commands.forEach((cmd, index) => {
         const row = document.createElement("label");
         row.className = "choice-label sample-cmd-row";
+        row.dataset.commandOrder = String(index);
         row.innerHTML = `<input type="checkbox" value="${cmd}"> ${cmd}`;
         list.appendChild(row);
       });
@@ -692,12 +727,20 @@ function setupSampleCollectPage() {
 
   sampleCommandSearch?.addEventListener("input", filterSampleCommands);
 
+  list?.addEventListener("change", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || target.type !== "checkbox") return;
+    pinSelectedSampleCommands();
+  });
+
   document.getElementById("selectAllSampleCmds")?.addEventListener("click", () => {
     document.querySelectorAll('#sampleCommandsList input[type="checkbox"]').forEach((cb) => (cb.checked = true));
+    pinSelectedSampleCommands();
   });
 
   document.getElementById("clearSampleCmds")?.addEventListener("click", () => {
     document.querySelectorAll('#sampleCommandsList input[type="checkbox"]').forEach((cb) => (cb.checked = false));
+    pinSelectedSampleCommands();
   });
 
   document.querySelectorAll('input[name="sampleMode"]').forEach((radio) => {
@@ -791,6 +834,9 @@ function setupSampleCollectPage() {
         node.classList.remove("open");
         node.querySelector(".app-select-menu")?.classList.add("hidden");
       });
+    }
+    if (sampleManualPanel && !event.target.closest("#sampleManualPanel")) {
+      resetSampleCommandSearch();
     }
   });
 

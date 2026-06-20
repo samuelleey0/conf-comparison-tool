@@ -77,6 +77,19 @@ class MirrorSyncTests(unittest.TestCase):
         self.assertEqual(result["synced_count"], 1)
         self.assertEqual(len(self.mirror_files()), 1)
 
+    def test_legacy_nested_hostname_logs_sync_to_mirror(self):
+        legacy_logs_dir = self.session_dir / "1001" / "R1" / "logs"
+        legacy_logs_dir.mkdir(parents=True)
+        (legacy_logs_dir / "show_ip_route.txt").write_text(
+            "Gateway of last resort is not set\n", encoding="utf-8"
+        )
+
+        result = self.sync()
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["synced_count"], 1)
+        self.assertEqual(len(self.mirror_files()), 1)
+
     def test_repo_under_documents_is_not_mirrored(self):
         original_base_dir = directory_service.BASE_DIR
         repo_like_dir = (
@@ -159,6 +172,19 @@ class MirrorSyncTests(unittest.TestCase):
         self.assertFalse(result["success"])
         self.assertEqual(result["synced_count"], 0)
         self.assertEqual(result["message"], "No valid logs available for mirror sync")
+
+    def test_sample_logs_are_not_mirrored(self):
+        sample_device_dir = self.docs_dir / "sample" / "sample" / "sample" / "R1"
+        sample_device_dir.mkdir(parents=True)
+        (sample_device_dir / "show_running_config.txt").write_text(
+            "hostname R1\n", encoding="utf-8"
+        )
+
+        result = self.sync()
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["synced_count"], 0)
+        self.assertFalse((self.engine_dir / "sample").exists())
 
 
 if __name__ == "__main__":

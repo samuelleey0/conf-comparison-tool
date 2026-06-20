@@ -112,6 +112,40 @@ def delete_engine_student_logs_for_docs_target(target):
         shutil.rmtree(mirror_target)
 
 
+def sync_docs_student_folder_to_engine(student_dir):
+    """Mirror a completed Documents student folder into comparison_engine/students."""
+    source = Path(student_dir).expanduser().resolve()
+    try:
+        relative = source.relative_to(DOCS_DIR)
+    except Exception:
+        return None
+
+    if len(relative.parts) < 4:
+        return None
+
+    student_id = relative.parts[3]
+    if student_id.lower() in {"sample", "unknown"}:
+        return None
+
+    if not source.is_dir():
+        return None
+
+    mirror_target = ENGINE_STUDENTS_DIR.joinpath(*relative.parts[:4])
+    if mirror_target.exists():
+        shutil.rmtree(mirror_target)
+    mirror_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(
+        source,
+        mirror_target,
+        ignore=shutil.ignore_patterns(
+            "config.json",
+            "results",
+            ".DS_Store",
+        ),
+    )
+    return str(mirror_target)
+
+
 def session_student_names_path(session_dir: Path) -> Path:
     return session_dir / "students.json"
 
@@ -292,21 +326,28 @@ def _iter_legacy_session_log_files(docs_dir: Path):
                             continue
                         if device_dir.name in {"results", "raw", "metadata"}:
                             continue
-                        for log_path in safe_iterdir(device_dir):
-                            if not log_path.is_file() or log_path.name.startswith("."):
-                                continue
-                            if log_path.name.lower() in ignored_names:
-                                continue
-                            if log_path.suffix.lower() not in {"", ".txt", ".log"}:
-                                continue
-                            yield (
-                                classroom_dir.name,
-                                tutor_dir.name,
-                                time_dir.name,
-                                student_dir.name,
-                                device_dir.name,
-                                log_path,
-                            )
+                        nested_logs_dir = device_dir / UNIFIED_LOGS_DIR_NAME
+                        log_dirs = (
+                            [nested_logs_dir, device_dir]
+                            if safe_is_visible_dir(nested_logs_dir)
+                            else [device_dir]
+                        )
+                        for log_dir in log_dirs:
+                            for log_path in safe_iterdir(log_dir):
+                                if not log_path.is_file() or log_path.name.startswith("."):
+                                    continue
+                                if log_path.name.lower() in ignored_names:
+                                    continue
+                                if log_path.suffix.lower() not in {"", ".txt", ".log"}:
+                                    continue
+                                yield (
+                                    classroom_dir.name,
+                                    tutor_dir.name,
+                                    time_dir.name,
+                                    student_dir.name,
+                                    device_dir.name,
+                                    log_path,
+                                )
 
 
 def _destination_for_mirror_log(target_dir: Path, source_path: Path) -> Path:
@@ -369,7 +410,12 @@ def sync_unified_logs_to_mirror(docs_dir=None, engine_students_dir=None):
             student_id = str(metadata.get("student_id") or "").strip()
             device_id = str(metadata.get("device_id") or "").strip()
             raw_log_path = Path(str(metadata.get("raw_log_path") or ""))
-            if not student_id or not device_id or not raw_log_path.is_file():
+            if (
+                not student_id
+                or student_id.lower() in {"sample", "unknown"}
+                or not device_id
+                or not raw_log_path.is_file()
+            ):
                 skipped_count += 1
                 continue
 
@@ -385,6 +431,9 @@ def sync_unified_logs_to_mirror(docs_dir=None, engine_students_dir=None):
         device_id,
         log_path,
     ) in _iter_legacy_session_log_files(docs_root):
+        if str(student_id).lower() in {"sample", "unknown"}:
+            skipped_count += 1
+            continue
         copy_to_mirror(classroom, tutor_name, time_slot, student_id, device_id, log_path)
 
     return {

@@ -440,6 +440,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!block) return;
       const checkbox = block.querySelector(`input[type="checkbox"][value="${commandText}"]`);
       if (checkbox) checkbox.checked = false;
+      syncDropdownSelectionStyles(block);
+      pinSelectedCommands(block);
       updateDropdownCount(block);
     });
     return row;
@@ -452,15 +454,45 @@ document.addEventListener("DOMContentLoaded", async () => {
     label.textContent = checkboxes.length ? `${checkboxes.length} Commands Selected` : "Select Commands";
   }
 
+  function syncDropdownSelectionStyles(block) {
+    block.querySelectorAll(".dropdown-item").forEach((item) => {
+      const checkbox = item.querySelector('input[type="checkbox"]');
+      item.classList.toggle("selected", Boolean(checkbox?.checked));
+    });
+  }
+
+  function resetCommandSearch(block) {
+    const searchInput = block.querySelector(".dropdown-search-input");
+    if (searchInput) searchInput.value = "";
+    block.querySelectorAll(".dropdown-item.hidden").forEach((item) => item.classList.remove("hidden"));
+    pinSelectedCommands(block);
+  }
+
+  function pinSelectedCommands(block) {
+    const dropdownList = block.querySelector(".dropdown-list");
+    if (!dropdownList) return;
+
+    const items = Array.from(dropdownList.querySelectorAll(".dropdown-item"));
+    items
+      .sort((a, b) => {
+        const aChecked = a.querySelector('input[type="checkbox"]')?.checked ? 0 : 1;
+        const bChecked = b.querySelector('input[type="checkbox"]')?.checked ? 0 : 1;
+        if (aChecked !== bChecked) return aChecked - bChecked;
+        return Number(a.dataset.commandOrder || 0) - Number(b.dataset.commandOrder || 0);
+      })
+      .forEach((item) => dropdownList.appendChild(item));
+  }
+
   function closeCommandDropdowns(exceptDropdown = null) {
     document.querySelectorAll(".custom-dropdown").forEach((dropdown) => {
       if (dropdown !== exceptDropdown) {
         dropdown.classList.remove("dropdown-open");
         dropdown.querySelector(".dropdown-list")?.classList.add("hidden");
-        const searchInput = dropdown.querySelector(".dropdown-search-input");
-        if (searchInput) searchInput.value = "";
-        dropdown.querySelectorAll(".dropdown-item.hidden").forEach((item) => item.classList.remove("hidden"));
-        dropdown.closest(".device-block")?.classList.remove("dropdown-open");
+        const block = dropdown.closest(".device-block");
+        if (block) {
+          resetCommandSearch(block);
+          block.classList.remove("dropdown-open");
+        }
       }
     });
   }
@@ -471,8 +503,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const selectedCommands = new Set(commands);
 
     const dropdownListHtml = systemCommands.length
-      ? systemCommands.map((cmd) => `
-          <label class="dropdown-item">
+      ? systemCommands.map((cmd, index) => `
+          <label class="dropdown-item" data-command-order="${index}">
             <input type="checkbox" value="${cmd}" ${selectedCommands.has(cmd) ? "checked" : ""} />
             ${cmd}
           </label>
@@ -527,15 +559,22 @@ document.addEventListener("DOMContentLoaded", async () => {
       dropdownRoot.classList.toggle("dropdown-open", willOpen);
       block.classList.toggle("dropdown-open", willOpen);
       if (willOpen) dropdownSearch?.focus();
+      else resetCommandSearch(block);
     });
 
     dropdownSearch?.addEventListener("click", (event) => event.stopPropagation());
+    dropdownList?.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      resetCommandSearch(block);
+    });
     dropdownSearch?.addEventListener("input", () => {
       const term = normalizeCommandText(dropdownSearch.value);
       block.querySelectorAll(".dropdown-item").forEach((item) => {
         const text = normalizeCommandText(item.textContent);
         item.classList.toggle("hidden", Boolean(term) && !text.includes(term));
       });
+      pinSelectedCommands(block);
     });
 
     block.querySelectorAll('.dropdown-item input[type="checkbox"]').forEach((checkbox) => {
@@ -550,6 +589,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!checkbox.checked && existingRow) {
           existingRow.remove();
         }
+        checkbox.closest(".dropdown-item")?.classList.toggle("selected", checkbox.checked);
+        pinSelectedCommands(block);
         updateDropdownCount(block);
         updateModeUI();
       });
@@ -569,6 +610,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
     updateDropdownCount(block);
+    syncDropdownSelectionStyles(block);
+    pinSelectedCommands(block);
     updateModeUI();
 
     return block;
@@ -1009,6 +1052,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!event.target.closest(".custom-dropdown") && !event.target.closest(".dropdown-list")) {
       closeCommandDropdowns();
     }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const openDropdown = document.querySelector(".custom-dropdown.dropdown-open");
+    const block = openDropdown?.closest(".device-block");
+    if (!block) return;
+    event.preventDefault();
+    resetCommandSearch(block);
   });
 
   await loadTemplateList();

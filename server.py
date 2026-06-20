@@ -24,7 +24,7 @@ import string
 
 # Low-level device execution still lives here because it coordinates shared
 # runtime state, abort flags, streaming logs, and serial/SSH connections.
-from file_utils import del_partial_logs
+from file_utils import save_output_to_file, del_partial_logs
 from serial_utils import (
     connect_to_serial,
     READ_TIMEOUT,
@@ -70,9 +70,10 @@ from directory_service import (
     resolve_picker_path,
     safe_is_visible_dir,
     safe_iterdir,
-    save_log_entry,
+    save_output_to_engine_students,
     save_session_student_names,
     select_directory,
+    sync_docs_student_folder_to_engine,
     sync_unified_logs_to_mirror,
 )
 from grading_dedup import (
@@ -137,7 +138,6 @@ TEMPLATES_DIR = BASE_DIR / "comparison_engine" / "templates"
 RESULTS_DIR = None
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 ENGINE_STUDENTS_DIR.mkdir(parents=True, exist_ok=True)
-SESSION_TEMPLATE_ASSIGNMENTS_FILE = "session_template_assignments.json"
 
 connection_lock = threading.Lock()
 
@@ -156,70 +156,6 @@ last_used_ssh_credentials = {
 }
 
 execution_abort = threading.Event()
-
-
-def _resolve_session_dir(target_path: str):
-    target = Path(expand_path(target_path or "")).resolve()
-    if not target.is_dir():
-        return None
-    # Student sessions live under the user Documents tree in normal app use.
-    # Allowing only children of DOCS_DIR keeps assignment reads/writes scoped to
-    # real session folders rather than arbitrary paths.
-    return _safe_resolve_child(DOCS_DIR, target)
-
-
-def _session_template_assignments_path(target_path: str):
-    session_dir = _resolve_session_dir(target_path)
-    if not session_dir:
-        return None
-    return session_dir / SESSION_TEMPLATE_ASSIGNMENTS_FILE
-
-
-def _load_session_template_assignments(target_path: str):
-    assignments_path = _session_template_assignments_path(target_path)
-    if not assignments_path or not assignments_path.exists():
-        return {}
-    try:
-        with open(assignments_path, "r", encoding="utf-8") as handle:
-            payload = json.load(handle) or {}
-        assignments = payload.get("assignments", payload)
-        return assignments if isinstance(assignments, dict) else {}
-    except Exception:
-        return {}
-
-
-def _save_session_template_assignments(target_path: str, assignments: dict):
-    assignments_path = _session_template_assignments_path(target_path)
-    if not assignments_path:
-        raise ValueError("Session path not found or is outside Documents.")
-    clean = {}
-    valid_templates = set(list_templates())
-    for student_id, item in (assignments or {}).items():
-        sid = str(student_id or "").strip()
-        if not sid:
-            continue
-        if isinstance(item, dict):
-            template_name = str(item.get("template_name") or item.get("template") or "").strip()
-            scheme = str(item.get("scheme") or "").strip()
-        else:
-            template_name = str(item or "").strip()
-            scheme = ""
-        if template_name and template_name not in valid_templates:
-            raise ValueError(f"Template '{template_name}' does not exist.")
-        if template_name:
-            clean[sid] = {"template_name": template_name}
-            if scheme:
-                clean[sid]["scheme"] = scheme
-    with open(assignments_path, "w", encoding="utf-8") as handle:
-        json.dump({"assignments": clean}, handle, indent=4)
-    return clean
-
-
-def _student_assigned_template(assignments: dict, student_id: str):
-    item = (assignments or {}).get(student_id) or {}
-    if isinstance(item, dict):
-        return str(item.get("template_name") or item.get("template") or "").strip()
-    return str(item or "").strip()
 
 
 
@@ -927,57 +863,23 @@ def api_save_log():
         data.get("tutor_name") or data.get("session_id") or data.get("sessionId") or ""
     ).strip()
     time_slot = (data.get("time_slot") or data.get("timeSlot") or "").strip()
-    student_id = data.get("student_id") or data.get("studentId")
-    device_id = (
-        data.get("device_id")
-        or data.get("deviceId")
-        or data.get("hostname")
-        or data.get("host")
-        or ""
-    )
+    student_id = data.get("student_id")
     filename = data.get("filename", "log.txt")
-    filename_parts = [
-        part
-        for part in str(filename or "").replace("\\", "/").split("/")
-        if part and part not in {".", ".."}
-    ]
-    if not str(device_id or "").strip() and len(filename_parts) > 1:
-        device_id = filename_parts[-2]
-    command_filename = filename_parts[-1] if filename_parts else str(filename)
-    command = data.get("command") or Path(command_filename).stem
-    content = data.get("content")
-    if content is None:
-        content = data.get("raw_text")
-    if content is None:
-        content = data.get("rawText", "")
+    content = data.get("content", "")
 
     if not (classroom and tutor_name and time_slot and student_id):
         return jsonify({"status": "error", "message": "Missing directory info"}), 400
-    if not str(device_id or "").strip():
-        return jsonify({"status": "error", "message": "Missing device_id"}), 400
 
-    session_dir = Path(
-        os.path.expanduser(os.path.join("~/Documents", classroom, tutor_name, time_slot))
+    base_dir = os.path.expanduser(
+        os.path.join("~/Documents", classroom, tutor_name, time_slot, student_id)
     )
+    os.makedirs(base_dir, exist_ok=True)
+    path = os.path.join(base_dir, filename)
 
     try:
-        saved = save_log_entry(
-            student_id,
-            device_id,
-            command,
-            content,
-            "manual",
-            session_dir=session_dir,
-        )
-        return jsonify(
-            {
-                "status": "ok",
-                "message": f"Saved log to {saved['raw_log_path']}",
-                **saved,
-            }
-        )
-    except ValueError as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
+        with open(path, "w") as f:
+            f.write(content)
+        return jsonify({"status": "ok", "message": f"Saved log to {path}"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -1004,6 +906,15 @@ def _ensure_base_path(data):
         expanded = expand_path(log_dir)
         if not expanded or not os.path.exists(expanded):
             raise FileNotFoundError(f"Existing directory not found: {log_dir}")
+        try:
+            relative = Path(expanded).resolve().relative_to(DOCS_DIR)
+            if len(relative.parts) >= 4:
+                classroom = classroom or relative.parts[0]
+                tutor_name = tutor_name or relative.parts[1]
+                time_slot = time_slot or relative.parts[2]
+                student_id = student_id or relative.parts[3]
+        except Exception:
+            pass
         return expanded, classroom, tutor_name, time_slot, student_id
 
     if not all([classroom, tutor_name, time_slot, student_id]):
@@ -1023,18 +934,33 @@ def _ensure_base_path(data):
     return base_path, classroom, tutor_name, time_slot, student_id
 
 
-def _collection_session_dir(base_path, student_id):
-    """
-    Return the folder that should contain student folders for collected logs.
+def _command_log_stem(command):
+    return _canonical_cli_command(command).replace(" ", "_").replace("/", "_")
 
-    In create mode, base_path is already .../<time_slot>/<student_id>. In
-    existing mode, the selected path may be either the session folder or the
-    student folder. Saving always appends <student_id>/<hostname>/<command>.txt.
-    """
-    base = Path(base_path)
-    if student_id and base.name == str(student_id):
-        return base.parent
-    return base
+
+def _missing_command_logs(base_path, hostname, commands):
+    if not hostname:
+        return [_canonical_cli_command(cmd) for cmd in commands]
+
+    host_dir = Path(base_path) / hostname
+    if not host_dir.exists():
+        return [_canonical_cli_command(cmd) for cmd in commands]
+
+    try:
+        file_stems = {
+            entry.stem
+            for entry in host_dir.iterdir()
+            if entry.is_file() and entry.name != "config.json"
+        }
+    except OSError:
+        return [_canonical_cli_command(cmd) for cmd in commands]
+
+    missing = []
+    for cmd in commands:
+        cli_cmd = _canonical_cli_command(cmd)
+        if _command_log_stem(cli_cmd) not in file_stems:
+            missing.append(cli_cmd)
+    return missing
 
 
 @app.route("/api/abort", methods=["POST"])
@@ -1091,27 +1017,29 @@ def api_execute():
         skip_hostname_check = bool(data.get("skip_hostname_check"))
         file_extension = data.get("file_extension") or ".txt"
         max_collection_attempts = 2
-        is_sample_collection = str(student_id or "").strip().lower() == "sample"
-        student_folder = str(student_id or "unknown")
-        collection_session_dir = _collection_session_dir(base_path, student_id)
-        collection_student_dir = (
-            Path(collection_session_dir)
-            if is_sample_collection
-            else Path(collection_session_dir) / student_folder
-        )
 
         def cleanup_partial_device_logs(host_folder):
             if not host_folder:
                 return False
-            deleted_docs = del_partial_logs(str(collection_student_dir), host_folder)
-            unified_device_dir = (
-                Path(base_path).parent / "logs" / student_folder / host_folder
-            )
-            if unified_device_dir.exists():
-                shutil.rmtree(unified_device_dir)
-            delete_engine_student_logs_for_docs_target(collection_student_dir / host_folder)
+            deleted_docs = del_partial_logs(base_path, host_folder)
+            delete_engine_student_logs_for_docs_target(Path(base_path) / host_folder)
             files_written.clear()
             return deleted_docs
+
+        def verify_collected_commands(host_folder):
+            missing = _missing_command_logs(base_path, host_folder, commands)
+            return missing
+
+        def sync_collected_student_folder():
+            mirror_path = sync_docs_student_folder_to_engine(base_path)
+            if mirror_path:
+                return stream_json_line(
+                    {
+                        "type": "result",
+                        "msg": f"Synced mirror folder to {mirror_path}",
+                    }
+                )
+            return None
 
         def run_serial():
             global current_mode
@@ -1285,16 +1213,26 @@ def api_execute():
                                 "msg": f"{hostname}# {cli_cmd}\n{output}"
                             }
                         )
-                        saved_log = save_log_entry(
-                            student_id,
-                            host_folder,
+                        file_path = save_output_to_file(
                             cli_cmd,
                             output,
-                            "serial",
-                            session_dir=collection_session_dir,
-                            include_student_dir=not is_sample_collection,
+                            classroom=classroom,
+                            tutor_name=tutor_name,
+                            time_slot=time_slot,
+                            student_id=student_id,
+                            hostname=host_folder,
+                            base_dir=base_path,
+                            extension=file_extension,
                         )
-                        file_path = saved_log["raw_log_path"]
+                        save_output_to_engine_students(
+                            cli_cmd,
+                            output,
+                            classroom,
+                            tutor_name,
+                            time_slot,
+                            student_id,
+                            host_folder,
+                        )
                         files_written.append(file_path)
                         completed += 1
                         pct = (
@@ -1314,14 +1252,15 @@ def api_execute():
                         last_error = f"Command '{cli_cmd}' failed: {exc}"
                         break
 
-                if last_error is None and completed == total_commands:
+                missing = verify_collected_commands(host_folder)
+                if last_error is None and not missing:
                     collection_complete = True
                     break
 
-                if last_error is None:
+                if missing and last_error is None:
                     last_error = (
-                        f"Incomplete command collection; completed {completed} of "
-                        f"{total_commands} selected command(s)."
+                        "Incomplete command collection; missing logs for: "
+                        + ", ".join(missing)
                     )
                 cleanup_partial_device_logs(host_folder)
                 if attempt < max_collection_attempts:
@@ -1349,7 +1288,7 @@ def api_execute():
                 # Build parsed config.json for the student device logs.
                 try:
                     host_folder = target_device or hostname or "device"
-                    host_dir = os.path.join(collection_student_dir, host_folder)
+                    host_dir = os.path.join(base_path, host_folder)
                     os.makedirs(host_dir, exist_ok=True)
                     config = parse_device_logs(files_written)
                     config_path = os.path.join(host_dir, "config.json")
@@ -1361,7 +1300,7 @@ def api_execute():
                 except Exception as exc:
                     try:
                         host_folder = target_device or hostname or "device"
-                        host_dir = os.path.join(collection_student_dir, host_folder)
+                        host_dir = os.path.join(base_path, host_folder)
                         os.makedirs(host_dir, exist_ok=True)
                         fallback = parse_device_logs([])
                         fallback["parse_error"] = str(exc)
@@ -1381,6 +1320,10 @@ def api_execute():
                                 "msg": f"Failed to save config.json: {exc}; fallback failed: {exc2}",
                             }
                         )
+
+            sync_msg = sync_collected_student_folder()
+            if sync_msg:
+                yield sync_msg
 
             # Close the port so the user can physically unplug the cable for the next queue item
             _close_serial_connection()
@@ -1573,16 +1516,26 @@ def api_execute():
                                 "msg": f"{hostname}# {cli_cmd}\n{output}"
                             }
                         )
-                        saved_log = save_log_entry(
-                            student_id,
-                            host_folder,
+                        file_path = save_output_to_file(
                             cli_cmd,
                             output,
-                            "serial",
-                            session_dir=collection_session_dir,
-                            include_student_dir=not is_sample_collection,
+                            classroom=classroom,
+                            tutor_name=tutor_name,
+                            time_slot=time_slot,
+                            student_id=student_id,
+                            hostname=host_folder,
+                            base_dir=base_path,
+                            extension=file_extension,
                         )
-                        file_path = saved_log["raw_log_path"]
+                        save_output_to_engine_students(
+                            cli_cmd,
+                            output,
+                            classroom,
+                            tutor_name,
+                            time_slot,
+                            student_id,
+                            host_folder,
+                        )
                         files_written.append(file_path)
                         completed += 1
                         pct = (
@@ -1602,14 +1555,15 @@ def api_execute():
                         last_error = f"Command '{cli_cmd}' failed: {exc}"
                         break
 
-                if last_error is None and completed == total_commands:
+                missing = verify_collected_commands(host_folder)
+                if last_error is None and not missing:
                     collection_complete = True
                     break
 
-                if last_error is None:
+                if missing and last_error is None:
                     last_error = (
-                        f"Incomplete command collection; completed {completed} of "
-                        f"{total_commands} selected command(s)."
+                        "Incomplete command collection; missing logs for: "
+                        + ", ".join(missing)
                     )
                 cleanup_partial_device_logs(host_folder)
                 if attempt < max_collection_attempts:
@@ -1636,7 +1590,7 @@ def api_execute():
                 # Build parsed config.json for the student device logs.
                 try:
                     host_folder = target_device or hostname or "device"
-                    host_dir = os.path.join(collection_student_dir, host_folder)
+                    host_dir = os.path.join(base_path, host_folder)
                     os.makedirs(host_dir, exist_ok=True)
                     config = parse_device_logs(files_written)
                     config_path = os.path.join(host_dir, "config.json")
@@ -1648,7 +1602,7 @@ def api_execute():
                 except Exception as exc:
                     try:
                         host_folder = target_device or hostname or "device"
-                        host_dir = os.path.join(collection_student_dir, host_folder)
+                        host_dir = os.path.join(base_path, host_folder)
                         os.makedirs(host_dir, exist_ok=True)
                         fallback = parse_device_logs([])
                         fallback["parse_error"] = str(exc)
@@ -1668,6 +1622,9 @@ def api_execute():
                                 "msg": f"Failed to save config.json: {exc}; fallback failed: {exc2}",
                             }
                         )
+            sync_msg = sync_collected_student_folder()
+            if sync_msg:
+                yield sync_msg
             return True
 
         yield stream_json_line(
@@ -2166,45 +2123,6 @@ def api_admin_list_templates():
     return jsonify({"status": "ok", "templates": list_templates()})
 
 
-@app.route("/api/session_template_assignments", methods=["GET"])
-def api_get_session_template_assignments():
-    target_path = request.args.get("target_path") or ""
-    assignments_path = _session_template_assignments_path(target_path)
-    if not assignments_path:
-        return jsonify({"status": "error", "message": "Session path not found."}), 404
-    return jsonify(
-        {
-            "status": "ok",
-            "assignments": _load_session_template_assignments(target_path),
-            "path": str(assignments_path),
-        }
-    )
-
-
-@app.route("/api/session_template_assignments", methods=["POST"])
-def api_save_session_template_assignments():
-    data = request.get_json() or {}
-    target_path = data.get("target_path") or ""
-    assignments = data.get("assignments") or {}
-    student_id = (data.get("student_id") or "").strip()
-    template_name = (data.get("template_name") or "").strip()
-
-    try:
-        current = _load_session_template_assignments(target_path)
-        if student_id:
-            if template_name:
-                current[student_id] = {"template_name": template_name}
-            else:
-                current.pop(student_id, None)
-            assignments = current
-        saved = _save_session_template_assignments(target_path, assignments)
-        return jsonify({"status": "ok", "assignments": saved})
-    except ValueError as exc:
-        return jsonify({"status": "error", "message": str(exc)}), 400
-    except Exception as exc:
-        return jsonify({"status": "error", "message": str(exc)}), 500
-
-
 @app.route("/api/templates/<template_name>", methods=["GET"])
 def api_get_template_details(template_name):
     try:
@@ -2408,9 +2326,82 @@ def api_admin_delete_students():
 
 @app.route("/api/admin/sync_mirror", methods=["POST"])
 def api_admin_sync_mirror():
-    """Copy all unified student logs into comparison_engine/students."""
-    result = sync_unified_logs_to_mirror()
-    return jsonify(result)
+    """Sync valid Documents logs into engine/students and remove orphan mirrors."""
+    sync_result = sync_unified_logs_to_mirror()
+    removed = []
+
+    if ENGINE_STUDENTS_DIR.exists():
+        for classroom_dir in list(ENGINE_STUDENTS_DIR.iterdir()):
+            if not classroom_dir.is_dir():
+                continue
+            docs_classroom = DOCS_DIR / classroom_dir.name
+            if not docs_classroom.exists():
+                shutil.rmtree(classroom_dir)
+                removed.append(classroom_dir.name)
+                continue
+            for tutor_dir in list(classroom_dir.iterdir()):
+                if not tutor_dir.is_dir():
+                    continue
+                docs_tutor = docs_classroom / tutor_dir.name
+                if not docs_tutor.exists():
+                    shutil.rmtree(tutor_dir)
+                    removed.append(f"{classroom_dir.name}/{tutor_dir.name}")
+                    continue
+                for time_dir in list(tutor_dir.iterdir()):
+                    if not time_dir.is_dir():
+                        continue
+                    docs_time = docs_tutor / time_dir.name
+                    if not docs_time.exists():
+                        shutil.rmtree(time_dir)
+                        removed.append(
+                            f"{classroom_dir.name}/{tutor_dir.name}/{time_dir.name}"
+                        )
+                        continue
+                    for student_dir in list(time_dir.iterdir()):
+                        if not student_dir.is_dir():
+                            continue
+                        docs_student = docs_time / student_dir.name
+                        if not docs_student.exists():
+                            shutil.rmtree(student_dir)
+                            removed.append(
+                                f"{classroom_dir.name}/{tutor_dir.name}/{time_dir.name}/{student_dir.name}"
+                            )
+
+                    if time_dir.exists() and not any(time_dir.iterdir()):
+                        time_dir.rmdir()
+                    if tutor_dir.exists() and not any(tutor_dir.iterdir()):
+                        tutor_dir.rmdir()
+            if classroom_dir.exists() and not any(classroom_dir.iterdir()):
+                classroom_dir.rmdir()
+
+    message_parts = []
+    synced_count = int(sync_result.get("synced_count") or 0)
+    skipped_count = int(sync_result.get("skipped_count") or 0)
+    if sync_result.get("success"):
+        message_parts.append(
+            f"Synced {synced_count} log file(s) to the mirror. Skipped {skipped_count} existing/invalid file(s)."
+        )
+    else:
+        message_parts.append(sync_result.get("message") or "No valid logs available for mirror sync.")
+
+    if removed:
+        message_parts.append(
+            f"Removed {len(removed)} orphaned mirror folder(s):\n" + "\n".join(removed)
+        )
+    elif sync_result.get("success"):
+        message_parts.append("No orphaned mirror folders were found.")
+    else:
+        message_parts.append("Nothing to remove.")
+
+    return jsonify(
+        {
+            "status": "ok",
+            "message": "\n".join(message_parts),
+            "removed": removed,
+            "synced_count": synced_count,
+            "skipped_count": skipped_count,
+        }
+    )
 
 
 @app.route("/api/add_student", methods=["POST"])
@@ -2462,13 +2453,21 @@ def _check_criteria(content, criteria, variables):
 from comparison_engine.compare_main import grading_pipeline
 
 
-def _grade_session_from_config(target_path: str, template_name: str = "", template_assignments=None):
+def _grade_session_from_config(target_path: str, template_name: str):
+    if not template_has_baseline(template_name):
+        return [], (
+            f"Template '{template_name}' has device/command setup only. "
+            "Upload template baseline logs before grading."
+        )
+
+    template_configs = load_template_configs(template_name)
+    if not template_configs:
+        return [], f"No template configs found for '{template_name}'."
+
     results_summary = []
     target = Path(target_path)
     if not target.is_dir():
         return [], f"Target path {target_path} not found."
-    template_assignments = template_assignments or {}
-    template_config_cache = {}
 
     def _student_has_collected_data(student_dir: Path) -> bool:
         if not student_dir.is_dir():
@@ -2506,24 +2505,9 @@ def _grade_session_from_config(target_path: str, template_name: str = "", templa
             skipped_students.append(student_id)
             continue
 
-        student_template = _student_assigned_template(template_assignments, student_id) or template_name
-        if not student_template:
-            return [], f"No template assigned for student {student_id}."
-        if student_template not in template_config_cache:
-            if not template_has_baseline(student_template):
-                return [], (
-                    f"Template '{student_template}' assigned to student {student_id} has device/command setup only. "
-                    "Upload template baseline logs before grading."
-                )
-            loaded_template_configs = load_template_configs(student_template)
-            if not loaded_template_configs:
-                return [], f"No template configs found for '{student_template}'."
-            template_config_cache[student_template] = loaded_template_configs
-        template_configs = template_config_cache[student_template]
-
         summary = {
             "student_id": student_id,
-            "template_name": student_template,
+            "template_name": template_name,
             "grading_mode": "strict",
             "hostnames_compared": [],
             "hostnames_missing_template": [],
@@ -2557,7 +2541,7 @@ def _grade_session_from_config(target_path: str, template_name: str = "", templa
 
             result_payload = {
                 "student_id": student_id,
-                "template_name": student_template,
+                "template_name": template_name,
                 "grading_mode": "strict",
                 "hostname": hostname,
                 "student_show_run_file": show_run_file,
@@ -2579,7 +2563,7 @@ def _grade_session_from_config(target_path: str, template_name: str = "", templa
             json.dump(summary, handle, indent=4)
 
         results_summary.append(
-            {"student_id": student_id, "status": "Graded", "template": student_template}
+            {"student_id": student_id, "status": "Graded", "template": template_name}
         )
 
     if not results_summary:
@@ -2612,14 +2596,11 @@ def api_run_grading():
         return jsonify({"status": "error", "message": "Missing arguments"}), 400
 
     try:
-        template_assignments = _load_session_template_assignments(target_path)
-
-        # Determine template to use. Per-student assignments take priority; the
-        # single-template fallback is retained for older one-scheme sessions.
+        # Determine template to use
         available_templates = list_templates()
 
         chosen_template = template_name
-        if not chosen_template and not template_assignments:
+        if not chosen_template:
             if len(available_templates) == 1:
                 chosen_template = available_templates[0]
             else:
@@ -2635,9 +2616,7 @@ def api_run_grading():
                 )
 
         summary_results, message = _grade_session_from_config(
-            target_path,
-            chosen_template or "",
-            template_assignments=template_assignments,
+            target_path, chosen_template
         )
 
         if not summary_results:

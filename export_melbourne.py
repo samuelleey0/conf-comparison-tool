@@ -183,6 +183,51 @@ def _student_dirs(collection_root):
     )
 
 
+def _is_raw_log_file(path):
+    return (
+        path.is_file()
+        and not path.name.startswith(".")
+        and path.name not in {
+            "config.json",
+            "exam_info.toml",
+            "options.ini",
+            "solution.ini",
+            "solutions.toml",
+        }
+    )
+
+
+def _iter_device_log_files(collection_root, device_name):
+    for log_file in sorted(collection_root.glob(f"*/{device_name}/logs/*")):
+        if _is_raw_log_file(log_file):
+            yield log_file
+    for log_file in sorted(collection_root.glob(f"*/{device_name}/*")):
+        if log_file.parent.name == "logs":
+            continue
+        if _is_raw_log_file(log_file):
+            yield log_file
+
+
+def _copy_collection_for_export(collection_root, export_root):
+    export_root.mkdir(parents=True, exist_ok=False)
+    for source_student in _student_dirs(collection_root):
+        target_student = export_root / source_student.name
+        target_student.mkdir(parents=True, exist_ok=True)
+        for source_device in sorted(source_student.iterdir(), key=lambda path: path.name.lower()):
+            if not source_device.is_dir() or source_device.name.startswith(".") or source_device.name == "results":
+                continue
+            target_device = target_student / source_device.name
+            target_device.mkdir(parents=True, exist_ok=True)
+            source_logs = source_device / "logs"
+            log_sources = sorted(
+                source_logs.iterdir() if source_logs.is_dir() else source_device.iterdir(),
+                key=lambda path: path.name.lower(),
+            )
+            for source_file in log_sources:
+                if _is_raw_log_file(source_file):
+                    shutil.copyfile(source_file, target_device / source_file.name)
+
+
 def _discover_devices(collection_root):
     devices = set()
     for student_dir in _student_dirs(collection_root):
@@ -197,9 +242,7 @@ def _discover_devices(collection_root):
 
 
 def _infer_device_type(collection_root, device_name):
-    for log_file in collection_root.glob(f"*/{device_name}/*"):
-        if not log_file.is_file():
-            continue
+    for log_file in _iter_device_log_files(collection_root, device_name):
         log_name = log_file.name.lower()
         if "vlan" in log_name or "trunk" in log_name or "spanning" in log_name:
             return "switch"
@@ -296,9 +339,7 @@ def _log_filename_to_command(filename):
 def _commands_from_collection(collection_root, source_device_name):
     commands = []
     seen = set()
-    for log_file in sorted(collection_root.glob(f"*/{source_device_name}/*")):
-        if not log_file.is_file():
-            continue
+    for log_file in _iter_device_log_files(collection_root, source_device_name):
         command = _log_filename_to_command(log_file.name)
         if command not in seen:
             commands.append(command)
@@ -437,17 +478,7 @@ def export_to_melbourne(payload):
     if export_root.exists():
         suffix = datetime.now().strftime("%Y%m%d-%H%M%S")
         export_root = downloads_dir / f"{export_base_name}-{suffix}"
-    shutil.copytree(
-        collection_root,
-        export_root,
-        ignore=shutil.ignore_patterns(
-            ".DS_Store",
-            "results",
-            "exam_info.toml",
-            "options.ini",
-            "solution.ini",
-        ),
-    )
+    _copy_collection_for_export(collection_root, export_root)
 
     exam_config_file = export_root / "exam_config.toml"
     master_solution_file = export_root / "master_solution.ini"
