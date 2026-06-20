@@ -564,7 +564,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     dropdownSearch?.addEventListener("click", (event) => event.stopPropagation());
-    dropdownSearch?.addEventListener("keydown", (event) => {
+    dropdownList?.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       resetCommandSearch(block);
