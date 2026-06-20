@@ -326,21 +326,28 @@ def _iter_legacy_session_log_files(docs_dir: Path):
                             continue
                         if device_dir.name in {"results", "raw", "metadata"}:
                             continue
-                        for log_path in safe_iterdir(device_dir):
-                            if not log_path.is_file() or log_path.name.startswith("."):
-                                continue
-                            if log_path.name.lower() in ignored_names:
-                                continue
-                            if log_path.suffix.lower() not in {"", ".txt", ".log"}:
-                                continue
-                            yield (
-                                classroom_dir.name,
-                                tutor_dir.name,
-                                time_dir.name,
-                                student_dir.name,
-                                device_dir.name,
-                                log_path,
-                            )
+                        nested_logs_dir = device_dir / UNIFIED_LOGS_DIR_NAME
+                        log_dirs = (
+                            [nested_logs_dir, device_dir]
+                            if safe_is_visible_dir(nested_logs_dir)
+                            else [device_dir]
+                        )
+                        for log_dir in log_dirs:
+                            for log_path in safe_iterdir(log_dir):
+                                if not log_path.is_file() or log_path.name.startswith("."):
+                                    continue
+                                if log_path.name.lower() in ignored_names:
+                                    continue
+                                if log_path.suffix.lower() not in {"", ".txt", ".log"}:
+                                    continue
+                                yield (
+                                    classroom_dir.name,
+                                    tutor_dir.name,
+                                    time_dir.name,
+                                    student_dir.name,
+                                    device_dir.name,
+                                    log_path,
+                                )
 
 
 def _destination_for_mirror_log(target_dir: Path, source_path: Path) -> Path:

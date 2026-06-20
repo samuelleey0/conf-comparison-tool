@@ -77,6 +77,19 @@ class MirrorSyncTests(unittest.TestCase):
         self.assertEqual(result["synced_count"], 1)
         self.assertEqual(len(self.mirror_files()), 1)
 
+    def test_legacy_nested_hostname_logs_sync_to_mirror(self):
+        legacy_logs_dir = self.session_dir / "1001" / "R1" / "logs"
+        legacy_logs_dir.mkdir(parents=True)
+        (legacy_logs_dir / "show_ip_route.txt").write_text(
+            "Gateway of last resort is not set\n", encoding="utf-8"
+        )
+
+        result = self.sync()
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["synced_count"], 1)
+        self.assertEqual(len(self.mirror_files()), 1)
+
     def test_repo_under_documents_is_not_mirrored(self):
         original_base_dir = directory_service.BASE_DIR
         repo_like_dir = (
