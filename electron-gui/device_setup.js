@@ -445,6 +445,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     label.textContent = checkboxes.length ? `${checkboxes.length} Commands Selected` : "Select Commands";
   }
 
+  function syncDropdownSelectionStyles(block) {
+    block.querySelectorAll(".dropdown-item").forEach((item) => {
+      const checkbox = item.querySelector('input[type="checkbox"]');
+      item.classList.toggle("selected", Boolean(checkbox?.checked));
+    });
+  }
+
+  function resetCommandSearch(block) {
+    const searchInput = block.querySelector(".dropdown-search-input");
+    if (searchInput) searchInput.value = "";
+    block.querySelectorAll(".dropdown-item.hidden").forEach((item) => item.classList.remove("hidden"));
+  }
+
   function closeCommandDropdowns(exceptDropdown = null) {
     document.querySelectorAll(".custom-dropdown").forEach((dropdown) => {
       if (dropdown !== exceptDropdown) {
@@ -543,6 +556,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!checkbox.checked && existingRow) {
           existingRow.remove();
         }
+        checkbox.closest(".dropdown-item")?.classList.toggle("selected", checkbox.checked);
+        if (checkbox.checked) {
+          resetCommandSearch(block);
+        }
         updateDropdownCount(block);
         updateModeUI();
       });
@@ -562,6 +579,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
     updateDropdownCount(block);
+    syncDropdownSelectionStyles(block);
     updateModeUI();
 
     return block;
