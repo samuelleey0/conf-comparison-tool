@@ -73,6 +73,7 @@ from directory_service import (
     save_output_to_engine_students,
     save_session_student_names,
     select_directory,
+    sync_docs_student_folder_to_engine,
 )
 from grading_dedup import (
     load_dedup_config,
@@ -904,6 +905,15 @@ def _ensure_base_path(data):
         expanded = expand_path(log_dir)
         if not expanded or not os.path.exists(expanded):
             raise FileNotFoundError(f"Existing directory not found: {log_dir}")
+        try:
+            relative = Path(expanded).resolve().relative_to(DOCS_DIR)
+            if len(relative.parts) >= 4:
+                classroom = classroom or relative.parts[0]
+                tutor_name = tutor_name or relative.parts[1]
+                time_slot = time_slot or relative.parts[2]
+                student_id = student_id or relative.parts[3]
+        except Exception:
+            pass
         return expanded, classroom, tutor_name, time_slot, student_id
 
     if not all([classroom, tutor_name, time_slot, student_id]):
@@ -1018,6 +1028,17 @@ def api_execute():
         def verify_collected_commands(host_folder):
             missing = _missing_command_logs(base_path, host_folder, commands)
             return missing
+
+        def sync_collected_student_folder():
+            mirror_path = sync_docs_student_folder_to_engine(base_path)
+            if mirror_path:
+                return stream_json_line(
+                    {
+                        "type": "result",
+                        "msg": f"Synced mirror folder to {mirror_path}",
+                    }
+                )
+            return None
 
         def run_serial():
             global current_mode
@@ -1298,6 +1319,10 @@ def api_execute():
                                 "msg": f"Failed to save config.json: {exc}; fallback failed: {exc2}",
                             }
                         )
+
+            sync_msg = sync_collected_student_folder()
+            if sync_msg:
+                yield sync_msg
 
             # Close the port so the user can physically unplug the cable for the next queue item
             _close_serial_connection()
@@ -1596,6 +1621,9 @@ def api_execute():
                                 "msg": f"Failed to save config.json: {exc}; fallback failed: {exc2}",
                             }
                         )
+            sync_msg = sync_collected_student_folder()
+            if sync_msg:
+                yield sync_msg
             return True
 
         yield stream_json_line(

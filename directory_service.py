@@ -111,6 +111,40 @@ def delete_engine_student_logs_for_docs_target(target):
         shutil.rmtree(mirror_target)
 
 
+def sync_docs_student_folder_to_engine(student_dir):
+    """Mirror a completed Documents student folder into comparison_engine/students."""
+    source = Path(student_dir).expanduser().resolve()
+    try:
+        relative = source.relative_to(DOCS_DIR)
+    except Exception:
+        return None
+
+    if len(relative.parts) < 4:
+        return None
+
+    student_id = relative.parts[3]
+    if student_id.lower() in {"sample", "unknown"}:
+        return None
+
+    if not source.is_dir():
+        return None
+
+    mirror_target = ENGINE_STUDENTS_DIR.joinpath(*relative.parts[:4])
+    if mirror_target.exists():
+        shutil.rmtree(mirror_target)
+    mirror_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(
+        source,
+        mirror_target,
+        ignore=shutil.ignore_patterns(
+            "config.json",
+            "results",
+            ".DS_Store",
+        ),
+    )
+    return str(mirror_target)
+
+
 def session_student_names_path(session_dir: Path) -> Path:
     return session_dir / "students.json"
 
