@@ -403,7 +403,12 @@ def sync_unified_logs_to_mirror(docs_dir=None, engine_students_dir=None):
             student_id = str(metadata.get("student_id") or "").strip()
             device_id = str(metadata.get("device_id") or "").strip()
             raw_log_path = Path(str(metadata.get("raw_log_path") or ""))
-            if not student_id or not device_id or not raw_log_path.is_file():
+            if (
+                not student_id
+                or student_id.lower() in {"sample", "unknown"}
+                or not device_id
+                or not raw_log_path.is_file()
+            ):
                 skipped_count += 1
                 continue
 
@@ -419,6 +424,9 @@ def sync_unified_logs_to_mirror(docs_dir=None, engine_students_dir=None):
         device_id,
         log_path,
     ) in _iter_legacy_session_log_files(docs_root):
+        if str(student_id).lower() in {"sample", "unknown"}:
+            skipped_count += 1
+            continue
         copy_to_mirror(classroom, tutor_name, time_slot, student_id, device_id, log_path)
 
     return {

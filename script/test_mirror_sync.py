@@ -160,6 +160,19 @@ class MirrorSyncTests(unittest.TestCase):
         self.assertEqual(result["synced_count"], 0)
         self.assertEqual(result["message"], "No valid logs available for mirror sync")
 
+    def test_sample_logs_are_not_mirrored(self):
+        sample_device_dir = self.docs_dir / "sample" / "sample" / "sample" / "R1"
+        sample_device_dir.mkdir(parents=True)
+        (sample_device_dir / "show_running_config.txt").write_text(
+            "hostname R1\n", encoding="utf-8"
+        )
+
+        result = self.sync()
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["synced_count"], 0)
+        self.assertFalse((self.engine_dir / "sample").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
