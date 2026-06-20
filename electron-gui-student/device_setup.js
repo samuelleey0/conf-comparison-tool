@@ -458,6 +458,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     block.querySelectorAll(".dropdown-item.hidden").forEach((item) => item.classList.remove("hidden"));
   }
 
+  function pinSelectedCommands(block) {
+    const dropdownList = block.querySelector(".dropdown-list");
+    if (!dropdownList) return;
+
+    const items = Array.from(dropdownList.querySelectorAll(".dropdown-item"));
+    items
+      .sort((a, b) => {
+        const aChecked = a.querySelector('input[type="checkbox"]')?.checked ? 0 : 1;
+        const bChecked = b.querySelector('input[type="checkbox"]')?.checked ? 0 : 1;
+        if (aChecked !== bChecked) return aChecked - bChecked;
+        return Number(a.dataset.commandOrder || 0) - Number(b.dataset.commandOrder || 0);
+      })
+      .forEach((item) => dropdownList.appendChild(item));
+  }
+
   function closeCommandDropdowns(exceptDropdown = null) {
     document.querySelectorAll(".custom-dropdown").forEach((dropdown) => {
       if (dropdown !== exceptDropdown) {
@@ -477,8 +492,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const selectedCommands = new Set(commands);
 
     const dropdownListHtml = systemCommands.length
-      ? systemCommands.map((cmd) => `
-          <label class="dropdown-item">
+      ? systemCommands.map((cmd, index) => `
+          <label class="dropdown-item" data-command-order="${index}">
             <input type="checkbox" value="${cmd}" ${selectedCommands.has(cmd) ? "checked" : ""} />
             ${cmd}
           </label>
@@ -542,6 +557,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const text = normalizeCommandText(item.textContent);
         item.classList.toggle("hidden", Boolean(term) && !text.includes(term));
       });
+      pinSelectedCommands(block);
     });
 
     block.querySelectorAll('.dropdown-item input[type="checkbox"]').forEach((checkbox) => {
@@ -560,6 +576,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (checkbox.checked) {
           resetCommandSearch(block);
         }
+        pinSelectedCommands(block);
         updateDropdownCount(block);
         updateModeUI();
       });
@@ -580,6 +597,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
     updateDropdownCount(block);
     syncDropdownSelectionStyles(block);
+    pinSelectedCommands(block);
     updateModeUI();
 
     return block;
