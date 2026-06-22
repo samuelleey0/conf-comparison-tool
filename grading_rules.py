@@ -1279,10 +1279,12 @@ def classify_items(items, policy, rubric_rules=None):
         item_copy["deduplicated"] = deduplicated
         item_copy["verification_rule_deduplicated"] = False
         item_copy["chain_stopped"] = bool(item_copy.get("chain_stopped", False))
-        item_copy["counts_toward_marking"] = (
-            item_copy.get("status") in {"missing", "extra", "mismatch"}
-            and not deduplicated
-        )
+        item_copy["verification_display_only"] = item_copy.get("status") in {
+            "missing",
+            "extra",
+            "mismatch",
+        }
+        item_copy["counts_toward_marking"] = False
         classified_verification.append(item_copy)
 
         status = item_copy.get("status")
@@ -1311,15 +1313,6 @@ def classify_items(items, policy, rubric_rules=None):
                     if rule_key:
                         verification_rule_hits.add(verification_hit_key)
                     summary["verify_failed"] += 1
-                    if severity == "major":
-                        summary["major"] += 1
-                    else:
-                        if rule_id:
-                            if rule_id not in minor_rule_hits:
-                                summary["minor"] += 1
-                                minor_rule_hits.add(rule_id)
-                        else:
-                            summary["minor"] += 1
         else:
             summary["verify_skipped"] += 1
 
