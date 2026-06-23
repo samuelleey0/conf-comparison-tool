@@ -327,19 +327,24 @@ def _session_template_assignments_path(target_path):
     session_dir = Path(expand_path(target_path) or "").resolve()
     if not session_dir.exists() or not session_dir.is_dir():
         raise FileNotFoundError("Session path not found.")
-    return session_dir / "session_templates_assignment.json"
+    return session_dir / "session_template_assignments.json"
 
 
 def _session_template_assignments_read_paths(target_path):
     session_dir = Path(expand_path(target_path) or "").resolve()
     paths = [
+        session_dir / "session_template_assignments.json",
         session_dir / "session_templates_assignment.json",
         session_dir / "template_assignments.json",
     ]
     try:
         relative = session_dir.relative_to(ENGINE_STUDENTS_DIR.resolve())
         docs_session_dir = DOCS_DIR.joinpath(*relative.parts)
-        for filename in ("session_templates_assignment.json", "template_assignments.json"):
+        for filename in (
+            "session_template_assignments.json",
+            "session_templates_assignment.json",
+            "template_assignments.json",
+        ):
             docs_assignment_path = docs_session_dir / filename
             if docs_assignment_path not in paths:
                 paths.append(docs_assignment_path)
