@@ -323,6 +323,88 @@ def api_select_directory():
         return jsonify({"status": "error", "message": str(exc)}), 404
 
 
+def _session_template_assignments_path(target_path):
+    session_dir = Path(expand_path(target_path) or "").resolve()
+    if not session_dir.exists() or not session_dir.is_dir():
+        raise FileNotFoundError("Session path not found.")
+    return session_dir / "template_assignments.json"
+
+
+def _load_session_template_assignments(target_path):
+    assignments_path = _session_template_assignments_path(target_path)
+    if not assignments_path.exists():
+        return {}
+    try:
+        data = json.loads(assignments_path.read_text(encoding="utf-8")) or {}
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    cleaned = {}
+    for student_id, assignment in data.items():
+        student_key = str(student_id or "").strip()
+        if not student_key or not isinstance(assignment, dict):
+            continue
+        template_name = str(
+            assignment.get("template_name") or assignment.get("template") or ""
+        ).strip()
+        if template_name:
+            cleaned[student_key] = {"template_name": template_name}
+    return cleaned
+
+
+def _save_session_template_assignments(target_path, assignments):
+    assignments_path = _session_template_assignments_path(target_path)
+    assignments_path.write_text(
+        json.dumps(assignments or {}, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+@app.route("/api/session_template_assignments", methods=["GET"])
+def api_get_session_template_assignments():
+    target_path = (request.args.get("target_path") or "").strip()
+    if not target_path:
+        return jsonify({"status": "error", "message": "Missing target_path."}), 400
+    try:
+        assignments = _load_session_template_assignments(target_path)
+        return jsonify({"status": "ok", "assignments": assignments})
+    except FileNotFoundError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 404
+
+
+@app.route("/api/session_template_assignments", methods=["POST"])
+def api_save_session_template_assignment():
+    data = request.get_json() or {}
+    target_path = (data.get("target_path") or "").strip()
+    student_id = (data.get("student_id") or "").strip()
+    template_name = (data.get("template_name") or data.get("template") or "").strip()
+
+    if not target_path or not student_id:
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Missing target_path or student_id.",
+                }
+            ),
+            400,
+        )
+    if template_name and template_name not in list_templates():
+        return jsonify({"status": "error", "message": "Template not found."}), 404
+
+    try:
+        assignments = _load_session_template_assignments(target_path)
+        if template_name:
+            assignments[student_id] = {"template_name": template_name}
+        else:
+            assignments.pop(student_id, None)
+        _save_session_template_assignments(target_path, assignments)
+        return jsonify({"status": "ok", "assignments": assignments})
+    except FileNotFoundError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 404
+
+
 
 @app.route("/api/directories", methods=["GET"])
 def api_list_directories():
