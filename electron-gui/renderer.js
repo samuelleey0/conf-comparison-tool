@@ -98,16 +98,119 @@ function updateGlobalTemplateBadge() {
   const badge = document.getElementById("globalTemplateBadge");
   const nameEl = document.getElementById("globalTemplateName");
   if (!badge || !nameEl) return;
+
+  const templateNames = getAssignedSessionTemplateNames();
+  if (templateNames.length) {
+    const label = templateNames.length === 1
+      ? templateNames[0]
+      : `Templates: ${templateNames.join(", ")}`;
+    nameEl.textContent = label;
+    badge.title = label;
+    badge.classList.remove("hidden");
+    refreshGlobalTemplateBadgeFromSession();
+    return;
+  }
+
   const templateName = localStorage.getItem("templateName");
   if (templateName) {
     nameEl.textContent = templateName;
+    badge.title = templateName;
     badge.classList.remove("hidden");
-  } else {
-    badge.classList.add("hidden");
+    refreshGlobalTemplateBadgeFromSession();
+    return;
+  }
+
+  badge.title = "";
+  badge.classList.add("hidden");
+  refreshGlobalTemplateBadgeFromSession();
+}
+
+function getAssignedSessionTemplateNames(assignments = null) {
+  const source = assignments || readStoredSessionTemplateAssignments();
+  return Array.from(new Set(
+    Object.values(source || {})
+      .map((assignment) => assignment?.template_name || assignment?.template || "")
+      .filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b));
+}
+
+function readStoredSessionTemplateAssignments() {
+  try {
+    return JSON.parse(localStorage.getItem("sessionTemplateAssignments") || "{}") || {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function getStoredSessionPathForBadge() {
+  const sessionPath = localStorage.getItem("sessionPath");
+  if (sessionPath) return sessionPath;
+  const basePath = localStorage.getItem("basePath");
+  const studentId = localStorage.getItem("studentId");
+  if (basePath && studentId && pathModule && pathModule.basename(basePath) === studentId) {
+    return pathModule.dirname(basePath);
+  }
+  return basePath || "";
+}
+
+function renderGlobalTemplateBadgeFromAssignments(assignments) {
+  const badge = document.getElementById("globalTemplateBadge");
+  const nameEl = document.getElementById("globalTemplateName");
+  if (!badge || !nameEl) return;
+  const templateNames = getAssignedSessionTemplateNames(assignments);
+  if (!templateNames.length) {
+    const templateName = localStorage.getItem("templateName");
+    if (templateName) {
+      nameEl.textContent = templateName;
+      badge.title = templateName;
+      badge.classList.remove("hidden");
+    } else {
+      badge.title = "";
+      badge.classList.add("hidden");
+    }
+    return;
+  }
+  const label = templateNames.length === 1
+    ? templateNames[0]
+    : `Templates: ${templateNames.join(", ")}`;
+  nameEl.textContent = label;
+  badge.title = label;
+  badge.classList.remove("hidden");
+}
+
+async function refreshGlobalTemplateBadgeFromSession() {
+  if (updateGlobalTemplateBadge.refreshing) return;
+  const sessionPath = getStoredSessionPathForBadge();
+  if (!sessionPath) return;
+  updateGlobalTemplateBadge.refreshing = true;
+  try {
+    const data = await fetchJson(`/api/session_template_assignments?target_path=${encodeURIComponent(sessionPath)}`);
+    const assignments = data.assignments || {};
+    localStorage.setItem("sessionTemplateAssignments", JSON.stringify(assignments));
+    if (getAssignedSessionTemplateNames(assignments).length) {
+      renderGlobalTemplateBadgeFromAssignments(assignments);
+    } else {
+      const badge = document.getElementById("globalTemplateBadge");
+      const nameEl = document.getElementById("globalTemplateName");
+      const templateName = localStorage.getItem("templateName");
+      if (badge && nameEl && templateName) {
+        nameEl.textContent = templateName;
+        badge.title = templateName;
+        badge.classList.remove("hidden");
+      } else if (badge) {
+        badge.title = "";
+        badge.classList.add("hidden");
+      }
+    }
+  } catch (err) {
+    console.debug("Could not refresh session template badge:", err);
+  } finally {
+    updateGlobalTemplateBadge.refreshing = false;
   }
 }
 if (typeof window !== "undefined") {
   window.updateGlobalTemplateBadge = updateGlobalTemplateBadge;
+  window.renderGlobalTemplateBadgeFromAssignments = renderGlobalTemplateBadgeFromAssignments;
 }
 
 function initNavbarInteractions() {
@@ -383,7 +486,8 @@ function setupWelcomePage() {
     "examName",
     "sessionId",
     "selectedStudent",
-    "sessionPath"
+    "sessionPath",
+    "sessionTemplateAssignments"
   ];
   keysToClear.forEach(k => localStorage.removeItem(k));
   ["deviceSetupMode", "deviceSetupLogsFolder", "deviceSetupStrictLogsFolder"]
