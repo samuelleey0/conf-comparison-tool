@@ -101,11 +101,9 @@ function updateGlobalTemplateBadge() {
 
   const templateNames = getAssignedSessionTemplateNames();
   if (templateNames.length) {
-    const label = templateNames.length === 1
-      ? templateNames[0]
-      : `Templates: ${templateNames.join(", ")}`;
+    const { label, title } = formatGlobalTemplateBadge(templateNames);
     nameEl.textContent = label;
-    badge.title = label;
+    badge.title = title;
     badge.classList.remove("hidden");
     refreshGlobalTemplateBadgeFromSession();
     return;
@@ -132,6 +130,16 @@ function getAssignedSessionTemplateNames(assignments = null) {
       .map((assignment) => assignment?.template_name || assignment?.template || "")
       .filter(Boolean)
   )).sort((a, b) => a.localeCompare(b));
+}
+
+function formatGlobalTemplateBadge(templateNames) {
+  if (templateNames.length === 1) {
+    return { label: templateNames[0], title: templateNames[0] };
+  }
+  return {
+    label: `${templateNames.length} templates selected`,
+    title: templateNames.join("\n"),
+  };
 }
 
 function readStoredSessionTemplateAssignments() {
@@ -170,11 +178,9 @@ function renderGlobalTemplateBadgeFromAssignments(assignments) {
     }
     return;
   }
-  const label = templateNames.length === 1
-    ? templateNames[0]
-    : `Templates: ${templateNames.join(", ")}`;
+  const { label, title } = formatGlobalTemplateBadge(templateNames);
   nameEl.textContent = label;
-  badge.title = label;
+  badge.title = title;
   badge.classList.remove("hidden");
 }
 
