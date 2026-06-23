@@ -330,9 +330,26 @@ def _session_template_assignments_path(target_path):
     return session_dir / "template_assignments.json"
 
 
+def _session_template_assignments_read_paths(target_path):
+    session_dir = Path(expand_path(target_path) or "").resolve()
+    paths = [session_dir / "template_assignments.json"]
+    try:
+        relative = session_dir.relative_to(ENGINE_STUDENTS_DIR.resolve())
+        docs_assignment_path = DOCS_DIR.joinpath(*relative.parts) / "template_assignments.json"
+        if docs_assignment_path not in paths:
+            paths.append(docs_assignment_path)
+    except ValueError:
+        pass
+    return paths
+
+
 def _load_session_template_assignments(target_path):
-    assignments_path = _session_template_assignments_path(target_path)
-    if not assignments_path.exists():
+    _session_template_assignments_path(target_path)
+    assignments_path = next(
+        (path for path in _session_template_assignments_read_paths(target_path) if path.exists()),
+        None,
+    )
+    if assignments_path is None:
         return {}
     try:
         data = json.loads(assignments_path.read_text(encoding="utf-8")) or {}
@@ -2535,21 +2552,32 @@ def _check_criteria(content, criteria, variables):
 from comparison_engine.compare_main import grading_pipeline
 
 
-def _grade_session_from_config(target_path: str, template_name: str):
-    if not template_has_baseline(template_name):
-        return [], (
-            f"Template '{template_name}' has device/command setup only. "
-            "Upload template baseline logs before grading."
-        )
-
-    template_configs = load_template_configs(template_name)
-    if not template_configs:
-        return [], f"No template configs found for '{template_name}'."
-
+def _grade_session_from_config(
+    target_path: str, template_name: str = None, student_templates: dict = None
+):
     results_summary = []
     target = Path(target_path)
     if not target.is_dir():
         return [], f"Target path {target_path} not found."
+
+    student_templates = student_templates or {}
+    template_configs_cache = {}
+
+    def _get_template_configs(selected_template):
+        if not selected_template:
+            return None, "No template assigned."
+        if selected_template in template_configs_cache:
+            return template_configs_cache[selected_template], None
+        if not template_has_baseline(selected_template):
+            return None, (
+                f"Template '{selected_template}' has device/command setup only. "
+                "Upload template baseline logs before grading."
+            )
+        loaded_configs = load_template_configs(selected_template)
+        if not loaded_configs:
+            return None, f"No template configs found for '{selected_template}'."
+        template_configs_cache[selected_template] = loaded_configs
+        return loaded_configs, None
 
     def _student_has_collected_data(student_dir: Path) -> bool:
         if not student_dir.is_dir():
@@ -2567,6 +2595,8 @@ def _grade_session_from_config(target_path: str, template_name: str):
         return False
 
     skipped_students = []
+    missing_template_students = []
+    template_error_messages = []
 
     def _clear_previous_student_results(results_dir: Path) -> None:
         results_dir.mkdir(parents=True, exist_ok=True)
@@ -2587,9 +2617,18 @@ def _grade_session_from_config(target_path: str, template_name: str):
             skipped_students.append(student_id)
             continue
 
+        selected_template = template_name or student_templates.get(student_id)
+        template_configs, template_error = _get_template_configs(selected_template)
+        if template_error:
+            if selected_template:
+                template_error_messages.append(f"{student_id}: {template_error}")
+            else:
+                missing_template_students.append(student_id)
+            continue
+
         summary = {
             "student_id": student_id,
-            "template_name": template_name,
+            "template_name": selected_template,
             "grading_mode": "strict",
             "hostnames_compared": [],
             "hostnames_missing_template": [],
@@ -2623,7 +2662,7 @@ def _grade_session_from_config(target_path: str, template_name: str):
 
             result_payload = {
                 "student_id": student_id,
-                "template_name": template_name,
+                "template_name": selected_template,
                 "grading_mode": "strict",
                 "hostname": hostname,
                 "student_show_run_file": show_run_file,
@@ -2645,23 +2684,40 @@ def _grade_session_from_config(target_path: str, template_name: str):
             json.dump(summary, handle, indent=4)
 
         results_summary.append(
-            {"student_id": student_id, "status": "Graded", "template": template_name}
+            {"student_id": student_id, "status": "Graded", "template": selected_template}
         )
 
     if not results_summary:
+        if missing_template_students:
+            return (
+                [],
+                "No students were graded because collected students have no assigned template.",
+            )
+        if template_error_messages:
+            return [], "\n".join(template_error_messages)
         return (
             [],
             "No collected student logs found in this session. Select a student and collect logs before grading.",
         )
 
+    extra_messages = []
     if skipped_students:
-        return (
-            results_summary,
-            f"Grading completed for {len(results_summary)} student(s). "
-            f"Skipped {len(skipped_students)} student(s) with no collected logs.",
+        extra_messages.append(
+            f"Skipped {len(skipped_students)} student(s) with no collected logs."
+        )
+    if missing_template_students:
+        extra_messages.append(
+            f"Skipped {len(missing_template_students)} collected student(s) with no assigned template."
+        )
+    if template_error_messages:
+        extra_messages.append(
+            f"Skipped {len(template_error_messages)} student(s) because their assigned template is not ready."
         )
 
-    return results_summary, "Grading completed."
+    message = f"Grading completed for {len(results_summary)} student(s)."
+    if extra_messages:
+        message = f"{message} {' '.join(extra_messages)}"
+    return results_summary, message
 
 
 @app.route("/api/grade", methods=["POST"])
@@ -2671,34 +2727,44 @@ def api_run_grading():
     tutor_name = data.get("tutor_name") or data.get("session_id")
     time_slot = data.get("time_slot")
     target_path = data.get("target_path")
-    template_name = data.get("template_name")
+    template_name = (data.get("template_name") or "").strip()
     include_reports = bool(data.get("include_reports"))
 
     if not target_path:
         return jsonify({"status": "error", "message": "Missing arguments"}), 400
 
     try:
-        # Determine template to use
         available_templates = list_templates()
+        chosen_template = template_name or None
+        student_templates = {}
 
-        chosen_template = template_name
         if not chosen_template:
-            if len(available_templates) == 1:
-                chosen_template = available_templates[0]
-            else:
-                return (
-                    jsonify(
-                        {
-                            "status": "error",
-                            "message": "Multiple templates available. Please select a template.",
-                            "templates": available_templates,
-                        }
-                    ),
-                    400,
-                )
+            assignments = _load_session_template_assignments(target_path)
+            student_templates = {
+                student_id: assignment.get("template_name")
+                for student_id, assignment in assignments.items()
+                if assignment.get("template_name")
+            }
+            if not student_templates:
+                if len(available_templates) == 1:
+                    chosen_template = available_templates[0]
+                else:
+                    return (
+                        jsonify(
+                            {
+                                "status": "error",
+                                "message": (
+                                    "No student-template assignments found for this session. "
+                                    "Assign templates in Directory Setup before grading."
+                                ),
+                                "templates": available_templates,
+                            }
+                        ),
+                        400,
+                    )
 
         summary_results, message = _grade_session_from_config(
-            target_path, chosen_template
+            target_path, chosen_template, student_templates=student_templates
         )
 
         if not summary_results:
