@@ -164,6 +164,7 @@ async function loadAvailableTemplates() {
 async function loadSessionTemplateAssignments(sessionPath) {
   if (!sessionPath) {
     sessionTemplateAssignments = {};
+    persistSessionTemplateAssignments();
     return;
   }
   try {
@@ -172,6 +173,16 @@ async function loadSessionTemplateAssignments(sessionPath) {
   } catch (err) {
     console.warn("Could not load session template assignments:", err);
     sessionTemplateAssignments = {};
+  }
+  persistSessionTemplateAssignments();
+}
+
+function persistSessionTemplateAssignments() {
+  localStorage.setItem("sessionTemplateAssignments", JSON.stringify(sessionTemplateAssignments || {}));
+  if (typeof window.renderGlobalTemplateBadgeFromAssignments === "function") {
+    window.renderGlobalTemplateBadgeFromAssignments(sessionTemplateAssignments);
+  } else if (typeof window.updateGlobalTemplateBadge === "function") {
+    window.updateGlobalTemplateBadge();
   }
 }
 
@@ -218,6 +229,7 @@ async function saveStudentTemplateAssignment(studentId, templateName) {
     }),
   });
   sessionTemplateAssignments = data.assignments || {};
+  persistSessionTemplateAssignments();
   if (templateName) await getTemplateDevices(templateName);
   return sessionTemplateAssignments;
 }
