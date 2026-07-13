@@ -116,6 +116,20 @@ function canDisableRuleFromResult(item) {
   return true;
 }
 
+function displayFeatureLabel(item) {
+  const feature = String(item?.feature || "");
+  const code = item?.rule_code || item?.outcome_code || item?.rule_id || "";
+  if (code === "VERIFY_IFACE_DOWN") {
+    const match = feature.match(
+      /^verification\.show_ip_interface_brief\.interfaces\.([^.]*)\.protocol$/
+    );
+    if (match) {
+      return `Interface ${match[1]} protocol status`;
+    }
+  }
+  return feature || "(unknown)";
+}
+
 async function disableRubricRule(ruleCode, studentId = "") {
   // Rule changes are global, not per-student. Results refresh immediately so the
   // user can see the same finding become skipped/unscored.
@@ -437,7 +451,8 @@ async function openErrorContext(report, item) {
   const body = document.getElementById("errorContextBody");
   if (!modal || !title || !meta || !body) return;
 
-  title.textContent = item.feature || "Config Context";
+  const displayLabel = displayFeatureLabel(item);
+  title.textContent = displayLabel || "Config Context";
   meta.textContent = "Loading config context...";
   body.innerHTML = `
     <div class="context-tabs">
@@ -470,7 +485,7 @@ async function openErrorContext(report, item) {
       }),
     });
 
-    title.textContent = item.feature || "Config Context";
+    title.textContent = displayLabel || "Config Context";
     meta.textContent = [
       payload.context_path ? `Context: ${payload.context_path}` : null,
       payload.highlight_key ? `Field: ${payload.highlight_key}` : null,
@@ -737,7 +752,7 @@ function _renderErrorItem(report, item, isVerification) {
   }
 
   div.innerHTML = `
-    <div class="meta">${item.feature || "(unknown)"}</div>
+    <div class="meta">${escapeHtml(displayFeatureLabel(item))}</div>
     ${codeLine}
     <div class="status ${severityClass}">${statusLabel}</div>
     ${dedupInfo}

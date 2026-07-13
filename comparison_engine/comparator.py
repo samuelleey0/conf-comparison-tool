@@ -3348,8 +3348,6 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
             return True
         if path.endswith("verification.show_vlan_brief.vlans.1.ports"):
             return True
-        if path.endswith("show_running_config.interfaces.Vlan1.shutdown"):
-            return True
         if path.endswith(".logging_synchronous"):
             return True
         if path.endswith(".line") and (".console." in path or ".vty." in path):

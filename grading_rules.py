@@ -1279,15 +1279,24 @@ def classify_items(items, policy, rubric_rules=None):
         item_copy["deduplicated"] = deduplicated
         item_copy["verification_rule_deduplicated"] = False
         item_copy["chain_stopped"] = bool(item_copy.get("chain_stopped", False))
-        item_copy["verification_display_only"] = item_copy.get("status") in {
-            "missing",
-            "extra",
-            "mismatch",
-        }
-        item_copy["counts_toward_marking"] = False
+        status = item_copy.get("status")
+        rule_key = (
+            item_copy.get("rule_code")
+            or item_copy.get("outcome_code")
+            or item_copy.get("rule_id")
+            or ""
+        )
+        scored_verification = (
+            status in {"missing", "extra", "mismatch"}
+            and rule_key == "VERIFY_IFACE_DOWN"
+            and not deduplicated
+        )
+        item_copy["verification_display_only"] = (
+            status in {"missing", "extra", "mismatch"} and not scored_verification
+        )
+        item_copy["counts_toward_marking"] = scored_verification
         classified_verification.append(item_copy)
 
-        status = item_copy.get("status")
         if status in summary:
             summary[status] += 1
 
@@ -1299,7 +1308,6 @@ def classify_items(items, policy, rubric_rules=None):
             else:
                 severity = item_copy.get("severity", "minor")
                 rule_id = item_copy.get("rule_id")
-                rule_key = item_copy.get("rule_code") or item_copy.get("outcome_code") or rule_id or ""
                 verification_hit_key = (
                     item_copy.get("hostname") or "",
                     item_copy.get("block_name") or "",
@@ -1313,6 +1321,11 @@ def classify_items(items, policy, rubric_rules=None):
                     if rule_key:
                         verification_rule_hits.add(verification_hit_key)
                     summary["verify_failed"] += 1
+                    if scored_verification:
+                        if severity == "major":
+                            summary["major"] += 1
+                        else:
+                            summary["minor"] += 1
         else:
             summary["verify_skipped"] += 1
 
