@@ -261,9 +261,13 @@ def _preferred_context_parts(feature: str):
 
 
 def _extract_error_context(
-    template_config, student_config, feature: str, expected=None, actual=None
+    template_config, student_config, feature: str, expected=None, actual=None, student_feature: str = None
 ):
+    if student_feature is None:
+        student_feature = feature
+
     parts, highlight_key = _preferred_context_parts(feature)
+    student_parts, _ = _preferred_context_parts(student_feature)
     if not parts:
         return {
             "context_path": "",
@@ -277,6 +281,7 @@ def _extract_error_context(
     # expected/actual subinterfaces from the comparison result rather than every
     # sibling subinterface under the same parent.
     feature_parts = [p for p in str(feature or "").split(".") if p]
+    student_feature_parts = [p for p in str(student_feature or feature).split(".") if p]
     if (
         len(feature_parts) >= 4
         and feature_parts[0] == "show_running_config"
@@ -284,6 +289,7 @@ def _extract_error_context(
         and feature_parts[3] == "subinterface"
     ):
         parent_iface = feature_parts[2]
+        student_parent_iface = student_feature_parts[2] if len(student_feature_parts) >= 3 else parent_iface
         t_ifaces = _resolve_json_parts(
             template_config, ["show_running_config", "interfaces"]
         )
@@ -311,7 +317,7 @@ def _extract_error_context(
                     s_subs = {
                         k: v
                         for k, v in s_ifaces.items()
-                        if k.startswith(f"{parent_iface}.")
+                        if k.startswith(f"{student_parent_iface}.")
                     }
             return {
                 "context_path": f"show_running_config.interfaces.{parent_iface}.*",
@@ -355,16 +361,17 @@ def _extract_error_context(
         and len(feature_parts) == 3
     ):
         iface_name = feature_parts[2]
+        student_iface_name = student_feature_parts[2] if len(student_feature_parts) >= 3 else iface_name
         t_ifaces = _resolve_json_parts(template_config, ["show_running_config", "interfaces"])
         s_ifaces = _resolve_json_parts(student_config, ["show_running_config", "interfaces"])
         template_iface = t_ifaces.get(iface_name, _MISSING) if isinstance(t_ifaces, dict) else _MISSING
-        student_iface = s_ifaces.get(iface_name, _MISSING) if isinstance(s_ifaces, dict) else _MISSING
+        student_iface = s_ifaces.get(student_iface_name, _MISSING) if isinstance(s_ifaces, dict) else _MISSING
         if template_iface is not _MISSING or student_iface is not _MISSING:
             return {
                 "context_path": f"show_running_config.interfaces.{iface_name}",
                 "highlight_key": iface_name,
                 "template_context": None if template_iface is _MISSING else {iface_name: template_iface},
-                "student_context": None if student_iface is _MISSING else {iface_name: student_iface},
+                "student_context": None if student_iface is _MISSING else {student_iface_name: student_iface},
             }
 
     if (
@@ -373,6 +380,7 @@ def _extract_error_context(
         and feature_parts[1] == "users"
     ):
         username = feature_parts[2]
+        student_username = student_feature_parts[2] if len(student_feature_parts) >= 3 else username
         t_users = _resolve_json_parts(template_config, ["show_running_config", "users"])
         s_users = _resolve_json_parts(student_config, ["show_running_config", "users"])
 
@@ -388,7 +396,7 @@ def _extract_error_context(
             return _MISSING
 
         template_user = _find_user(t_users, username)
-        student_user = _find_user(s_users, username)
+        student_user = _find_user(s_users, student_username)
         if template_user is not _MISSING or student_user is not _MISSING:
             return {
                 "context_path": f"show_running_config.users.{username}",
@@ -405,6 +413,7 @@ def _extract_error_context(
         and feature_parts[1] == "access_lists"
     ):
         acl_name = feature_parts[2]
+        student_acl_name = student_feature_parts[2] if len(student_feature_parts) >= 3 else acl_name
         is_applied_check = len(feature_parts) >= 4 and feature_parts[3] == "applied"
         t_acls = _resolve_json_parts(
             template_config, ["show_running_config", "access_lists"]
@@ -425,12 +434,12 @@ def _extract_error_context(
             t_acls.get(acl_name, _MISSING) if isinstance(t_acls, dict) else _MISSING
         )
         student_acl = (
-            s_acls.get(acl_name, _MISSING) if isinstance(s_acls, dict) else _MISSING
+            s_acls.get(student_acl_name, _MISSING) if isinstance(s_acls, dict) else _MISSING
         )
 
         if template_acl is not _MISSING or student_acl is not _MISSING:
             if is_applied_check:
-                def _acl_usage_summary(acl, interfaces, nat):
+                def _acl_usage_summary(acl, acl_check_name, interfaces, nat):
                     applied_to = []
                     if isinstance(interfaces, dict):
                         for iface_name, iface_data in interfaces.items():
@@ -439,7 +448,7 @@ def _extract_error_context(
                             for group in iface_data.get("access_groups", []) or []:
                                 if (
                                     isinstance(group, dict)
-                                    and str(group.get("acl")) == acl_name
+                                    and str(group.get("acl")) == acl_check_name
                                 ):
                                     applied_to.append(
                                         {
@@ -452,11 +461,11 @@ def _extract_error_context(
                         for source in nat.get("inside_source", []) or []:
                             if (
                                 isinstance(source, dict)
-                                and str(source.get("acl")) == acl_name
+                                and str(source.get("acl")) == acl_check_name
                             ):
                                 nat_bindings.append(source)
                     return {
-                        "acl_name": acl_name,
+                        "acl_name": acl_check_name,
                         "exists": acl is not _MISSING,
                         "acl": None if acl is _MISSING else acl,
                         "applied_to_interfaces": applied_to,
@@ -468,10 +477,10 @@ def _extract_error_context(
                     "context_path": f"show_running_config.access_lists.{acl_name}.applied",
                     "highlight_key": "applied",
                     "template_context": _acl_usage_summary(
-                        template_acl, t_interfaces, t_nat
+                        template_acl, acl_name, t_interfaces, t_nat
                     ),
                     "student_context": _acl_usage_summary(
-                        student_acl, s_interfaces, s_nat
+                        student_acl, student_acl_name, s_interfaces, s_nat
                     ),
                 }
             return {
@@ -574,21 +583,23 @@ def _extract_error_context(
         command = feature_parts[1]
         collection_key = feature_parts[2]
         iface_name = feature_parts[3]
+        student_iface_name = student_feature_parts[3] if len(student_feature_parts) >= 4 else iface_name
         t_verify = _resolve_json_parts(template_config, ["verification", command, collection_key])
         s_verify = _resolve_json_parts(student_config, ["verification", command, collection_key])
         template_iface = t_verify.get(iface_name, _MISSING) if isinstance(t_verify, dict) else _MISSING
-        student_iface = s_verify.get(iface_name, _MISSING) if isinstance(s_verify, dict) else _MISSING
+        student_iface = s_verify.get(student_iface_name, _MISSING) if isinstance(s_verify, dict) else _MISSING
         if template_iface is not _MISSING or student_iface is not _MISSING:
             return {
                 "context_path": f"verification.{command}.{collection_key}.{iface_name}",
                 "highlight_key": iface_name,
                 "template_context": None if template_iface is _MISSING else {iface_name: template_iface},
-                "student_context": None if student_iface is _MISSING else {iface_name: student_iface},
+                "student_context": None if student_iface is _MISSING else {student_iface_name: student_iface},
             }
 
     while parts:
         template_context = _resolve_json_parts(template_config, parts)
-        student_context = _resolve_json_parts(student_config, parts)
+        curr_student_parts = student_parts[:len(parts)] if student_parts else parts
+        student_context = _resolve_json_parts(student_config, curr_student_parts)
         if template_context is not _MISSING or student_context is not _MISSING:
             return {
                 "context_path": ".".join(parts),

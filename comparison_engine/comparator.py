@@ -797,6 +797,86 @@ def _build_content_acl_aliases(template_show_run, student_show_run, existing_ali
     return aliases
 
 
+def _build_fallback_acl_aliases(template_show_run, student_show_run, existing_aliases=None):
+    """Fallback semantic mapping for ACLs when names are different and exact/applied matching failed.
+
+    Pairs up remaining unmapped template and student ACLs to allow rule-by-rule grading
+    rather than marking the entire ACL as missing/extra.
+    """
+    aliases = dict(existing_aliases or {})
+    if not isinstance(template_show_run, dict) or not isinstance(student_show_run, dict):
+        return aliases
+
+    template_acls = template_show_run.get("access_lists", {}) or {}
+    student_acls = student_show_run.get("access_lists", {}) or {}
+    if not isinstance(template_acls, dict) or not isinstance(student_acls, dict):
+        return aliases
+
+    # Find unmapped template ACLs (neither already aliased, nor present in student config by name)
+    unmapped_t = [
+        name for name in template_acls
+        if name not in aliases and name not in student_acls
+    ]
+    # Find unmapped student ACLs (neither a value in aliases, nor present in template config by name)
+    mapped_s_names = set(aliases.values())
+    unmapped_s = [
+        name for name in student_acls
+        if name not in mapped_s_names and name not in template_acls
+    ]
+
+    if not unmapped_t or not unmapped_s:
+        return aliases
+
+    # Helper to calculate similarity score of normalized rules between two ACLs
+    def get_jaccard_similarity(t_name, s_name):
+        t_data = template_acls.get(t_name) or {}
+        s_data = student_acls.get(s_name) or {}
+
+        # Check type similarity (standard/extended)
+        t_type = str(t_data.get("type") or "").strip().lower()
+        s_type = str(s_data.get("type") or "").strip().lower()
+        type_bonus = 0.5 if t_type == s_type else 0.0
+
+        t_rules_list = _normalize_acl_rules_for_compare(t_data.get("rules") or [])
+        s_rules_list = _normalize_acl_rules_for_compare(s_data.get("rules") or [])
+
+        t_rules = set(t_rules_list) if isinstance(t_rules_list, list) else set()
+        s_rules = set(s_rules_list) if isinstance(s_rules_list, list) else set()
+
+        if not t_rules and not s_rules:
+            return 1.0 + type_bonus
+
+        intersection = t_rules & s_rules
+        union = t_rules | s_rules
+        jaccard = len(intersection) / len(union) if union else 0.0
+        return jaccard + type_bonus
+
+    # Greedily match pairs starting with the highest similarity score
+    unmapped_t = list(unmapped_t)
+    unmapped_s = list(unmapped_s)
+    while unmapped_t and unmapped_s:
+        best_score = -1
+        best_t = None
+        best_s = None
+
+        for t_name in unmapped_t:
+            for s_name in unmapped_s:
+                score = get_jaccard_similarity(t_name, s_name)
+                if score > best_score:
+                    best_score = score
+                    best_t = t_name
+                    best_s = s_name
+
+        if best_t is not None and best_s is not None:
+            aliases[best_t] = best_s
+            unmapped_t.remove(best_t)
+            unmapped_s.remove(best_s)
+        else:
+            break
+
+    return aliases
+
+
 def _named_object_signature(value):
     """Return a stable comparable signature for semantic name matching."""
     if isinstance(value, dict):
@@ -3228,6 +3308,9 @@ def compare_dicts(template: dict, student: dict, parent_key="") -> list:
             acl_aliases,
         )
         acl_aliases = _build_content_acl_aliases(
+            template_show_run, student_show_run, acl_aliases
+        )
+        acl_aliases = _build_fallback_acl_aliases(
             template_show_run, student_show_run, acl_aliases
         )
         if acl_aliases or nat_pool_aliases or dhcp_pool_aliases:

@@ -2080,14 +2080,63 @@ def api_error_context():
     template_raw_path = _find_log_file(template_log_dir, command_hint)
     student_raw_path = _find_log_file(student_log_dir, command_hint)
 
+    # Build aliases to map student resource names to template resource names for display
+    student_feature = feature
+    try:
+        from comparison_engine.comparator import (
+            _build_nat_pool_aliases,
+            _build_dhcp_pool_aliases,
+            _build_applied_acl_aliases,
+            _build_nat_acl_aliases,
+            _build_content_acl_aliases,
+            _build_fallback_acl_aliases,
+        )
+        t_run = template_config.get("show_running_config", {}) or {}
+        s_run = student_config.get("show_running_config", {}) or {}
+        nat_pool_aliases = _build_nat_pool_aliases(t_run, s_run)
+        dhcp_pool_aliases = _build_dhcp_pool_aliases(t_run, s_run)
+        acl_aliases = _build_applied_acl_aliases(t_run, s_run)
+        acl_aliases = _build_nat_acl_aliases(t_run, s_run, nat_pool_aliases, acl_aliases)
+        acl_aliases = _build_content_acl_aliases(t_run, s_run, acl_aliases)
+        acl_aliases = _build_fallback_acl_aliases(t_run, s_run, acl_aliases)
+
+        parts = [p for p in feature.split(".") if p]
+        if parts:
+            # Map show_running_config.access_lists.<acl_name>
+            if len(parts) >= 3 and parts[0] == "show_running_config" and parts[1] == "access_lists":
+                acl_name = parts[2]
+                if acl_name in acl_aliases:
+                    parts[2] = acl_aliases[acl_name]
+                    student_feature = ".".join(parts)
+            # Map show_running_config.dhcp_pools.<pool_name>
+            elif len(parts) >= 3 and parts[0] == "show_running_config" and parts[1] == "dhcp_pools":
+                pool_name = parts[2]
+                if pool_name in dhcp_pool_aliases:
+                    parts[2] = dhcp_pool_aliases[pool_name]
+                    student_feature = ".".join(parts)
+            # Map show_running_config.nat.pools.<pool_name>
+            elif len(parts) >= 4 and parts[0] == "show_running_config" and parts[1] == "nat" and parts[2] == "pools":
+                pool_name = parts[3]
+                if pool_name in nat_pool_aliases:
+                    parts[3] = nat_pool_aliases[pool_name]
+                    student_feature = ".".join(parts)
+            # Map verification.show_access_lists.acls.<acl_name>
+            elif len(parts) >= 4 and parts[0] == "verification" and parts[1] == "show_access_lists" and parts[2] == "acls":
+                acl_name = parts[3]
+                if acl_name in acl_aliases:
+                    parts[3] = acl_aliases[acl_name]
+                    student_feature = ".".join(parts)
+    except Exception:
+        pass
+
     context = _extract_error_context(
-        template_config, student_config, feature, expected=expected, actual=actual
+        template_config, student_config, feature, expected=expected, actual=actual, student_feature=student_feature
     )
     template_raw_excerpt = _extract_raw_excerpt(
         template_raw_path, feature, expected=expected, actual=actual
     )
     student_raw_excerpt = _extract_raw_excerpt(
-        student_raw_path, feature, expected=expected, actual=actual
+        student_raw_path, student_feature, expected=expected, actual=actual
     )
 
     return jsonify(
