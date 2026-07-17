@@ -154,7 +154,7 @@ def _default_rubric_rules():
             "Static routes installed when there should be none.",
         ),
         ("MISMATCH_DHCP_POOL", "major", "DHCP pool properties incorrect."),
-        ("MISMATCH_DHCP_EXCLUDED", "minor", "DHCP excluded range differs."),
+        ("MISMATCH_DHCP_EXCLUDED", "major", "DHCP excluded range differs."),
         ("MISMATCH_DHCP_BAD_EXCLUSION", "minor", "Excluded IPs outside pool range."),
         ("EXTRA_DHCP_POOL", "major", "DHCP configured when it should not be."),
         (
@@ -349,7 +349,7 @@ def _default_rubric_rules():
             "Default routes not redistributed when required.",
         ),
         ("MISSING_DHCP_POOL", "major", "Required DHCP pool not configured."),
-        ("MISSING_DHCP_EXCLUDED", "minor", "DHCP excluded range not configured."),
+        ("MISSING_DHCP_EXCLUDED", "major", "DHCP excluded range not configured."),
         ("MISSING_DHCP_EMPTY_POOL", "minor", "DHCP pool created but no addresses."),
         ("MISSING_NAT_INSIDE", "major", "NAT inside not declared on interface."),
         ("MISSING_NAT_OUTSIDE", "major", "NAT outside not declared on interface."),
