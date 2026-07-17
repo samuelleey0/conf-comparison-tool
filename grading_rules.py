@@ -24,14 +24,19 @@ RUBRIC_RULES_PATH = BASE_DIR / "config" / "rubric_rules.json"
 DEFAULT_DISABLED_RULE_CODES = {
     # These checks remain visible as evidence, but the current default marking
     # profile should not deduct marks for them.
-    "EXTRA_DESCRIPTION",
+    "EXTRA_ACL",
     "EXTRA_MOTD",
-    "MISSING_LINE_PASSWORD",
+    "EXTRA_USER",
+    "MISSING_ACL",
     "MISSING_MOTD",
+    "MISSING_USER",
     "MISMATCH_HTTP_SERVER",
     "MISMATCH_LINE_PASSWORD",
     "MISMATCH_MOTD",
     "MISMATCH_ROUTING_PASSIVE",
+    "VERIFY_DHCP_POOL_MISSING",
+    "VERIFY_DHCP_NOT_ASSIGNING",
+    "VERIFY_PORT_SECURITY_CURRENT_COUNT",
     "MISMATCH_VTY_TRANSPORT",
     "VERIFY_GATEWAY_WRONG",
     "VERIFY_IFACE_ADMIN_UP",
@@ -149,7 +154,7 @@ def _default_rubric_rules():
             "Static routes installed when there should be none.",
         ),
         ("MISMATCH_DHCP_POOL", "major", "DHCP pool properties incorrect."),
-        ("MISMATCH_DHCP_EXCLUDED", "minor", "DHCP excluded range differs."),
+        ("MISMATCH_DHCP_EXCLUDED", "major", "DHCP excluded range differs."),
         ("MISMATCH_DHCP_BAD_EXCLUSION", "minor", "Excluded IPs outside pool range."),
         ("EXTRA_DHCP_POOL", "major", "DHCP configured when it should not be."),
         (
@@ -216,12 +221,6 @@ def _default_rubric_rules():
             "Interface shutdown but configured.",
         ),
         ("MISMATCH_CLOCK_RATE", "major", "Serial clock rate differs."),
-        ("MISSING_DESCRIPTION", "minor", "Required interface description not set."),
-        (
-            "EXTRA_DESCRIPTION",
-            "minor",
-            "Interface description set when it should not be.",
-        ),
         (
             "EXTRA_IFACE_CONFIGURED",
             "major",
@@ -350,7 +349,7 @@ def _default_rubric_rules():
             "Default routes not redistributed when required.",
         ),
         ("MISSING_DHCP_POOL", "major", "Required DHCP pool not configured."),
-        ("MISSING_DHCP_EXCLUDED", "minor", "DHCP excluded range not configured."),
+        ("MISSING_DHCP_EXCLUDED", "major", "DHCP excluded range not configured."),
         ("MISSING_DHCP_EMPTY_POOL", "minor", "DHCP pool created but no addresses."),
         ("MISSING_NAT_INSIDE", "major", "NAT inside not declared on interface."),
         ("MISSING_NAT_OUTSIDE", "major", "NAT outside not declared on interface."),
@@ -443,11 +442,6 @@ def _default_rubric_rules():
         ("EXTRA_ACL_APPLIED", "minor", "ACL applied to wrong interface."),
         ("EXTRA_VLAN", "minor", "Extra VLAN created."),
         ("EXTRA_VTY_CONFIG", "minor", "Extra VTY command added."),
-        (
-            "EXTRA_DESCRIPTION",
-            "minor",
-            "Interface description added when not required.",
-        ),
         ("EXTRA_USER", "minor", "Extra user account created."),
         ("EXTRA_TRUNK_ALLOWED_VLAN", "minor", "Extra VLAN allowed on trunk."),
         ("EXTRA_STP_PRIORITY", "minor", "Extra STP priority configured."),
@@ -460,7 +454,7 @@ def _default_rubric_rules():
         ("EXTRA_LINE_ENABLED", "minor", "Line access enabled when it should not be."),
         (
             "VERIFY_IFACE_DOWN",
-            "minor",
+            "major",
             "Interface should be up but is down in show ip interface brief.",
         ),
         (
@@ -582,6 +576,11 @@ def _default_rubric_rules():
             "VERIFY_PORT_SECURITY_MAX_WRONG",
             "minor",
             "Port security maximum differs in show port-security.",
+        ),
+        (
+            "VERIFY_PORT_SECURITY_CURRENT_COUNT",
+            "minor",
+            "Port security current secure address count differs in show port-security.",
         ),
         (
             "VERIFY_PORT_SECURITY_ACTION_WRONG",
@@ -724,8 +723,6 @@ def _default_rubric_rules():
         "MISMATCH_ENCAPSULATION": [r"\.interfaces\..+\.encapsulation$"],
         "MISSING_ENCAPSULATION": [r"\.interfaces\..+\.encapsulation$"],
         "MISMATCH_CONFIGURED_IF_SHUTDOWN": [r"\.configured_if_shutdown$"],
-        "MISSING_DESCRIPTION": [r"\.interfaces\..+\.description$"],
-        "EXTRA_DESCRIPTION": [r"\.interfaces\..+\.description$"],
         "MISMATCH_GATEWAY_ADDRESS": [r"\.switching\.default_gateway$"],
         "MISSING_DEFAULT_GATEWAY": [r"\.switching\.default_gateway$"],
         "MISMATCH_SUB_INT_VLAN": [r"\.subinterface$"],
@@ -1282,13 +1279,24 @@ def classify_items(items, policy, rubric_rules=None):
         item_copy["deduplicated"] = deduplicated
         item_copy["verification_rule_deduplicated"] = False
         item_copy["chain_stopped"] = bool(item_copy.get("chain_stopped", False))
-        item_copy["counts_toward_marking"] = (
-            item_copy.get("status") in {"missing", "extra", "mismatch"}
+        status = item_copy.get("status")
+        rule_key = (
+            item_copy.get("rule_code")
+            or item_copy.get("outcome_code")
+            or item_copy.get("rule_id")
+            or ""
+        )
+        scored_verification = (
+            status in {"missing", "extra", "mismatch"}
+            and rule_key == "VERIFY_IFACE_DOWN"
             and not deduplicated
         )
+        item_copy["verification_display_only"] = (
+            status in {"missing", "extra", "mismatch"} and not scored_verification
+        )
+        item_copy["counts_toward_marking"] = scored_verification
         classified_verification.append(item_copy)
 
-        status = item_copy.get("status")
         if status in summary:
             summary[status] += 1
 
@@ -1300,7 +1308,6 @@ def classify_items(items, policy, rubric_rules=None):
             else:
                 severity = item_copy.get("severity", "minor")
                 rule_id = item_copy.get("rule_id")
-                rule_key = item_copy.get("rule_code") or item_copy.get("outcome_code") or rule_id or ""
                 verification_hit_key = (
                     item_copy.get("hostname") or "",
                     item_copy.get("block_name") or "",
@@ -1314,13 +1321,9 @@ def classify_items(items, policy, rubric_rules=None):
                     if rule_key:
                         verification_rule_hits.add(verification_hit_key)
                     summary["verify_failed"] += 1
-                    if severity == "major":
-                        summary["major"] += 1
-                    else:
-                        if rule_id:
-                            if rule_id not in minor_rule_hits:
-                                summary["minor"] += 1
-                                minor_rule_hits.add(rule_id)
+                    if scored_verification:
+                        if severity == "major":
+                            summary["major"] += 1
                         else:
                             summary["minor"] += 1
         else:

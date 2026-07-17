@@ -10,7 +10,11 @@ import os
 import shutil
 from pathlib import Path
 
-from comparison_engine.parser import normalize_parsed_config
+from comparison_engine.parser import (
+    PARSED_SCHEMA_VERSION,
+    normalize_parsed_config,
+    parse_device_logs,
+)
 from comparison_wrapper import (
     handle_template_upload,
     import_logs_folder_strict,
@@ -247,6 +251,20 @@ def load_template_configs(template_name: str):
         try:
             with open(config_path, "r") as handle:
                 data = json.load(handle) or {}
+            schema_version = (
+                int(data.get("schema_version") or 0) if isinstance(data, dict) else 0
+            )
+            logs_dir = host_dir / "logs"
+            if schema_version < PARSED_SCHEMA_VERSION and logs_dir.is_dir():
+                log_files = [
+                    str(entry)
+                    for entry in sorted(logs_dir.iterdir())
+                    if entry.is_file() and entry.name != "config.json"
+                ]
+                if log_files:
+                    data = normalize_parsed_config(parse_device_logs(log_files))
+                    with open(config_path, "w", encoding="utf-8") as handle:
+                        json.dump(data, handle, indent=4)
             template_configs[host_dir.name] = normalize_parsed_config(data)
         except Exception:
             continue

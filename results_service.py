@@ -1059,6 +1059,7 @@ def _extract_running_config_excerpt(lines, feature: str, expected=None, actual=N
             )
             if block:
                 return block
+            return "No 'ip route' command found in running-config."
 
     if len(parts) >= 3 and parts[1] == "dhcp_pools":
         pool_name = parts[2]

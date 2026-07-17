@@ -116,6 +116,20 @@ function canDisableRuleFromResult(item) {
   return true;
 }
 
+function displayFeatureLabel(item) {
+  const feature = String(item?.feature || "");
+  const code = item?.rule_code || item?.outcome_code || item?.rule_id || "";
+  if (code === "VERIFY_IFACE_DOWN") {
+    const match = feature.match(
+      /^verification\.show_ip_interface_brief\.interfaces\.([^.]*)\.protocol$/
+    );
+    if (match) {
+      return `Interface ${match[1]} protocol status`;
+    }
+  }
+  return feature || "(unknown)";
+}
+
 async function disableRubricRule(ruleCode, studentId = "") {
   // Rule changes are global, not per-student. Results refresh immediately so the
   // user can see the same finding become skipped/unscored.
@@ -437,7 +451,8 @@ async function openErrorContext(report, item) {
   const body = document.getElementById("errorContextBody");
   if (!modal || !title || !meta || !body) return;
 
-  title.textContent = item.feature || "Config Context";
+  const displayLabel = displayFeatureLabel(item);
+  title.textContent = displayLabel || "Config Context";
   meta.textContent = "Loading config context...";
   body.innerHTML = `
     <div class="context-tabs">
@@ -470,7 +485,7 @@ async function openErrorContext(report, item) {
       }),
     });
 
-    title.textContent = item.feature || "Config Context";
+    title.textContent = displayLabel || "Config Context";
     meta.textContent = [
       payload.context_path ? `Context: ${payload.context_path}` : null,
       payload.highlight_key ? `Field: ${payload.highlight_key}` : null,
@@ -630,6 +645,8 @@ function _renderErrorItem(report, item, isVerification) {
   const isVerificationRuleDedup = item.verification_rule_deduplicated === true;
   const isRuleDedup = item.rule_deduplicated === true;
   const isSkipped = item.status === "skipped";
+  const isVerificationDisplayOnly =
+    isVerification && item.counts_toward_marking === false;
   const disableRuleCode = item.rule_code || item.rule_id || "";
   const disableAction = canDisableRuleFromResult(item)
     ? `
@@ -706,6 +723,10 @@ function _renderErrorItem(report, item, isVerification) {
     severityClass = "severity-verified";
     statusLabel = `${item.status || "mismatch"} • ${severity.toUpperCase()} (NOT SCORED — same rule already counted)`;
     div.className = "result-item result-item--dedup";
+  } else if (isVerificationDisplayOnly) {
+    severityClass = "severity-verified";
+    statusLabel = `${item.status || "mismatch"} • EVIDENCE ONLY`;
+    div.className = "result-item result-item--dedup";
   } else {
     severityClass = severity === "major" ? "severity-major" : "severity-minor";
     statusLabel = `${item.status || "mismatch"} • ${severity.toUpperCase()}`;
@@ -726,10 +747,12 @@ function _renderErrorItem(report, item, isVerification) {
   } else if (isSkipped) {
     const ruleCode = item.rule_code || item.rule_id || "matched rule";
     dedupInfo = `<div class="dedup-ref">↳ Hidden from scoring because <strong>${escapeHtml(ruleCode)}</strong> is disabled in Rubric Rules</div>`;
+  } else if (isVerificationDisplayOnly) {
+    dedupInfo = `<div class="dedup-ref">↳ Verification evidence only; not counted toward marking</div>`;
   }
 
   div.innerHTML = `
-    <div class="meta">${item.feature || "(unknown)"}</div>
+    <div class="meta">${escapeHtml(displayFeatureLabel(item))}</div>
     ${codeLine}
     <div class="status ${severityClass}">${statusLabel}</div>
     ${dedupInfo}
